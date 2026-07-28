@@ -8,6 +8,7 @@ import {
 } from '../db/monitors.js';
 import { recordTelemetrySampled } from '../db/telemetry.js';
 import { listPours } from '../db/pours.js';
+import { PourDeduper } from './pourDedupe.js';
 
 export interface TapState {
   tapId: number;
@@ -28,6 +29,7 @@ function refKey(ref: MonitorRef): string {
 export class StateManager {
   private live = new Map<string, { pouring: boolean; curServMl: number | null }>();
   private online = new Map<string, boolean>();
+  private deduper = new PourDeduper();
 
   constructor(private db: Database.Database, private bus: EventBus) {}
 
@@ -60,15 +62,20 @@ export class StateManager {
     });
 
     this.bus.on('pour_completed', (e) => {
+      // Live pouring state always clears on completion, even when the pour itself turns
+      // out to be a duplicate report — the physical pour did finish, only the recorded
+      // transaction is suppressed.
       this.live.delete(refKey(e.monitor));
-      const tapId = resolveTapForRef(this.db, e.monitor);
-      if (tapId !== null) {
-        const keg = getActiveKegForTap(this.db, tapId);
-        if (keg) {
-          recordPourTx(this.db, {
-            kegId: keg.id, ts: e.ts, volumeMl: e.volumeMl,
-            durationMs: e.durationMs, source: e.source,
-          });
+      if (this.deduper.shouldRecord(e.monitor, e.volumeMl, e.ts)) {
+        const tapId = resolveTapForRef(this.db, e.monitor);
+        if (tapId !== null) {
+          const keg = getActiveKegForTap(this.db, tapId);
+          if (keg) {
+            recordPourTx(this.db, {
+              kegId: keg.id, ts: e.ts, volumeMl: e.volumeMl,
+              durationMs: e.durationMs, source: e.source,
+            });
+          }
         }
       }
       changed(e.ts);
