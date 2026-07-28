@@ -9,6 +9,9 @@ export interface User {
   isDrinker: boolean; avatarColor: string | null; createdAt: string;
 }
 
+// Precomputed dummy hash for timing-safe password verification (prevents timing oracles)
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
+
 function rowToUser(r: any): User {
   return {
     id: r.id, username: r.username, displayName: r.display_name, role: r.role,
@@ -53,8 +56,10 @@ export function listDrinkers(db: Database.Database): User[] {
 
 export function verifyPassword(db: Database.Database, username: string, password: string): User | null {
   const r = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
-  if (!r?.password_hash) return null;
-  return bcrypt.compareSync(password, r.password_hash) ? rowToUser(r) : null;
+  // Always run bcrypt comparison to prevent timing oracles
+  const hash = r?.password_hash ?? DUMMY_HASH;
+  const matches = bcrypt.compareSync(password, hash);
+  return matches && r?.password_hash ? rowToUser(r) : null;
 }
 
 export function countAdmins(db: Database.Database): number {

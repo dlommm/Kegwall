@@ -17,11 +17,12 @@ export function createSession(db: Database.Database, userId: number): { token: s
 }
 
 export function getUserForToken(db: Database.Database, token: string): User | null {
+  const hash = hashToken(token);
   const r = db.prepare('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?')
-    .get(hashToken(token)) as { user_id: number; expires_at: string } | undefined;
+    .get(hash) as { user_id: number; expires_at: string } | undefined;
   if (!r) return null;
   if (new Date(r.expires_at).getTime() < Date.now()) {
-    db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+    db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hash);
     return null;
   }
   return getUser(db, r.user_id);
