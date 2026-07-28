@@ -11,6 +11,7 @@ import { wsRoutes } from './routes/ws.js';
 import { publicRoutes } from './routes/public.js';
 import { sourcesRoutes } from './routes/sources.js';
 import { kegtronRoutes } from './routes/kegtron.js';
+import { activityRoutes } from './routes/activity.js';
 import { uploadsRoutes } from './routes/uploads.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
@@ -106,6 +107,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
   await kegtronRoutes(app); // direct call — see encapsulation note above
+  await activityRoutes(app); // direct call — see encapsulation note above
   const dataDir = resolve(opts.dataDir ?? './data');
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering

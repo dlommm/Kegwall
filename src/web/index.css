@@ -979,3 +979,192 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * Dashboard home (Phase 4 Task 3). Same quiet-working-tool surface as the rest of the
+ * admin shell — a card grid, sentence-case headings, and the ONE place liquid/SRM
+ * language reappears outside the wall/menu: the tap pill's small fill swatch, never the
+ * wall's full LiquidFill treatment.
+ */
+.dashboard__title {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.dashboard-card__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.dashboard-card__stat {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dashboard-card__quiet {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.dashboard-tap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dashboard-tap-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dashboard-tap-pill__bar {
+  position: relative;
+  width: 3.5rem;
+  height: 0.5rem;
+  flex: none;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.dashboard-tap-pill__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.dashboard-tap-pill[data-kicked='true'] .dashboard-tap-pill__bar {
+  opacity: 0.6;
+}
+
+.dashboard-tap-pill__meta {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.dashboard-tap-pill__label {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.dashboard-tap-pill__beer {
+  overflow: hidden;
+  flex: 1;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-tap-pill__level {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.dashboard-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dashboard-source-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.dashboard-source-row__name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dashboard-source-row__detail,
+.dashboard-source-row__seen {
+  grid-column: 2;
+  color: var(--text-dim);
+}
+
+.dashboard-source-badge {
+  grid-row: span 2;
+  align-self: start;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.dashboard-source-badge--healthy {
+  background: color-mix(in srgb, #4caf7d 22%, transparent);
+  color: #8fe0b8;
+}
+
+.dashboard-source-badge--unhealthy {
+  background: color-mix(in srgb, #e0793d 22%, transparent);
+  color: #f2b088;
+}
+
+.dashboard-source-badge--unconfigured {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text-dim);
+}
+
+.dashboard-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-activity-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  font-size: 0.85rem;
+}
+
+.dashboard-activity-row:last-child {
+  border-bottom: none;
+}
+
+.dashboard-activity-row__text {
+  color: var(--text);
+}
+
+.dashboard-activity-row__time {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
