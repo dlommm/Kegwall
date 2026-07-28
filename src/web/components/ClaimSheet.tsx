@@ -161,6 +161,24 @@ export function ClaimSheet() {
   const [errorKind, setErrorKind] = useState<ClaimErrorKind | null>(null);
   const [claimedDrinker, setClaimedDrinker] = useState<PublicDrinker | null>(null);
 
+  // "Latest value" ref for the current selection: read from inside handleSelectDrinker's
+  // async continuation below, where a plain closure over `selectedPour` would stay pinned
+  // to whatever it was when that particular call started rather than reflecting whether
+  // the selection has since moved on (sheet closed, or a different pour opened) — see the
+  // generation-guard comment there.
+  const selectedPourRef = useRef<RecentPour | null>(null);
+  selectedPourRef.current = selectedPour;
+
+  // Synchronous re-entrancy guard: two clicks landing in the same JS turn (e.g. a fast
+  // double-tap) both fire before React's `disabled={status === 'claiming'}` re-render can
+  // apply to the real DOM, so without this a second `claimPour` call could go out before
+  // the first's response lands — and if that second response came back a 409 (the pour
+  // already got claimed by the first call), it would clobber the user's own success state
+  // with an "already claimed" notice. Checked-and-set synchronously, before any `await`,
+  // so there's no window for a second call to slip through; reset in `finally` regardless
+  // of how the call ends.
+  const claimInFlightRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
     const loadPours = () => {
@@ -204,29 +222,43 @@ export function ClaimSheet() {
 
   async function handleSelectDrinker(drinker: PublicDrinker) {
     if (!selectedPour) return;
+    if (claimInFlightRef.current) return;
+    claimInFlightRef.current = true;
+
+    const pourId = selectedPour.id;
     setStatus('claiming');
     setErrorKind(null);
-    const result = await claimPour(selectedPour.id, drinker.id);
 
-    if (result.ok) {
-      setStatus('success');
-      setClaimedDrinker(drinker);
-      setPours((prev) => prev.filter((p) => p.id !== selectedPour.id));
-      return;
-    }
-    if (result.status === 409) {
+    try {
+      const result = await claimPour(pourId, drinker.id);
+
+      // Generation guard: ignore a stale response if the selection has moved on (sheet
+      // closed, or a different pour opened) since this specific call started — applying
+      // it now would show the wrong pour's claim result on whatever's currently open.
+      if (selectedPourRef.current?.id !== pourId) return;
+
+      if (result.ok) {
+        setStatus('success');
+        setClaimedDrinker(drinker);
+        setPours((prev) => prev.filter((p) => p.id !== pourId));
+        return;
+      }
+      if (result.status === 409) {
+        setStatus('error');
+        setErrorKind('conflict');
+        setPours((prev) => prev.filter((p) => p.id !== pourId));
+        return;
+      }
+      if (result.status === 429) {
+        setStatus('error');
+        setErrorKind('rateLimited');
+        return;
+      }
       setStatus('error');
-      setErrorKind('conflict');
-      setPours((prev) => prev.filter((p) => p.id !== selectedPour.id));
-      return;
+      setErrorKind('other');
+    } finally {
+      claimInFlightRef.current = false;
     }
-    if (result.status === 429) {
-      setStatus('error');
-      setErrorKind('rateLimited');
-      return;
-    }
-    setStatus('error');
-    setErrorKind('other');
   }
 
   return (

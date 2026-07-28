@@ -177,4 +177,74 @@ describe('ClaimSheet', () => {
     unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  describe('re-entrancy / stale-response guard', () => {
+    it('a rapid double-tap only fires claimPour once, so a stale second response cannot clobber the success state', async () => {
+      // If a second call went out, its (later) response would be this 409 — proving the
+      // guard by showing that response never gets consumed/applied.
+      (claimPour as Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            id: 1, kegId: 1, ts: '2026-07-28T12:00:00.000Z', volumeMl: 450, durationMs: null, source: 'cloud', drinkerId: 1,
+          },
+        })
+        .mockResolvedValueOnce({ ok: false, status: 409, message: 'Pour already claimed' });
+
+      render(<ClaimSheet />);
+      const buttons = await openPicker();
+      const samButton = buttons[0]!;
+
+      // Two clicks dispatched back-to-back in the same act(), before React's
+      // disabled={status === 'claiming'} re-render can reach the real DOM — the exact
+      // window the synchronous claimInFlightRef guard closes.
+      await act(async () => {
+        fireEvent.click(samButton);
+        fireEvent.click(samButton);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(claimPour).toHaveBeenCalledTimes(1);
+      expect(await screen.findByTestId('claim-sheet-success')).toBeInTheDocument();
+      expect(screen.queryByTestId('claim-sheet-conflict')).not.toBeInTheDocument();
+    });
+
+    it('ignores a stale claim response once the selection has moved on to a different pour', async () => {
+      (getRecentPours as Mock).mockResolvedValue({
+        ok: true,
+        data: [
+          pour({ id: 1, beerName: 'Citra IPA', tapNumber: 1 }),
+          pour({ id: 2, beerName: 'Pilsner', tapNumber: 2 }),
+        ],
+      });
+      let resolveClaimA: (value: unknown) => void = () => {};
+      (claimPour as Mock).mockReturnValueOnce(new Promise((resolve) => { resolveClaimA = resolve; }));
+
+      render(<ClaimSheet />);
+      const pourButtons = await screen.findAllByTestId('claim-sheet-pour');
+
+      fireEvent.click(pourButtons[0]!); // open pour A (Citra IPA)
+      const drinkerButtonsA = await screen.findAllByTestId('claim-sheet-drinker');
+      fireEvent.click(drinkerButtonsA[0]!); // claim in flight for pour A, unresolved
+
+      fireEvent.keyDown(document, { key: 'Escape' }); // close before it resolves
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      fireEvent.click((await screen.findAllByTestId('claim-sheet-pour'))[1]!); // open pour B
+      expect(screen.getByRole('dialog')).toHaveTextContent('Pilsner');
+
+      // Pour A's stale response finally lands after the selection moved on.
+      await act(async () => {
+        resolveClaimA({ ok: false, status: 409, message: 'Pour already claimed' });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Must still show pour B's own (idle) sheet, not pour A's stale conflict notice.
+      expect(screen.getByRole('dialog')).toHaveTextContent('Pilsner');
+      expect(screen.queryByTestId('claim-sheet-conflict')).not.toBeInTheDocument();
+    });
+  });
 });
