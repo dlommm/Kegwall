@@ -163,6 +163,24 @@
   text-transform: uppercase;
 }
 
+/*
+ * Task 7 polish-audit fix: the wall's design direction calls for the beer name to stay
+ * readable "from a couch at 3m" and specifically targets >= ~2.5vw at 2 columns — the
+ * flat 1.75rem above (28px) cleared neither a 1080p wall (needs >=48px) nor a 4K one
+ * (needs >=96px), since it never scaled with the viewport at all. Scoped to the wall's
+ * own templates (`full`/`standard`/`minimal`) only, NOT `.tap-card--compact` — that
+ * template is shared with /menu's mobile tap list (see MenuPage.tsx), where a
+ * viewport-scaled name would either be illegibly small on a narrow phone or blow out a
+ * dense row on a wide desktop browser. `clamp()`'s floor keeps a narrow/unusual wall
+ * viewport at least as readable as before; the ceiling caps runaway growth past 4K
+ * (2.6vw already comfortably clears the 2.5vw floor at both 1080p and 4K).
+ */
+.tap-card--full .tap-card__name,
+.tap-card--standard .tap-card__name,
+.tap-card--minimal .tap-card__name {
+  font-size: clamp(1.75rem, 2.6vw, 6.5rem);
+}
+
 .tap-card__tap-label {
   font-size: 0.75rem;
   color: var(--text-dim);
