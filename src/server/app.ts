@@ -6,6 +6,7 @@ import { createContext, type AppContext } from './context.js';
 import { authRoutes } from './routes/auth.js';
 import { crudRoutes } from './routes/crud.js';
 import { wsRoutes } from './routes/ws.js';
+import { publicRoutes } from './routes/public.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 
 declare module 'fastify' {
@@ -44,6 +45,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await crudRoutes(app);   // direct call — see encapsulation note above
   await wsRoutes(app);     // direct call — @fastify/websocket it registers internally
                            // attaches to the root instance, same reasoning as above
+  await publicRoutes(app); // direct call — see encapsulation note above
 
   return app;
 }
