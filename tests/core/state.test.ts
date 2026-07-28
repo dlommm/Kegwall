@@ -84,4 +84,45 @@ describe('StateManager', () => {
     });
     expect(sm.getTapStates().find((t) => t.tapId === tapId)!.keg!.volDispensedMl).toBe(0);
   });
+
+  it('suppresses a duplicate pour_completed within the dedupe window but still clears live pouring state and emits state_changed', () => {
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:00:00.000Z',
+    });
+    bus.emit('pour_started', { monitor: ref, ts: '2026-07-27T01:00:05.000Z' });
+    let tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.pouring).toBe(true);
+
+    const fn = vi.fn();
+    bus.on('state_changed', fn);
+    // Same pour reported again by a different source (udp) 10s later, volume within
+    // tolerance -> deduped: no second row in `pours`, but live state still clears.
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 405, durationMs: 6000, source: 'udp',
+      ts: '2026-07-27T01:00:10.000Z',
+    });
+
+    expect(fn).toHaveBeenCalledWith(expect.objectContaining({ scope: 'taps' }));
+    tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.pouring).toBe(false);
+    expect(tap.curServMl).toBeNull();
+    expect((db.prepare('SELECT COUNT(*) c FROM pours').get() as any).c).toBe(1);
+    expect(tap.lastPour?.volumeMl).toBe(400);
+  });
+
+  it('records a second pour_completed outside the dedupe window normally', () => {
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:00:00.000Z',
+    });
+    // 120s later -- outside the widened 90s dedupe window (Final review I2).
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:02:00.000Z',
+    });
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect((db.prepare('SELECT COUNT(*) c FROM pours').get() as any).c).toBe(2);
+    expect(tap.lastPour?.volumeMl).toBe(400);
+  });
 });

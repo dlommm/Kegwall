@@ -137,6 +137,27 @@ describe('crud routes', () => {
     expect(after.untappd.clientSecret).toBe('••••');
   });
 
+  it('a later PATCH of an unrelated field does not wipe an already-configured secret '
+    + '(regression: zod .partial() fills omitted keys with schema defaults, so a naive '
+    + 'write loop over the fully-defaulted parsed body would silently reset kegtronApiKey '
+    + 'back to null)', async () => {
+    await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { kegtronApiKey: 'realapikey789' },
+    });
+
+    const unrelated = await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { siteName: 'Renamed Taproom' },
+    });
+    expect(unrelated.statusCode).toBe(200);
+
+    const res = await app.inject({ method: 'GET', url: '/api/settings', cookies: adminCookies });
+    const body = res.json();
+    expect(body.siteName).toBe('Renamed Taproom');
+    expect(body.kegtronApiKey).toBe('••••y789');
+  });
+
   it('setting a real new kegtronApiKey via PATCH still works', async () => {
     await app.inject({
       method: 'PATCH', url: '/api/settings', cookies: adminCookies,
@@ -148,6 +169,49 @@ describe('crud routes', () => {
     });
     expect(patch2.statusCode).toBe(200);
     expect(patch2.json().kegtronApiKey).toBe('••••y456');
+  });
+
+  it('never leaks the mdash device key through /api/monitors, for admin or viewer', async () => {
+    const DEVICE_KEY = 'device-secret-shhh';
+    app.ctx.bus.emit('device_discovered', {
+      monitor: { type: 'kegtron_pro', identifier: 'device1', portIndex: 0 },
+      serial: 'SN1',
+      meta: { deviceKey: DEVICE_KEY, maker: 'Acme', style: 'Lager' },
+    });
+
+    const adminList = await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies });
+    expect(adminList.statusCode).toBe(200);
+    expect(JSON.stringify(adminList.body)).not.toContain(DEVICE_KEY);
+    const adminMon = adminList.json().find((m: any) => m.identifier === 'device1');
+    expect(adminMon.meta).not.toHaveProperty('deviceKey');
+    expect(adminMon.meta).toMatchObject({ maker: 'Acme', style: 'Lager' });
+
+    await app.inject({
+      method: 'POST', url: '/api/users', cookies: adminCookies,
+      payload: { username: 'vwmon', displayName: 'VwMon', password: 'password1', role: 'viewer' },
+    });
+    const viewerLogin = await app.inject({
+      method: 'POST', url: '/api/auth/login', payload: { username: 'vwmon', password: 'password1' },
+    });
+    const viewerCookies = { session: viewerLogin.cookies.find((c: any) => c.name === 'session')!.value };
+
+    const viewerList = await app.inject({ method: 'GET', url: '/api/monitors', cookies: viewerCookies });
+    expect(viewerList.statusCode).toBe(200);
+    expect(JSON.stringify(viewerList.body)).not.toContain(DEVICE_KEY);
+    const viewerMon = viewerList.json().find((m: any) => m.identifier === 'device1');
+    expect(viewerMon.meta).not.toHaveProperty('deviceKey');
+
+    // bind's response is sanitized too.
+    const tap = (await app.inject({
+      method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+    })).json();
+    const bind = await app.inject({
+      method: 'POST', url: `/api/monitors/${adminMon.id}/bind`, cookies: adminCookies,
+      payload: { tapId: tap.id },
+    });
+    expect(bind.statusCode).toBe(200);
+    expect(JSON.stringify(bind.body)).not.toContain(DEVICE_KEY);
+    expect(bind.json().meta).not.toHaveProperty('deviceKey');
   });
 
   it('rejects a second on_tap keg for an occupied tap with 409', async () => {

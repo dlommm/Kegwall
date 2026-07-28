@@ -8,6 +8,27 @@ export const settingsSchema = z.object({
   displayUnits: z.enum(['us', 'metric']).default('us'),
   servingSizeMl: z.number().int().positive().default(473), // 16 oz
   kegtronApiKey: z.string().nullable().default(null),
+  // Hidden (not surfaced in any admin UI form — there is no dynamic settings-schema
+  // renderer in this app to begin with) mdash.net REST base URL override. Exists purely
+  // for test injectability (Task 9: routes/kegtron.ts's MdashClient, same pattern as
+  // MdashClient's own constructor-level `baseUrl` option / KegtronCloudSource's) so
+  // integration tests can point the import/reset-volume routes at a fake local server
+  // instead of the real mdash.net. Production behavior is unaffected by its presence:
+  // the default reproduces MdashClient's own DEFAULT_BASE_URL exactly, and nothing else
+  // reads this key (KegtronCloudSource is wired with no baseUrl override in bootstrap.ts
+  // and so always uses that same default too).
+  kegtronBaseUrl: z.string().default('https://mdash.net'),
+  // Persisted per-device servings-backfill high-water mark: mdash device id ->
+  // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
+  // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
+  // Final review C1 fix: `backfillDone` on KegtronCloudSource's per-device state was
+  // in-memory only, so every process restart AND every source-relevant settings PATCH
+  // (which tears down and rebuilds every source, see bootstrap.ts) re-ran the full
+  // 7-day servings backfill from scratch, re-emitting (and re-recording, since the
+  // in-memory PourDeduper is also reset by a restart) up to 7 days of ALREADY-imported
+  // pours every time. This cursor lets a fresh backfill start from wherever the last
+  // one left off instead of always re-requesting the full 7-day window.
+  backfillCursors: z.record(z.string(), z.string()).default({}),
   udpEnabled: z.boolean().default(false),
   bleDirectEnabled: z.boolean().default(false),
   mqtt: z

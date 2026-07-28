@@ -6,14 +6,22 @@ import {
 } from '../db/beers.js';
 import { createTap, listTaps, updateTap, deleteTap, getTap } from '../db/taps.js';
 import { listKegs, getKeg, swapKeg, createKeg } from '../db/kegs.js';
-import { listMonitors, bindMonitorToTap } from '../db/monitors.js';
+import { listMonitors, bindMonitorToTap, sanitizeMonitor } from '../db/monitors.js';
 import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
 } from '../db/users.js';
 import { wallConfigSchema } from '../core/wallConfig.js';
-import { settingsSchema } from '../db/settings.js';
+import { settingsSchema, type Settings } from '../db/settings.js';
 import { NotFoundError } from '../core/errors.js';
+import { registerConfiguredSources } from '../ingest/bootstrap.js';
+
+// Settings fields whose value actually changes which ingest sources should be running
+// (see bootstrap.ts's registerConfiguredSources) — a PATCH touching any of these
+// triggers a live stop/reconfigure/restart cycle of ctx.sources (Task 8 brief).
+const SOURCE_RESTART_KEYS: readonly (keyof Settings)[] = [
+  'kegtronApiKey', 'udpEnabled', 'mqtt', 'bleDirectEnabled',
+];
 
 const beerSchema = z.object({
   name: z.string().min(1),
@@ -107,12 +115,16 @@ export async function crudRoutes(app: FastifyInstance) {
   });
 
   // --- monitors ---
-  app.get('/api/monitors', viewer, async () => listMonitors(db));
+  // Every response below is run through sanitizeMonitor() — meta.deviceKey (the mdash
+  // DEVICE_PUBLIC_KEY) must never leave the server; see that function's doc comment in
+  // db/monitors.ts for why (a viewer holding it could call mdash.net directly with full
+  // device RPC control, bypassing the editor-role gate on routes/kegtron.ts).
+  app.get('/api/monitors', viewer, async () => listMonitors(db).map(sanitizeMonitor));
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);
     const mon = bindMonitorToTap(db, Number((req.params as any).id), body.tapId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
-    return mon;
+    return sanitizeMonitor(mon);
   });
 
   // --- pours ---
@@ -205,12 +217,36 @@ export async function crudRoutes(app: FastifyInstance) {
   app.get('/api/settings', admin, async () => app.ctx.settings.masked());
   app.patch('/api/settings', admin, async (req) => {
     const body = settingsSchema.partial().parse(req.body);
+    // zod v4's `.partial()` fills every OMITTED key with that field's schema default
+    // (not "leave unset" — verified directly against this repo's zod version), so
+    // `body`/`sanitized` below always carry every Settings key regardless of what the
+    // client actually sent. `requestedKeys` — the literal top-level keys present on the
+    // raw request body — is what both the write loop and the restart-key check must
+    // scope to; iterating `sanitized`'s keys directly would silently reset every
+    // NOT-sent field back to its schema default on every single PATCH (e.g. a bare
+    // `{siteName: 'x'}` PATCH would wipe an already-configured `kegtronApiKey` back to
+    // null) and would also make `restartSources` spuriously true on every PATCH.
+    const requestedKeys = new Set(Object.keys(req.body as Record<string, unknown>));
     // A GET body round-tripped straight back through PATCH carries masked
     // secret placeholders ('••••...'); sanitizePatch drops/merges those so
     // they never overwrite the real stored secrets (see settings.ts).
     const sanitized = app.ctx.settings.sanitizePatch(body);
+    const restartSources = SOURCE_RESTART_KEYS.some((k) => requestedKeys.has(k) && k in sanitized);
     for (const [k, v] of Object.entries(sanitized)) {
+      if (!requestedKeys.has(k)) continue;
       app.ctx.settings.set(k as any, v as any);
+    }
+    // Only restart a source set that's actually live — `isStarted()` is false in every
+    // test that builds the app with the default `startSources: false` and never
+    // manually starts sources, so an incidental PATCH there (e.g. existing tests that
+    // set a fake kegtronApiKey) never spins up a real KegtronCloudSource against the
+    // live mdash.net API. In production this is always true by the time an
+    // authenticated PATCH can reach this route (index.ts always passes
+    // startSources: true). See task-8-report.md "Deviations".
+    if (restartSources && app.ctx.sources.isStarted()) {
+      await app.ctx.sources.stopAll();
+      registerConfiguredSources(app.ctx);
+      await app.ctx.sources.startAll();
     }
     return app.ctx.settings.masked();
   });
