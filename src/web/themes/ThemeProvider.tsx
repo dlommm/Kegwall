@@ -2,12 +2,9 @@ import type { ReactNode } from 'react';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { resolveThemeTokens, getTheme } from './themes';
 
-// Self-hosted fonts (no CDN) — see the task report for why these two faces
-// were picked. Importing here (the theme layer, always mounted alongside
-// ThemeProvider) rather than in themes.ts keeps themes.ts a plain, side-effect
-// -free data module.
-import '@fontsource-variable/oswald';
-import '@fontsource-variable/inter';
+// Self-hosted fonts (no CDN): imported once from src/web/main.tsx (the app's
+// unconditional entry chunk), not here — see main.tsx for why. themes.ts stays
+// a plain, side-effect-free data module either way.
 
 /**
  * Stable class name every wall's ThemeProvider scope element carries. Wall
