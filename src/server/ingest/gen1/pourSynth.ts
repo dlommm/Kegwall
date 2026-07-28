@@ -1,4 +1,4 @@
-import type { EventBus, MonitorRef } from '../../core/events.js';
+import { monitorRefKey, type EventBus, type MonitorRef } from '../../core/events.js';
 
 // ---------------------------------------------------------------------------
 // Shared Gen 1 pour synthesis. Gen 1 Kegtron devices (KT-100/KT-200) only ever report
@@ -69,10 +69,6 @@ interface RefState {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
-function refKey(ref: MonitorRef): string {
-  return `${ref.type}:${ref.identifier}:${ref.portIndex}`;
-}
-
 export class PourSynthesizer {
   private readonly bus: EventBus;
   private readonly thresholdMl: number;
@@ -92,7 +88,7 @@ export class PourSynthesizer {
   ): void {
     this.bus.emit('volume_update', { monitor: ref, volStartMl, volDispensedMl, sizeMl, ts });
 
-    const key = refKey(ref);
+    const key = monitorRefKey(ref);
     let state = this.refs.get(key);
     if (!state) {
       // First-ever reading for this ref establishes the baseline -- nothing to

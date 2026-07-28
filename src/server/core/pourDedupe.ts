@@ -1,8 +1,15 @@
-import type { MonitorRef } from './events.js';
+import { monitorRefKey, type MonitorRef } from './events.js';
 
 // A pour is a duplicate of an already-registered one for the same monitor when it
 // arrives within this many ms of the registered pour's ts...
-const WINDOW_MS = 30_000;
+//
+// Final review I2: the original 30s window left no margin against udpSource.ts's
+// documented cloud-reporting latency (5-30s, PLUS WS delivery time on top) -- a UDP
+// pour reported within ~2s of ending could plausibly have its cloud-side duplicate
+// arrive just past 30s later and get double-recorded. Widened to 90s to comfortably
+// clear that worst case; EXPIRY_MS (below) grows with it so an entry is never pruned
+// out from under a still-in-window comparison.
+const WINDOW_MS = 90_000;
 // ...and its volume is within tolerance: max(TOLERANCE_PCT * max(volumeMl, entry.volumeMl), MIN_TOLERANCE_ML).
 // Anchored to the LARGER of the two volumes (not just the registered one) so the
 // outcome is symmetric regardless of which report — the original or the duplicate —
@@ -11,12 +18,10 @@ const TOLERANCE_PCT = 0.1;
 const MIN_TOLERANCE_ML = 30;
 // Tracked entries whose ts is more than this far from the incoming event's ts (in
 // either direction — see Fix round 1) are pruned before every check, so the ring
-// never grows past what's still "live" for dedup purposes.
-const EXPIRY_MS = 60_000;
-
-function refKey(ref: MonitorRef): string {
-  return `${ref.type}:${ref.identifier}:${ref.portIndex}`;
-}
+// never grows past what's still "live" for dedup purposes. Always kept >= WINDOW_MS
+// (2x it, same ratio as the original 60s/30s pairing) so a live-for-dedup entry is
+// never pruned before WINDOW_MS's own comparison would have aged it out anyway.
+const EXPIRY_MS = 180_000;
 
 interface Entry {
   volumeMl: number;
@@ -48,7 +53,7 @@ export class PourDeduper {
    * Otherwise registers this pour and returns `true`.
    */
   shouldRecord(ref: MonitorRef, volumeMl: number, ts: string): boolean {
-    const key = refKey(ref);
+    const key = monitorRefKey(ref);
     const tsMs = Date.parse(ts);
 
     // Prune expired entries first so the ring never accumulates stale state — this is

@@ -25,6 +25,17 @@ describe('SettingsStore', () => {
     expect(store.get('siteName')).toBe('My Taproom');
     expect(store.get('displayUnits')).toBe('us');
     expect(store.get('kegtronApiKey')).toBeNull();
+    expect(store.get('backfillCursors')).toEqual({});
+  });
+
+  // Final review C1: persisted per-device servings-backfill high-water mark
+  // (deviceId -> last successful backfill end ISO ts) -- not a secret, so it round-trips
+  // through set()/get() like any other plain field, with no masking involved.
+  it('round-trips backfillCursors (deviceId -> ISO ts map, not a secret)', () => {
+    store.set('backfillCursors', { device2: '2026-07-27 12:00:00' });
+    expect(store.get('backfillCursors')).toEqual({ device2: '2026-07-27 12:00:00' });
+    const m = store.masked();
+    expect(m.backfillCursors).toEqual({ device2: '2026-07-27 12:00:00' });
   });
 
   it('round-trips values', () => {

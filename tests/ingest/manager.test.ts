@@ -101,6 +101,26 @@ describe('SourceManager', () => {
     expect(manager.status().find((s) => s.name === 'gen1_mqtt')!.registered).toBe(false);
   });
 
+  it('reset() also clears stale health data for previously-registered sources '
+    + '(Final review T8: Phase 3\'s health UI must not show a dropped source as healthy)', () => {
+    const bus = new EventBus();
+    const manager = new SourceManager(bus);
+    manager.register(fakeSource('gen1_mqtt'));
+    bus.emit('source_status', {
+      source: 'gen1_mqtt', healthy: true, detail: 'subscribed to home/TheengsGateway/#',
+      ts: '2026-07-27T00:00:00.000Z',
+    });
+    expect(manager.status().find((s) => s.name === 'gen1_mqtt')).toMatchObject({
+      registered: true, healthy: true,
+    });
+
+    manager.reset();
+
+    expect(manager.status().find((s) => s.name === 'gen1_mqtt')).toEqual({
+      name: 'gen1_mqtt', registered: false, healthy: false, detail: 'not configured', lastEventAt: null,
+    });
+  });
+
   it('isStarted() is false until startAll() has been called at least once', async () => {
     const bus = new EventBus();
     const manager = new SourceManager(bus);

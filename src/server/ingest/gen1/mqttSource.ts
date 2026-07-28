@@ -52,21 +52,41 @@ import { PourSynthesizer } from './pourSynth.js';
 // differently-shaped real payload has a reasonable chance of still working, or is at
 // least a one-line fix to numberField()'s key lists rather than a structural rewrite.
 //
-// BLE/MQTT DEDUPE: `bleActiveMacs` is a Set<string> of lowercase MACs the sibling
-// Gen1BleSource is CURRENTLY hearing directly over BLE (Task 8's bootstrap constructs
-// one Set and passes it to both sources' constructors). Messages for a MAC in that set
-// are dropped here -- direct BLE wins when both paths are enabled and BLE is actually
-// working; this source is the fallback for MACs BLE isn't (yet, or ever) reaching.
+// BLE/MQTT DEDUPE: `bleActiveMacs` is a Map<mac, lastBleSeenMs> of lowercase MACs the
+// sibling Gen1BleSource has decoded an advert from, stamped with the time of the most
+// recent one (Task 8's bootstrap constructs one Map and passes it to both sources'
+// constructors). Messages for a MAC in that map are dropped here ONLY while the stamp
+// is still fresh (within `bleActiveTtlMs` of now) -- direct BLE wins when both paths
+// are enabled and BLE is actually, currently working; this source is the fallback both
+// for MACs BLE isn't (yet, or ever) reaching AND for a MAC BLE was hearing but has
+// since stopped (adapter dropped out, device moved out of range, etc).
+//
+// Final review I1 fix: this used to be a Set that a MAC, once added, never left --
+// one BLE advert would permanently silence the MQTT fallback for that device even
+// after BLE genuinely stopped hearing it. The TTL check below is what restores the
+// "actively" in "MACs the BLE source is actively hearing" (the original design intent
+// per the plan this source was built from).
 // ---------------------------------------------------------------------------
 
 const KEGTRON_MODEL_IDS = new Set(['kt-100', 'kt-200', 'kt100', 'kt200']);
 
+// How long a bleActiveMacs stamp is honored before this source treats BLE as no longer
+// covering that MAC and resumes processing its own MQTT messages for it. Brief: "within
+// the last 5 minutes". Test-only override, same additive-optional-constructor-knob
+// precedent as cloudSource.ts's reconnectBaseMs / pourSynth.ts's stabilizeMs.
+const DEFAULT_BLE_ACTIVE_TTL_MS = 5 * 60_000;
+
 export interface Gen1MqttSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
-  /** Shared BLE-active MAC set (see header comment). Defaults to an empty Set, i.e. no
-   * dedupe, so this source works standalone in tests/without bleSource.ts wired up. */
-  bleActiveMacs?: Set<string>;
+  /** Shared BLE-active MAC map (mac -> last-BLE-seen ms; see header comment). Defaults
+   * to an empty Map, i.e. no dedupe, so this source works standalone in tests/without
+   * bleSource.ts wired up. */
+  bleActiveMacs?: Map<string, number>;
+  /** Override for how long a bleActiveMacs stamp is honored (ms) before this source
+   * resumes processing messages for that MAC itself. Production default 5 minutes
+   * (DEFAULT_BLE_ACTIVE_TTL_MS). Test-only knob. */
+  bleActiveTtlMs?: number;
   /** Shared PourSynthesizer instance -- pass the SAME instance given to Gen1BleSource
    * so a MAC's pour baseline survives a handoff between the two transports (Task 8).
    * Defaults to a private instance owned (and disposed on stop()) by this source. */
@@ -161,7 +181,8 @@ export class Gen1MqttSource implements Source {
 
   private readonly bus: EventBus;
   private readonly settings: SettingsStore;
-  private readonly bleActiveMacs: Set<string>;
+  private readonly bleActiveMacs: Map<string, number>;
+  private readonly bleActiveTtlMs: number;
   private readonly synth: PourSynthesizer;
   private readonly ownsSynth: boolean;
   private readonly reconnectPeriodMs: number | undefined;
@@ -173,7 +194,8 @@ export class Gen1MqttSource implements Source {
   constructor(opts: Gen1MqttSourceOptions) {
     this.bus = opts.bus;
     this.settings = opts.settings;
-    this.bleActiveMacs = opts.bleActiveMacs ?? new Set();
+    this.bleActiveMacs = opts.bleActiveMacs ?? new Map();
+    this.bleActiveTtlMs = opts.bleActiveTtlMs ?? DEFAULT_BLE_ACTIVE_TTL_MS;
     this.ownsSynth = opts.synth === undefined;
     this.synth = opts.synth ?? new PourSynthesizer(opts.bus);
     this.reconnectPeriodMs = opts.reconnectPeriodMs;
@@ -248,7 +270,11 @@ export class Gen1MqttSource implements Source {
     }
     const parsed = parseKegtronMqttMessage(raw);
     if (!parsed) return;
-    if (this.bleActiveMacs.has(parsed.mac)) return; // BLE path owns this MAC -- see header comment
+    const bleLastSeenMs = this.bleActiveMacs.get(parsed.mac);
+    // BLE path owns this MAC ONLY while its last-seen stamp is still fresh -- see
+    // header comment (Final review I1: a stale/never-updated stamp must not suppress
+    // this fallback forever).
+    if (bleLastSeenMs !== undefined && Date.now() - bleLastSeenMs < this.bleActiveTtlMs) return;
 
     const monitor: MonitorRef = { type: 'kegtron_gen1', identifier: parsed.mac, portIndex: parsed.portIndex };
     const key = `${parsed.mac}:${parsed.portIndex}`;

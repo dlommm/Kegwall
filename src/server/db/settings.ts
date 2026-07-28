@@ -18,6 +18,17 @@ export const settingsSchema = z.object({
   // reads this key (KegtronCloudSource is wired with no baseUrl override in bootstrap.ts
   // and so always uses that same default too).
   kegtronBaseUrl: z.string().default('https://mdash.net'),
+  // Persisted per-device servings-backfill high-water mark: mdash device id ->
+  // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
+  // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
+  // Final review C1 fix: `backfillDone` on KegtronCloudSource's per-device state was
+  // in-memory only, so every process restart AND every source-relevant settings PATCH
+  // (which tears down and rebuilds every source, see bootstrap.ts) re-ran the full
+  // 7-day servings backfill from scratch, re-emitting (and re-recording, since the
+  // in-memory PourDeduper is also reset by a restart) up to 7 days of ALREADY-imported
+  // pours every time. This cursor lets a fresh backfill start from wherever the last
+  // one left off instead of always re-requesting the full 7-day window.
+  backfillCursors: z.record(z.string(), z.string()).default({}),
   udpEnabled: z.boolean().default(false),
   bleDirectEnabled: z.boolean().default(false),
   mqtt: z

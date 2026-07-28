@@ -1,5 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus } from '../../src/server/core/events.js';
+import { EventBus, monitorRefKey } from '../../src/server/core/events.js';
+
+describe('monitorRefKey', () => {
+  it('joins type, identifier and portIndex (the single canonical MonitorRef key -- '
+    + 'Final review Minor 7/T5: was duplicated across state.ts/pourDedupe.ts/pourSynth.ts)', () => {
+    expect(monitorRefKey({ type: 'kegtron_pro', identifier: 'dev1', portIndex: 2 }))
+      .toBe('kegtron_pro:dev1:2');
+  });
+
+  it('distinguishes refs that differ only by type, identifier, or portIndex', () => {
+    const base = monitorRefKey({ type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 });
+    expect(monitorRefKey({ type: 'kegtron_gen1', identifier: 'dev1', portIndex: 0 })).not.toBe(base);
+    expect(monitorRefKey({ type: 'kegtron_pro', identifier: 'dev2', portIndex: 0 })).not.toBe(base);
+    expect(monitorRefKey({ type: 'kegtron_pro', identifier: 'dev1', portIndex: 1 })).not.toBe(base);
+  });
+});
 
 describe('EventBus', () => {
   it('delivers typed events to subscribers', () => {

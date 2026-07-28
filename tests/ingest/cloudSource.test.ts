@@ -9,7 +9,12 @@ import { tmpdir } from 'node:os';
 import { openDb } from '../../src/server/db/db.js';
 import { SettingsStore } from '../../src/server/db/settings.js';
 import { EventBus } from '../../src/server/core/events.js';
+import { StateManager } from '../../src/server/core/state.js';
 import { KegtronCloudSource } from '../../src/server/ingest/kegtron/cloudSource.js';
+import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
+import { createBeer } from '../../src/server/db/beers.js';
+import { createTap } from '../../src/server/db/taps.js';
+import { createKeg } from '../../src/server/db/kegs.js';
 
 // Same fixture shape used by shadow.test.ts (a JSON transcription of
 // kegtron-pro.v2.yaml's GetDeviceShadow "Example KT-420" sample value) — device id
@@ -289,6 +294,68 @@ describe('KegtronCloudSource backfill retry (Fix round 1)', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(servingsAttempts).toBe(2);
     expect(byEvent('pour_completed')).toHaveLength(2);
+  });
+});
+
+describe('KegtronCloudSource backfill cursor persistence (Final review C1)', () => {
+  it('persists a per-device backfill high-water mark so pours are not duplicated when a '
+    + 'fresh source (same settings/db) reconnects after a restart', async () => {
+    const baseUrl = await listenHttp();
+    const db = openDb(mkdtempSync(join(tmpdir(), 'ktdash-')));
+    const localSettings = new SettingsStore(db);
+    localSettings.set('kegtronApiKey', API_KEY);
+    const localBus = new EventBus();
+    const state = new StateManager(db, localBus);
+    state.start();
+
+    // Pre-wire a monitor/tap/keg for device2 port0 BEFORE the source ever starts, so
+    // the first backfill's pour is actually recorded into `pours` via StateManager
+    // (cloud's own device_discovered later just upserts the same row, idempotently).
+    const monitor = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'device2', portIndex: 0 });
+    const beer = createBeer(db, { name: 'Pils' });
+    const tap = createTap(db, { number: 1 });
+    createKeg(db, { beerId: beer.id, sizeMl: 19700, volStartMl: 19700, tapId: tap.id });
+    bindMonitorToTap(db, monitor.id, tap.id);
+
+    // A single historical serving well inside the 7-day backfill window relative to
+    // real "now" (avoids depending on the shared fixture's fixed 2026-07-20/21 dates
+    // vs. whatever the real system clock happens to be at test-run time). This mock
+    // servings endpoint HONORS the `start` param -- unlike the shared `beforeEach`'s
+    // handler, which ignores it -- because proving the fix means proving the query
+    // itself narrows on the second run, not just that an event count happens to match.
+    const historicalTs = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    servingsHandler = async (req: any) => {
+      const start = req.body.params[0] as string;
+      const startMs = Date.parse(start.replace(' ', 'T') + 'Z');
+      const rows = Date.parse(historicalTs) >= startMs
+        ? [[historicalTs, '', "Moe's Tavern", 'device2', 0, 200, 7134, 88.0, 'King Cobra', 4000]]
+        : [];
+      return { rows };
+    };
+
+    const pourCount = () => (db.prepare('SELECT COUNT(*) c FROM pours').get() as { c: number }).c;
+
+    source = new KegtronCloudSource({ bus: localBus, settings: localSettings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+    await vi.waitFor(() => expect(pourCount()).toBe(1));
+    // The cursor was persisted to settings, keyed by the mdash device id.
+    expect(Object.keys(localSettings.get('backfillCursors'))).toEqual(['device2']);
+
+    await source.stop();
+
+    // Fresh source instance -- same settings/db, simulating a process restart or a
+    // source-relevant settings PATCH (bootstrap.ts tears down and rebuilds every
+    // source from scratch; see registerConfiguredSources' header comment).
+    source = new KegtronCloudSource({ bus: localBus, settings: localSettings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+    // Give the second backfill a full chance to run and (incorrectly, pre-fix) emit +
+    // record a duplicate.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // Unchanged -- the persisted cursor pushed `start` in the second backfill's request
+    // past the already-imported historical row, so the start-respecting mock returned
+    // no rows for it.
+    expect(pourCount()).toBe(1);
   });
 });
 

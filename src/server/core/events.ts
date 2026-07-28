@@ -4,6 +4,16 @@ export interface MonitorRef {
   portIndex: number;
 }
 
+/** Canonical `(type, identifier, portIndex)` string key for a `MonitorRef` -- the single
+ * source of truth for every Map/Set keyed by monitor identity across the ingest pipeline
+ * (StateManager's live/online maps, PourDeduper's dedupe ring, PourSynthesizer's per-ref
+ * baselines). Final review Minor 7 / T5 ("extract if third consumer appears"): this was
+ * copy-pasted verbatim in `state.ts`, `pourDedupe.ts`, and `pourSynth.ts` -- the trigger
+ * fired when the third copy landed, so it's consolidated here instead. */
+export function monitorRefKey(ref: MonitorRef): string {
+  return `${ref.type}:${ref.identifier}:${ref.portIndex}`;
+}
+
 export interface EventMap {
   volume_update: {
     monitor: MonitorRef; volStartMl: number; volDispensedMl: number;

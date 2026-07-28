@@ -80,15 +80,23 @@ function deepMerge(base: unknown, patch: unknown): unknown {
   return result;
 }
 
-/** SQLite's date functions (docs/kegtron/kegtron-pro.v2.yaml ~lines 1795-1798: "'datetime'
- * can be any valid SQLite time string") require an absolute time-string as the base value
- * — a bare modifier like "-7 days" is NOT itself a valid time-string, only something
- * applicable on top of one (https://www.sqlite.org/lang_datefunc.html). So "7 days ago" is
- * computed client-side and formatted as an absolute "YYYY-MM-DD HH:MM:SS" UTC string
- * (one of SQLite's accepted forms) rather than sent as a literal modifier. */
-function sevenDaysAgo(now: Date): string {
-  const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+/** Formats `d` as an absolute "YYYY-MM-DD HH:MM:SS" UTC string — one of SQLite's
+ * accepted time-string forms (docs/kegtron/kegtron-pro.v2.yaml ~lines 1795-1798:
+ * "'datetime' can be any valid SQLite time string";
+ * https://www.sqlite.org/lang_datefunc.html). Every caller in this file uses this same
+ * shape for both the 7-day window boundary AND the persisted backfillCursors value
+ * (see `runBackfill`), so the two are always directly, safely comparable with plain
+ * lexicographic string comparison — no risk of the mixed-format local-time-parsing trap
+ * that bit `Date.parse()` of a bare space-separated string elsewhere in this codebase
+ * (see the final review's Minor 9 note on `pours.ts`). */
+function toSqlUtc(d: Date): string {
   return d.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+}
+
+/** A bare relative modifier like "-7 days" is NOT itself a valid SQLite time-string,
+ * only something applicable on top of one — so "7 days ago" is computed client-side. */
+function sevenDaysAgo(now: Date): string {
+  return toSqlUtc(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
 }
 
 export class KegtronCloudSource implements Source {
@@ -318,32 +326,66 @@ export class KegtronCloudSource implements Source {
 
   /** Servings backfill (brief: on first successful connect per device only). Historical
    * pours are emitted with their original `ts`; Task 5's PourDeduper is what prevents
-   * doubles against anything already reported live via the WS 'updated' path.
+   * doubles against anything already reported live via the WS 'updated' path WITHIN a
+   * single process's lifetime.
+   *
+   * Final review C1 fix: that in-process protection is not enough — `state.backfillDone`
+   * is itself per-process/in-memory, so every restart (or source-relevant settings
+   * PATCH, which tears down and rebuilds every source, see bootstrap.ts) used to re-run
+   * `getServings(-7 days, 'now')` from scratch and re-emit (and, since the in-memory
+   * PourDeduper is reset too) re-RECORD up to 7 days of already-imported pours every
+   * time. `settings.backfillCursors[deviceId]` is a persisted high-water mark — the
+   * "end" boundary this call itself represents — so a later run (this process or a
+   * fresh one) only ever asks mdash for servings from wherever the LAST successful
+   * backfill left off, never re-requesting an already-imported range. It's the max of
+   * that cursor and the 7-day window (so a device that hasn't backfilled in >7 days
+   * still gets the full 7-day catch-up, and a fresh cursor with no prior run falls back
+   * to exactly the old 7-day-window behavior).
    *
    * `state.backfillDone` is only set `true` once the `getServings` call actually
    * succeeds (Fix round 1: previously it was latched `true` by the caller *before*
    * this ran, so a transient failure on first connect permanently skipped backfill for
-   * that device's whole process lifetime). On failure it's left `false`, so the next WS
-   * `open` (i.e. the next reconnect) naturally retries it. `state.backfillInFlight`
-   * (cleared in `finally`, covering every return path including the early guards) is
-   * what actually prevents a fast reconnect from starting a second overlapping call
-   * while one is still pending — see the `open` handler in `openWs()`. */
+   * that device's whole process lifetime). On failure it's left `false` (and the cursor
+   * is NOT advanced), so the next WS `open` (i.e. the next reconnect) naturally retries
+   * it — from the same unadvanced start boundary, so a failed attempt never loses
+   * coverage. `state.backfillInFlight` (cleared in `finally`, covering every return
+   * path including the early guards) is what actually prevents a fast reconnect from
+   * starting a second overlapping call while one is still pending — see the `open`
+   * handler in `openWs()`. */
   private async runBackfill(state: DeviceState): Promise<void> {
+    const deviceId = state.deviceId;
     try {
-      if (state.stopped || !this.client) return;
-      const start = sevenDaysAgo(new Date());
+      // deviceId is always set by the time a WS 'open' (this method's only caller)
+      // fires — establishDevice() sets it right after a successful shadow parse, before
+      // ever calling openWs() — so this guard is defensive, not expected to trigger; it
+      // also keeps backfillCursors keyed exclusively by the mdash device id, never by
+      // the raw device key (see Minor 2's credential-shaped-identifier note elsewhere
+      // in this file for why that distinction matters).
+      if (state.stopped || !this.client || !deviceId) return;
+      const now = new Date();
+      const windowStart = sevenDaysAgo(now);
+      const cursor = this.settings.get('backfillCursors')[deviceId];
+      const start = cursor && cursor > windowStart ? cursor : windowStart;
+      const nowStr = toSqlUtc(now);
+
       const rows = await this.client.getServings(state.deviceKey, start, 'now');
       if (state.stopped) return;
-      const identifier = state.deviceId ?? state.deviceKey;
       for (const row of rows) {
         this.bus.emit('pour_completed', {
-          monitor: { type: 'kegtron_pro', identifier, portIndex: row.portIndex },
+          monitor: { type: 'kegtron_pro', identifier: deviceId, portIndex: row.portIndex },
           volumeMl: row.volumeMl,
           durationMs: row.durationMs,
           source: 'cloud',
           ts: row.ts,
         });
       }
+      // Persist the advanced cursor only on success — see doc comment above for why a
+      // failed attempt must leave it untouched. Re-reads the current value instead of
+      // reusing the `cursor` captured above (rather than assuming nothing else could
+      // have written backfillCursors meanwhile) — cheap, and avoids ever clobbering a
+      // concurrent device's own entry with a stale in-memory copy.
+      const cursors = this.settings.get('backfillCursors');
+      this.settings.set('backfillCursors', { ...cursors, [deviceId]: nowStr });
       state.backfillDone = true;
       this.evaluateHealth();
     } catch (err) {

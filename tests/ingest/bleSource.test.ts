@@ -147,7 +147,7 @@ let bus: EventBus;
 let events: { event: string; payload: any }[];
 let settings: SettingsStore;
 let source: Gen1BleSource | null;
-let bleActiveMacs: Set<string>;
+let bleActiveMacs: Map<string, number>;
 
 function byEvent(name: string): any[] {
   return events.filter((e) => e.event === name).map((e) => e.payload);
@@ -161,7 +161,7 @@ beforeEach(() => {
   }
   settings = new SettingsStore(openDb(mkdtempSync(join(tmpdir(), 'ktdash-'))));
   settings.set('bleDirectEnabled', true);
-  bleActiveMacs = new Set();
+  bleActiveMacs = new Map();
   source = null;
 });
 
@@ -234,7 +234,11 @@ describe('Gen1BleSource discover -> decode -> synthesize wiring', () => {
       },
     ]);
     expect(byEvent('device_discovered')).toHaveLength(1);
-    expect(bleActiveMacs.has('aa:bb:cc:11:22:33')).toBe(true);
+    // Final review I1: bleActiveMacs is now a Map<mac, lastSeenMs> stamped with a
+    // fresh timestamp on every reading (not a Set that, once added to, never expired).
+    const seenAt = bleActiveMacs.get('aa:bb:cc:11:22:33');
+    expect(seenAt).toBeTypeOf('number');
+    expect(Date.now() - seenAt!).toBeLessThan(1000);
   });
 
   it('does not re-fire device_discovered for repeated adverts from the same MAC+port', async () => {

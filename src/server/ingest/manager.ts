@@ -38,14 +38,29 @@ export class SourceManager {
     this.sources.set(source.name, source);
   }
 
-  /** Clears all registrations (not accumulated health data) — used by Task 8's
-   * `registerConfiguredSources()` to rebuild the registered-source set from scratch on
-   * every call (initial app boot AND every settings-triggered restart), so a source
-   * whose configuration was just removed (e.g. `mqtt` cleared in settings) doesn't
-   * linger `registered:true` pointing at a stale, already-stopped instance. Callers are
-   * responsible for `stopAll()`-ing any previously-registered sources first if they were
-   * running — `reset()` itself only touches bookkeeping, never a live source. */
+  /** Clears all registrations — used by Task 8's `registerConfiguredSources()` to
+   * rebuild the registered-source set from scratch on every call (initial app boot AND
+   * every settings-triggered restart), so a source whose configuration was just removed
+   * (e.g. `mqtt` cleared in settings) doesn't linger `registered:true` pointing at a
+   * stale, already-stopped instance. Callers are responsible for `stopAll()`-ing any
+   * previously-registered sources first if they were running — `reset()` itself only
+   * touches bookkeeping, never a live source.
+   *
+   * Final review Minor/T8 fix: also resets the health entry for every source that WAS
+   * registered (never for names that were never registered — those simply have no
+   * entry, per `status()`'s `h?.healthy ?? false` fallback) back to the same
+   * not-yet-reported shape a never-registered source shows: `{healthy:false,
+   * detail:'not configured', lastEventAt:null}`. Before this fix, a source's last
+   * reported health lingered in `this.health` forever — `registered` would correctly
+   * flip to `false` after a reset, but `healthy` stayed whatever it was before the
+   * source was dropped, so `status()` could report `{registered:false, healthy:true}`
+   * for a source that no longer exists. Phase 3 builds its admin health UI directly on
+   * `status()`, so that combination would read as "still fine" for a monitor path that
+   * was just disabled. */
   reset(): void {
+    for (const name of this.sources.keys()) {
+      this.health.set(name, { healthy: false, detail: 'not configured', lastEventAt: null });
+    }
     this.sources.clear();
   }
 

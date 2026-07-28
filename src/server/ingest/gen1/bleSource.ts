@@ -120,10 +120,15 @@ const DEFAULT_IMPORT_TIMEOUT_MS = 8_000;
 export interface Gen1BleSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
-  /** Shared BLE-active MAC set (see mqttSource.ts's header comment for the full
-   * dedupe design) -- every MAC this source successfully decodes an advert from is
-   * added here so Gen1MqttSource drops messages for it. Defaults to a private Set. */
-  bleActiveMacs?: Set<string>;
+  /** Shared BLE-active MAC map (mac -> last-BLE-seen ms; see mqttSource.ts's header
+   * comment for the full dedupe design) -- every MAC this source successfully decodes
+   * an advert from gets (re-)stamped with the current time here on EVERY reading, so
+   * Gen1MqttSource can drop messages for it only while the stamp is still fresh (within
+   * its TTL -- see mqttSource.ts's bleActiveTtlMs). Final review I1 fix: this used to be
+   * a Set that, once a MAC was added, never expired -- a single BLE advert (or a BLE
+   * adapter that later drops out) would permanently silence the MQTT fallback for that
+   * device. Defaults to a private Map. */
+  bleActiveMacs?: Map<string, number>;
   /** Shared PourSynthesizer instance -- pass the SAME instance given to
    * Gen1MqttSource so a MAC's pour baseline survives a handoff between the two
    * transports (Task 8). Defaults to a private instance owned (and disposed on
@@ -167,7 +172,7 @@ export class Gen1BleSource implements Source {
 
   private readonly bus: EventBus;
   private readonly settings: SettingsStore;
-  private readonly bleActiveMacs: Set<string>;
+  private readonly bleActiveMacs: Map<string, number>;
   private readonly synth: PourSynthesizer;
   private readonly ownsSynth: boolean;
   private readonly nobleFactory: (() => Promise<NobleLike>) | undefined;
@@ -180,7 +185,7 @@ export class Gen1BleSource implements Source {
   constructor(opts: Gen1BleSourceOptions) {
     this.bus = opts.bus;
     this.settings = opts.settings;
-    this.bleActiveMacs = opts.bleActiveMacs ?? new Set();
+    this.bleActiveMacs = opts.bleActiveMacs ?? new Map();
     this.ownsSynth = opts.synth === undefined;
     this.synth = opts.synth ?? new PourSynthesizer(opts.bus);
     this.nobleFactory = opts.nobleFactory;
@@ -276,7 +281,10 @@ export class Gen1BleSource implements Source {
     const mac = normalizeBleAddress(peripheral.address, peripheral.id);
     if (!mac) return;
 
-    this.bleActiveMacs.add(mac); // see mqttSource.ts's header comment (BLE/MQTT dedupe)
+    // Stamp/refresh the last-BLE-seen time on EVERY reading (not just first sight) --
+    // see mqttSource.ts's header comment (BLE/MQTT dedupe) and this option's doc
+    // comment above for why a timestamp replaces the old never-expiring Set.
+    this.bleActiveMacs.set(mac, Date.now());
     const monitor: MonitorRef = { type: 'kegtron_gen1', identifier: mac, portIndex: decoded.portIndex };
     const key = `${mac}:${decoded.portIndex}`;
     if (!this.discovered.has(key)) {

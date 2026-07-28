@@ -202,8 +202,10 @@ describe('Gen1MqttSource full message flow against an aedes broker', () => {
     });
   });
 
-  it('drops messages for a MAC actively owned by the BLE source (dedupe via shared bleActiveMacs set)', async () => {
-    const bleActiveMacs = new Set<string>(['aa:bb:cc:11:22:33']);
+  it('drops messages for a MAC recently/actively owned by the BLE source (dedupe via shared bleActiveMacs map)', async () => {
+    // Final review I1: bleActiveMacs is now a Map<mac, lastSeenMs> (not a Set) so a
+    // stale entry can expire -- a fresh timestamp (just seen) is still within the TTL.
+    const bleActiveMacs = new Map<string, number>([['aa:bb:cc:11:22:33', Date.now()]]);
     source = await makeSource({ bleActiveMacs });
     await vi.waitFor(() => expect(byEvent('source_status').some((s) => s.healthy)).toBe(true));
 
@@ -213,6 +215,22 @@ describe('Gen1MqttSource full message flow against an aedes broker', () => {
     await publish('home/TheengsGateway/BTtoMQTT/DE:AD:BE:EF:00:01', KT100_ALIAS_KEYS);
     await vi.waitFor(() => expect(byEvent('volume_update')).toHaveLength(1));
     expect(byEvent('volume_update')[0].monitor.identifier).toBe('de:ad:be:ef:00:01');
+  });
+
+  it('processes a message again once the BLE-seen entry has gone stale past the TTL '
+    + '(Final review I1: a never-expiring bleActiveMacs entry permanently silenced the MQTT fallback)', async () => {
+    const bleActiveMacs = new Map<string, number>([['aa:bb:cc:11:22:33', Date.now()]]);
+    // Fast test-only TTL override (same additive-optional-constructor-knob precedent as
+    // cloudSource.ts's reconnectBaseMs / pourSynth.ts's stabilizeMs) -- production
+    // default stays the brief's 5 minutes.
+    source = await makeSource({ bleActiveMacs, bleActiveTtlMs: 30 });
+    await vi.waitFor(() => expect(byEvent('source_status').some((s) => s.healthy)).toBe(true));
+
+    await new Promise((resolve) => setTimeout(resolve, 60)); // let the BLE-seen entry go stale
+    await publish('home/TheengsGateway/BTtoMQTT/AA:BB:CC:11:22:33', KT200_PORT0_FIRST);
+
+    await vi.waitFor(() => expect(byEvent('volume_update')).toHaveLength(1));
+    expect(byEvent('volume_update')[0].monitor.identifier).toBe('aa:bb:cc:11:22:33');
   });
 
   it('stop() disconnects cleanly and further publishes produce no more events', async () => {

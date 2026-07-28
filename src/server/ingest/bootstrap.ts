@@ -50,11 +50,12 @@ export function registerConfiguredSources(ctx: AppContext): void {
     }));
   }
 
-  // Gen 1's two transports (MQTT bridge / direct BLE) share ONE MAC-dedupe Set — see
-  // mqttSource.ts's "BLE/MQTT DEDUPE" header comment — for the whole lifetime of this
-  // registration pass. Always constructed (even if only one or neither Gen 1 source
-  // ends up registered) since it's just an empty Set otherwise; cheap either way.
-  const bleActiveMacs = new Set<string>();
+  // Gen 1's two transports (MQTT bridge / direct BLE) share ONE MAC-dedupe Map (mac ->
+  // last-BLE-seen ms; Final review I1) — see mqttSource.ts's "BLE/MQTT DEDUPE" header
+  // comment — for the whole lifetime of this registration pass. Always constructed
+  // (even if only one or neither Gen 1 source ends up registered) since it's just an
+  // empty Map otherwise; cheap either way.
+  const bleActiveMacs = new Map<string, number>();
 
   // A shared PourSynthesizer is only actually needed when BOTH Gen 1 transports are
   // live at once — that's the "handoff" scenario the shared instance exists for (a

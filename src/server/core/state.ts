@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { EventBus, MonitorRef } from './events.js';
+import { monitorRefKey, type EventBus, type MonitorRef } from './events.js';
 import { listTaps } from '../db/taps.js';
 import { getBeer, type Beer } from '../db/beers.js';
 import { getActiveKegForTap, applyDispense, recordPourTx, type Keg } from '../db/kegs.js';
@@ -20,10 +20,6 @@ export interface TapState {
   pouring: boolean;
   curServMl: number | null;
   monitorOnline: boolean;
-}
-
-function refKey(ref: MonitorRef): string {
-  return `${ref.type}:${ref.identifier}:${ref.portIndex}`;
 }
 
 export class StateManager {
@@ -52,12 +48,12 @@ export class StateManager {
     });
 
     this.bus.on('pour_started', (e) => {
-      this.live.set(refKey(e.monitor), { pouring: true, curServMl: 0 });
+      this.live.set(monitorRefKey(e.monitor), { pouring: true, curServMl: 0 });
       changed(e.ts);
     });
 
     this.bus.on('pour_progress', (e) => {
-      this.live.set(refKey(e.monitor), { pouring: true, curServMl: e.curServMl });
+      this.live.set(monitorRefKey(e.monitor), { pouring: true, curServMl: e.curServMl });
       changed(e.ts);
     });
 
@@ -65,7 +61,7 @@ export class StateManager {
       // Live pouring state always clears on completion, even when the pour itself turns
       // out to be a duplicate report — the physical pour did finish, only the recorded
       // transaction is suppressed.
-      this.live.delete(refKey(e.monitor));
+      this.live.delete(monitorRefKey(e.monitor));
       if (this.deduper.shouldRecord(e.monitor, e.volumeMl, e.ts)) {
         const tapId = resolveTapForRef(this.db, e.monitor);
         if (tapId !== null) {
@@ -87,10 +83,10 @@ export class StateManager {
     });
 
     this.bus.on('device_online', (e) => {
-      this.online.set(refKey(e.monitor), true); changed(e.ts);
+      this.online.set(monitorRefKey(e.monitor), true); changed(e.ts);
     });
     this.bus.on('device_offline', (e) => {
-      this.online.set(refKey(e.monitor), false); changed(e.ts);
+      this.online.set(monitorRefKey(e.monitor), false); changed(e.ts);
     });
   }
 
@@ -100,7 +96,7 @@ export class StateManager {
       const keg = getActiveKegForTap(this.db, tap.id);
       const beer = keg ? getBeer(this.db, keg.beerId) : null;
       const mon = monitors.find((m) => m.tapId === tap.id);
-      const key = mon ? refKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;
+      const key = mon ? monitorRefKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;
       const live = key ? this.live.get(key) : undefined;
       const lastPourRow = keg ? listPours(this.db, { kegId: keg.id, limit: 1 })[0] : undefined;
       return {

@@ -116,9 +116,10 @@ describe('StateManager', () => {
       monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
       ts: '2026-07-27T01:00:00.000Z',
     });
+    // 120s later -- outside the widened 90s dedupe window (Final review I2).
     bus.emit('pour_completed', {
       monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
-      ts: '2026-07-27T01:00:40.000Z',
+      ts: '2026-07-27T01:02:00.000Z',
     });
     const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
     expect((db.prepare('SELECT COUNT(*) c FROM pours').get() as any).c).toBe(2);
