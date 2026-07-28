@@ -4,6 +4,7 @@ import { createTap } from '../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../src/server/db/monitors.js';
 import { createDrinker } from '../src/server/db/users.js';
+import { createWall, getWallBySlug } from '../src/server/routes/crud.js';
 
 const { db } = createContext(process.env.DATA_DIR ?? './data');
 
@@ -35,6 +36,12 @@ const kegs = beers.map((beer, i) => {
 
 createDrinker(db, { displayName: 'Dan', avatarColor: '#c8963e' });
 createDrinker(db, { displayName: 'Sam', avatarColor: '#4e7a4e' });
+
+// walls.slug is UNIQUE; guard re-runs the same way as the tap-number fix above
+// (skip insert if 'main' already exists) so reseeding never crashes.
+if (!getWallBySlug(db, 'main')) {
+  createWall(db, { slug: 'main', name: 'Main Wall', config: { columns: 2 } });
+}
 
 // 30 days of pours, weighted to evenings
 for (let day = 30; day >= 1; day--) {
