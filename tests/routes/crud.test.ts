@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { recordTelemetrySampled } from '../../src/server/db/telemetry.js';
 
 let app: FastifyInstance;
 let adminCookies: { session: string };
@@ -412,6 +413,118 @@ describe('crud routes', () => {
         method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies,
       });
       expect(res.statusCode).toBe(204);
+    });
+  });
+
+  describe('GET /api/monitors/:id/telemetry (Task 6)', () => {
+    async function makeProMonitor(identifier: string): Promise<number> {
+      app.ctx.bus.emit('device_discovered', {
+        monitor: { type: 'kegtron_pro', identifier, portIndex: 0 },
+        serial: identifier,
+        meta: {},
+      });
+      const list = await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies });
+      return (list.json() as any[]).find((m) => m.identifier === identifier).id;
+    }
+
+    it('rejects unauthenticated requests', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/monitors/1/telemetry' });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('404s for an unknown monitor id', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/monitors/999999/telemetry', cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('a viewer can read telemetry (viewer role, not editor-gated)', async () => {
+      const monitorId = await makeProMonitor('mon-viewer');
+      await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { username: 'vwtel', displayName: 'VwTel', password: 'password1', role: 'viewer' },
+      });
+      const login = await app.inject({
+        method: 'POST', url: '/api/auth/login', payload: { username: 'vwtel', password: 'password1' },
+      });
+      const viewerCookies = { session: login.cookies.find((c: any) => c.name === 'session')!.value };
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry`, cookies: viewerCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual([]);
+    });
+
+    it('reuses listTelemetry to return recorded temp/humidity rows', async () => {
+      const monitorId = await makeProMonitor('mon-data');
+      const now = new Date();
+      recordTelemetrySampled(app.ctx.db, monitorId, 4.2, 50, now.toISOString());
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject([{ temp: 4.2, humidity: 50 }]);
+    });
+
+    it('defaults to a 24h window and excludes older rows', async () => {
+      const monitorId = await makeProMonitor('mon-window');
+      const now = new Date();
+      const old = new Date(now.getTime() - 30 * 60 * 60 * 1000);
+      const recent = new Date(now.getTime() - 60 * 60 * 1000);
+      recordTelemetrySampled(app.ctx.db, monitorId, 3.0, 40, old.toISOString());
+      recordTelemetrySampled(app.ctx.db, monitorId, 4.0, 45, recent.toISOString());
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      const rows = res.json();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ temp: 4.0, humidity: 45 });
+    });
+
+    it('honors an explicit ?hours= window', async () => {
+      const monitorId = await makeProMonitor('mon-hours');
+      const now = new Date();
+      const fortyHoursAgo = new Date(now.getTime() - 40 * 60 * 60 * 1000);
+      recordTelemetrySampled(app.ctx.db, monitorId, 5.0, 55, fortyHoursAgo.toISOString());
+
+      const narrow = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=24`, cookies: adminCookies,
+      });
+      expect(narrow.json()).toEqual([]);
+
+      const wide = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=48`, cookies: adminCookies,
+      });
+      expect(wide.json()).toHaveLength(1);
+    });
+
+    it('400s when hours is above the 168 max', async () => {
+      const monitorId = await makeProMonitor('mon-toobig');
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=200`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('400s when hours is below the 1 minimum', async () => {
+      const monitorId = await makeProMonitor('mon-toosmall');
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=0`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('400s for a non-numeric hours value', async () => {
+      const monitorId = await makeProMonitor('mon-nan');
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=abc`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(400);
     });
   });
 });

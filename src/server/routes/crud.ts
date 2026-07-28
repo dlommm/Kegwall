@@ -8,7 +8,10 @@ import { createTap, listTaps, updateTap, deleteTap, getTap } from '../db/taps.js
 import {
   listKegs, getKeg, swapKeg, createKeg, listOnDeckForTap, removeOnDeckKeg,
 } from '../db/kegs.js';
-import { listMonitors, bindMonitorToTap, sanitizeMonitor } from '../db/monitors.js';
+import {
+  listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
+} from '../db/monitors.js';
+import { listTelemetry } from '../db/telemetry.js';
 import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
@@ -182,6 +185,22 @@ export async function crudRoutes(app: FastifyInstance) {
     const mon = bindMonitorToTap(db, Number((req.params as any).id), body.tapId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return sanitizeMonitor(mon);
+  });
+
+  // GET /api/monitors/:id/telemetry?hours=24 — the Monitors page's per-Pro-device temp/
+  // humidity history (Task 6): viewer role (read-only, same as the rest of the telemetry
+  // surface), reuses listTelemetry (db/telemetry.ts) as-is rather than a bespoke query.
+  // `hours` bounds the lookback window: 1-168 (a week) — wide enough for any near-term
+  // sparkline, narrow enough that an unbounded `?hours=` can't force a full-table scan.
+  const telemetryQuerySchema = z.object({
+    hours: z.coerce.number().int().min(1).max(168).default(24),
+  });
+  app.get('/api/monitors/:id/telemetry', viewer, async (req) => {
+    const monitorId = Number((req.params as any).id);
+    if (!getMonitorById(db, monitorId)) throw new NotFoundError('monitor');
+    const { hours } = telemetryQuerySchema.parse(req.query);
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    return listTelemetry(db, monitorId, since);
   });
 
   // --- pours ---

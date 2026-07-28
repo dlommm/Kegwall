@@ -8,7 +8,7 @@ import {
   lookupBreweries, lookupUntappd, importUntappdLabel, uploadLabel,
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
-  listMonitors, importKegtronBeer, resetKegtronVolume,
+  listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -372,5 +372,44 @@ describe('admin api client', () => {
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(call[0]).toBe('/api/kegtron/reset-volume/3');
     expect(call[1].method).toBe('POST');
+  });
+
+  it('bindMonitor POSTs /api/monitors/:id/bind with a numeric tapId', async () => {
+    const monitor = {
+      id: 1, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
+      tapId: 4, lastSeen: null, meta: {},
+    };
+    mockFetchOnce(200, monitor);
+    const result = await bindMonitor(1, 4);
+    expect(result).toEqual({ ok: true, data: monitor });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/monitors/1/bind');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ tapId: 4 });
+  });
+
+  it('bindMonitor POSTs a null tapId to unbind', async () => {
+    const monitor = {
+      id: 1, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
+      tapId: null, lastSeen: null, meta: {},
+    };
+    mockFetchOnce(200, monitor);
+    await bindMonitor(1, null);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(JSON.parse(call[1].body)).toEqual({ tapId: null });
+  });
+
+  it('getMonitorTelemetry GETs /api/monitors/:id/telemetry with an hours param, defaulting to 24', async () => {
+    const points = [{ ts: '2026-07-27T20:00:00.000Z', temp: 4.2, humidity: 50 }];
+    mockFetchOnce(200, points);
+    const result = await getMonitorTelemetry(1);
+    expect(result).toEqual({ ok: true, data: points });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=24', expect.any(Object));
+  });
+
+  it('getMonitorTelemetry passes a custom hours value through', async () => {
+    mockFetchOnce(200, []);
+    await getMonitorTelemetry(1, 48);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=48', expect.any(Object));
   });
 });

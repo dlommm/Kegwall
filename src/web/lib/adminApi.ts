@@ -5,6 +5,7 @@ import type { Monitor } from '../../server/db/monitors.js';
 import type { ActivityEvent } from '../../server/db/activity.js';
 import type { SourceStatus } from '../../server/ingest/manager.js';
 import type { Beer, BeerInput } from '../../server/db/beers.js';
+import type { TelemetryPoint } from '../../server/db/telemetry.js';
 // From core/lookupTypes.ts, NOT routes/lookup.ts — see that core module's doc comment:
 // a type-only import of a ROUTES file would drag its Fastify-request-augmenting value
 // imports into this (web) tsconfig's program, where they don't typecheck.
@@ -271,7 +272,23 @@ export function importKegtronBeer(monitorId: number): Promise<ApiResult<Beer>> {
 }
 
 /** POST /api/kegtron/reset-volume/:monitorId — zeroes the physical device's dispensed-
- * volume counter for a bound Pro monitor's port (swap wizard step 4, optional). */
+ * volume counter for a bound Pro monitor's port (swap wizard step 4, optional; also the
+ * Monitors page's standalone reset action, Task 6). */
 export function resetKegtronVolume(monitorId: number): Promise<ApiResult<{ ok: boolean }>> {
   return request(`/api/kegtron/reset-volume/${monitorId}`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+// --- Task 6: monitors page ---
+
+/** POST /api/monitors/:id/bind — binds (a numeric `tapId`) or unbinds (`null`) a
+ * discovered monitor; the response is the sanitized `Monitor` (no device key). */
+export function bindMonitor(id: number, tapId: number | null): Promise<ApiResult<Monitor>> {
+  return request(`/api/monitors/${id}/bind`, { method: 'POST', body: JSON.stringify({ tapId }) });
+}
+
+/** GET /api/monitors/:id/telemetry?hours= — a Kegtron Pro monitor's recent temp/humidity
+ * readings (viewer role), feeding the Monitors page's per-device detail expand. `hours`
+ * defaults to 24 server-side when omitted. */
+export function getMonitorTelemetry(id: number, hours = 24): Promise<ApiResult<TelemetryPoint[]>> {
+  return request(`/api/monitors/${id}/telemetry?hours=${hours}`);
 }
