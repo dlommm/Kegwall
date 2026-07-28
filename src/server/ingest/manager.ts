@@ -9,11 +9,13 @@ export interface SourceStatus {
   lastEventAt: string | null;
 }
 
-// Kept in sync by hand with the SourceName union in source.ts / events.ts — status()
-// always reports one row per known source, even ones never registered in this process.
-const ALL_SOURCE_NAMES: SourceName[] = [
-  'kegtron_cloud', 'kegtron_udp', 'gen1_mqtt', 'gen1_ble', 'mqtt_publisher',
-];
+// `satisfies Record<SourceName, true>` gives a compile-time exhaustiveness guard: adding
+// or removing a SourceName in source.ts / events.ts without updating this set is a type
+// error. status() always reports one row per known source, even ones never registered.
+const SOURCE_NAME_SET = {
+  kegtron_cloud: true, kegtron_udp: true, gen1_mqtt: true, gen1_ble: true, mqtt_publisher: true,
+} satisfies Record<SourceName, true>;
+const ALL_SOURCE_NAMES = Object.keys(SOURCE_NAME_SET) as SourceName[];
 
 interface HealthEntry {
   healthy: boolean;
