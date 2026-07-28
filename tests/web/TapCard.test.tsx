@@ -186,6 +186,23 @@ describe('TapCard', () => {
       expect(screen.getByTestId('liquid-fill-body').getAttribute('height')).toBe('0');
     });
 
+    // `.tap-card__kicked-badge` is styled `position: absolute; inset: 0` in
+    // index.css, sized against the nearest positioned ancestor. jsdom doesn't
+    // load external stylesheets or run layout, so it can't verify the actual
+    // visual containment (Task 7's screenshot audit does that) — but it *can*
+    // verify the structural precondition that CSS fix depends on: the badge
+    // must be a DOM descendant of `.tap-card__liquid` (data-testid
+    // "tap-card-liquid"), not a sibling of it or a direct child of the card
+    // root, or `inset: 0` sizes against the wrong element (see index.css's
+    // `.tap-card__liquid { position: relative }` comment).
+    it('nests the Kicked badge inside the liquid wrapper, not the card root', () => {
+      mockReducedMotion(false);
+      render(<TapCard tap={makeTap({ keg: makeKeg({ status: 'kicked' }) })} />);
+      const liquidWrapper = screen.getByTestId('tap-card-liquid');
+      const badge = screen.getByRole('status');
+      expect(liquidWrapper).toContainElement(badge);
+    });
+
     it('marks the card as desaturated via a kicked modifier class', () => {
       mockReducedMotion(false);
       render(<TapCard tap={makeTap({ keg: makeKeg({ status: 'kicked' }) })} />);

@@ -92,6 +92,16 @@
   padding: 1rem;
 }
 
+/*
+ * `.tap-card__kicked-badge` is `position: absolute; inset: 0;` and must be
+ * contained by this element, not by `.tap-card` itself — otherwise the stamp
+ * spans the whole card (worst in `compact`, where the liquid is a small
+ * corner element) instead of just the liquid area it overlays.
+ */
+.tap-card__liquid {
+  position: relative;
+}
+
 .tap-card--full,
 .tap-card--standard {
   flex-direction: column;
