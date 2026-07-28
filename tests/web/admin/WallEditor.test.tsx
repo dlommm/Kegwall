@@ -170,6 +170,45 @@ describe('WallEditor', () => {
     expect(screen.getByTestId('wall-editor-field-brewery')).not.toBeChecked();
   });
 
+  it('switching card template resyncs the field checkboxes to the new template\'s defaults', async () => {
+    render(<WallEditor wall={makeWall({ config: wallConfigSchema.parse({ cardTemplate: 'full' }) })} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+
+    // `full` defaults every field to true.
+    expect(screen.getByTestId('wall-editor-field-description')).toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-ibu')).toBeChecked();
+
+    fireEvent.change(screen.getByTestId('wall-editor-template'), { target: { value: 'minimal' } });
+
+    // `minimal` defaults every field to false — the checkboxes must reflect that
+    // immediately, not still show `full`'s all-true state.
+    expect(screen.getByTestId('wall-editor-field-description')).not.toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-ibu')).not.toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-labelImage')).not.toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-brewery')).not.toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-style')).not.toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-abv')).not.toBeChecked();
+    expect(screen.getByTestId('wall-editor-field-lastPour')).not.toBeChecked();
+  });
+
+  it('switch-then-save serializes the NEW template\'s default fields map, not the old template\'s (the exact live-TV regression from review)', async () => {
+    const savedWall = makeWall({ config: wallConfigSchema.parse({ cardTemplate: 'minimal' }) });
+    (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
+    render(<WallEditor wall={makeWall({ config: wallConfigSchema.parse({ cardTemplate: 'full' }) })} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+
+    fireEvent.change(screen.getByTestId('wall-editor-template'), { target: { value: 'minimal' } });
+    fireEvent.click(screen.getByTestId('wall-editor-save'));
+    await flush();
+
+    expect(updateWall).toHaveBeenCalledTimes(1);
+    const [, input] = (updateWall as Mock).mock.calls[0]!;
+    // Every field false (minimal's defaults) — NOT full's all-true map.
+    expect(input.config.fields).toEqual({
+      labelImage: false, brewery: false, style: false, description: false, abv: false, ibu: false, lastPour: false,
+    });
+  });
+
   it('a token override can be set and cleared via its Reset control', async () => {
     render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
     await flush();

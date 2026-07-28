@@ -6,7 +6,9 @@ import {
   configToFormState, parseWallConfigForm, WALL_TOKEN_KEYS,
   type WallConfigFormState, type WallTokenKey,
 } from '../../lib/wallEditorConfig';
-import { FIELD_KEYS, type CardTemplate, type FieldKey } from '../../lib/cardFields';
+import {
+  FIELD_KEYS, TEMPLATE_DEFAULT_FIELDS, type CardTemplate, type FieldKey,
+} from '../../lib/cardFields';
 import { THEMES, getTheme } from '../../themes/themes';
 import { WallPagesBuilder } from './WallPagesBuilder';
 import { WallPreview } from './WallPreview';
@@ -102,6 +104,18 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
     setForm((f) => ({ ...f, fields: { ...f.fields, [key]: checked } }));
   }
 
+  /** Switching card template resets `form.fields` to the NEW template's defaults —
+   * matching the theme-switch precedent (a theme switch doesn't carry the old theme's
+   * resolved colors forward as overrides either). Without this, the serializer's always-
+   * explicit 7-key `fields` map would silently ship the OLD template's toggles as
+   * overrides on the new one — e.g. switching full -> minimal and saving would still
+   * render like `full` on the live wall despite the admin picking `minimal`. Any manual
+   * toggles the admin made were relative to the old template anyway, so discarding them
+   * on a template switch is correct, not just convenient. */
+  function updateCardTemplate(template: CardTemplate) {
+    setForm((f) => ({ ...f, cardTemplate: template, fields: { ...TEMPLATE_DEFAULT_FIELDS[template] } }));
+  }
+
   function updateTokenOverride(key: WallTokenKey, value: string) {
     setForm((f) => ({ ...f, themeOverrides: { ...f.themeOverrides, [key]: value } }));
   }
@@ -194,7 +208,7 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               <select
                 data-testid="wall-editor-template"
                 value={form.cardTemplate}
-                onChange={(e) => updateField('cardTemplate', e.target.value as CardTemplate)}
+                onChange={(e) => updateCardTemplate(e.target.value as CardTemplate)}
               >
                 {CARD_TEMPLATES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
