@@ -52,6 +52,7 @@ interface DeviceState {
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   pollTimer: ReturnType<typeof setInterval> | null;
   backfillDone: boolean;
+  backfillInFlight: boolean;
   stopped: boolean;
 }
 
@@ -188,7 +189,7 @@ export class KegtronCloudSource implements Source {
     return {
       deviceKey, deviceId: null, rawShadow: null, parsed: null,
       ws: null, wsOpen: false, reconnectAttempt: 0, reconnectTimer: null,
-      pollTimer: null, backfillDone: false, stopped: false,
+      pollTimer: null, backfillDone: false, backfillInFlight: false, stopped: false,
     };
   }
 
@@ -244,8 +245,12 @@ export class KegtronCloudSource implements Source {
         state.reconnectAttempt = 0;
         this.clearPollTimer(state);
         this.evaluateHealth();
-        if (!state.backfillDone) {
-          state.backfillDone = true;
+        // Guarded by backfillInFlight (not just backfillDone) so a fast reconnect can't
+        // start a second overlapping backfill while the first is still in flight;
+        // backfillDone is only set true once runBackfill() actually succeeds (see
+        // runBackfill's doc comment) so a transient failure retries on the next open.
+        if (!state.backfillDone && !state.backfillInFlight) {
+          state.backfillInFlight = true;
           void this.runBackfill(state);
         }
         settleOnce();
@@ -313,10 +318,19 @@ export class KegtronCloudSource implements Source {
 
   /** Servings backfill (brief: on first successful connect per device only). Historical
    * pours are emitted with their original `ts`; Task 5's PourDeduper is what prevents
-   * doubles against anything already reported live via the WS 'updated' path. */
+   * doubles against anything already reported live via the WS 'updated' path.
+   *
+   * `state.backfillDone` is only set `true` once the `getServings` call actually
+   * succeeds (Fix round 1: previously it was latched `true` by the caller *before*
+   * this ran, so a transient failure on first connect permanently skipped backfill for
+   * that device's whole process lifetime). On failure it's left `false`, so the next WS
+   * `open` (i.e. the next reconnect) naturally retries it. `state.backfillInFlight`
+   * (cleared in `finally`, covering every return path including the early guards) is
+   * what actually prevents a fast reconnect from starting a second overlapping call
+   * while one is still pending — see the `open` handler in `openWs()`. */
   private async runBackfill(state: DeviceState): Promise<void> {
-    if (state.stopped || !this.client) return;
     try {
+      if (state.stopped || !this.client) return;
       const start = sevenDaysAgo(new Date());
       const rows = await this.client.getServings(state.deviceKey, start, 'now');
       if (state.stopped) return;
@@ -330,10 +344,13 @@ export class KegtronCloudSource implements Source {
           ts: row.ts,
         });
       }
+      state.backfillDone = true;
       this.evaluateHealth();
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       console.error(`[kegtron_cloud] servings backfill failed for device ${redactKey(state.deviceKey)}`, detail);
+    } finally {
+      state.backfillInFlight = false;
     }
   }
 

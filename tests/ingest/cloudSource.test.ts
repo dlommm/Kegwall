@@ -23,6 +23,11 @@ const shadowFixture: unknown = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8'));
 const API_KEY = 'customer-secret-8f3a1c';
 const DEVICE_KEY = 'device-secret-b91e7d';
 
+const DEFAULT_SERVINGS_ROWS = [
+  ['2026-07-20T21:05:00Z', '2026-07-20T14:05:00', "Moe's Tavern", 'device2', 0, 200, 7134, 88.0, 'King Cobra', 4000],
+  ['2026-07-21T10:00:00Z', '2026-07-21T03:00:00', "Moe's Tavern", 'device2', 2, 355, 11005, 62.5, 'Schlitz', null],
+];
+
 let app: FastifyInstance;
 let wss: WebSocketServer;
 let shadowRequestCount: number;
@@ -33,6 +38,10 @@ let settings: SettingsStore;
 let bus: EventBus;
 let events: { event: string; payload: any }[];
 let source: KegtronCloudSource | null;
+// Overridable per-test (see e.g. the backfill-retry test below) — reassigning this after
+// the route is already registered still works, since the route handler reads it lazily
+// on each incoming request rather than capturing it once at registration time.
+let servingsHandler: (req: any, reply: any) => unknown | Promise<unknown>;
 
 // Fast test-only backoff/poll overrides (see mdashClient.ts's timeoutMs precedent,
 // task-3-report.md "Deviations") — production defaults stay 1s->60s / 5 min.
@@ -66,14 +75,9 @@ function registerHttpRoutes(): void {
     shadowRequestCount++;
     return shadowFixture;
   });
-  app.post('/api/v2/m/device/data/servings-device', async (req) => {
+  app.post('/api/v2/m/device/data/servings-device', async (req, reply) => {
     seenServingsParams = req.body;
-    return {
-      rows: [
-        ['2026-07-20T21:05:00Z', '2026-07-20T14:05:00', "Moe's Tavern", 'device2', 0, 200, 7134, 88.0, 'King Cobra', 4000],
-        ['2026-07-21T10:00:00Z', '2026-07-21T03:00:00', "Moe's Tavern", 'device2', 2, 355, 11005, 62.5, 'Schlitz', null],
-      ],
-    };
+    return servingsHandler(req, reply);
   });
 }
 
@@ -89,6 +93,7 @@ beforeEach(async () => {
   serverConnectionUrls = [];
   shadowRequestCount = 0;
   seenServingsParams = undefined;
+  servingsHandler = async () => ({ rows: DEFAULT_SERVINGS_ROWS });
   registerHttpRoutes();
   wsBaseUrl = await listenWs();
 
@@ -243,6 +248,47 @@ describe('KegtronCloudSource reconnect', () => {
 
     await vi.waitFor(() => expect(serverSockets).toHaveLength(2), { timeout: 3000 });
     await vi.waitFor(() => expect(shadowRequestCount).toBeGreaterThan(requestsBeforeDrop), { timeout: 3000 });
+  });
+});
+
+describe('KegtronCloudSource backfill retry (Fix round 1)', () => {
+  it('retries a failed first-connect backfill on the next reconnect, and emits the pours exactly once', async () => {
+    settings.set('kegtronApiKey', API_KEY);
+    let servingsAttempts = 0;
+    servingsHandler = async (_req, reply) => {
+      servingsAttempts++;
+      if (servingsAttempts === 1) {
+        reply.code(503);
+        return { error: 'temporarily unavailable' };
+      }
+      return { rows: DEFAULT_SERVINGS_ROWS };
+    };
+    const baseUrl = await listenHttp();
+    source = new KegtronCloudSource({ bus, settings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+    await vi.waitFor(() => expect(serverSockets).toHaveLength(1));
+
+    // First backfill attempt (triggered by the initial WS open) fails — asserted via the
+    // attempt counter rather than a fixed delay, since the failure is itself async.
+    await vi.waitFor(() => expect(servingsAttempts).toBe(1));
+    // Give the failed attempt's promise a tick to fully unwind (clear backfillInFlight)
+    // before forcing the reconnect that should retry it.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(byEvent('pour_completed')).toHaveLength(0);
+
+    // Force a WS drop + reconnect — the retry path.
+    serverSockets[0]!.close();
+    await vi.waitFor(() => expect(serverSockets).toHaveLength(2), { timeout: 3000 });
+
+    // Second backfill attempt (triggered by the reconnect's WS open) succeeds.
+    await vi.waitFor(() => expect(servingsAttempts).toBe(2), { timeout: 3000 });
+    await vi.waitFor(() => expect(byEvent('pour_completed')).toHaveLength(2), { timeout: 3000 });
+
+    // Give any further (incorrect) reconnect/backfill activity a chance to fire, then
+    // confirm the pours were emitted exactly once — no duplicate/overlapping backfill.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(servingsAttempts).toBe(2);
+    expect(byEvent('pour_completed')).toHaveLength(2);
   });
 });
 
