@@ -19,6 +19,13 @@ export const wallConfigSchema = z.object({
   ticker: z.string().optional(),
   fields: z.record(z.string(), z.boolean()).default({}),
   customCss: z.string().optional(),
+  // ScreenCare (Task 5): OLED-friendly idle mode — dimmed logo + rotating tap highlight,
+  // engaged `startAfterMinutes` after the wall mounts. Off by default so existing walls'
+  // stored config (parsed with this key absent) keep their current behavior unchanged.
+  screensaver: z.object({
+    enabled: z.boolean().default(false),
+    startAfterMinutes: z.number().int().min(1).default(10),
+  }).default({ enabled: false, startAfterMinutes: 10 }),
 });
 
 export type WallConfig = z.infer<typeof wallConfigSchema>;

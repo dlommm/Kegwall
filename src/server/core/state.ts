@@ -2,7 +2,9 @@ import type Database from 'better-sqlite3';
 import { monitorRefKey, type EventBus, type MonitorRef } from './events.js';
 import { listTaps } from '../db/taps.js';
 import { getBeer, type Beer } from '../db/beers.js';
-import { getActiveKegForTap, applyDispense, recordPourTx, type Keg } from '../db/kegs.js';
+import {
+  getActiveKegForTap, getLatestKickedKegForTap, applyDispense, recordPourTx, type Keg,
+} from '../db/kegs.js';
 import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
 } from '../db/monitors.js';
@@ -93,7 +95,10 @@ export class StateManager {
   getTapStates(): TapState[] {
     const monitors = listMonitors(this.db);
     return listTaps(this.db).map((tap) => {
-      const keg = getActiveKegForTap(this.db, tap.id);
+      // A tap with no on_tap keg still needs a KICKED presentation when its last keg was
+      // kicked without a replacement — otherwise it reads as a generic empty tap on the
+      // wall even though there's a specific "just kicked" beer to show drained/stamped.
+      const keg = getActiveKegForTap(this.db, tap.id) ?? getLatestKickedKegForTap(this.db, tap.id);
       const beer = keg ? getBeer(this.db, keg.beerId) : null;
       const mon = monitors.find((m) => m.tapId === tap.id);
       const key = mon ? monitorRefKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;

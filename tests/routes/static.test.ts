@@ -25,4 +25,31 @@ describe('static serving', () => {
     app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
     expect((await app.inject({ method: 'GET', url: '/wall/main' })).statusCode).toBe(404);
   });
+
+  it('serves index.html when webDir is a relative path', async () => {
+    // Regression test: @fastify/static requires an absolute `root`. index.ts's default
+    // (and any relative WEB_DIR override) must be resolved before reaching it, or the
+    // server crashes with FST_STATIC_INVALID_OPTION as soon as dist/web exists. Every
+    // other case in this file passes an already-absolute mkdtempSync() path, which
+    // would stay green even if that resolve() were reverted — this one exercises a
+    // genuinely relative webDir so a regression here actually fails.
+    const parentDir = mkdtempSync(join(tmpdir(), 'ktdash-relweb-'));
+    const relativeWebDir = 'web';
+    mkdirSync(join(parentDir, relativeWebDir));
+    writeFileSync(join(parentDir, relativeWebDir, 'index.html'), '<html><body>relative wall</body></html>');
+
+    const originalCwd = process.cwd();
+    process.chdir(parentDir);
+    try {
+      app = await buildApp({
+        dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')),
+        webDir: relativeWebDir,
+      });
+      const res = await app.inject({ method: 'GET', url: '/' });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('relative wall');
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
 });

@@ -1,0 +1,744 @@
+@import "tailwindcss";
+
+/*
+ * Typography utilities per the Phase 3 "Visual design direction": a
+ * condensed display face for beer names (readable from a couch at 3m), a
+ * quiet humanist body face for style/brewery/meta text, and tabular numerals
+ * for ABV/IBU/percent so those figures stay column-aligned as they change.
+ * The font families themselves come from theme tokens (see
+ * src/web/themes/themes.ts) so every theme shares one typographic identity.
+ */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-tabular {
+  font-family: var(--font-mono-numeric);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * LiquidFill — the wall's signature element (see TapCard.tsx / LiquidFill.tsx).
+ * The pour is the ONE orchestrated moment of motion on the wall: a gentle
+ * surface ripple plus a soft container glow, both gated behind `pouring` and
+ * fully skipped under prefers-reduced-motion (the components never add these
+ * classes in that case, so the keyframes below simply never run).
+ */
+.liquid-fill {
+  position: relative;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.liquid-fill__svg {
+  height: 100%;
+  width: 100%;
+  display: block;
+}
+
+.liquid-fill__body--transition {
+  transition: y 500ms ease, height 500ms ease;
+}
+
+.liquid-fill__foam--ripple {
+  animation: liquid-fill-ripple 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.liquid-fill--pouring {
+  animation: liquid-fill-glow 1.8s ease-in-out infinite;
+}
+
+.liquid-fill__readout {
+  position: absolute;
+  inset: auto 0 0.5rem 0;
+  text-align: center;
+  font-family: var(--font-mono-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+@keyframes liquid-fill-ripple {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.6px); }
+}
+
+@keyframes liquid-fill-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(0, 0, 0, 0); }
+  50% { box-shadow: 0 0 1.5rem 0.25rem var(--liquid-highlight, var(--accent)); }
+}
+
+/*
+ * WallGrid — sized to `config.columns` via the `--wall-columns` custom property (set
+ * inline by WallGrid.tsx). Fewer columns means more room per cell, which is the entire
+ * "card scale" story per the design direction: no separate zoom/scale knob needed.
+ */
+.wall-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--wall-columns, 2), minmax(0, 1fr));
+  gap: 1.25rem;
+  width: 100%;
+  height: 100%;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+/* TapCard templates. */
+.tap-card {
+  position: relative;
+  display: flex;
+  gap: 0.75rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  padding: 1rem;
+}
+
+/*
+ * `.tap-card__kicked-badge` is `position: absolute; inset: 0;` and must be
+ * contained by this element, not by `.tap-card` itself — otherwise the stamp
+ * spans the whole card (worst in `compact`, where the liquid is a small
+ * corner element) instead of just the liquid area it overlays.
+ */
+.tap-card__liquid {
+  position: relative;
+}
+
+.tap-card--full,
+.tap-card--standard {
+  flex-direction: column;
+}
+
+.tap-card--full .tap-card__liquid,
+.tap-card--standard .tap-card__liquid {
+  height: 10rem;
+}
+
+.tap-card--compact {
+  flex-direction: row;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+}
+
+.tap-card--compact .tap-card__liquid {
+  height: 2.5rem;
+  width: 1.75rem;
+  flex: none;
+}
+
+.tap-card--compact .tap-card__info {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.tap-card--minimal {
+  flex-direction: column;
+}
+
+.tap-card--minimal .tap-card__liquid {
+  height: 8rem;
+}
+
+.tap-card__name {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/*
+ * Task 7 polish-audit fix: the wall's design direction calls for the beer name to stay
+ * readable "from a couch at 3m" and specifically targets >= ~2.5vw at 2 columns — the
+ * flat 1.75rem above (28px) cleared neither a 1080p wall (needs >=48px) nor a 4K one
+ * (needs >=96px), since it never scaled with the viewport at all. Scoped to the wall's
+ * own templates (`full`/`standard`/`minimal`) only, NOT `.tap-card--compact` — that
+ * template is shared with /menu's mobile tap list (see MenuPage.tsx), where a
+ * viewport-scaled name would either be illegibly small on a narrow phone or blow out a
+ * dense row on a wide desktop browser. `clamp()`'s floor keeps a narrow/unusual wall
+ * viewport at least as readable as before; the ceiling caps runaway growth past 4K
+ * (2.6vw already comfortably clears the 2.5vw floor at both 1080p and 4K).
+ */
+.tap-card--full .tap-card__name,
+.tap-card--standard .tap-card__name,
+.tap-card--minimal .tap-card__name {
+  font-size: clamp(1.75rem, 2.6vw, 6.5rem);
+}
+
+.tap-card__tap-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tap-card__brewery,
+.tap-card__style {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.tap-card__description {
+  color: var(--text-dim);
+  font-size: 0.875rem;
+}
+
+.tap-card__stats {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.tap-card__last-pour {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.tap-card__empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* Kicked keg: drained + desaturated, per the design direction. */
+.tap-card--kicked .tap-card__info,
+.tap-card--kicked .tap-card__liquid {
+  filter: grayscale(0.85) brightness(0.7);
+}
+
+.tap-card__kicked-badge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.kicked-badge__stamp {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 1rem;
+  color: var(--text);
+  border: 2px solid var(--text);
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.6rem;
+  transform: rotate(-8deg);
+  opacity: 0.85;
+}
+
+/*
+ * `compact`'s kicked treatment (Phase 3 final review, finding I2): an inline text pill
+ * next to the beer name rather than the absolute-positioned stamp above, which overflows
+ * the tiny 28x40px compact liquid swatch. It sits inside `.tap-card__info`, which already
+ * picks up the kicked grayscale/brightness filter above, so no separate desaturation
+ * rule is needed here.
+ */
+.tap-card__kicked-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  border: 1px solid var(--text-dim);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+}
+
+/*
+ * WallPage chrome — fullscreen root, no browser chrome, dimmed + a "Reconnecting" pill
+ * once the WS feed has gone stale (see WallPage.tsx). The 1px ScreenCare drift (below)
+ * transitions smoothly so it reads as a barely-perceptible settle rather than a jump.
+ */
+.wall-page {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.wall-page__dimmable--stale {
+  filter: brightness(0.82) saturate(0.85);
+}
+
+.wall-page__reconnecting {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 70%, black);
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-page__reconnecting-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: wall-reconnect-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes wall-reconnect-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* .wall-page__loading / .wall-page__error: no CSS here — WallPage.tsx uses plain
+   Tailwind utilities for these two pre-theme-load states (see its own comment for why:
+   there's no wall config yet to mount ThemeProvider's CSS-variable tokens with). */
+
+/* ScreenCare: full height so the grid beneath it keeps filling the viewport as it
+   nudges by a css pixel (see the reduced-motion-gated transition just below). */
+.screen-care {
+  min-height: 100vh;
+}
+
+/* The 1px OLED drift (ScreenCare.tsx) eases over 2s under normal motion, but that's
+   still a recurring, if subtle, transform animation — gated behind prefers-reduced-
+   motion like every other bit of motion on the wall so reduced-motion users get the
+   drift's position change instantly instead of eased. CSS-only (no JS state needed:
+   the drift offset itself is unaffected, only whether its change transitions). */
+@media (prefers-reduced-motion: no-preference) {
+  .screen-care {
+    transition: transform 2s ease;
+  }
+}
+
+.screen-care__saver {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: color-mix(in srgb, var(--bg) 92%, black);
+}
+
+.screen-care__saver-title {
+  font-size: 3rem;
+  opacity: 0.35;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.screen-care__saver-highlight {
+  color: var(--accent);
+  opacity: 0.6;
+  font-size: 1.1rem;
+}
+
+/* WallHeader */
+.wall-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem 0;
+}
+
+.wall-header__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.wall-header__logo {
+  height: 2.5rem;
+  width: auto;
+}
+
+.wall-header__title {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wall-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+.wall-header__ticker {
+  /* .wall-header is a flex (not grid) container — flex-basis 100% with flex-grow: 1 is
+     the flex equivalent of "span the full row", forcing this onto its own line once
+     .wall-header wraps (see the wrap rule above) instead of cramming inline next to the
+     clock/temp meta group. */
+  flex: 1 0 100%;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  padding: 0.35rem 0 0;
+}
+
+/* BannerLane */
+.banner-lane {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  z-index: 45;
+  pointer-events: none;
+}
+
+.banner-lane__banner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+/* Reduced-motion gating mirrors LiquidFill/rotation: BannerLane.tsx computes whether
+   motion is allowed via usePrefersReducedMotion() and only adds this class in that case
+   (rather than a bare `@media` query) so it's the same testable, class-driven pattern
+   used everywhere else in the wall, not a CSS-only escape hatch. */
+.banner-lane__banner--animated {
+  animation: banner-lane-slide-in 400ms ease-out;
+}
+
+.banner-lane__banner--warning {
+  border-color: color-mix(in srgb, #e0793d 60%, transparent);
+}
+
+.banner-lane__banner--success {
+  border-color: color-mix(in srgb, #4caf6f 60%, transparent);
+}
+
+.banner-lane__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+
+@keyframes banner-lane-slide-in {
+  from { transform: translateY(1rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* QrOverlay */
+.qr-overlay {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  line-height: 0;
+}
+
+.qr-overlay svg {
+  width: 6rem;
+  height: 6rem;
+  display: block;
+}
+
+/* Page-rotation transitions — the content wrapper is remounted (React `key`) per page
+   change, which is what replays these entrance animations each time. */
+.wall-grid-transition--crossfade {
+  animation: wall-grid-crossfade 600ms ease;
+}
+
+.wall-grid-transition--slide {
+  animation: wall-grid-slide 500ms ease;
+}
+
+.wall-grid-transition--none {
+  animation: none;
+}
+
+@keyframes wall-grid-crossfade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wall-grid-slide {
+  from { opacity: 0; transform: translateX(2.5%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/*
+ * MenuPage (Task 6) — mobile-first tap list + claim flow at /menu. Uses the same
+ * ThemeProvider CSS-variable tokens as the wall (default taproom theme, since the menu
+ * isn't tied to a specific wall's config) so TapCard/ClaimSheet read consistent colors.
+ */
+.menu-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.menu-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+.menu-page__header {
+  padding-top: 0.5rem;
+}
+
+.menu-page__site-name {
+  font-size: 1.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.menu-page__tap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * ClaimSheet — the "Claim your pour" section plus its drinker-picker overlay. Interactive
+ * elements (`__pour-button`, `__drinker-button`, `__dismiss`, `__done`) all keep a 44px
+ * minimum touch target per the Task 6 accessibility requirement, and get a visible
+ * `:focus-visible` ring since they sit on a dark background where the browser default can
+ * be hard to see.
+ */
+.claim-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.claim-sheet__heading {
+  font-size: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.claim-sheet__empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.claim-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.claim-sheet__pour-button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.claim-sheet__pour-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.claim-sheet__pour-beer {
+  font-weight: 600;
+}
+
+.claim-sheet__pour-meta {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.claim-sheet__pour-cta {
+  flex: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.claim-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.claim-sheet__sheet {
+  width: 100%;
+  max-width: 28rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 1rem 1rem 0 0;
+  padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -0.5rem 2rem rgba(0, 0, 0, 0.4);
+}
+
+.claim-sheet__sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.claim-sheet__sheet-title {
+  font-size: 1.4rem;
+}
+
+.claim-sheet__dismiss {
+  min-width: 44px;
+  min-height: 44px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.claim-sheet__prompt {
+  color: var(--text-dim);
+  margin-top: 0.5rem;
+}
+
+.claim-sheet__status {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.claim-sheet__notice {
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.claim-sheet__notice--success {
+  background: color-mix(in srgb, #4caf6f 20%, transparent);
+}
+
+.claim-sheet__notice--conflict {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.claim-sheet__notice--rate-limited {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+}
+
+.claim-sheet__notice--error {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+}
+
+.claim-sheet__done {
+  min-height: 44px;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.claim-sheet__drinker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.claim-sheet__drinker-button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.claim-sheet__drinker-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.claim-sheet__avatar {
+  display: flex;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.claim-sheet__pour-button:focus-visible,
+.claim-sheet__drinker-button:focus-visible,
+.claim-sheet__dismiss:focus-visible,
+.claim-sheet__done:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

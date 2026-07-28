@@ -18,12 +18,17 @@ export async function publicRoutes(app: FastifyInstance) {
     let taps = app.ctx.state.getTapStates();
     const configured = new Set(config.pages.flatMap((p) => p.tapIds));
     if (configured.size > 0) taps = taps.filter((t) => configured.has(t.tapId));
-    return { wall: { slug: wall.slug, name: wall.name, config }, taps };
+    return {
+      wall: { slug: wall.slug, name: wall.name, config },
+      taps,
+      units: app.ctx.settings.get('displayUnits'),
+    };
   });
 
   app.get('/api/public/menu', async () => ({
     siteName: app.ctx.settings.get('siteName'),
     taps: app.ctx.state.getTapStates(),
+    units: app.ctx.settings.get('displayUnits'),
   }));
 
   app.get('/api/public/drinkers', async () =>

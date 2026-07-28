@@ -5,6 +5,7 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import {
   createKeg, getActiveKegForTap, applyDispense, recordPourTx, swapKeg, listKegs,
+  getLatestKickedKegForTap,
 } from '../../src/server/db/kegs.js';
 import { ConflictError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
@@ -75,5 +76,24 @@ describe('kegs repo', () => {
     const b = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000 });
     expect(a.tapId).toBeNull();
     expect(b.tapId).toBeNull();
+  });
+
+  it('getLatestKickedKegForTap returns null with no kicked history, then the most recent kick', () => {
+    expect(getLatestKickedKegForTap(db, tapId)).toBeNull();
+
+    const first = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(first.id);
+    expect(getLatestKickedKegForTap(db, tapId)?.id).toBe(first.id);
+
+    const second = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(second.id);
+    expect(getLatestKickedKegForTap(db, tapId)?.id).toBe(second.id);
+  });
+
+  it('getLatestKickedKegForTap ignores kicked kegs belonging to other taps', () => {
+    const otherTapId = createTap(db, { number: 2 }).id;
+    const keg = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId: otherTapId });
+    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(keg.id);
+    expect(getLatestKickedKegForTap(db, tapId)).toBeNull();
   });
 });

@@ -9,5 +9,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "scripts"]
+  "include": ["src", "tests", "scripts", "playwright.config.ts"],
+  "exclude": ["src/web", "tests/web"]
 }
