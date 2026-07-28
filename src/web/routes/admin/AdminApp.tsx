@@ -10,6 +10,7 @@ import { WallsPage } from './WallsPage';
 import { UsersPage } from './UsersPage';
 import { SettingsPage } from './SettingsPage';
 import { StatsPage } from './StatsPage';
+import { PoursPage } from './PoursPage';
 
 /**
  * The entire `/admin/*` route subtree, as its own module — Phase 5 Task 0 (Phase 4 final
@@ -41,6 +42,7 @@ export default function AdminApp() {
         <Route path="users" element={<UsersPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="stats" element={<StatsPage />} />
+        <Route path="pours" element={<PoursPage />} />
       </Route>
     </Routes>
   );

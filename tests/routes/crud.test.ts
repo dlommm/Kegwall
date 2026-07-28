@@ -527,4 +527,166 @@ describe('crud routes', () => {
       expect(res.statusCode).toBe(400);
     });
   });
+
+  describe('taps: default drinker (Phase 5 Task 0)', () => {
+    it('defaults to null, and can be set via POST/PATCH', async () => {
+      const drinker = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Bob' },
+      })).json();
+
+      const created = await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      });
+      expect(created.json().defaultDrinkerId).toBeNull();
+
+      const withDefault = await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies,
+        payload: { number: 2, defaultDrinkerId: drinker.id },
+      });
+      expect(withDefault.statusCode).toBe(201);
+      expect(withDefault.json().defaultDrinkerId).toBe(drinker.id);
+
+      const patched = await app.inject({
+        method: 'PATCH', url: `/api/taps/${created.json().id}`, cookies: adminCookies,
+        payload: { defaultDrinkerId: drinker.id },
+      });
+      expect(patched.json().defaultDrinkerId).toBe(drinker.id);
+
+      const cleared = await app.inject({
+        method: 'PATCH', url: `/api/taps/${withDefault.json().id}`, cookies: adminCookies,
+        payload: { defaultDrinkerId: null },
+      });
+      expect(cleared.json().defaultDrinkerId).toBeNull();
+    });
+
+    it('GET /api/taps includes defaultDrinkerId for a viewer', async () => {
+      const drinker = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Sam' },
+      })).json();
+      await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies,
+        payload: { number: 1, defaultDrinkerId: drinker.id },
+      });
+      const list = await app.inject({ method: 'GET', url: '/api/taps', cookies: adminCookies });
+      expect(list.json()[0].defaultDrinkerId).toBe(drinker.id);
+    });
+  });
+
+  describe('PATCH /api/pours/:id/drinker (Phase 5 Task 0 — admin reassign/unclaim)', () => {
+    async function recordPourViaTap(): Promise<{ pourId: number; drinkerId: number; tapId: number }> {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+      });
+      // No direct "create monitor" route — a monitor row only exists once a source has
+      // reported it; the bus event above is what real device discovery emits.
+      app.ctx.bus.emit('device_discovered', {
+        monitor: { type: 'kegtron_pro', identifier: 'dev', portIndex: 0 }, meta: {},
+      });
+      const monitors = await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies });
+      const monitorId = monitors.json()[0].id;
+      await app.inject({
+        method: 'POST', url: `/api/monitors/${monitorId}/bind`, cookies: adminCookies,
+        payload: { tapId: tap.id },
+      });
+      app.ctx.bus.emit('pour_completed', {
+        monitor: { type: 'kegtron_pro', identifier: 'dev', portIndex: 0 },
+        volumeMl: 400, durationMs: null, source: 'cloud', ts: new Date().toISOString(),
+      });
+      const pours = (await app.inject({ method: 'GET', url: '/api/pours', cookies: adminCookies })).json();
+      const pourId = pours[0].id;
+      const drinker = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Reassign Target' },
+      })).json();
+      return { pourId, drinkerId: drinker.id, tapId: tap.id };
+    }
+
+    it('rejects unauthenticated requests', async () => {
+      const res = await app.inject({ method: 'PATCH', url: '/api/pours/1/drinker', payload: { drinkerId: 1 } });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects a viewer (needs editor role)', async () => {
+      await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { username: 'vwp', displayName: 'VwP', password: 'password1', role: 'viewer' },
+      });
+      const login = await app.inject({
+        method: 'POST', url: '/api/auth/login', payload: { username: 'vwp', password: 'password1' },
+      });
+      const viewerCookies = { session: login.cookies.find((c: any) => c.name === 'session')!.value };
+      const res = await app.inject({
+        method: 'PATCH', url: '/api/pours/1/drinker', cookies: viewerCookies, payload: { drinkerId: 1 },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('reassigns a pour to a drinker (editor)', async () => {
+      const { pourId, drinkerId } = await recordPourViaTap();
+      const res = await app.inject({
+        method: 'PATCH', url: `/api/pours/${pourId}/drinker`, cookies: adminCookies,
+        payload: { drinkerId },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().drinkerId).toBe(drinkerId);
+    });
+
+    it('unclaims a pour (drinkerId: null), overriding an existing claim — admin override, '
+      + 'unlike the public claim route which 409s on an already-claimed pour', async () => {
+      const { pourId, drinkerId } = await recordPourViaTap();
+      await app.inject({
+        method: 'PATCH', url: `/api/pours/${pourId}/drinker`, cookies: adminCookies,
+        payload: { drinkerId },
+      });
+      const unclaim = await app.inject({
+        method: 'PATCH', url: `/api/pours/${pourId}/drinker`, cookies: adminCookies,
+        payload: { drinkerId: null },
+      });
+      expect(unclaim.statusCode).toBe(200);
+      expect(unclaim.json().drinkerId).toBeNull();
+    });
+
+    it('reassigns a pour that already has a different drinker (admin override)', async () => {
+      const { pourId, drinkerId: first } = await recordPourViaTap();
+      const second = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Second Target' },
+      })).json();
+      await app.inject({
+        method: 'PATCH', url: `/api/pours/${pourId}/drinker`, cookies: adminCookies,
+        payload: { drinkerId: first },
+      });
+      const reassigned = await app.inject({
+        method: 'PATCH', url: `/api/pours/${pourId}/drinker`, cookies: adminCookies,
+        payload: { drinkerId: second.id },
+      });
+      expect(reassigned.statusCode).toBe(200);
+      expect(reassigned.json().drinkerId).toBe(second.id);
+    });
+
+    it('400s for a drinkerId that is not a drinker (e.g. a login user, or unknown id)', async () => {
+      const { pourId } = await recordPourViaTap();
+      const res = await app.inject({
+        method: 'PATCH', url: `/api/pours/${pourId}/drinker`, cookies: adminCookies,
+        payload: { drinkerId: 999999 },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('404s for an unknown pour id', async () => {
+      const res = await app.inject({
+        method: 'PATCH', url: '/api/pours/999999/drinker', cookies: adminCookies, payload: { drinkerId: null },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
 });

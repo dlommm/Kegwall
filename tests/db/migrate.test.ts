@@ -28,7 +28,7 @@ describe('migrations', () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 3 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 4 });
     db2.close();
   });
 
@@ -52,7 +52,10 @@ describe('migrations', () => {
     const upgraded = openDb(dir);
     const applied = upgraded.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
       .map((r: any) => r.name);
-    expect(applied).toEqual(['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql']);
+    expect(applied).toEqual([
+      '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql',
+    ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
     expect(idx).toContain('idx_kegs_tap_active');
@@ -83,7 +86,10 @@ describe('migrations', () => {
     const upgraded = openDb(dir);
     const applied = upgraded.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
       .map((r: any) => r.name);
-    expect(applied).toEqual(['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql']);
+    expect(applied).toEqual([
+      '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql',
+    ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
     expect(keg).toMatchObject({ status: 'on_tap', vol_start_ml: 19000, tap_id: 1, beer_id: 1 });
@@ -107,6 +113,27 @@ describe('migrations', () => {
 
     expect(upgraded.pragma('foreign_keys', { simple: true })).toBe(1);
     upgraded.close();
+  });
+
+  it('adds taps.default_drinker_id (nullable), preserving existing taps and enforcing '
+    + 'the users FK for a non-null value', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const db = openDb(dir);
+    const now = new Date().toISOString();
+
+    db.prepare(`INSERT INTO taps (number, name) VALUES (1, 'Left')`).run();
+    const tap = db.prepare(`SELECT * FROM taps WHERE number = 1`).get() as any;
+    expect(tap.default_drinker_id).toBeNull();
+
+    db.prepare(`INSERT INTO users (display_name, is_drinker, created_at) VALUES ('Bob', 1, ?)`).run(now);
+    const drinkerId = (db.prepare(`SELECT id FROM users WHERE display_name = 'Bob'`).get() as any).id;
+    expect(() => db.prepare(`UPDATE taps SET default_drinker_id = ? WHERE id = ?`)
+      .run(drinkerId, tap.id)).not.toThrow();
+
+    expect(() => db.prepare(`UPDATE taps SET default_drinker_id = ? WHERE id = ?`)
+      .run(999999, tap.id)).toThrow();
+
+    db.close();
   });
 
   it('fails closed on a corrupting migration: rolls back, does NOT mark it applied, and '

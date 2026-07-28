@@ -1231,6 +1231,13 @@
   border-bottom: none;
 }
 
+/* PoursPage's per-row reassign/unclaim failure (Phase 5 Task 0). */
+.pours-row__error {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: #e0793d;
+}
+
 .beers-table__thumb {
   display: block;
   width: 2.25rem;
@@ -2937,6 +2944,14 @@ h2.admin-field__label-text {
   width: 0.6rem;
   height: 0.6rem;
   border-radius: 999px;
+}
+
+/* Leaderboard's link to the pours admin page (reassign/unclaim). */
+.stats-chart__manage-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--accent);
 }
 
 /* The date-range switcher (pours + beers) and the leaderboard's week/month/all switcher

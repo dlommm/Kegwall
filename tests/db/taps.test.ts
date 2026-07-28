@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
-import { createTap, listTaps, updateTap, deleteTap } from '../../src/server/db/taps.js';
+import {
+  createTap, listTaps, updateTap, deleteTap, getTap,
+} from '../../src/server/db/taps.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createKeg } from '../../src/server/db/kegs.js';
+import { createDrinker } from '../../src/server/db/users.js';
 import { ConflictError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -48,6 +51,22 @@ describe('taps repo', () => {
       expect(message).not.toContain('remove them first');
     }
     expect(listTaps(db)).toHaveLength(1);
+  });
+
+  it('defaults defaultDrinkerId to null, and can be set/cleared via createTap/updateTap', () => {
+    const tap = createTap(db, { number: 6 });
+    expect(tap.defaultDrinkerId).toBeNull();
+
+    const drinker = createDrinker(db, { displayName: 'Bob' });
+    const withDefault = createTap(db, { number: 7, defaultDrinkerId: drinker.id });
+    expect(withDefault.defaultDrinkerId).toBe(drinker.id);
+    expect(getTap(db, withDefault.id)!.defaultDrinkerId).toBe(drinker.id);
+
+    expect(updateTap(db, tap.id, { defaultDrinkerId: drinker.id }).defaultDrinkerId).toBe(drinker.id);
+    // clearing back to null (explicit null, not "field omitted")
+    expect(updateTap(db, tap.id, { defaultDrinkerId: null }).defaultDrinkerId).toBeNull();
+    // omitting the field on an update leaves the stored value untouched
+    expect(updateTap(db, withDefault.id, { name: 'Renamed' }).defaultDrinkerId).toBe(drinker.id);
   });
 
   it('refuses to delete a tap with a bound monitor, with a message naming what blocks it', () => {

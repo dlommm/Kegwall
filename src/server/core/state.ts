@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { monitorRefKey, type EventBus, type MonitorRef } from './events.js';
-import { listTaps } from '../db/taps.js';
+import { listTaps, getTap } from '../db/taps.js';
 import { getBeer, type Beer } from '../db/beers.js';
 import {
   getActiveKegForTap, getLatestKickedKegForTap, applyDispense, recordPourTx, type Keg,
@@ -73,9 +73,17 @@ export class StateManager {
         if (tapId !== null) {
           const keg = getActiveKegForTap(this.db, tapId);
           if (keg) {
+            // Phase 5 Task 0 (admin pours management): a device-reported pour is always
+            // born unclaimed (no ingest path carries drinker attribution) — if this tap
+            // has a configured default drinker, stamp it at creation time instead of
+            // leaving the pour to sit unclaimed until someone claims it via the public
+            // wall/menu claim flow (or an admin reassigns it later, see
+            // routes/crud.ts's PATCH /api/pours/:id/drinker).
+            const tap = getTap(this.db, tapId);
             recordPourTx(this.db, {
               kegId: keg.id, ts: e.ts, volumeMl: e.volumeMl,
               durationMs: e.durationMs, source: e.source,
+              drinkerId: tap?.defaultDrinkerId ?? null,
             });
           }
         }

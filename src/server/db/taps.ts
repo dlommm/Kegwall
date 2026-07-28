@@ -1,28 +1,47 @@
 import type Database from 'better-sqlite3';
 import { ConflictError, NotFoundError } from '../core/errors.js';
 
-export interface Tap { id: number; number: number; name: string | null }
+export interface Tap {
+  id: number; number: number; name: string | null;
+  /** A drinker (`users.is_drinker = 1`) StateManager stamps onto a `pour_completed`
+   * record for this tap when the pour would otherwise land unclaimed (see
+   * core/state.ts). `null` means no default — the existing behavior. Phase 5 Task 0. */
+  defaultDrinkerId: number | null;
+}
 
-export function createTap(db: Database.Database, input: { number: number; name?: string | null }): Tap {
-  const res = db.prepare('INSERT INTO taps (number, name) VALUES (?, ?)')
-    .run(input.number, input.name ?? null);
+function rowToTap(r: any): Tap {
+  return { id: r.id, number: r.number, name: r.name, defaultDrinkerId: r.default_drinker_id };
+}
+
+export function createTap(db: Database.Database, input: {
+  number: number; name?: string | null; defaultDrinkerId?: number | null;
+}): Tap {
+  const res = db.prepare('INSERT INTO taps (number, name, default_drinker_id) VALUES (?, ?, ?)')
+    .run(input.number, input.name ?? null, input.defaultDrinkerId ?? null);
   return getTap(db, Number(res.lastInsertRowid))!;
 }
 
 export function getTap(db: Database.Database, id: number): Tap | null {
-  return (db.prepare('SELECT * FROM taps WHERE id = ?').get(id) as Tap | undefined) ?? null;
+  const r = db.prepare('SELECT * FROM taps WHERE id = ?').get(id);
+  return r ? rowToTap(r) : null;
 }
 
 export function listTaps(db: Database.Database): Tap[] {
-  return db.prepare('SELECT * FROM taps ORDER BY number').all() as Tap[];
+  return db.prepare('SELECT * FROM taps ORDER BY number').all().map(rowToTap);
 }
 
-export function updateTap(db: Database.Database, id: number, input: { number?: number; name?: string | null }): Tap {
+export function updateTap(db: Database.Database, id: number, input: {
+  number?: number; name?: string | null; defaultDrinkerId?: number | null;
+}): Tap {
   const existing = getTap(db, id);
   if (!existing) throw new NotFoundError(`tap ${id}`);
-  db.prepare('UPDATE taps SET number = ?, name = ? WHERE id = ?')
-    .run(input.number ?? existing.number,
-      input.name === undefined ? existing.name : input.name, id);
+  db.prepare('UPDATE taps SET number = ?, name = ?, default_drinker_id = ? WHERE id = ?')
+    .run(
+      input.number ?? existing.number,
+      input.name === undefined ? existing.name : input.name,
+      input.defaultDrinkerId === undefined ? existing.defaultDrinkerId : input.defaultDrinkerId,
+      id,
+    );
   return getTap(db, id)!;
 }
 

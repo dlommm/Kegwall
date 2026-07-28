@@ -4,9 +4,10 @@ import { openDb } from '../../src/server/db/db.js';
 import { EventBus } from '../../src/server/core/events.js';
 import { StateManager } from '../../src/server/core/state.js';
 import { createBeer } from '../../src/server/db/beers.js';
-import { createTap } from '../../src/server/db/taps.js';
+import { createTap, updateTap } from '../../src/server/db/taps.js';
 import { createKeg, getActiveKegForTap } from '../../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
+import { createDrinker } from '../../src/server/db/users.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,6 +50,41 @@ describe('StateManager', () => {
     const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
     expect(tap.lastPour?.volumeMl).toBe(400);
     expect((db.prepare('SELECT COUNT(*) c FROM pours').get() as any).c).toBe(1);
+  });
+
+  it('leaves a recorded pour unclaimed when the tap has no default drinker set (existing behavior)', () => {
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:00:00.000Z',
+    });
+    const row = db.prepare('SELECT drinker_id FROM pours ORDER BY id DESC LIMIT 1').get() as any;
+    expect(row.drinker_id).toBeNull();
+  });
+
+  it("stamps the tap's default drinker onto a pour_completed record when set (Phase 5 Task 0)", () => {
+    const drinker = createDrinker(db, { displayName: 'Bob' });
+    updateTap(db, tapId, { defaultDrinkerId: drinker.id });
+
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:00:00.000Z',
+    });
+
+    const row = db.prepare('SELECT drinker_id FROM pours ORDER BY id DESC LIMIT 1').get() as any;
+    expect(row.drinker_id).toBe(drinker.id);
+  });
+
+  it('does not override a tap default when a monitor is unbound (no tap to look a default up on)', () => {
+    // A pour for a monitor with no bound tap never resolves to a keg at all (see
+    // resolveTapForRef), so there's nothing to record — same as before this change;
+    // this just proves the new default-drinker lookup doesn't crash that no-tap path.
+    const unboundRef = { type: 'kegtron_pro' as const, identifier: 'dev-unbound', portIndex: 0 };
+    upsertMonitor(db, unboundRef);
+    expect(() => bus.emit('pour_completed', {
+      monitor: unboundRef, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:00:00.000Z',
+    })).not.toThrow();
+    expect((db.prepare('SELECT COUNT(*) c FROM pours').get() as any).c).toBe(0);
   });
 
   it('tracks live pouring state and clears it on completion', () => {

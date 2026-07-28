@@ -17,16 +17,11 @@ import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
 } from '../db/users.js';
 import { wallConfigSchema } from '../core/wallConfig.js';
-import { settingsSchema, type Settings } from '../db/settings.js';
-import { NotFoundError } from '../core/errors.js';
+import { settingsSchema } from '../db/settings.js';
+import { NotFoundError, ValidationError } from '../core/errors.js';
 import { registerConfiguredSources } from '../ingest/bootstrap.js';
-
-// Settings fields whose value actually changes which ingest sources should be running
-// (see bootstrap.ts's registerConfiguredSources) — a PATCH touching any of these
-// triggers a live stop/reconfigure/restart cycle of ctx.sources (Task 8 brief).
-const SOURCE_RESTART_KEYS: readonly (keyof Settings)[] = [
-  'kegtronApiKey', 'udpEnabled', 'mqtt', 'bleDirectEnabled',
-];
+import { setPourDrinker } from '../db/pours.js';
+import { SOURCE_RESTART_KEYS } from '../core/restartKeys.js';
 
 const beerSchema = z.object({
   name: z.string().min(1),
@@ -79,7 +74,13 @@ export async function crudRoutes(app: FastifyInstance) {
   // wall/menu — picks up a newly added/renamed/removed tap without a manual reload
   // (Task 5). getTapStates() (ws.ts's snapshot) already includes every tap regardless of
   // keg state, so no other change is needed for a bare tap CRUD op to show up live.
-  const tapSchema = z.object({ number: z.number().int().min(1), name: z.string().nullish() });
+  const tapSchema = z.object({
+    number: z.number().int().min(1),
+    name: z.string().nullish(),
+    // Phase 5 Task 0: the drinker StateManager stamps onto an otherwise-unclaimed
+    // pour_completed record for this tap (see core/state.ts). `null` clears it.
+    defaultDrinkerId: z.number().int().nullish(),
+  });
   app.get('/api/taps', viewer, async () => listTaps(db));
   app.post('/api/taps', editor, async (req, reply) => {
     const tap = createTap(db, tapSchema.parse(req.body));
@@ -211,6 +212,24 @@ export async function crudRoutes(app: FastifyInstance) {
       limit: z.coerce.number().int().max(2000).optional(),
     }).parse(req.query);
     return listPours(db, q);
+  });
+
+  // PATCH /api/pours/:id/drinker — admin reassign/unclaim (Phase 5 Task 0, editor role:
+  // matches this app's "viewer reads, editor writes" binding). Unlike the public
+  // `POST /api/public/claim` route (routes/public.ts), this is NOT scoped to
+  // currently-unclaimed pours and NEVER 409s on an existing claim — an editor fixing a
+  // mis-claimed pour (or clearing one) is exactly the "override" case that route
+  // deliberately doesn't allow. `drinkerId: null` unclaims.
+  app.patch('/api/pours/:id/drinker', editor, async (req) => {
+    const body = z.object({ drinkerId: z.number().int().nullable() }).parse(req.body);
+    if (body.drinkerId !== null) {
+      const drinker = db.prepare('SELECT id FROM users WHERE id = ? AND is_drinker = 1')
+        .get(body.drinkerId);
+      if (!drinker) throw new ValidationError('No such drinker');
+    }
+    const pour = setPourDrinker(db, Number((req.params as any).id), body.drinkerId);
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    return pour;
   });
 
   // --- walls ---
