@@ -33,7 +33,8 @@ describe('taps repo', () => {
     expect(listTaps(db)).toHaveLength(0);
   });
 
-  it('refuses to delete a tap with kegs on record, with a message naming what blocks it', () => {
+  it('refuses to delete a tap with kegs on record, stating the real (permanent) '
+    + 'constraint rather than a "remove them first" instruction that has no UI to follow', () => {
     const tap = createTap(db, { number: 4 });
     const beerId = createBeer(db, { name: 'Test Ale' }).id;
     createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
@@ -41,7 +42,10 @@ describe('taps repo', () => {
     try {
       deleteTap(db, tap.id);
     } catch (err) {
-      expect((err as Error).message).toContain('keg');
+      const message = (err as Error).message;
+      expect(message).toContain('keg');
+      expect(message).toContain("can't be deleted");
+      expect(message).not.toContain('remove them first');
     }
     expect(listTaps(db)).toHaveLength(1);
   });

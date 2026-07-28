@@ -223,14 +223,14 @@ describe('TapsPage', () => {
       taps: [makeTap(2)], stale: false, connected: true, reconnectCount: 0,
     });
     (deleteTap as Mock).mockResolvedValue({
-      ok: false, status: 409, message: 'tap 2 has 3 keg(s) on record (including history) — remove them first',
+      ok: false, status: 409, message: "tap 2 has keg history (3 keg(s) on record) and can't be deleted",
     });
     render(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-delete'));
     fireEvent.click(screen.getByTestId('taps-delete-confirm-button'));
     await flush();
-    expect(screen.getByTestId('taps-delete-error')).toHaveTextContent('keg(s) on record');
+    expect(screen.getByTestId('taps-delete-error')).toHaveTextContent("can't be deleted");
     expect(screen.getByTestId('taps-delete-confirm')).toBeInTheDocument();
   });
 

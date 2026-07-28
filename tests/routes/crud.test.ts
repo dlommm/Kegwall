@@ -395,7 +395,13 @@ describe('crud routes', () => {
         method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies,
       });
       expect(res.statusCode).toBe(409);
-      expect(res.json().message).toContain('keg');
+      const message = res.json().message;
+      expect(message).toContain('keg');
+      // states the real, permanent constraint — no route can delete historical kegs,
+      // so "remove them first" would send an operator looking for a control that
+      // doesn't exist.
+      expect(message).toContain("can't be deleted");
+      expect(message).not.toContain('remove them first');
     });
 
     it('deleting an empty, unbound tap succeeds', async () => {

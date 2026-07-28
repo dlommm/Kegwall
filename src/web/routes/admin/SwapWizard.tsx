@@ -175,7 +175,12 @@ export function SwapWizard({
 
         {step === 'confirm' && (
           <div data-testid="swap-wizard-step-confirm">
-            {hasActiveKeg ? (
+            {hasActiveKeg && promoteKeg ? (
+              <p>
+                This will kick {currentBeerName} and tap {promoteBeerName} from the on-deck queue
+                onto {tapLabel(tap)}. The kicked keg moves to history and this can&rsquo;t be undone.
+              </p>
+            ) : hasActiveKeg ? (
               <p>
                 This will kick {tapLabel(tap)}&rsquo;s current keg, {currentBeerName}. It moves to
                 kicked history and this can&rsquo;t be undone.

@@ -297,7 +297,8 @@ describe('SwapWizard', () => {
     const queuedKeg = makeKeg({ id: 42, beerId: 5, status: 'on_deck' });
     const queuedBeer = makeBeer({ id: 5, name: 'Queued Pils' });
 
-    it('an active tap shows the kick-consequence confirm, and swaps with fromKegId on confirm', async () => {
+    it('an active tap shows a kick-consequence confirm naming BOTH the outgoing and incoming '
+      + 'beers, and swaps with fromKegId on confirm', async () => {
       (swapTap as Mock).mockResolvedValue({ ok: true, data: { ...queuedKeg, status: 'on_tap' } });
       const onDone = vi.fn();
       const onClose = vi.fn();
@@ -307,7 +308,12 @@ describe('SwapWizard', () => {
           promoteKeg={queuedKeg} onClose={onClose} onDone={onDone}
         />,
       );
-      expect(screen.getByTestId('swap-wizard-step-confirm')).toHaveTextContent("kick");
+      const confirm = screen.getByTestId('swap-wizard-step-confirm');
+      expect(confirm).toHaveTextContent('kick');
+      // must name the outgoing (current) beer AND the incoming (queued) beer — an
+      // operator confirming a promote needs to see both to notice a wrong pick.
+      expect(confirm).toHaveTextContent('Citra IPA');
+      expect(confirm).toHaveTextContent('Queued Pils');
       expect(screen.getByTestId('swap-wizard-kick-button')).toHaveTextContent('Kick keg');
       // no beer/size steps at all for a promote
       expect(screen.queryByTestId('beer-picker')).not.toBeInTheDocument();

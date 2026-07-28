@@ -277,9 +277,9 @@ describe('admin api client', () => {
   });
 
   it('deleteTap DELETEs /api/taps/:id and reports a 409 conflict', async () => {
-    mockFetchOnce(409, { error: 'conflict', message: 'tap 1 has 2 keg(s) on record (including history) — remove them first' });
+    mockFetchOnce(409, { error: 'conflict', message: "tap 1 has keg history (2 keg(s) on record) and can't be deleted" });
     const result = await deleteTap(1);
-    expect(result).toEqual({ ok: false, status: 409, message: 'tap 1 has 2 keg(s) on record (including history) — remove them first' });
+    expect(result).toEqual({ ok: false, status: 409, message: "tap 1 has keg history (2 keg(s) on record) and can't be deleted" });
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(call[0]).toBe('/api/taps/1');
     expect(call[1].method).toBe('DELETE');

@@ -38,9 +38,13 @@ export function updateTap(db: Database.Database, id: number, input: { number?: n
  * in-use-by-a-keg precedent in `db/beers.ts`.
  */
 export function deleteTap(db: Database.Database, id: number): void {
+  // Deliberately does NOT say "remove them first" — no UI or route in this app can
+  // delete a historical (kicked/archived) keg, so that phrasing would send an operator
+  // looking for a control that doesn't exist. This message states the real, permanent
+  // constraint instead: a tap with any keg history can't be deleted at all.
   const kegCount = (db.prepare('SELECT COUNT(*) c FROM kegs WHERE tap_id = ?').get(id) as { c: number }).c;
   if (kegCount > 0) {
-    throw new ConflictError(`tap ${id} has ${kegCount} keg(s) on record (including history) — remove them first`);
+    throw new ConflictError(`tap ${id} has keg history (${kegCount} keg(s) on record) and can't be deleted`);
   }
   const monitorCount = (db.prepare('SELECT COUNT(*) c FROM monitors WHERE tap_id = ?').get(id) as { c: number }).c;
   if (monitorCount > 0) {
