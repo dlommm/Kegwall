@@ -52,4 +52,21 @@ describe('auth routes', () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  it('needs-setup reports true before any login user exists, false after', async () => {
+    const before = await app.inject({ method: 'GET', url: '/api/auth/needs-setup' });
+    expect(before.statusCode).toBe(200);
+    expect(before.json()).toEqual({ needsSetup: true });
+
+    await setupAdmin();
+
+    const after = await app.inject({ method: 'GET', url: '/api/auth/needs-setup' });
+    expect(after.statusCode).toBe(200);
+    expect(after.json()).toEqual({ needsSetup: false });
+  });
+
+  it('needs-setup requires no auth (public) and never leaks user data', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/auth/needs-setup' });
+    expect(Object.keys(res.json())).toEqual(['needsSetup']);
+  });
 });

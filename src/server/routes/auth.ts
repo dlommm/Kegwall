@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import {
   createUser, verifyPassword, type Role, type User,
@@ -10,6 +11,11 @@ declare module 'fastify' {
 }
 
 const ROLE_RANK: Record<Role, number> = { viewer: 0, editor: 1, admin: 2 };
+
+function hasAnyLoginUser(db: Database.Database): boolean {
+  const row = db.prepare('SELECT COUNT(*) c FROM users WHERE username IS NOT NULL').get() as any;
+  return row.c > 0;
+}
 
 export function requireRole(minRole: Role) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
@@ -36,10 +42,13 @@ export async function authRoutes(app: FastifyInstance) {
     password: z.string().min(8),
   });
 
+  // Public, unauthenticated: the admin SPA probes this before rendering the login form
+  // to decide whether to send a first-time visitor to /admin/setup instead — see
+  // src/web/routes/admin/LoginPage.tsx. Only ever reveals a boolean, never user data.
+  app.get('/api/auth/needs-setup', async () => ({ needsSetup: !hasAnyLoginUser(app.ctx.db) }));
+
   app.post('/api/auth/setup', async (req, reply) => {
-    const anyLogin = app.ctx.db
-      .prepare('SELECT COUNT(*) c FROM users WHERE username IS NOT NULL').get() as any;
-    if (anyLogin.c > 0) {
+    if (hasAnyLoginUser(app.ctx.db)) {
       return reply.code(409).send({ error: 'conflict', message: 'Setup already completed' });
     }
     const body = setupSchema.parse(req.body);

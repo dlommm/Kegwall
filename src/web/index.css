@@ -742,3 +742,240 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * Admin shell (Phase 4 Task 2) — the /admin/* management surface. Per the plan's
+ * "Design direction (binding)": inherits the taproom theme's tokens (dark, brass
+ * accent — ThemeProvider mounted with no `theme` prop defaults to it) but reads as a
+ * quiet working tool rather than the wall's show surface — dense-but-breathable
+ * forms, no liquid/SRM motifs here (those return only on the pages that need them,
+ * Tasks 4/5/9), sentence-case copy, and a visible focus ring on every interactive
+ * element (below).
+ */
+.admin-shell__frame {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.admin-shell__loading {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: #19140f;
+  color: #a79883;
+  padding: 1rem;
+  text-align: center;
+}
+
+.admin-nav {
+  display: flex;
+  flex: none;
+  width: 15rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.25rem 1rem;
+  background: var(--surface);
+  border-right: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.admin-nav__brand {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding: 0 0.5rem 1rem;
+}
+
+.admin-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-nav__link {
+  display: block;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.admin-nav__link:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.admin-nav__link--active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  font-weight: 600;
+}
+
+.admin-shell__main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.admin-user-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.admin-user-chip__name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.admin-user-chip__role {
+  text-transform: capitalize;
+}
+
+.admin-topbar__signout {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.admin-topbar__signout:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.admin-content {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.admin-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 2rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text-dim);
+}
+
+.admin-placeholder__title {
+  color: var(--text);
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* LoginPage / SetupPage — same quiet admin surface, no sidebar (there's no session
+   yet), centered single-column form. */
+.admin-auth__page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  padding: 1.5rem;
+}
+
+.admin-auth__form {
+  display: flex;
+  width: 100%;
+  max-width: 22rem;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 2rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.admin-auth__title {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-auth__intro {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-top: -0.4rem;
+}
+
+.admin-auth__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.admin-auth__field input {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.admin-auth__submit {
+  margin-top: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-auth__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.admin-auth__notice {
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.admin-auth__notice--error {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+}
+
+.admin-auth__notice--warning {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+}
+
+/* Visible keyboard focus everywhere, per the design direction — the admin shell has
+   no browser-default outline visible against these dark surfaces otherwise. */
+.admin-nav__link:focus-visible,
+.admin-topbar__signout:focus-visible,
+.admin-auth__submit:focus-visible,
+.admin-auth__field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
