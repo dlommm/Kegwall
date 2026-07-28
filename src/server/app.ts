@@ -4,6 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { createContext, type AppContext } from './context.js';
 import { authRoutes } from './routes/auth.js';
+import { crudRoutes } from './routes/crud.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 
 declare module 'fastify' {
@@ -39,6 +40,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   // register()'d plugins, which would scope authRoutes' onRequest hook (req.user)
   // away from the other modules and break staticRoutes' setNotFoundHandler.
   await authRoutes(app);
+  await crudRoutes(app);   // direct call — see encapsulation note above
 
   return app;
 }
