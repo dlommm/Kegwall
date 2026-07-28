@@ -8,6 +8,7 @@ import { crudRoutes } from './routes/crud.js';
 import { wsRoutes } from './routes/ws.js';
 import { publicRoutes } from './routes/public.js';
 import { sourcesRoutes } from './routes/sources.js';
+import { kegtronRoutes } from './routes/kegtron.js';
 import { staticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 
@@ -66,6 +67,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                            // attaches to the root instance, same reasoning as above
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
+  await kegtronRoutes(app); // direct call — see encapsulation note above
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

@@ -36,6 +36,14 @@ export function getMonitorByRef(db: Database.Database, ref: MonitorRef): Monitor
   return r ? rowToMonitor(r) : null;
 }
 
+/** Lookup by the monitors table's own primary key — used by Task 9's kegtron routes
+ * (`/api/kegtron/import/:monitorId`, `/api/kegtron/reset-volume/:monitorId`), which
+ * address a monitor the same way `POST /api/monitors/:id/bind` does. */
+export function getMonitorById(db: Database.Database, id: number): Monitor | null {
+  const r = db.prepare('SELECT * FROM monitors WHERE id = ?').get(id);
+  return r ? rowToMonitor(r) : null;
+}
+
 export function listMonitors(db: Database.Database): Monitor[] {
   return db.prepare('SELECT * FROM monitors ORDER BY type, identifier, port_index')
     .all().map(rowToMonitor);
