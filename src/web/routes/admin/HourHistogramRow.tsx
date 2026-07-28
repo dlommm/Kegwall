@@ -11,9 +11,10 @@ const GRID_STROKE = 'color-mix(in srgb, var(--text) 10%, transparent)';
 const CURSOR_FILL = 'color-mix(in srgb, var(--text) 6%, transparent)';
 
 /** `0` -> `12a`, `9` -> `9a`, `12` -> `12p`, `18` -> `6p` — a compact 12-hour label for
- * the hour-of-day axis, entirely from the UTC hour number (no timezone conversion — see
- * `hourHistogram`'s doc comment in db/stats.ts for why the whole app buckets pour-time
- * aggregations in UTC rather than the server's or a browser's local zone). */
+ * the hour-of-day axis. `hour` already arrives as the SERVER's local hour (`hourHistogram`
+ * in db/stats.ts converts server-side via SQLite's `localtime` modifier — see that
+ * function's doc comment), so this is just formatting a plain 0-23 number; no further
+ * timezone conversion happens client-side. */
 export function formatHourLabel(hour: number): string {
   const suffix = hour < 12 ? 'a' : 'p';
   const twelveHour = hour % 12 === 0 ? 12 : hour % 12;

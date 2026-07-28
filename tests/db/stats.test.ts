@@ -29,6 +29,30 @@ function isoDaysAgo(days: number, hour = 12): string {
   return d.toISOString();
 }
 
+const MS_PER_DAY = 86_400_000;
+
+/** Exact millisecond-precise offset from `NOW` — used where a test needs unambiguous
+ * control over elapsed time (e.g. `kegs.date_tapped` for the burn-rate divisor math),
+ * unlike `isoDaysAgo` above (which pins a specific UTC hour-of-day, handy for pour
+ * timestamps but not exact-elapsed-time control). */
+function exactDaysAgoIso(days: number): string {
+  return new Date(NOW.getTime() - days * MS_PER_DAY).toISOString();
+}
+
+/** Buckets a list of ISO timestamps into a 24-length hour-of-day count array using the
+ * SAME conversion `hourHistogram` uses in production (SQLite's `strftime(..., 'localtime')`
+ * and `Date#getHours()` both resolve against the process's own timezone — verified
+ * directly, see the Task 9 review's Finding 2) — so hour-bucketing tests are correct in
+ * whatever timezone they actually run in, never a hardcoded UTC assumption. */
+function expectedHourBuckets(timestamps: string[]): number[] {
+  const counts = new Array(24).fill(0) as number[];
+  for (const ts of timestamps) {
+    const hour = new Date(ts).getHours();
+    counts[hour] = (counts[hour] ?? 0) + 1;
+  }
+  return counts;
+}
+
 describe('stats repo', () => {
   describe('poursByDay', () => {
     it('zero-fills every day in range, oldest first, when there are no pours at all', () => {
@@ -80,18 +104,22 @@ describe('stats repo', () => {
       expect(rows.every((r) => r.count === 0)).toBe(true);
     });
 
-    it('buckets pours by hour-of-day over the trailing 30 days', () => {
+    it('buckets pours by the SERVER\'S LOCAL hour-of-day over the trailing 30 days, not raw UTC', () => {
       const beer = createBeer(db, { name: 'Pils' });
       const tap = createTap(db, { number: 1 });
       const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
 
-      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(1, 18), volumeMl: 300, source: 'udp' });
-      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(5, 18), volumeMl: 300, source: 'udp' });
-      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(2, 9), volumeMl: 300, source: 'udp' });
+      const timestamps = [isoDaysAgo(1, 18), isoDaysAgo(5, 18), isoDaysAgo(2, 9)];
+      for (const ts of timestamps) {
+        recordPourTx(db, { kegId: keg.id, ts, volumeMl: 300, source: 'udp' });
+      }
 
+      // Expected buckets are computed via the SAME local-time conversion production uses
+      // (see `expectedHourBuckets`'s doc comment) rather than hardcoded UTC hour indices
+      // — this is what makes the test actually prove local-time bucketing rather than
+      // just re-asserting whatever the implementation happens to do.
       const rows = hourHistogram(db, NOW);
-      expect(rows[18]!.count).toBe(2);
-      expect(rows[9]!.count).toBe(1);
+      expect(rows.map((r) => r.count)).toEqual(expectedHourBuckets(timestamps));
       expect(rows.reduce((sum, r) => sum + r.count, 0)).toBe(3);
     });
 
@@ -114,7 +142,12 @@ describe('stats repo', () => {
     it('computes levelPct/remainingMl matching the wall\'s own formula and burn/projection math', () => {
       const beer = createBeer(db, { name: 'Citra IPA', srm: 6 });
       const tap = createTap(db, { number: 3 });
-      const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 20000, tapId: tap.id });
+      // Tapped well over a week ago so the burn-rate divisor clamps to the full 7 (see
+      // the dedicated divisor tests below for the under-a-week/floor-at-1 cases).
+      const keg = createKeg(db, {
+        beerId: beer.id, sizeMl: 19000, volStartMl: 20000, tapId: tap.id,
+        dateTapped: exactDaysAgoIso(10),
+      });
 
       // 3 pours inside the trailing 7 days: 1000 + 2000 + 3000 = 6000mL -> dailyBurnMl = 6000/7.
       recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(1), volumeMl: 1000, source: 'udp' });
@@ -140,7 +173,11 @@ describe('stats repo', () => {
     it('projects a kick date from remaining volume over the daily burn rate', () => {
       const beer = createBeer(db, { name: 'Lager' });
       const tap = createTap(db, { number: 1 });
-      const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+      // Tapped well over a week ago -> divisor clamps to 7 (unchanged behavior).
+      const keg = createKeg(db, {
+        beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id,
+        dateTapped: exactDaysAgoIso(10),
+      });
 
       // 7000mL dispensed so far, 7000mL burned in the trailing week -> dailyBurnMl = 1000.
       recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(1), volumeMl: 7000, source: 'udp' });
@@ -152,10 +189,60 @@ describe('stats repo', () => {
       expect(row.projectedKickDate).toBe('2026-08-08');
     });
 
+    it('divides the trailing-7d burn sum by the actual days since tapped, not a flat 7, for a keg on tap under a week', () => {
+      const beer = createBeer(db, { name: 'Fresh Keg' });
+      const tap = createTap(db, { number: 1 });
+      // Tapped exactly 2 days ago.
+      const keg = createKeg(db, {
+        beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id,
+        dateTapped: exactDaysAgoIso(2),
+      });
+      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(1), volumeMl: 4000, source: 'udp' });
+
+      const row = activeKegStats(db, NOW)[0]!;
+      // Old (buggy) behavior would have been Math.round(4000 / 7) = 571 — a keg only 2
+      // days old must divide by 2, not a flat 7 (Task 9 review Finding 1).
+      expect(row.dailyBurnMl).toBe(Math.round(4000 / 2));
+    });
+
+    it('still clamps the divisor at 7 for a keg on tap a week or longer', () => {
+      const beer = createBeer(db, { name: 'Old Keg' });
+      const tap = createTap(db, { number: 1 });
+      const keg = createKeg(db, {
+        beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id,
+        dateTapped: exactDaysAgoIso(30),
+      });
+      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(1), volumeMl: 3000, source: 'udp' });
+      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(6), volumeMl: 3500, source: 'udp' });
+
+      const row = activeKegStats(db, NOW)[0]!;
+      expect(row.dailyBurnMl).toBe(Math.round(6500 / 7));
+    });
+
+    it('floors the divisor at 1 for a keg tapped within the last 24 hours', () => {
+      const beer = createBeer(db, { name: 'Brand New Keg' });
+      const tap = createTap(db, { number: 1 });
+      const keg = createKeg(db, {
+        beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id,
+        dateTapped: new Date(NOW.getTime() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
+      });
+      recordPourTx(db, {
+        kegId: keg.id, ts: new Date(NOW.getTime() - 60 * 60 * 1000).toISOString(),
+        volumeMl: 900, source: 'udp',
+      });
+
+      const row = activeKegStats(db, NOW)[0]!;
+      // Old (buggy) behavior would have been Math.round(900 / 7) = 129.
+      expect(row.dailyBurnMl).toBe(900);
+    });
+
     it('projectedKickDate is null when the trailing 7-day burn rate is zero', () => {
       const beer = createBeer(db, { name: 'Stout' });
       const tap = createTap(db, { number: 2 });
-      createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+      createKeg(db, {
+        beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id,
+        dateTapped: exactDaysAgoIso(5),
+      });
       // No pours at all -> zero burn rate.
       const row = activeKegStats(db, NOW)[0]!;
       expect(row.dailyBurnMl).toBe(0);

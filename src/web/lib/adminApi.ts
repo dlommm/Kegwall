@@ -417,8 +417,9 @@ export function getPoursByDay(days: 7 | 30 | 90): Promise<ApiResult<PoursByDay[]
   return request(`/api/stats/pours?days=${days}`);
 }
 
-/** GET /api/stats/hours — pour count by UTC hour-of-day over the trailing 30 days,
- * always all 24 hours. Feeds the Stats page's hour-of-day bar row. */
+/** GET /api/stats/hours — pour count by the SERVER's local hour-of-day (see
+ * `hourHistogram` in db/stats.ts) over the trailing 30 days, always all 24 hours. Feeds
+ * the Stats page's hour-of-day bar row. */
 export function getHourHistogram(): Promise<ApiResult<HourHistogram[]>> {
   return request('/api/stats/hours');
 }
