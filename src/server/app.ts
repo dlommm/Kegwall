@@ -86,10 +86,17 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   // no-op for every source's stop() (see e.g. cloudSource.ts's stop()), so this hook
   // is harmless for the many tests that build an app without starting sources.
   app.addHook('onClose', async () => {
+    // Engine first: no point stopping sources (which would otherwise trigger a wave of
+    // device_offline/state_changed events) while the engine could still be reacting to
+    // them. stop() is synchronous and safe even if start() was never called.
+    app.ctx.engine.stop();
     await app.ctx.sources.stopAll();
   });
   if (opts.startSources) {
     await app.ctx.sources.startAll();
+    // Started alongside sources, behind the same flag — see automation/engine.ts's top
+    // doc comment, point 6, for why this isn't unconditional like state.start().
+    app.ctx.engine.start();
   }
 
   await app.register(cookie);

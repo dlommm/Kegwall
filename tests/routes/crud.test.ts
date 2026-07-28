@@ -67,6 +67,138 @@ describe('crud routes', () => {
     expect(swap.json()).toMatchObject({ status: 'on_tap', beerId: beer.id });
   });
 
+  describe('keg_tapped / keg_kicked bus events (Phase 5 Task 3: feeds the automation '
+    + 'engine\'s keg_tapped/keg_kicked triggers)', () => {
+    it('POST /api/taps/:id/swap onto an EMPTY tap emits only keg_tapped (no incumbent to kick)', async () => {
+      const tapped: unknown[] = [];
+      const kicked: unknown[] = [];
+      app.ctx.bus.on('keg_tapped', (e) => tapped.push(e));
+      app.ctx.bus.on('keg_kicked', (e) => kicked.push(e));
+
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const swap = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      });
+      const keg = swap.json();
+
+      expect(kicked).toHaveLength(0);
+      expect(tapped).toHaveLength(1);
+      expect(tapped[0]).toMatchObject({ tapId: tap.id, kegId: keg.id, beerId: beer.id });
+      expect((tapped[0] as any).ts).toBeTruthy();
+    });
+
+    it('POST /api/taps/:id/swap onto an OCCUPIED tap emits keg_kicked (outgoing keg) then keg_tapped (incoming)', async () => {
+      const beerA = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const beerB = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'IPA' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const firstKeg = (await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beerA.id, sizeMl: 19000, volStartMl: 19000 },
+      })).json();
+
+      const events: { type: string; payload: unknown }[] = [];
+      app.ctx.bus.on('keg_tapped', (e) => events.push({ type: 'keg_tapped', payload: e }));
+      app.ctx.bus.on('keg_kicked', (e) => events.push({ type: 'keg_kicked', payload: e }));
+
+      const swap2 = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beerB.id, sizeMl: 19000, volStartMl: 19000 },
+      });
+      const secondKeg = swap2.json();
+
+      expect(events.map((e) => e.type)).toEqual(['keg_kicked', 'keg_tapped']);
+      expect(events[0]!.payload).toMatchObject({ tapId: tap.id, kegId: firstKeg.id, beerId: beerA.id });
+      expect(events[1]!.payload).toMatchObject({ tapId: tap.id, kegId: secondKeg.id, beerId: beerB.id });
+    });
+
+    it('PATCH /api/kegs/:id to status "kicked" emits keg_kicked once (on the actual transition)', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const keg = (await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      })).json();
+
+      const kicked: unknown[] = [];
+      app.ctx.bus.on('keg_kicked', (e) => kicked.push(e));
+
+      await app.inject({
+        method: 'PATCH', url: `/api/kegs/${keg.id}`, cookies: adminCookies, payload: { status: 'kicked' },
+      });
+      expect(kicked).toHaveLength(1);
+      expect(kicked[0]).toMatchObject({ tapId: tap.id, kegId: keg.id, beerId: beer.id });
+
+      // A second PATCH to the SAME status is not a transition -- must not re-fire.
+      await app.inject({
+        method: 'PATCH', url: `/api/kegs/${keg.id}`, cookies: adminCookies, payload: { status: 'kicked' },
+      });
+      expect(kicked).toHaveLength(1);
+    });
+
+    it('PATCH /api/kegs/:id to status "on_tap" emits keg_tapped once (on the actual transition)', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const keg = (await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      })).json();
+      await app.inject({
+        method: 'PATCH', url: `/api/kegs/${keg.id}`, cookies: adminCookies, payload: { status: 'kicked' },
+      });
+
+      const tapped: unknown[] = [];
+      app.ctx.bus.on('keg_tapped', (e) => tapped.push(e));
+
+      await app.inject({
+        method: 'PATCH', url: `/api/kegs/${keg.id}`, cookies: adminCookies, payload: { status: 'on_tap' },
+      });
+      expect(tapped).toHaveLength(1);
+      expect(tapped[0]).toMatchObject({ tapId: tap.id, kegId: keg.id, beerId: beer.id });
+    });
+
+    it('PATCH /api/kegs/:id to status "archived" emits neither event', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const keg = (await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      })).json();
+
+      const events: unknown[] = [];
+      app.ctx.bus.on('keg_tapped', (e) => events.push(e));
+      app.ctx.bus.on('keg_kicked', (e) => events.push(e));
+
+      await app.inject({
+        method: 'PATCH', url: `/api/kegs/${keg.id}`, cookies: adminCookies, payload: { status: 'archived' },
+      });
+      expect(events).toHaveLength(0);
+    });
+  });
+
   it('validates wall config and applies defaults', async () => {
     const ok = await app.inject({
       method: 'POST', url: '/api/walls', cookies: adminCookies,

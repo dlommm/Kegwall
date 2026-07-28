@@ -1,0 +1,793 @@
+import type Database from 'better-sqlite3';
+import {
+  type EventBus, type EventMap, type MonitorRef, monitorRefKey,
+} from '../core/events.js';
+import type { TapState } from '../core/state.js';
+import type {
+  AutomationRule, Trigger, Action,
+} from '../core/automationSchema.js';
+import { listAutomations, touchLastFired } from '../db/automations.js';
+import type { SettingsStore } from '../db/settings.js';
+import type { NotificationSeverity } from '../db/notificationsRepo.js';
+import {
+  getActiveKegForTap, getKeg, computeLevelPct, computeRemainingMl,
+} from '../db/kegs.js';
+import { getBeer } from '../db/beers.js';
+import { getTap } from '../db/taps.js';
+import { resolveTapForRef, listMonitors } from '../db/monitors.js';
+import { renderTemplate, type TemplateContext } from '../notify/template.js';
+import { InAppChannel } from '../notify/channels/inApp.js';
+import {
+  buildAlertChannel, ALERT_CHANNEL_NAMES, type AlertChannelName, type Channel,
+} from '../notify/channels/index.js';
+import { sendWebhook } from '../notify/webhookSender.js';
+import { MqttSender } from '../notify/mqttSender.js';
+import { MdashClient } from '../ingest/kegtron/mdashClient.js';
+import { assertPublicHost, type HostResolver } from '../core/ssrfGuard.js';
+import {
+  evaluateConditions, crossed, opposite, isWithinTimeWindow, type ConditionEvalCtx,
+} from './conditions.js';
+
+// ---------------------------------------------------------------------------
+// Phase 5 Task 3: the automation rule engine. Subscribes to the event bus, matches
+// enabled rules' triggers, evaluates their AND-ed conditions, and dispatches their
+// actions in order through Task 2's channel senders. Alerts (`isAlert: true`) layer
+// active/resolved state, cooldown, and quiet-hours on top of the same match/dispatch
+// pipeline every other rule uses.
+//
+// DESIGN DECISIONS the plan left open (documented here + inline; flagged for the
+// coordinator like every prior task's open points):
+//
+// 1. `min_interval` (a condition, DB-column-backed, per-RULE) vs `alertConfig.
+//    cooldownMinutes` (alert-only, engine-memory, per-(RULE, ENTITY)) are deliberately
+//    NOT the same mechanism, resolving the Task 1 report's flagged overlap concern:
+//    `min_interval` reads `automations.last_fired_at` (one timestamp for the whole rule,
+//    touched on EVERY fire regardless of isAlert) via the `min_interval` condition, same
+//    as any other AND-ed condition. `cooldownMinutes` is tracked in `this.alertState`,
+//    keyed per (ruleId, entityKey) -- so rule "keg low" firing for tap 1 doesn't put tap
+//    2's instance of the SAME rule on cooldown. Both can be configured on the same rule
+//    (both must then pass) with no conflict -- they answer different questions ("has
+//    this exact rule fired recently AT ALL" vs "is THIS entity's alert already active and
+//    was it just reminded").
+// 2. Entity key (`entityKeyFor`): `tap:{tapId}` when the triggering event resolves to a
+//    tap, else `monitor:{monitorRefKey}` when it resolves to a bound monitor, else
+//    `'global'` (schedule/app_startup). This is what "per-(rule, entity) active state"
+//    keys off.
+// 3. Auto-resolve pairing per trigger kind: `keg_level_crosses`/`temp_crosses` resolve on
+//    the SAME rule's threshold being re-crossed in the OPPOSITE direction (computed from
+//    the exact same prev/curr sample pair the forward match uses -- see `conditions.ts`'s
+//    `crossed`/`opposite`). `device_offline` resolves on `device_online` for the same
+//    monitor (and vice versa, symmetrically -- a `device_online` alert, if anyone
+//    authors one, resolves on `device_offline`). `keg_kicked` resolves on `keg_tapped`
+//    for the same tap (and vice versa). `pour_started`/`pour_completed`/`schedule`/
+//    `app_startup` are momentary triggers with no natural "cleared" counterpart -- an
+//    alert on one of these can still be marked `autoResolve`, it just never actually
+//    resolves automatically (matches the spec's "when condition clears" literally: there
+//    is no clearing event to observe for a momentary trigger).
+// 4. Resolve notifications (`notifyOnResolve`) reuse the UNION of channels named across
+//    the rule's own `notify` action(s) (falling back to `['inApp']` if the rule has none)
+//    -- NOT a re-run of the full action list (webhook/mqtt/wall_banner do not re-fire on
+//    resolve). Title/body are fixed, non-templated strings (`"{rule.name} resolved"` /
+//    `"Back within normal range"`) -- the schema has no `alertConfig`-level template
+//    field for this, and a resolve is informational, not another instance of the
+//    author-written notify body. Quiet hours apply identically to resolve notifications.
+// 5. `automations_changed` (added to `EventMap` in this task) is a HOOK POINT, not fully
+//    wired: the engine subscribes to it and calls `reloadRules()`, but nothing emits it
+//    yet -- Task 6's automations CRUD routes don't exist in this codebase yet (per the
+//    plan's own task breakdown). `reloadRules()` is also directly exported/callable so a
+//    future route (or this task's own tests) can force a reload without round-tripping
+//    through the bus. Documented per the plan's explicit "leave hook point; document
+//    choice" instruction.
+// 6. Lifecycle: constructed in `context.ts`'s `createContext` (cheap: no I/O), but
+//    `start()`/`stop()` are called alongside `sources.startAll()`/`stopAll()` in
+//    `app.ts` (gated behind the SAME `startSources` option), NOT unconditionally like
+//    `StateManager.start()` -- `start()` can dispatch REAL actions (webhook/mqtt/SMTP/
+//    etc, via `app_startup` rules), which is exactly the kind of live-network side effect
+//    `startSources: false` exists to suppress in tests that merely `buildApp()` without
+//    opting in.
+// 7. `flush()`: every rule-fire this engine kicks off is fire-and-forget from the bus's
+//    perspective (`EventBus.emit` never awaits its handlers), but every such promise is
+//    tracked in `this.inFlight` so `flush()` can await "everything currently pending" --
+//    used by `stop()` is NOT required to wait (see its own doc comment) but tests use
+//    `flush()` extensively for deterministic assertions instead of arbitrary sleeps.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
+const DEFAULT_RUNAWAY_LIMIT_PER_HOUR = 60;
+const RUNAWAY_WINDOW_MS = 60 * 60_000;
+const SCHEDULE_TICK_MS = 60_000;
+
+export interface EngineDeps {
+  db: Database.Database;
+  bus: EventBus;
+  settings: SettingsStore;
+  /** Narrowed to the one method the engine needs (not the full `StateManager` class) --
+   * production passes the real `StateManager`; tests can pass anything structurally
+   * compatible. */
+  state: { getTapStates(): TapState[] };
+}
+
+/** Minimal shape of `ingest/kegtron/mdashClient.ts`'s `MdashClient` this engine actually
+ * calls (`kegtron_reset_volume` action) -- narrowed so `EngineOptions.mdashClientFactory`
+ * doesn't force a test double to implement the whole real client. */
+export interface MdashRpcClient {
+  callRpc(deviceKey: string, method: string, params?: unknown): Promise<unknown>;
+}
+
+export interface EngineOptions {
+  /** Per-action dispatch timeout (ms). Default 10s per the plan. Test-overridable so the
+   * "per-action timeout" test doesn't need to wait out the real default. */
+  actionTimeoutMs?: number;
+  /** Runaway guard: max fires/hour/rule, across ALL rules (not just alerts) per the
+   * plan. Default 60. Test-overridable to exercise the guard without firing 61 events. */
+  runawayLimitPerHour?: number;
+  /** Overrides the `webhook` action's SSRF-guard DNS resolver -- tests only; see
+   * `core/ssrfGuard.ts`. */
+  webhookResolveHost?: HostResolver;
+  /** Test-only escape hatch for the `webhook` action's SSRF guard -- never set in
+   * production; mirrors `routes/lookup.ts`'s `allowInsecureHosts` (same rationale: lets a
+   * test's fake upstream bind to 127.0.0.1 without the guard rejecting it). */
+  webhookAllowInsecureHosts?: boolean;
+  /** Test-injectable `MqttSender` for the `mqtt_publish` action. When omitted, the engine
+   * lazily builds and OWNS one (closed on `stop()`); an injected instance is the test's
+   * to manage and is never closed by this engine. */
+  mqttSender?: MqttSender;
+  /** Test-injectable factory for the `kegtron_reset_volume` action's mdash client. When
+   * omitted, the engine builds a real `MdashClient` from `settings.kegtronApiKey`/
+   * `kegtronBaseUrl` (matching `routes/kegtron.ts`'s own `buildMdashClient`). */
+  mdashClientFactory?: (settings: SettingsStore) => MdashRpcClient;
+}
+
+/** The engine's own per-event evaluation context -- `ConditionEvalCtx` (conditions.ts)
+ * plus the raw `monitorRef` (for entity-keying/auto-resolve) and the fully-built
+ * `TemplateContext` (notify/template.ts) actions render against. */
+interface EvalCtx extends ConditionEvalCtx {
+  monitorRef: MonitorRef | null;
+  templateCtx: TemplateContext;
+}
+
+interface AlertEntityState {
+  active: boolean;
+  /** Epoch ms of the last time THIS (rule, entity)'s alert actually fired (not merely
+   * matched) -- what `cooldownMinutes` is measured from. */
+  lastFiredAt: number;
+}
+
+/** Runs `fn`, rejecting with a timeout error if it hasn't settled within `ms`. Losing
+ * side's eventual settlement is still "handled" by `Promise.race` internally attaching
+ * its own `.then`/`.catch` to both promises, so a `fn()` that rejects AFTER the timeout
+ * already won never produces an unhandled-rejection warning. */
+async function runWithTimeout<T>(fn: () => Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([fn(), timeout]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
+/** The channel set a resolve notification (`notifyOnResolve`) sends through -- the union
+ * of every `notify` action's `channels` on the rule, or `['inApp']` if the rule has no
+ * `notify` action at all. See this file's top doc comment, point 4. */
+function notifyChannelsOf(rule: AutomationRule): string[] {
+  const set = new Set<string>();
+  for (const action of rule.actions) {
+    if (action.type === 'notify') for (const ch of action.channels) set.add(ch);
+  }
+  return set.size > 0 ? [...set] : ['inApp'];
+}
+
+// --- TemplateContext field mapping ------------------------------------------------
+// The plan's documented template variables are snake_case for every multi-word field
+// (`{{pour.volume_ml}}`, `{{keg.level_pct}}`) even though this app's internal TS shapes
+// are camelCase everywhere else -- these helpers are the ONE place that translation
+// happens, so every `EvalCtx` builder below produces an identically-shaped
+// `TemplateContext` regardless of which trigger built it.
+
+interface TemplateBeerSource {
+  id: number; name: string; brewery: string | null; style: string | null;
+  abv: number | null; ibu: number | null; srm: number | null;
+  description: string | null; labelImage: string | null;
+}
+
+function templateBeer(beer: TemplateBeerSource | null | undefined): Record<string, unknown> | null {
+  if (!beer) return null;
+  return {
+    id: beer.id, name: beer.name, brewery: beer.brewery, style: beer.style,
+    abv: beer.abv, ibu: beer.ibu, srm: beer.srm, description: beer.description,
+    label_image: beer.labelImage,
+  };
+}
+
+function templateTap(tap: { id: number; number: number; name: string | null } | null): Record<string, unknown> | null {
+  return tap ? { id: tap.id, number: tap.number, name: tap.name } : null;
+}
+
+interface TemplateKegSource {
+  id: number; sizeMl: number; volStartMl: number; volDispensedMl: number;
+  dateTapped: string | null; status: string; levelPct: number; remainingMl: number;
+}
+
+function templateKeg(keg: TemplateKegSource | null | undefined): Record<string, unknown> | null {
+  if (!keg) return null;
+  return {
+    id: keg.id, size_ml: keg.sizeMl, vol_start_ml: keg.volStartMl, vol_dispensed_ml: keg.volDispensedMl,
+    level_pct: keg.levelPct, remaining_ml: keg.remainingMl, date_tapped: keg.dateTapped, status: keg.status,
+  };
+}
+
+function templatePour(
+  pour: { volumeMl: number | null; durationMs: number | null; ts: string } | null | undefined,
+): Record<string, unknown> | null {
+  if (!pour) return null;
+  return { volume_ml: pour.volumeMl, duration_ms: pour.durationMs, ts: pour.ts };
+}
+
+function templateMonitor(ref: MonitorRef, temp: number | null, humidity: number | null): Record<string, unknown> {
+  return { type: ref.type, identifier: ref.identifier, port_index: ref.portIndex, temp, humidity };
+}
+
+export class AutomationEngine {
+  private readonly db: Database.Database;
+  private readonly bus: EventBus;
+  private readonly settings: SettingsStore;
+  private readonly state: { getTapStates(): TapState[] };
+  private readonly opts: EngineOptions;
+  private readonly inAppChannel: InAppChannel;
+
+  private rules: AutomationRule[] = [];
+  private unsubs: Array<() => void> = [];
+  private scheduleTimer: ReturnType<typeof setInterval> | null = null;
+  private lastScheduleFireKey = new Map<number, string>();
+  /** Last observed level%/temp per tap/monitor -- crossing detection compares each new
+   * sample against these. No entry yet = no baseline = the sample can't be a "crossing"
+   * (there's nothing to have crossed FROM), so it's just recorded, not evaluated. */
+  private previousLevelByTap = new Map<number, number>();
+  private previousTempByMonitor = new Map<string, number>();
+  private alertState = new Map<string, AlertEntityState>();
+  private fireTimestamps = new Map<number, number[]>();
+  private inFlight = new Set<Promise<void>>();
+  private ownedMqttSender: MqttSender | null = null;
+
+  constructor(deps: EngineDeps, opts: EngineOptions = {}) {
+    this.db = deps.db;
+    this.bus = deps.bus;
+    this.settings = deps.settings;
+    this.state = deps.state;
+    this.opts = opts;
+    this.inAppChannel = new InAppChannel(this.db, this.bus);
+  }
+
+  /**
+   * Loads current rule cache from `db/automations.ts` (enabled rules only). Called by
+   * `start()`, by the `automations_changed` bus hook, and directly callable any time
+   * (before or after `start()`) -- see this file's top doc comment, point 5.
+   */
+  reloadRules(): void {
+    this.rules = listAutomations(this.db, { enabledOnly: true });
+  }
+
+  /**
+   * Subscribes to every bus event a trigger kind depends on, starts the schedule minute
+   * timer (checking once immediately too, so a rule matching the CURRENT minute at boot
+   * doesn't wait a full tick), and fires `app_startup` rules. Safe to call once; calling
+   * again without an intervening `stop()` would double-subscribe (not guarded -- matches
+   * `SourceManager`/`StateManager`'s own "caller's job to call this once" precedent).
+   */
+  start(): void {
+    this.reloadRules();
+
+    const on = <K extends keyof EventMap>(event: K, handler: (e: EventMap[K]) => void): void => {
+      this.unsubs.push(this.bus.on(event, handler));
+    };
+
+    on('pour_started', (e) => this.onPourStarted(e));
+    on('pour_completed', (e) => this.onPourCompleted(e));
+    on('volume_update', (e) => this.onVolumeUpdate(e));
+    on('telemetry', (e) => this.onTelemetry(e));
+    on('device_online', (e) => this.onDeviceEvent('device_online', e.monitor, e.ts));
+    on('device_offline', (e) => this.onDeviceEvent('device_offline', e.monitor, e.ts));
+    on('keg_tapped', (e) => this.onKegLifecycle('keg_tapped', e));
+    on('keg_kicked', (e) => this.onKegLifecycle('keg_kicked', e));
+    on('automations_changed', () => this.reloadRules());
+
+    this.scheduleTimer = setInterval(() => this.checkScheduleRules(), SCHEDULE_TICK_MS);
+    this.checkScheduleRules();
+    this.fireAppStartup();
+  }
+
+  /**
+   * Unsubscribes every bus handler and clears the schedule timer -- no NEW rule
+   * evaluation can start after this returns. Does NOT await already-in-flight action
+   * dispatches (a webhook/SMTP/etc call already underway keeps running to completion in
+   * the background; each has its own per-action timeout as a backstop) -- awaiting up to
+   * `actionTimeoutMs` per in-flight action here would make shutdown itself as slow as
+   * the slowest pending action, which is worse than letting it finish (or time out) on
+   * its own. Tests that need to observe in-flight settlement use `flush()` explicitly,
+   * BEFORE calling `stop()`, instead. Idempotent -- safe to call multiple times, or
+   * before `start()` was ever called.
+   */
+  stop(): void {
+    if (this.scheduleTimer) {
+      clearInterval(this.scheduleTimer);
+      this.scheduleTimer = null;
+    }
+    for (const unsub of this.unsubs) unsub();
+    this.unsubs = [];
+    if (this.ownedMqttSender) {
+      const sender = this.ownedMqttSender;
+      this.ownedMqttSender = null;
+      void sender.close().catch(() => {});
+    }
+  }
+
+  /** Awaits every currently-tracked in-flight rule-fire (a snapshot -- fires started
+   * AFTER this is called are not waited on). Test-only determinism helper: since
+   * `EventBus.emit` never awaits its handlers, an emitted event's resulting action
+   * dispatch is inherently "somewhere in the background" from the caller's perspective;
+   * `flush()` gives tests a way to wait for it to settle instead of an arbitrary sleep. */
+  async flush(): Promise<void> {
+    await Promise.allSettled([...this.inFlight]);
+  }
+
+  private track(p: Promise<void>): void {
+    this.inFlight.add(p);
+    const done = (): void => { this.inFlight.delete(p); };
+    p.then(done, done);
+  }
+
+  private logError(rule: AutomationRule, what: string, err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[automation] rule ${rule.id} ("${rule.name}") ${what} failed: ${message}`);
+  }
+
+  // --- trigger -> event wiring ---------------------------------------------------
+
+  private onPourStarted(e: EventMap['pour_started']): void {
+    const tapId = resolveTapForRef(this.db, e.monitor);
+    const ctx = this.buildTapEvalCtx(tapId, e.ts, {
+      monitorRef: e.monitor, pour: { volumeMl: null, durationMs: null, ts: e.ts },
+    });
+    this.fireMatchingTrigger('pour_started', ctx);
+  }
+
+  private onPourCompleted(e: EventMap['pour_completed']): void {
+    const tapId = resolveTapForRef(this.db, e.monitor);
+    const ctx = this.buildTapEvalCtx(tapId, e.ts, {
+      monitorRef: e.monitor, volumeMl: e.volumeMl,
+      pour: { volumeMl: e.volumeMl, durationMs: e.durationMs, ts: e.ts },
+    });
+    this.fireMatchingTrigger('pour_completed', ctx);
+  }
+
+  /** `keg_level_crosses` is derived from `volume_update`'s freshly-applied keg state --
+   * relies on `StateManager`'s OWN `volume_update` subscriber (registered earlier, during
+   * `createContext`) having already run and updated `kegs.vol_dispensed_ml` in the DB
+   * before this handler runs (`EventBus` calls subscribers in registration order). */
+  private onVolumeUpdate(e: EventMap['volume_update']): void {
+    const tapId = resolveTapForRef(this.db, e.monitor);
+    if (tapId === null) return;
+    const keg = getActiveKegForTap(this.db, tapId);
+    if (!keg) return;
+    const newLevel = computeLevelPct(keg.volStartMl, keg.volDispensedMl);
+    const prevLevel = this.previousLevelByTap.get(tapId);
+    this.previousLevelByTap.set(tapId, newLevel);
+    if (prevLevel === undefined) return; // no baseline yet -- can't detect a crossing
+
+    const ctx = this.buildTapEvalCtx(tapId, e.ts, { monitorRef: e.monitor, levelPct: newLevel });
+    const now = new Date();
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== 'keg_level_crosses') continue;
+      const { thresholdPct, direction } = rule.trigger;
+      if (crossed(prevLevel, newLevel, thresholdPct, direction)) {
+        if (evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) {
+          this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+        }
+      } else if (rule.isAlert && rule.alertConfig?.autoResolve
+        && crossed(prevLevel, newLevel, thresholdPct, opposite(direction))) {
+        this.handleResolve(rule, ctx);
+      }
+    }
+  }
+
+  private onTelemetry(e: EventMap['telemetry']): void {
+    if (e.temp === null) return;
+    const key = monitorRefKey(e.monitor);
+    const prevTemp = this.previousTempByMonitor.get(key);
+    this.previousTempByMonitor.set(key, e.temp);
+    if (prevTemp === undefined) return;
+
+    const tapId = resolveTapForRef(this.db, e.monitor);
+    const ctx = this.buildMonitorEvalCtx(e.monitor, tapId, e.ts, { temp: e.temp, humidity: e.humidity });
+    const now = new Date();
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== 'temp_crosses') continue;
+      const { value, direction } = rule.trigger;
+      if (crossed(prevTemp, e.temp, value, direction)) {
+        if (evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) {
+          this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+        }
+      } else if (rule.isAlert && rule.alertConfig?.autoResolve
+        && crossed(prevTemp, e.temp, value, opposite(direction))) {
+        this.handleResolve(rule, ctx);
+      }
+    }
+  }
+
+  private onDeviceEvent(kind: 'device_online' | 'device_offline', monitorRef: MonitorRef, ts: string): void {
+    const tapId = resolveTapForRef(this.db, monitorRef);
+    const ctx = this.buildMonitorEvalCtx(monitorRef, tapId, ts, {});
+    const resolveType: Trigger['type'] = kind === 'device_online' ? 'device_offline' : 'device_online';
+    this.fireAndAutoResolve(kind, resolveType, ctx);
+  }
+
+  private onKegLifecycle(
+    kind: 'keg_tapped' | 'keg_kicked', e: EventMap['keg_tapped'] | EventMap['keg_kicked'],
+  ): void {
+    const ctx = this.buildKegEvalCtx(e.tapId, e.kegId, e.ts);
+    const resolveType: Trigger['type'] = kind === 'keg_tapped' ? 'keg_kicked' : 'keg_tapped';
+    this.fireAndAutoResolve(kind, resolveType, ctx);
+  }
+
+  private fireAppStartup(): void {
+    const ctx = this.buildGlobalEvalCtx(new Date().toISOString());
+    this.fireMatchingTrigger('app_startup', ctx);
+  }
+
+  private checkScheduleRules(): void {
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}T${timeStr}`;
+
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== 'schedule') continue;
+      if (rule.trigger.time !== timeStr) continue;
+      if (rule.trigger.weekdays.length > 0 && !rule.trigger.weekdays.includes(now.getDay())) continue;
+      if (this.lastScheduleFireKey.get(rule.id) === minuteKey) continue; // already fired this exact minute
+      this.lastScheduleFireKey.set(rule.id, minuteKey);
+
+      const ctx = this.buildGlobalEvalCtx(now.toISOString());
+      if (!evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) continue;
+      this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+    }
+  }
+
+  /** Forward-match dispatch (any trigger kind) PLUS, for a paired `resolveType`, checks
+   * every isAlert-with-autoResolve rule of that opposite kind for resolution. Used by the
+   * two symmetric device/keg-lifecycle event pairs (see this file's top doc comment,
+   * point 3) -- NOT by the crossing triggers, which compute forward/resolve from the same
+   * prev/curr sample pair inline (`onVolumeUpdate`/`onTelemetry` above) rather than two
+   * independent trigger types. */
+  private fireAndAutoResolve(forwardType: Trigger['type'], resolveType: Trigger['type'], ctx: EvalCtx): void {
+    this.fireMatchingTrigger(forwardType, ctx);
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== resolveType || !rule.isAlert || !rule.alertConfig?.autoResolve) continue;
+      this.handleResolve(rule, ctx);
+    }
+  }
+
+  private fireMatchingTrigger(type: Trigger['type'], ctx: EvalCtx): void {
+    const now = new Date();
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== type) continue;
+      if (!evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) continue;
+      this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+    }
+  }
+
+  // --- fire / alert-state / dispatch ---------------------------------------------
+
+  private entityKeyFor(ctx: EvalCtx): string {
+    if (ctx.tapId !== null) return `tap:${ctx.tapId}`;
+    if (ctx.monitorRef) return `monitor:${monitorRefKey(ctx.monitorRef)}`;
+    return 'global';
+  }
+
+  private checkRunaway(ruleId: number, now: Date): boolean {
+    const limit = this.opts.runawayLimitPerHour ?? DEFAULT_RUNAWAY_LIMIT_PER_HOUR;
+    const arr = (this.fireTimestamps.get(ruleId) ?? []).filter((t) => now.getTime() - t < RUNAWAY_WINDOW_MS);
+    if (arr.length >= limit) {
+      this.fireTimestamps.set(ruleId, arr);
+      return false;
+    }
+    arr.push(now.getTime());
+    this.fireTimestamps.set(ruleId, arr);
+    return true;
+  }
+
+  /**
+   * A rule's trigger matched and its conditions passed -- decide whether it ACTUALLY
+   * fires (cooldown / runaway guard) and, if so, dispatch its actions. Marks
+   * `last_fired_at` (DB + in-memory cache) and, for alerts, the active state BEFORE
+   * awaiting action dispatch -- see this file's top comment for why (a concurrently
+   * processed event must see this fire's effect immediately, not after its actions,
+   * which may take up to `actionTimeoutMs` each, have finished).
+   */
+  private async considerFire(rule: AutomationRule, ctx: EvalCtx): Promise<void> {
+    const now = new Date();
+    const stateKey = `${rule.id}:${this.entityKeyFor(ctx)}`;
+
+    if (rule.isAlert && rule.alertConfig) {
+      const st = this.alertState.get(stateKey);
+      if (st?.active) {
+        const elapsedMinutes = (now.getTime() - st.lastFiredAt) / 60_000;
+        if (elapsedMinutes < rule.alertConfig.cooldownMinutes) return; // suppressed by cooldown
+      }
+    }
+
+    if (!this.checkRunaway(rule.id, now)) {
+      const limit = this.opts.runawayLimitPerHour ?? DEFAULT_RUNAWAY_LIMIT_PER_HOUR;
+      console.error(`[automation] rule ${rule.id} ("${rule.name}") exceeded ${limit}/hr -- skipping this fire`);
+      return;
+    }
+
+    touchLastFired(this.db, rule.id, now.toISOString());
+    const idx = this.rules.findIndex((r) => r.id === rule.id);
+    if (idx !== -1) this.rules[idx] = { ...this.rules[idx]!, lastFiredAt: now.toISOString() };
+    if (rule.isAlert && rule.alertConfig) {
+      this.alertState.set(stateKey, { active: true, lastFiredAt: now.getTime() });
+    }
+
+    const templateCtx: TemplateContext = {
+      ...ctx.templateCtx,
+      alert: rule.isAlert ? { name: rule.name, severity: rule.alertConfig?.severity ?? 'info' } : null,
+    };
+    await this.dispatchActions(rule, templateCtx, ctx);
+  }
+
+  /** Marks an active alert (rule, entity) resolved. A no-op if it wasn't active (a
+   * "resolve" signal for an alert that never activated, or already resolved, carries no
+   * information). Optionally sends a resolve notification -- see this file's top
+   * comment, point 4. */
+  private handleResolve(rule: AutomationRule, ctx: EvalCtx): void {
+    const stateKey = `${rule.id}:${this.entityKeyFor(ctx)}`;
+    const st = this.alertState.get(stateKey);
+    if (!st?.active) return;
+    this.alertState.set(stateKey, { active: false, lastFiredAt: st.lastFiredAt });
+    if (!rule.alertConfig?.notifyOnResolve) return;
+
+    const channels = notifyChannelsOf(rule);
+    const severity: NotificationSeverity = rule.alertConfig.severity;
+    this.track(
+      this.sendToChannels(
+        channels, { title: `${rule.name} resolved`, body: 'Back within normal range', severity }, rule.id,
+      ).catch((err) => this.logError(rule, 'resolve-notify', err)),
+    );
+  }
+
+  private async dispatchActions(rule: AutomationRule, templateCtx: TemplateContext, ctx: EvalCtx): Promise<void> {
+    const timeoutMs = this.opts.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
+    for (const action of rule.actions) {
+      try {
+        await runWithTimeout(() => this.executeAction(action, templateCtx, ctx, rule), timeoutMs);
+      } catch (err) {
+        this.logError(rule, `action "${action.type}"`, err);
+      }
+    }
+  }
+
+  private async executeAction(
+    action: Action, templateCtx: TemplateContext, ctx: EvalCtx, rule: AutomationRule,
+  ): Promise<void> {
+    switch (action.type) {
+      case 'notify': return this.dispatchNotify(action, templateCtx, rule);
+      case 'webhook': return this.dispatchWebhook(action, templateCtx);
+      case 'mqtt_publish': return this.dispatchMqtt(action, templateCtx);
+      case 'wall_banner': return this.dispatchWallBanner(action, templateCtx);
+      case 'party_mode': return this.dispatchPartyMode(action);
+      case 'kegtron_reset_volume': return this.dispatchResetVolume(ctx);
+    }
+  }
+
+  // --- per-action-type dispatch ---------------------------------------------------
+
+  private async dispatchNotify(
+    action: Extract<Action, { type: 'notify' }>, ctx: TemplateContext, rule: AutomationRule,
+  ): Promise<void> {
+    const title = renderTemplate(action.title, ctx);
+    const body = renderTemplate(action.body, ctx);
+    const severity: NotificationSeverity = rule.isAlert && rule.alertConfig ? rule.alertConfig.severity : 'info';
+    await this.sendToChannels(action.channels, { title, body, severity }, rule.id);
+  }
+
+  /**
+   * Shared per-channel dispatch for BOTH the `notify` action and resolve notifications.
+   * Quiet hours (`settings.quietHours`) suppress every channel EXCEPT `inApp` -- in-app
+   * always records, per the plan's explicit "in-app still records" carve-out. A channel
+   * name this app doesn't recognize, or one with no config saved, is logged and skipped
+   * (never thrown -- one bad channel in a multi-channel `notify` action must not stop the
+   * others).
+   */
+  private async sendToChannels(
+    channels: string[], msg: { title: string; body: string; severity: NotificationSeverity }, ruleId: number,
+  ): Promise<void> {
+    const quiet = this.isQuietHours(new Date());
+    for (const name of channels) {
+      if (quiet && name !== 'inApp') continue;
+      const channel = this.buildChannel(name);
+      if (!channel) {
+        console.error(`[automation] rule ${ruleId} references channel "${name}", which is not configured -- skipping`);
+        continue;
+      }
+      try {
+        await channel.send({ ...msg, meta: { automationId: ruleId } });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[automation] rule ${ruleId} channel "${name}" send failed: ${message}`);
+      }
+    }
+  }
+
+  private isQuietHours(now: Date): boolean {
+    const qh = this.settings.get('quietHours');
+    return qh ? isWithinTimeWindow(now, qh.start, qh.end) : false;
+  }
+
+  private buildChannel(name: string): Channel | null {
+    if (name === 'inApp') return this.inAppChannel;
+    if ((ALERT_CHANNEL_NAMES as readonly string[]).includes(name)) {
+      return buildAlertChannel(this.settings, name as AlertChannelName);
+    }
+    return null;
+  }
+
+  /**
+   * HARD REQUIREMENT (Task 2 review): `url` is EDITOR-authored (set on the rule, not
+   * server-controlled), so it goes through the exact same SSRF guard as `labelUrl`'s
+   * download before ever reaching `sendWebhook` -- fail-closed, same as
+   * `routes/lookup.ts`'s `downloadAndStoreLabel`. A rejected/invalid URL throws, which
+   * `dispatchActions`' per-action try/catch logs and continues past -- it never crashes
+   * the engine or blocks the rule's remaining actions.
+   */
+  private async dispatchWebhook(action: Extract<Action, { type: 'webhook' }>, ctx: TemplateContext): Promise<void> {
+    const body = renderTemplate(action.bodyTemplate, ctx);
+    let target: URL;
+    try {
+      target = new URL(action.url);
+    } catch {
+      throw new Error('webhook: url is not a valid URL');
+    }
+    if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+      throw new Error('webhook: url must be http(s)');
+    }
+    if (!this.opts.webhookAllowInsecureHosts) {
+      await assertPublicHost(target, { resolve: this.opts.webhookResolveHost });
+    }
+    await sendWebhook(action.url, body);
+  }
+
+  private async dispatchMqtt(action: Extract<Action, { type: 'mqtt_publish' }>, ctx: TemplateContext): Promise<void> {
+    const payload = renderTemplate(action.payloadTemplate, ctx);
+    await this.getMqttSender().publish(action.topic, payload);
+  }
+
+  private getMqttSender(): MqttSender {
+    if (this.opts.mqttSender) return this.opts.mqttSender;
+    if (!this.ownedMqttSender) this.ownedMqttSender = new MqttSender(this.settings);
+    return this.ownedMqttSender;
+  }
+
+  private dispatchWallBanner(action: Extract<Action, { type: 'wall_banner' }>, ctx: TemplateContext): void {
+    const text = renderTemplate(action.text, ctx);
+    this.bus.emit('wall_banner', { text, kind: action.kind, durationMs: action.durationMs });
+  }
+
+  private dispatchPartyMode(action: Extract<Action, { type: 'party_mode' }>): void {
+    this.bus.emit('wall_theme_override', { minutes: action.minutes });
+  }
+
+  /**
+   * Kegtron.ResetVolume via mdash.net, for the triggering event's tap's bound Kegtron Pro
+   * monitor -- per the plan, meaningful in a keg-swap context (a `keg_tapped`-triggered
+   * rule resolves `ctx.tapId` to the tap the swap just happened on). Not hard-restricted
+   * to `keg_tapped` triggers -- any trigger that resolves a `tapId` with a bound Pro
+   * monitor works the same way -- but that's the trigger this action is DOCUMENTED to
+   * pair with. Throws (logged by `dispatchActions`, other actions still run) when there's
+   * no tap context, no bound Pro monitor, or no linked mdash device key -- same
+   * validation `routes/kegtron.ts`'s reset-volume route performs.
+   */
+  private async dispatchResetVolume(ctx: EvalCtx): Promise<void> {
+    if (ctx.tapId === null) {
+      throw new Error('kegtron_reset_volume: no tap context for this trigger');
+    }
+    const monitor = listMonitors(this.db).find((m) => m.tapId === ctx.tapId && m.type === 'kegtron_pro');
+    if (!monitor) {
+      throw new Error(`kegtron_reset_volume: tap ${ctx.tapId} has no bound Kegtron Pro monitor`);
+    }
+    const deviceKey = monitor.meta?.deviceKey;
+    if (typeof deviceKey !== 'string' || deviceKey.length === 0) {
+      throw new Error('kegtron_reset_volume: monitor has no linked mdash device key (not cloud-discovered)');
+    }
+    const client = this.opts.mdashClientFactory
+      ? this.opts.mdashClientFactory(this.settings)
+      : new MdashClient({
+          apiKey: this.settings.get('kegtronApiKey') ?? '', baseUrl: this.settings.get('kegtronBaseUrl'),
+        });
+    await client.callRpc(deviceKey, 'Kegtron.ResetVolume', { port: monitor.portIndex });
+  }
+
+  // --- EvalCtx builders ------------------------------------------------------------
+
+  private buildTapEvalCtx(
+    tapId: number | null, ts: string,
+    extra: {
+      monitorRef?: MonitorRef; levelPct?: number; volumeMl?: number;
+      pour?: { volumeMl: number | null; durationMs: number | null; ts: string } | null;
+    } = {},
+  ): EvalCtx {
+    const tapState = tapId !== null ? this.state.getTapStates().find((t) => t.tapId === tapId) ?? null : null;
+    return {
+      tapId,
+      beerId: tapState?.beer?.id ?? null,
+      levelPct: extra.levelPct ?? tapState?.keg?.levelPct ?? null,
+      volumeMl: extra.volumeMl ?? null,
+      temp: tapState?.temp ?? null,
+      ts,
+      monitorRef: extra.monitorRef ?? null,
+      templateCtx: {
+        beer: templateBeer(tapState?.beer),
+        tap: templateTap(
+          tapState ? { id: tapState.tapId, number: tapState.tapNumber, name: tapState.tapName } : null,
+        ),
+        keg: templateKeg(tapState?.keg),
+        pour: templatePour(extra.pour),
+        monitor: extra.monitorRef ? templateMonitor(extra.monitorRef, tapState?.temp ?? null, null) : null,
+      },
+    };
+  }
+
+  private buildMonitorEvalCtx(
+    monitorRef: MonitorRef, tapId: number | null, ts: string,
+    extra: { temp?: number; humidity?: number | null },
+  ): EvalCtx {
+    const tapState = tapId !== null ? this.state.getTapStates().find((t) => t.tapId === tapId) ?? null : null;
+    const temp = extra.temp ?? tapState?.temp ?? null;
+    return {
+      tapId,
+      beerId: tapState?.beer?.id ?? null,
+      levelPct: tapState?.keg?.levelPct ?? null,
+      volumeMl: null,
+      temp,
+      ts,
+      monitorRef,
+      templateCtx: {
+        beer: templateBeer(tapState?.beer),
+        tap: templateTap(
+          tapState ? { id: tapState.tapId, number: tapState.tapNumber, name: tapState.tapName } : null,
+        ),
+        keg: templateKeg(tapState?.keg),
+        pour: null,
+        monitor: templateMonitor(monitorRef, temp, extra.humidity ?? null),
+      },
+    };
+  }
+
+  private buildKegEvalCtx(tapId: number, kegId: number, ts: string): EvalCtx {
+    const keg = getKeg(this.db, kegId);
+    const beer = keg ? getBeer(this.db, keg.beerId) : null;
+    const tap = getTap(this.db, tapId);
+    const levelPct = keg ? computeLevelPct(keg.volStartMl, keg.volDispensedMl) : null;
+    return {
+      tapId, beerId: beer?.id ?? null, levelPct, volumeMl: null, temp: null, ts, monitorRef: null,
+      templateCtx: {
+        beer: templateBeer(beer),
+        tap: templateTap(tap ? { id: tap.id, number: tap.number, name: tap.name } : null),
+        keg: keg
+          ? templateKeg({ ...keg, levelPct: levelPct!, remainingMl: computeRemainingMl(keg.volStartMl, keg.volDispensedMl) })
+          : null,
+        pour: null,
+        monitor: null,
+      },
+    };
+  }
+
+  private buildGlobalEvalCtx(ts: string): EvalCtx {
+    return {
+      tapId: null, beerId: null, levelPct: null, volumeMl: null, temp: null, ts, monitorRef: null,
+      templateCtx: { beer: null, tap: null, keg: null, pour: null, monitor: null },
+    };
+  }
+}

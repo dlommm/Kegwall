@@ -1,0 +1,801 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type Database from 'better-sqlite3';
+import Fastify, { type FastifyInstance } from 'fastify';
+import net from 'node:net';
+import { Aedes } from 'aedes';
+import mqtt from 'mqtt';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openDb } from '../../src/server/db/db.js';
+import { EventBus } from '../../src/server/core/events.js';
+import { SettingsStore } from '../../src/server/db/settings.js';
+import { StateManager } from '../../src/server/core/state.js';
+import { AutomationEngine, type EngineOptions } from '../../src/server/automation/engine.js';
+import { createBeer } from '../../src/server/db/beers.js';
+import { createTap } from '../../src/server/db/taps.js';
+import { createKeg } from '../../src/server/db/kegs.js';
+import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
+import { createAutomation } from '../../src/server/db/automations.js';
+import { listNotifications } from '../../src/server/db/notificationsRepo.js';
+import type { MqttSender } from '../../src/server/notify/mqttSender.js';
+import type { AutomationRuleInput, Action, Trigger, Condition } from '../../src/server/core/automationSchema.js';
+
+// ---------------------------------------------------------------------------
+// Phase 5 Task 3: exhaustive engine tests, synthetic bus events + fake timers per the
+// plan's explicit test-matrix list. Real dependencies (StateManager, a real sqlite db)
+// are wired up exactly as `context.ts` wires them — the engine's `keg_level_crosses`
+// trigger specifically depends on StateManager's OWN `volume_update` subscriber having
+// already applied the dispense before the engine's handler reads it (subscription
+// order), so most tests build the SAME `bus` + `StateManager.start()` + engine trio a
+// real app would, rather than mocking StateManager away.
+//
+// Fake timers + real network are never combined in the SAME test (a known fragile
+// combo — `AbortSignal.timeout`/undici internals use real timers): time-sensitive tests
+// (cooldown, runaway, schedule, per-action timeout) use only synchronous/in-app-channel
+// side effects; the one test that needs BOTH a controlled clock and a real fake HTTP
+// server (quiet hours) uses `vi.useFakeTimers({toFake: ['Date']})` — faking ONLY `Date`,
+// leaving `setTimeout`/network machinery real.
+// ---------------------------------------------------------------------------
+
+const REF = { type: 'kegtron_pro' as const, identifier: 'dev1', portIndex: 0 };
+const NOW = '2026-01-01T12:00:00.000Z';
+
+let db: Database.Database;
+let bus: EventBus;
+let settings: SettingsStore;
+let state: StateManager;
+let engine: AutomationEngine | undefined;
+let banners: unknown[];
+
+function makeEngine(opts: EngineOptions = {}): AutomationEngine {
+  engine = new AutomationEngine({ db, bus, settings, state }, opts);
+  return engine;
+}
+
+/** Beer + tap + on_tap keg (19L) + a Kegtron Pro monitor bound to that tap, using the
+ * module-level `REF` identity — the common fixture most tests build on. */
+function seed(): { tapId: number; kegId: number; beerId: number } {
+  const beer = createBeer(db, { name: 'Test Beer' });
+  const tap = createTap(db, { number: 1 });
+  const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+  const mon = upsertMonitor(db, REF);
+  bindMonitorToTap(db, mon.id, tap.id);
+  return { tapId: tap.id, kegId: keg.id, beerId: beer.id };
+}
+
+function ruleFor(
+  trigger: Trigger, actions: Action[] = [], overrides: Partial<AutomationRuleInput> = {},
+): AutomationRuleInput {
+  return { name: 'Test Rule', trigger, actions, conditions: [], ...overrides };
+}
+
+function bannerAction(text = 'banner'): Action {
+  return { type: 'wall_banner', text, kind: 'info' };
+}
+
+function notifyInAppAction(title = 'Title', body = 'Body'): Action {
+  return { type: 'notify', channels: ['inApp'], title, body };
+}
+
+beforeEach(() => {
+  db = openDb(mkdtempSync(join(tmpdir(), 'ktdash-')));
+  bus = new EventBus();
+  settings = new SettingsStore(db);
+  state = new StateManager(db, bus);
+  state.start();
+  banners = [];
+  bus.on('wall_banner', (e) => banners.push(e));
+  engine = undefined;
+});
+
+afterEach(() => {
+  engine?.stop();
+  vi.useRealTimers();
+});
+
+describe('trigger kinds', () => {
+  it('pour_started', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'pour_started' }, [bannerAction()]));
+    makeEngine().start();
+    bus.emit('pour_started', { monitor: REF, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('pour_completed', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [bannerAction()]));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 400, durationMs: 5000, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('device_online', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'device_online' }, [bannerAction()]));
+    makeEngine().start();
+    bus.emit('device_online', { monitor: REF, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('device_offline', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'device_offline' }, [bannerAction()]));
+    makeEngine().start();
+    bus.emit('device_offline', { monitor: REF, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('keg_tapped', async () => {
+    const { tapId, kegId, beerId } = seed();
+    createAutomation(db, ruleFor({ type: 'keg_tapped' }, [bannerAction()]));
+    makeEngine().start();
+    bus.emit('keg_tapped', { tapId, kegId, beerId, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('keg_kicked', async () => {
+    const { tapId, kegId, beerId } = seed();
+    createAutomation(db, ruleFor({ type: 'keg_kicked' }, [bannerAction()]));
+    makeEngine().start();
+    bus.emit('keg_kicked', { tapId, kegId, beerId, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('app_startup fires once, at start()', async () => {
+    createAutomation(db, ruleFor({ type: 'app_startup' }, [bannerAction()]));
+    makeEngine().start();
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  describe('keg_level_crosses', () => {
+    it('direction "below": fires exactly once on the actual crossing, not on every sample below it', async () => {
+      const { kegId } = seed();
+      createAutomation(db, ruleFor({ type: 'keg_level_crosses', thresholdPct: 15, direction: 'below' }, [bannerAction()]));
+      makeEngine().start();
+
+      // First sample establishes the baseline only -- nothing to have crossed FROM yet.
+      bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      // ~94.7% -> ~10.5%: crosses below 15%.
+      bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+
+      // Still below 15% -- must NOT re-fire.
+      bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 18000, sizeMl: 19000, ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+      void kegId;
+    });
+
+    it('direction "above": fires on crossing back above the threshold', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'keg_level_crosses', thresholdPct: 50, direction: 'above' }, [bannerAction()]));
+      makeEngine().start();
+
+      bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 12000, sizeMl: 19000, ts: NOW }); // ~36.8%, baseline
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 5000, sizeMl: 19000, ts: NOW }); // ~73.7%, crosses above 50
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+  });
+
+  describe('temp_crosses', () => {
+    it('direction "above": fires on crossing above the value', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'temp_crosses', value: 10, direction: 'above' }, [bannerAction()]));
+      makeEngine().start();
+
+      bus.emit('telemetry', { monitor: REF, temp: 5, humidity: null, ts: NOW }); // baseline
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      bus.emit('telemetry', { monitor: REF, temp: 15, humidity: null, ts: NOW }); // crosses above 10
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('direction "below": fires on crossing below the value', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'temp_crosses', value: 2, direction: 'below' }, [bannerAction()]));
+      makeEngine().start();
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 50, ts: NOW }); // baseline
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      bus.emit('telemetry', { monitor: REF, temp: 1, humidity: 50, ts: NOW }); // crosses below 2
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('a null temp reading is ignored (no baseline set, no crash)', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'temp_crosses', value: 2, direction: 'below' }, [bannerAction()]));
+      makeEngine().start();
+      bus.emit('telemetry', { monitor: REF, temp: null, humidity: 50, ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+    });
+  });
+
+  describe('schedule', () => {
+    beforeEach(() => vi.useFakeTimers());
+
+    it('fires when the current time+weekday matches at start() (2026-01-05 is a Monday)', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
+      createAutomation(db, ruleFor({ type: 'schedule', time: '09:00', weekdays: [1] }, [bannerAction()]));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('does not fire on a non-matching weekday', async () => {
+      vi.setSystemTime(new Date(2026, 0, 4, 9, 0, 0)); // Sunday
+      createAutomation(db, ruleFor({ type: 'schedule', time: '09:00', weekdays: [1] }, [bannerAction()]));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+    });
+
+    it('does not fire at a non-matching time', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 1, 0));
+      createAutomation(db, ruleFor({ type: 'schedule', time: '09:00', weekdays: [] }, [bannerAction()]));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+    });
+
+    it('empty weekdays = every day', async () => {
+      vi.setSystemTime(new Date(2026, 0, 4, 9, 0, 0)); // Sunday
+      createAutomation(db, ruleFor({ type: 'schedule', time: '09:00', weekdays: [] }, [bannerAction()]));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('fires again on the next matching day via the recurring timer, deduped within the same minute', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
+      createAutomation(db, ruleFor({ type: 'schedule', time: '09:00', weekdays: [] }, [bannerAction()]));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+
+      // Still inside the same minute -- must not double-fire.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+
+      // 24h later, same time-of-day -- fires again.
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+      await engine!.flush();
+      expect(banners).toHaveLength(2);
+    });
+  });
+});
+
+describe('conditions applied end-to-end (matrix itself is unit-tested in tests/automation/conditions.test.ts)', () => {
+  it('tap_scope actually gates real keg_tapped events by tap', async () => {
+    const beer = createBeer(db, { name: 'B' });
+    const tap1 = createTap(db, { number: 1 });
+    const tap2 = createTap(db, { number: 2 });
+    const keg = createKeg(db, { beerId: beer.id, sizeMl: 1000, volStartMl: 1000, tapId: tap1.id });
+    const conditions: Condition[] = [{ type: 'tap_scope', tapIds: [tap2.id] }];
+    createAutomation(db, ruleFor({ type: 'keg_tapped' }, [bannerAction()], { conditions }));
+    makeEngine().start();
+
+    bus.emit('keg_tapped', { tapId: tap1.id, kegId: keg.id, beerId: beer.id, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(0);
+
+    bus.emit('keg_tapped', { tapId: tap2.id, kegId: keg.id, beerId: beer.id, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+});
+
+describe('alert cooldown', () => {
+  it('suppresses a refire while the alert is active within cooldownMinutes; fires again once elapsed', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0));
+    seed();
+    createAutomation(db, {
+      name: 'Device Offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [notifyInAppAction('Offline', 'Device is offline')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' },
+    });
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(30 * 60_000); // 30 min -- still within cooldown
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(31 * 60_000); // now past the 60 min cooldown
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(2);
+  });
+});
+
+describe('quiet hours (external channels suppressed; inApp always records)', () => {
+  let discordServer: FastifyInstance;
+  let discordHits: number;
+
+  beforeEach(async () => {
+    discordHits = 0;
+    discordServer = Fastify();
+    discordServer.post('/webhook', async () => { discordHits += 1; return {}; });
+    await discordServer.listen({ port: 0, host: '127.0.0.1' });
+    const addr = discordServer.server.address() as { port: number };
+    settings.set('alertChannels', { discord: { webhookUrl: `http://127.0.0.1:${addr.port}/webhook` } });
+    settings.set('quietHours', { start: '22:00', end: '08:00' });
+  });
+
+  afterEach(async () => {
+    await discordServer.close();
+  });
+
+  async function fireAt(time: Date): Promise<void> {
+    vi.useFakeTimers({ toFake: ['Date'] }); // ONLY Date faked -- real timers for the real fetch below
+    vi.setSystemTime(time);
+    seed();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+      { type: 'notify', channels: ['inApp', 'discord'], title: 'Pour', body: 'Body' },
+    ]));
+    makeEngine().start();
+    bus.emit('pour_completed', {
+      monitor: REF, volumeMl: 400, durationMs: 1, source: 'cloud', ts: time.toISOString(),
+    });
+    await engine!.flush();
+  }
+
+  it('at exactly 22:00 (inclusive quiet start) -- discord suppressed, inApp still recorded', async () => {
+    await fireAt(new Date(2026, 0, 1, 22, 0, 0));
+    expect(discordHits).toBe(0);
+    expect(listNotifications(db)).toHaveLength(1);
+  });
+
+  it('at 21:59 (just before quiet) -- discord goes through', async () => {
+    await fireAt(new Date(2026, 0, 1, 21, 59, 0));
+    expect(discordHits).toBe(1);
+  });
+
+  it('at exactly 08:00 (exclusive quiet end) -- discord goes through again', async () => {
+    await fireAt(new Date(2026, 0, 1, 8, 0, 0));
+    expect(discordHits).toBe(1);
+  });
+
+  it('at 07:59 (just before end) -- discord still suppressed', async () => {
+    await fireAt(new Date(2026, 0, 1, 7, 59, 0));
+    expect(discordHits).toBe(0);
+  });
+});
+
+describe('runaway guard (60/hr default; all rules, not just alerts)', () => {
+  it('caps a single rule at runawayLimitPerHour fires/hour', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [bannerAction()]));
+    makeEngine({ runawayLimitPerHour: 2 }).start();
+
+    for (let i = 0; i < 3; i += 1) {
+      bus.emit('pour_completed', {
+        monitor: REF, volumeMl: 100, durationMs: 1, source: 'cloud', ts: new Date().toISOString(),
+      });
+    }
+    await engine!.flush();
+    expect(banners).toHaveLength(2);
+  });
+});
+
+describe('auto-resolve + notifyOnResolve', () => {
+  function alertRule(overrides: { autoResolve?: boolean; notifyOnResolve?: boolean } = {}) {
+    return {
+      name: 'Keg Low', isAlert: true,
+      trigger: { type: 'keg_level_crosses' as const, thresholdPct: 15, direction: 'below' as const },
+      actions: [notifyInAppAction('Keg low', 'Below 15%')],
+      alertConfig: {
+        cooldownMinutes: 60,
+        autoResolve: overrides.autoResolve ?? true,
+        notifyOnResolve: overrides.notifyOnResolve ?? true,
+        severity: 'warning' as const,
+      },
+    };
+  }
+
+  it('resolves on the opposite-direction crossing and sends a resolve notification when notifyOnResolve is true', async () => {
+    seed();
+    createAutomation(db, alertRule());
+    makeEngine().start();
+
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW }); // baseline
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(0);
+
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW }); // crosses below
+    await engine!.flush();
+    let ns = listNotifications(db);
+    expect(ns).toHaveLength(1);
+    expect(ns[0]!.title).toBe('Keg low');
+
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW }); // back above
+    await engine!.flush();
+    ns = listNotifications(db);
+    expect(ns).toHaveLength(2);
+    expect(ns[0]!.title).toBe('Keg Low resolved'); // newest first
+  });
+
+  it('does not send a resolve notification when notifyOnResolve is false', async () => {
+    seed();
+    createAutomation(db, alertRule({ notifyOnResolve: false }));
+    makeEngine().start();
+
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1); // just the activation
+  });
+
+  it('does not auto-resolve when autoResolve is false -- the alert stays active, cooldown gates a re-cross', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0));
+    seed();
+    createAutomation(db, alertRule({ autoResolve: false }));
+    makeEngine().start();
+
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW }); // activates
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    // Wobbles back above then below again immediately (autoResolve:false means the
+    // active flag never clears) -- the re-cross is suppressed by cooldown.
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1); // still just 1 -- cooldown suppressed the re-cross
+  });
+
+  it('tracks alert active state independently per entity (two taps, same rule)', async () => {
+    const beer = createBeer(db, { name: 'B' });
+    const tap1 = createTap(db, { number: 1 });
+    const tap2 = createTap(db, { number: 2 });
+    const keg1 = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap1.id });
+    const keg2 = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap2.id });
+    const ref1 = { type: 'kegtron_pro' as const, identifier: 'devA', portIndex: 0 };
+    const ref2 = { type: 'kegtron_pro' as const, identifier: 'devB', portIndex: 0 };
+    bindMonitorToTap(db, upsertMonitor(db, ref1).id, tap1.id);
+    bindMonitorToTap(db, upsertMonitor(db, ref2).id, tap2.id);
+    void keg1; void keg2;
+
+    createAutomation(db, alertRule({ notifyOnResolve: false }));
+    makeEngine().start();
+
+    bus.emit('volume_update', { monitor: ref1, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: ref2, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    await engine!.flush();
+
+    bus.emit('volume_update', { monitor: ref1, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: ref2, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW });
+    await engine!.flush();
+
+    expect(listNotifications(db)).toHaveLength(2); // both taps fired independently
+  });
+});
+
+describe('action dispatch', () => {
+  it('runs actions strictly in array order', async () => {
+    seed();
+    const order: string[] = [];
+    bus.on('wall_banner', () => order.push('banner'));
+    bus.on('wall_theme_override', () => order.push('party'));
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+      { type: 'wall_banner', text: 'A', kind: 'info' },
+      { type: 'notify', channels: ['inApp'], title: 'B', body: 'B' },
+      { type: 'party_mode', minutes: 5 },
+    ]));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 100, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(order).toEqual(['banner', 'party']);
+    expect(listNotifications(db)).toHaveLength(1);
+  });
+
+  it('party_mode emits wall_theme_override with minutes', async () => {
+    seed();
+    const themeEvents: unknown[] = [];
+    bus.on('wall_theme_override', (e) => themeEvents.push(e));
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [{ type: 'party_mode', minutes: 10 }]));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(themeEvents).toEqual([{ minutes: 10 }]);
+  });
+
+  it('an unconfigured notify channel is logged and skipped; other channels still send', async () => {
+    seed();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+      { type: 'notify', channels: ['ntfy', 'inApp'], title: 'T', body: 'B' },
+    ]));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('mqtt_publish throws when mqtt is not configured -- logged, later actions still run', async () => {
+    seed();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+      { type: 'mqtt_publish', topic: 't', payloadTemplate: 'p' },
+      { type: 'wall_banner', text: 'after', kind: 'info' },
+    ]));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('builds correct {beer, tap, keg, pour} template context for a pour_completed event', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+      {
+        type: 'notify', channels: ['inApp'],
+        title: '{{beer.name}} on tap {{tap.number}}',
+        body: 'Poured {{pour.volume_ml}}ml, keg at {{keg.level_pct}}%',
+      },
+    ]));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 400, durationMs: 5000, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    const n = listNotifications(db)[0]!;
+    expect(n.title).toBe('Test Beer on tap 1');
+    expect(n.body).toContain('Poured 400ml');
+  });
+
+  describe('per-action timeout', () => {
+    it('a hung action times out after actionTimeoutMs; later actions still run', async () => {
+      vi.useFakeTimers();
+      seed();
+      const hungMqttSender = {
+        publish: () => new Promise<void>(() => {}),
+        close: async () => {},
+      } as unknown as MqttSender;
+      createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+        { type: 'mqtt_publish', topic: 't', payloadTemplate: 'p' },
+        { type: 'wall_banner', text: 'after timeout', kind: 'info' },
+      ]));
+      makeEngine({ actionTimeoutMs: 50, mqttSender: hungMqttSender }).start();
+      bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+      await vi.advanceTimersByTimeAsync(60);
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+  });
+
+  describe('webhook action (Task 2 review HARD REQUIREMENT: SSRF-guarded)', () => {
+    it('blocks a private-host webhook URL; action fails cleanly, logged, other actions continue', async () => {
+      seed();
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+        { type: 'webhook', url: 'http://127.0.0.1/hook', bodyTemplate: '{}' },
+        { type: 'wall_banner', text: 'still runs', kind: 'info' },
+      ]));
+      makeEngine().start();
+      const start = Date.now();
+      bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+      await engine!.flush();
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeLessThan(200); // rejected by the guard, not after a real connection attempt
+      expect(banners).toHaveLength(1);
+      expect(errSpy).toHaveBeenCalled();
+      errSpy.mockRestore();
+    });
+
+    it('renders the body template and posts to an allowed host (webhookAllowInsecureHosts test escape hatch)', async () => {
+      seed();
+      let received: unknown = null;
+      const fake = Fastify();
+      fake.post('/hook', async (req) => { received = req.body; return { ok: true }; });
+      await fake.listen({ port: 0, host: '127.0.0.1' });
+      const addr = fake.server.address() as { port: number };
+
+      createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+        { type: 'webhook', url: `http://127.0.0.1:${addr.port}/hook`, bodyTemplate: '{"beer":"{{beer.name}}"}' },
+      ]));
+      makeEngine({ webhookAllowInsecureHosts: true }).start();
+      bus.emit('pour_completed', { monitor: REF, volumeMl: 400, durationMs: 1, source: 'cloud', ts: NOW });
+      await engine!.flush();
+      expect(received).toEqual({ beer: 'Test Beer' });
+      await fake.close();
+    });
+  });
+
+  describe('mqtt_publish action', () => {
+    let broker: Aedes;
+    let server: net.Server;
+    let brokerPort: number;
+
+    beforeEach(async () => {
+      broker = await Aedes.createBroker();
+      server = net.createServer(broker.handle);
+      await new Promise<void>((resolve) => server.listen(0, resolve));
+      brokerPort = (server.address() as { port: number }).port;
+    });
+
+    afterEach(async () => {
+      // The engine's OWN internal MqttSender (lazily built by dispatchMqtt, since no
+      // `mqttSender` override was injected) is still connected to this broker at this
+      // point -- stop it first (fire-and-forget `close()`, same as production) and give
+      // it a moment to actually disconnect, or `server.close()`/`broker.close()` below
+      // hang waiting for a client that never goes away.
+      engine?.stop();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await new Promise<void>((resolve) => broker.close(() => resolve()));
+    });
+
+    it('publishes the rendered payload to the configured broker', async () => {
+      seed();
+      settings.set('mqtt', {
+        url: `mqtt://127.0.0.1:${brokerPort}`, gen1TopicPrefix: 'home/x', haPublishEnabled: false,
+        haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+      });
+      const received: { topic: string; payload: string }[] = [];
+      const sub = mqtt.connect(`mqtt://127.0.0.1:${brokerPort}`);
+      await new Promise<void>((resolve, reject) => {
+        sub.once('connect', () => resolve());
+        sub.once('error', reject);
+      });
+      sub.subscribe('kegtron/#');
+      sub.on('message', (topic, payload) => received.push({ topic, payload: payload.toString('utf8') }));
+
+      createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+        { type: 'mqtt_publish', topic: 'kegtron/test', payloadTemplate: '{{pour.volume_ml}}' },
+      ]));
+      makeEngine().start();
+      bus.emit('pour_completed', { monitor: REF, volumeMl: 355, durationMs: 1, source: 'cloud', ts: NOW });
+      await engine!.flush();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      try {
+        expect(received).toContainEqual({ topic: 'kegtron/test', payload: '355' });
+      } finally {
+        await new Promise<void>((resolve) => sub.end(true, {}, () => resolve()));
+      }
+    });
+  });
+
+  describe('kegtron_reset_volume action', () => {
+    it("calls Kegtron.ResetVolume via mdash for the trigger's tap's bound Pro monitor", async () => {
+      const beer = createBeer(db, { name: 'B' });
+      const tap = createTap(db, { number: 1 });
+      const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+      const mon = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'devZ', portIndex: 2 }, { meta: { deviceKey: 'KEY123' } });
+      bindMonitorToTap(db, mon.id, tap.id);
+
+      const rpcCalls: { body: unknown; token: unknown }[] = [];
+      const fakeMdash = Fastify();
+      fakeMdash.post('/api/v2/m/device/rpc/Kegtron.ResetVolume', async (req) => {
+        rpcCalls.push({ body: req.body, token: (req.query as Record<string, unknown>).access_token });
+        return {};
+      });
+      await fakeMdash.listen({ port: 0, host: '127.0.0.1' });
+      const addr = fakeMdash.server.address() as { port: number };
+      settings.set('kegtronApiKey', 'customer-key');
+      settings.set('kegtronBaseUrl', `http://127.0.0.1:${addr.port}`);
+
+      createAutomation(db, ruleFor({ type: 'keg_tapped' }, [{ type: 'kegtron_reset_volume' }]));
+      makeEngine().start();
+      bus.emit('keg_tapped', { tapId: tap.id, kegId: keg.id, beerId: beer.id, ts: NOW });
+      await engine!.flush();
+
+      expect(rpcCalls).toHaveLength(1);
+      expect(rpcCalls[0]!.body).toEqual({ port: 2 });
+      expect(rpcCalls[0]!.token).toBe('KEY123'); // the MONITOR's own device key, not the customer key
+      await fakeMdash.close();
+    });
+
+    it('throws (logged, other actions continue) when the tap has no bound Pro monitor', async () => {
+      const beer = createBeer(db, { name: 'B' });
+      const tap = createTap(db, { number: 1 });
+      const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      createAutomation(db, ruleFor({ type: 'keg_tapped' }, [
+        { type: 'kegtron_reset_volume' },
+        { type: 'wall_banner', text: 'still runs', kind: 'info' },
+      ]));
+      makeEngine().start();
+      bus.emit('keg_tapped', { tapId: tap.id, kegId: keg.id, beerId: beer.id, ts: NOW });
+      await engine!.flush();
+
+      expect(banners).toHaveLength(1);
+      expect(errSpy).toHaveBeenCalled();
+      errSpy.mockRestore();
+    });
+  });
+});
+
+describe('stop()', () => {
+  it('unsubscribes from the bus -- events after stop() do not fire actions', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [bannerAction()]));
+    makeEngine().start();
+    engine!.stop();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(0);
+  });
+
+  it('clears the schedule timer -- advancing time after stop() does not fire schedule rules', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 5, 8, 59, 0));
+    createAutomation(db, ruleFor({ type: 'schedule', time: '09:00', weekdays: [] }, [bannerAction()]));
+    makeEngine().start();
+    engine!.stop();
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    await engine!.flush();
+    expect(banners).toHaveLength(0);
+  });
+
+  it('is idempotent -- safe before start(), and safe to call more than once', () => {
+    makeEngine();
+    expect(() => engine!.stop()).not.toThrow();
+    expect(() => engine!.stop()).not.toThrow();
+    engine!.start();
+    expect(() => { engine!.stop(); engine!.stop(); }).not.toThrow();
+  });
+});
+
+describe('reloadRules / automations_changed', () => {
+  it('reloadRules() picks up a rule created after start()', async () => {
+    seed();
+    makeEngine().start();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [bannerAction()]));
+
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(0); // not loaded yet
+
+    engine!.reloadRules();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('an automations_changed bus event triggers a reload', async () => {
+    seed();
+    makeEngine().start();
+    createAutomation(db, ruleFor({ type: 'pour_completed' }, [bannerAction()]));
+
+    bus.emit('automations_changed', { ts: new Date().toISOString() });
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+});

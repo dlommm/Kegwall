@@ -6,7 +6,7 @@ import {
 } from '../db/beers.js';
 import { createTap, listTaps, updateTap, deleteTap, getTap } from '../db/taps.js';
 import {
-  listKegs, getKeg, swapKeg, createKeg, listOnDeckForTap, removeOnDeckKeg,
+  listKegs, getKeg, swapKeg, createKeg, listOnDeckForTap, removeOnDeckKeg, getActiveKegForTap,
 } from '../db/kegs.js';
 import {
   listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
@@ -143,6 +143,10 @@ export async function crudRoutes(app: FastifyInstance) {
     const tapId = Number((req.params as any).id);
     if (!getTap(db, tapId)) throw new NotFoundError('tap');
     const body = swapSchema.parse(req.body);
+    // Captured BEFORE swapKeg (which kicks it, inside its own transaction) so the
+    // outgoing keg's id/beerId are still available to emit `keg_kicked` for it below —
+    // Phase 5 Task 3: feeds the automation engine's keg_kicked/keg_tapped triggers.
+    const outgoing = getActiveKegForTap(db, tapId);
     const keg = swapKeg(db, {
       tapId,
       fromKegId: body.fromKegId,
@@ -150,7 +154,15 @@ export async function crudRoutes(app: FastifyInstance) {
       sizeMl: body.sizeMl,
       volStartMl: body.volStartMl,
     });
-    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    const ts = new Date().toISOString();
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts });
+    // Kicked-then-tapped order (not the reverse) — a rule that auto-resolves a
+    // "keg kicked" alert on `keg_tapped` (see automation/engine.ts) should see the kick
+    // recorded first.
+    if (outgoing) {
+      app.ctx.bus.emit('keg_kicked', { tapId, kegId: outgoing.id, beerId: outgoing.beerId, ts });
+    }
+    app.ctx.bus.emit('keg_tapped', { tapId, kegId: keg.id, beerId: keg.beerId, ts });
     return reply.code(201).send(keg);
   });
 
@@ -188,6 +200,20 @@ export async function crudRoutes(app: FastifyInstance) {
     const keg = getKeg(db, Number((req.params as any).id));
     if (!keg) throw new NotFoundError('keg');
     db.prepare('UPDATE kegs SET status = ? WHERE id = ?').run(body.status, keg.id);
+    // Phase 5 Task 3: a manual status flip is the OTHER "swap/status path" the automation
+    // engine's keg_tapped/keg_kicked triggers hook (the swap wizard above is the other).
+    // Scoped to an actual TRANSITION (status !== keg.status) so re-PATCHing the same
+    // status doesn't spuriously re-fire, and to a keg with a known tapId (an 'on_deck'
+    // keg's status can't reach 'on_tap'/'kicked' through this route in practice, but
+    // `tapId` is nullable on the type, so this guard is defensive).
+    if (body.status !== keg.status && keg.tapId !== null) {
+      const ts = new Date().toISOString();
+      if (body.status === 'kicked') {
+        app.ctx.bus.emit('keg_kicked', { tapId: keg.tapId, kegId: keg.id, beerId: keg.beerId, ts });
+      } else if (body.status === 'on_tap') {
+        app.ctx.bus.emit('keg_tapped', { tapId: keg.tapId, kegId: keg.id, beerId: keg.beerId, ts });
+      }
+    }
     return getKeg(db, keg.id);
   });
   // DELETE /api/kegs/:id — removes a queued on-deck keg from its tap's queue (Task 5's

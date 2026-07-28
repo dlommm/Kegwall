@@ -18,6 +18,7 @@ import { createKeg } from '../../src/server/db/kegs.js';
 import { KegtronUdpSource } from '../../src/server/ingest/kegtron/udpSource.js';
 import { buildApp } from '../../src/server/app.js';
 import type { AppContext } from '../../src/server/context.js';
+import { AutomationEngine } from '../../src/server/automation/engine.js';
 
 function tmpDataDir(): string {
   return mkdtempSync(join(tmpdir(), 'ktdash-'));
@@ -26,10 +27,12 @@ function tmpDataDir(): string {
 function makeCtx(): AppContext {
   const db = openDb(tmpDataDir());
   const bus = new EventBus();
+  const settings = new SettingsStore(db);
   const state = new StateManager(db, bus);
   state.start();
   const sources = new SourceManager(bus);
-  return { db, bus, settings: new SettingsStore(db), state, sources };
+  const engine = new AutomationEngine({ db, bus, settings, state });
+  return { db, bus, settings, state, sources, engine };
 }
 
 describe('registerConfiguredSources', () => {
