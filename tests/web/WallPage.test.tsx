@@ -24,6 +24,7 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     pouring: false,
     curServMl: null,
     monitorOnline: true,
+    temp: null,
     ...overrides,
   };
 }
@@ -250,6 +251,43 @@ describe('WallPage', () => {
     }));
     renderWall();
     expect(screen.getByTestId('liquid-readout')).toHaveTextContent('473 mL');
+  });
+
+  it('shows the max temp across every tap on the wall when showTemp is enabled', () => {
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: { slug: 'main', name: 'Main', config: makeConfig({ header: { showClock: false, showTemp: true } }) },
+      taps: [makeTap(1, { temp: 3.1 }), makeTap(2, { temp: 4.8 }), makeTap(3, { temp: null })],
+      units: 'metric',
+    }));
+    renderWall();
+    expect(screen.getByTestId('wall-header-temp')).toHaveTextContent('5°C');
+  });
+
+  it('hides the temp readout when no tap on the wall has a temp reading', () => {
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: { slug: 'main', name: 'Main', config: makeConfig({ header: { showClock: false, showTemp: true } }) },
+      taps: [makeTap(1, { temp: null }), makeTap(2, { temp: null })],
+    }));
+    renderWall();
+    expect(screen.queryByTestId('wall-header-temp')).not.toBeInTheDocument();
+  });
+
+  it('derives the wall max temp from all taps, not just the currently rotating page', () => {
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: {
+        slug: 'main',
+        name: 'Main',
+        config: makeConfig({
+          header: { showClock: false, showTemp: true },
+          pages: [{ tapIds: [1] }, { tapIds: [2] }],
+        }),
+      },
+      taps: [makeTap(1, { temp: 2 }), makeTap(2, { temp: 9.6 })],
+      units: 'metric',
+    }));
+    renderWall();
+    // page 1 only shows tap 1, but the header temp is the wall-wide max (tap 2's 9.6°C).
+    expect(screen.getByTestId('wall-header-temp')).toHaveTextContent('10°C');
   });
 });
 

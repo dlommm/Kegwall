@@ -8,7 +8,7 @@ import {
 import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
 } from '../db/monitors.js';
-import { recordTelemetrySampled } from '../db/telemetry.js';
+import { recordTelemetrySampled, latestTelemetryForMonitor } from '../db/telemetry.js';
 import { listPours } from '../db/pours.js';
 import { PourDeduper } from './pourDedupe.js';
 
@@ -22,6 +22,10 @@ export interface TapState {
   pouring: boolean;
   curServMl: number | null;
   monitorOnline: boolean;
+  /** The bound monitor's most recent telemetry temperature reading (Celsius), or `null`
+   * when the tap has no bound monitor or that monitor hasn't reported telemetry yet.
+   * Feeds WallHeader's max-temp readout (see WallPage.tsx). */
+  temp: number | null;
 }
 
 export class StateManager {
@@ -104,6 +108,7 @@ export class StateManager {
       const key = mon ? monitorRefKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;
       const live = key ? this.live.get(key) : undefined;
       const lastPourRow = keg ? listPours(this.db, { kegId: keg.id, limit: 1 })[0] : undefined;
+      const temp = mon ? latestTelemetryForMonitor(this.db, mon.id)?.temp ?? null : null;
       return {
         tapId: tap.id,
         tapNumber: tap.number,
@@ -123,6 +128,7 @@ export class StateManager {
         pouring: live?.pouring ?? false,
         curServMl: live?.curServMl ?? null,
         monitorOnline: key ? this.online.get(key) ?? true : false,
+        temp,
       };
     });
   }

@@ -2,6 +2,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
+import Database from 'better-sqlite3';
+import { resolve } from 'node:path';
 import { createContext, type AppContext } from './context.js';
 import { authRoutes } from './routes/auth.js';
 import { crudRoutes } from './routes/crud.js';
@@ -9,8 +11,39 @@ import { wsRoutes } from './routes/ws.js';
 import { publicRoutes } from './routes/public.js';
 import { sourcesRoutes } from './routes/sources.js';
 import { kegtronRoutes } from './routes/kegtron.js';
-import { staticRoutes } from './routes/static.js';
+import { uploadsRoutes } from './routes/uploads.js';
+import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
+
+/**
+ * Maps a raw better-sqlite3 `SqliteError` to a clean API error shape — callers (route
+ * handlers, repo functions) mostly don't pre-check constraints before inserting/updating
+ * (a few hot paths do, e.g. `createKeg`'s active-tap check in db/kegs.ts, purely so THAT
+ * specific case gets a nicer message), so this is the backstop that keeps a raw SQL error
+ * from ever reaching a client as an opaque 500. `err.message` for a UNIQUE violation is
+ * "UNIQUE constraint failed: table.column[, table.column...]" — the table/column names are
+ * safe to surface (they're schema, not data), so the leading one is threaded into the
+ * message. FK violations don't carry column info (SQLite's message is just "FOREIGN KEY
+ * constraint failed"), so that case gets a generic-but-still-not-raw-SQL message.
+ */
+function mapSqliteError(err: unknown): { status: number; error: string; message: string } | null {
+  if (!(err instanceof Database.SqliteError)) return null;
+  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    const field = /UNIQUE constraint failed: ([\w.]+)/.exec(err.message)?.[1] ?? null;
+    return {
+      status: 409,
+      error: 'conflict',
+      message: field ? `${field} already exists` : 'That value is already in use',
+    };
+  }
+  if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || err.code === 'SQLITE_CONSTRAINT_TRIGGER') {
+    return { status: 400, error: 'validation', message: 'Refers to a record that does not exist' };
+  }
+  if (err.code.startsWith('SQLITE_CONSTRAINT')) {
+    return { status: 400, error: 'validation', message: 'Invalid data' };
+  }
+  return null;
+}
 
 declare module 'fastify' {
   interface FastifyInstance { ctx: AppContext }
@@ -55,6 +88,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
     if (err instanceof NotFoundError) return reply.code(404).send({ error: 'not_found', message: err.message });
     if (err instanceof ConflictError) return reply.code(409).send({ error: 'conflict', message: err.message });
     if ((err as any).statusCode === 429) return reply.send(err); // rate limit passthrough
+    const mapped = mapSqliteError(err);
+    if (mapped) return reply.code(mapped.status).send({ error: mapped.error, message: mapped.message });
     req.log?.error(err);
     return reply.code(500).send({ error: 'internal', message: 'Something went wrong' });
   });
@@ -71,6 +106,10 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
   await kegtronRoutes(app); // direct call — see encapsulation note above
+  const dataDir = resolve(opts.dataDir ?? './data');
+  await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
+                                           // see its doc comment for the decorateReply ordering
+  await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

@@ -24,10 +24,12 @@ const DEFAULT_ROTATION_SECONDS = 15;
 /**
  * The wall itself: `/wall/:slug`, fullscreen, no browser chrome. Composes the live data
  * layer (`useWallData`) with page rotation, the header, the tap grid, banners, an
- * optional QR overlay, and OLED screen care. See the Task 5 report for two documented,
- * intentionally-deferred gaps: `WallHeader`'s temp readout has no real data source yet
- * (`TapState` carries no temperature field), and there's no `logoUrl` source yet either
- * — both props are wired end-to-end and tested, just fed `null` at this call site today.
+ * optional QR overlay, and OLED screen care. See the Task 5 report for one still-
+ * documented gap: there's no `logoUrl` source yet, so that prop is wired end-to-end and
+ * tested but always fed `null` at this call site today. `WallHeader`'s temp readout DOES
+ * have a real source as of Task 1 (Phase 4) — `TapState.temp`, populated server-side from
+ * the bound monitor's latest telemetry row — so it's derived from all of the wall's taps
+ * below (not just the current page) and passed through.
  */
 export function WallPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -42,6 +44,12 @@ export function WallPage() {
     () => resolveWallPages(config?.pages ?? [], taps),
     [config, taps],
   );
+  // Max temp across every tap on the wall (not just the current rotating page) — a
+  // site-wide readout, so it shouldn't flicker/change as pages rotate.
+  const maxTempC = useMemo(() => {
+    const temps = taps.map((t) => t.temp).filter((t): t is number => t != null);
+    return temps.length > 0 ? Math.max(...temps) : null;
+  }, [taps]);
   const pageIndex = useRotatingPageIndex(pages.length, config?.rotationSeconds ?? DEFAULT_ROTATION_SECONDS);
   const currentTaps = pages[pageIndex] ?? [];
   const transition = reducedMotion ? 'none' : (config?.transition ?? 'crossfade');
@@ -96,7 +104,7 @@ export function WallPage() {
             title={title}
             showClock={config.header.showClock}
             showTemp={config.header.showTemp}
-            tempC={null}
+            tempC={maxTempC}
             units={units}
             ticker={config.ticker}
           />

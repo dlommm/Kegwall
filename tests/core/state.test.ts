@@ -152,4 +152,28 @@ describe('StateManager', () => {
     expect(tap.keg?.status).toBe('on_tap');
     expect(tap.beer?.name).toBe('Fresh Pils');
   });
+
+  it('carries temp from the bound monitor\'s latest telemetry row', () => {
+    bus.emit('telemetry', { monitor: ref, temp: 3.7, humidity: 45, ts: '2026-07-27T01:00:00.000Z' });
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.temp).toBe(3.7);
+  });
+
+  it('carries the most recent temp reading when telemetry updates over time', () => {
+    bus.emit('telemetry', { monitor: ref, temp: 3.7, humidity: 45, ts: '2026-07-27T01:00:00.000Z' });
+    bus.emit('telemetry', { monitor: ref, temp: 4.1, humidity: 46, ts: '2026-07-27T01:10:00.000Z' });
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.temp).toBe(4.1);
+  });
+
+  it('temp is null when the bound monitor has no telemetry yet', () => {
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.temp).toBeNull();
+  });
+
+  it('temp is null for a tap with no bound monitor', () => {
+    const unboundTapId = createTap(db, { number: 2 }).id;
+    const tap = sm.getTapStates().find((t) => t.tapId === unboundTapId)!;
+    expect(tap.temp).toBeNull();
+  });
 });
