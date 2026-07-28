@@ -3,7 +3,7 @@ import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
-// import { createDrinker } from '../../src/server/db/users.js'; // Task 8; use it.skip on the claim test until then
+import { createDrinker } from '../../src/server/db/users.js';
 import { listPours, recentUnclaimedPours, setPourDrinker } from '../../src/server/db/pours.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -36,11 +36,10 @@ describe('pours repo', () => {
     expect(recentUnclaimedPours(db, 15)).toHaveLength(1);
   });
 
-  // TODO Task 8: un-skip
-  it.skip('claims and unclaims a pour', () => {
-    // const drinker = createDrinker(db, { displayName: 'Sam' });
+  it('claims and unclaims a pour', () => {
+    const drinker = createDrinker(db, { displayName: 'Sam' });
     const pour = pourAt(new Date().toISOString());
-    // expect(setPourDrinker(db, pour.id, drinker.id).drinkerId).toBe(drinker.id);
+    expect(setPourDrinker(db, pour.id, drinker.id).drinkerId).toBe(drinker.id);
     expect(setPourDrinker(db, pour.id, null).drinkerId).toBeNull();
   });
 });
