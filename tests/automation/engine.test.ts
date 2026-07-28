@@ -738,6 +738,102 @@ describe('auto-resolve + notifyOnResolve', () => {
   });
 });
 
+describe('alert_fired bus event (Phase 5 Task 5: HA publisher hand-off point)', () => {
+  function alertsCollector(): { events: unknown[] } {
+    const events: unknown[] = [];
+    bus.on('alert_fired', (e) => events.push(e));
+    return { events };
+  }
+
+  it('emits alert_fired with the notify action\'s rendered title/body when an isAlert rule fires', async () => {
+    const { tapId } = seed();
+    createAutomation(db, {
+      name: 'Device Offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [{ type: 'notify', channels: ['inApp'], title: 'Offline: {{tap.name}}', body: 'Body text' }],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'critical' },
+    });
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: NOW });
+    await engine!.flush();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      ruleName: 'Device Offline', severity: 'critical', title: 'Offline: ', body: 'Body text', tapId, ts: NOW,
+    });
+    expect((events[0] as { ruleId: number }).ruleId).toEqual(getAutomation(db, (events[0] as any).ruleId)!.id);
+  });
+
+  it('falls back to {title: rule.name, body: \'\'} when the rule has no notify action', async () => {
+    seed();
+    createAutomation(db, {
+      name: 'Banner Only Alert', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [bannerAction('offline!')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' },
+    });
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: NOW });
+    await engine!.flush();
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ ruleName: 'Banner Only Alert', title: 'Banner Only Alert', body: '' });
+  });
+
+  it('is NOT emitted for a non-alert rule (isAlert: false)', async () => {
+    seed();
+    createAutomation(db, ruleFor({ type: 'device_offline' }, [bannerAction()]));
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: NOW });
+    await engine!.flush();
+
+    expect(events).toHaveLength(0);
+  });
+
+  it('is NOT emitted for a cooldown-suppressed refire', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0));
+    seed();
+    createAutomation(db, {
+      name: 'Device Offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [notifyInAppAction('Offline', 'x')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' },
+    });
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() });
+    await engine!.flush();
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() }); // within cooldown
+    await engine!.flush();
+
+    expect(events).toHaveLength(1);
+  });
+
+  it('is NOT emitted on resolve (only on fire)', async () => {
+    seed();
+    createAutomation(db, {
+      name: 'Keg Low', isAlert: true,
+      trigger: { type: 'keg_level_crosses', thresholdPct: 15, direction: 'below' },
+      actions: [notifyInAppAction('Keg low', 'Below 15%')],
+      alertConfig: { cooldownMinutes: 1, autoResolve: true, notifyOnResolve: true, severity: 'warning' },
+    });
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW });
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 17000, sizeMl: 19000, ts: NOW }); // crosses below -- fires
+    bus.emit('volume_update', { monitor: REF, volStartMl: 19000, volDispensedMl: 1000, sizeMl: 19000, ts: NOW }); // back above -- resolves
+    await engine!.flush();
+
+    expect(events).toHaveLength(1); // only the fire, not the resolve
+  });
+});
+
 describe('action dispatch', () => {
   it('runs actions strictly in array order', async () => {
     seed();

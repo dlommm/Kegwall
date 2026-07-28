@@ -61,6 +61,22 @@ export interface EventMap {
    * callable in the meantime. See `automation/engine.ts`'s doc comment for the full
    * "why this exists before anything emits it" reasoning. */
   automations_changed: { ts: string };
+  /** Phase 5 Task 5: emitted by the automation engine (`considerFire`, see
+   * `automation/engine.ts`) whenever an ALERT rule (`isAlert: true`) actually fires (not
+   * merely matches -- suppressed-by-cooldown/runaway fires never reach this). This is a
+   * separate hand-off point from the `notify` action's channel dispatch (`sendToChannels`)
+   * so a consumer that only cares "an alert just fired" doesn't need to masquerade as a
+   * notification channel. Currently consumed by `ingest/haPublisher.ts` (Task 5), which
+   * relays it to `<appTopicPrefix>/event/alert`. `title`/`body` are the rule's first
+   * `notify` action's rendered title/body when it has one, else `{title: rule.name, body:
+   * ''}` -- see engine.ts's `alertTitleBodyOf`. `tapId` is the triggering event's resolved
+   * tap (undefined when the trigger has no tap context, e.g. `app_startup`/`schedule`).
+   * NOT emitted on resolve (`handleResolve`) -- HA's event topic mirrors "an alert fired",
+   * not "an alert resolved"; there was no plan requirement for the latter. */
+  alert_fired: {
+    ruleId: number; ruleName: string; severity: 'info' | 'warning' | 'critical';
+    title: string; body: string; tapId?: number; ts: string;
+  };
 }
 
 type Handler<E> = (payload: E) => void;

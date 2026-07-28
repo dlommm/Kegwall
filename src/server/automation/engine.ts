@@ -236,6 +236,24 @@ function notifyChannelsOf(rule: AutomationRule): string[] {
   return set.size > 0 ? [...set] : ['inApp'];
 }
 
+/** Phase 5 Task 5: title/body for the `alert_fired` bus event (see `events.ts`'s doc
+ * comment on that event). Reuses the rule's FIRST `notify` action's already-templated
+ * title/body when it has one -- an alert rule authored with a `notify` action has
+ * presumably written a meaningful message there, and re-using it (rather than inventing a
+ * second, differently-worded summary) keeps the HA event payload consistent with whatever
+ * the in-app/external notification actually said. Falls back to `{title: rule.name, body:
+ * ''}` for an alert rule with no `notify` action at all (e.g. a rule that only dispatches
+ * `wall_banner`/`mqtt_publish`) -- there's no authored copy to reuse. */
+function alertTitleBodyOf(rule: AutomationRule, ctx: TemplateContext): { title: string; body: string } {
+  const notifyAction = rule.actions.find(
+    (a): a is Extract<Action, { type: 'notify' }> => a.type === 'notify',
+  );
+  if (notifyAction) {
+    return { title: renderTemplate(notifyAction.title, ctx), body: renderTemplate(notifyAction.body, ctx) };
+  }
+  return { title: rule.name, body: '' };
+}
+
 // --- TemplateContext field mapping ------------------------------------------------
 // The plan's documented template variables are snake_case for every multi-word field
 // (`{{pour.volume_ml}}`, `{{keg.level_pct}}`) even though this app's internal TS shapes
@@ -673,6 +691,13 @@ export class AutomationEngine {
       ...ctx.templateCtx,
       alert: rule.isAlert ? { name: rule.name, severity: rule.alertConfig?.severity ?? 'info' } : null,
     };
+    if (rule.isAlert && rule.alertConfig) {
+      const { title, body } = alertTitleBodyOf(rule, templateCtx);
+      this.bus.emit('alert_fired', {
+        ruleId: rule.id, ruleName: rule.name, severity: rule.alertConfig.severity,
+        title, body, tapId: ctx.tapId ?? undefined, ts: ctx.ts,
+      });
+    }
     await this.dispatchActions(rule, templateCtx, ctx);
   }
 

@@ -5,6 +5,7 @@ import { KegtronUdpSource } from './kegtron/udpSource.js';
 import { Gen1MqttSource } from './gen1/mqttSource.js';
 import { Gen1BleSource } from './gen1/bleSource.js';
 import { PourSynthesizer } from './gen1/pourSynth.js';
+import { HaPublisherSource } from './haPublisher.js';
 
 // ---------------------------------------------------------------------------
 // Task 8: wires the four ingest sources (Tasks 4/6/7) into a single `SourceManager`
@@ -77,6 +78,20 @@ export function registerConfiguredSources(ctx: AppContext): void {
   if (settings.bleDirectEnabled) {
     ctx.sources.register(new Gen1BleSource({
       bus: ctx.bus, settings: ctx.settings, bleActiveMacs, synth: sharedSynth,
+    }));
+  }
+
+  // Phase 5 Task 5: the Home Assistant MQTT discovery publisher. Gated specifically on
+  // `haPublishEnabled` -- NOT merely `settings.mqtt` being set like `gen1_mqtt` above -- a
+  // site can run the Gen 1 MQTT bridge without wanting HA discovery traffic on the same
+  // broker. `HaPublisherSource.start()` independently re-checks the same condition (same
+  // defense-in-depth precedent as `gen1_mqtt`'s own `!cfg` check in its `start()`), but
+  // gating registration here too means an unconfigured install's `status()` correctly
+  // reports `mqtt_publisher: {registered: false}` rather than `{registered: true, healthy:
+  // false}` for a source nobody asked for.
+  if (settings.mqtt?.haPublishEnabled) {
+    ctx.sources.register(new HaPublisherSource({
+      bus: ctx.bus, settings: ctx.settings, db: ctx.db, state: ctx.state,
     }));
   }
 }

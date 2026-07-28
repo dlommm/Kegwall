@@ -51,7 +51,8 @@ describe('registerConfiguredSources', () => {
     await ctx.sources.stopAll();
   });
 
-  it('registers all 4 configurable sources when settings enable everything', () => {
+  it('registers all 4 configurable sources when settings enable everything (haPublishEnabled: false '
+    + '-- mqtt_publisher stays unregistered)', () => {
     const ctx = makeCtx();
     ctx.settings.set('kegtronApiKey', 'fake-api-key-123');
     ctx.settings.set('udpEnabled', true);
@@ -70,6 +71,44 @@ describe('registerConfiguredSources', () => {
     // real network/MQTT-broker/BLE-adapter dependency is exercised here.
     const registered = ctx.sources.status().filter((s) => s.registered).map((s) => s.name).sort();
     expect(registered).toEqual(['gen1_ble', 'gen1_mqtt', 'kegtron_cloud', 'kegtron_udp']);
+  });
+
+  // Phase 5 Task 5: `mqtt_publisher` (the HA discovery publisher) is gated on
+  // `settings.mqtt?.haPublishEnabled` specifically -- NOT merely `settings.mqtt` being
+  // set, unlike `gen1_mqtt` above, which registers whenever `settings.mqtt` exists at
+  // all. A site can run the Gen 1 MQTT bridge without ever wanting HA discovery traffic
+  // on the same broker.
+  it('also registers mqtt_publisher when settings.mqtt.haPublishEnabled is true', () => {
+    const ctx = makeCtx();
+    ctx.settings.set('mqtt', {
+      url: 'mqtt://localhost:1883',
+      gen1TopicPrefix: 'home/TheengsGateway',
+      haPublishEnabled: true,
+      haDiscoveryPrefix: 'homeassistant',
+      appTopicPrefix: 'kegtron-dashboard',
+    });
+
+    registerConfiguredSources(ctx);
+
+    const registered = ctx.sources.status().filter((s) => s.registered).map((s) => s.name).sort();
+    expect(registered).toEqual(['gen1_mqtt', 'kegtron_cloud', 'mqtt_publisher']);
+  });
+
+  it('drops mqtt_publisher on a rebuild once haPublishEnabled flips back to false', () => {
+    const ctx = makeCtx();
+    ctx.settings.set('mqtt', {
+      url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
+      haPublishEnabled: true, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+    });
+    registerConfiguredSources(ctx);
+    expect(ctx.sources.status().find((s) => s.name === 'mqtt_publisher')!.registered).toBe(true);
+
+    ctx.settings.set('mqtt', {
+      url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
+      haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+    });
+    registerConfiguredSources(ctx);
+    expect(ctx.sources.status().find((s) => s.name === 'mqtt_publisher')!.registered).toBe(false);
   });
 
   it('rebuilds registrations from scratch on every call, dropping a source whose config was removed', () => {
