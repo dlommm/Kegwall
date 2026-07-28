@@ -41,6 +41,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     mqtt: null,
     untappd: null,
     quietHours: null,
+    alertChannels: {},
     ...overrides,
   };
 }

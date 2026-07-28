@@ -16,6 +16,7 @@ import { statsRoutes } from './routes/stats.js';
 import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
 import { backupRoutes } from './routes/backup.js';
+import { channelsRoutes } from './routes/channels.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 import type { HostResolver } from './core/ssrfGuard.js';
@@ -145,6 +146,11 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                                            // restore handler relies on the @fastify/
                                            // multipart decorators uploadsRoutes registers
                                            // (see backup.ts's doc comment on MAX_RESTORE_BYTES)
+  await channelsRoutes(app);              // direct call — see encapsulation note above;
+                                           // Phase 5 Task 2's send-test endpoint, reads
+                                           // settings.alertChannels (already registered by
+                                           // the time app.ctx exists, no dataDir/ordering
+                                           // dependency on anything above)
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 
