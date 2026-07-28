@@ -334,6 +334,55 @@ describe('alert cooldown', () => {
     await engine!.flush();
     expect(listNotifications(db)).toHaveLength(2);
   });
+
+  // Task 3 review Fix round 1 (Important): cooldown must gate a NEW fire regardless of
+  // whether the alert is currently "active" -- an oscillating signal (temp bouncing
+  // around the threshold) that resolves between crossings must still be capped at one
+  // fire per cooldown window, not one fire per crossing.
+  it('gates a NEW fire by time-since-last-FIRE, not by active/resolved state -- an oscillating '
+    + 'signal is capped at one fire per cooldown window', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0));
+    seed();
+    createAutomation(db, {
+      name: 'Temp High', isAlert: true,
+      trigger: { type: 'temp_crosses', value: 10, direction: 'above' },
+      actions: [notifyInAppAction('Temp high', 'x')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: true, notifyOnResolve: false, severity: 'warning' },
+    });
+    makeEngine().start();
+
+    const tick = () => new Date().toISOString();
+    bus.emit('telemetry', { monitor: REF, temp: 5, humidity: null, ts: tick() }); // baseline
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(0);
+
+    bus.emit('telemetry', { monitor: REF, temp: 15, humidity: null, ts: tick() }); // crosses above -- fires
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    bus.emit('telemetry', { monitor: REF, temp: 5, humidity: null, ts: tick() }); // crosses below -- auto-resolves
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1); // notifyOnResolve is false -- no extra notification
+
+    // Immediate re-crossing, still within the 60-min cooldown, alert currently RESOLVED
+    // (inactive) -- must still be suppressed.
+    bus.emit('telemetry', { monitor: REF, temp: 15, humidity: null, ts: tick() });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    // A resolve on a suppressed (never reactivated) fire is a no-op too.
+    bus.emit('telemetry', { monitor: REF, temp: 5, humidity: null, ts: tick() });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    // Once the cooldown window has fully elapsed since the FIRST fire, the next
+    // crossing fires again.
+    await vi.advanceTimersByTimeAsync(61 * 60_000);
+    bus.emit('telemetry', { monitor: REF, temp: 15, humidity: null, ts: tick() });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(2);
+  });
 });
 
 describe('quiet hours (external channels suppressed; inApp always records)', () => {
@@ -632,6 +681,50 @@ describe('action dispatch', () => {
       await engine!.flush();
       expect(received).toEqual({ beer: 'Test Beer' });
       await fake.close();
+    });
+
+    // Task 3 review Fix round 1 (Critical/SSRF): assertPublicHost only validates the
+    // webhook URL ITSELF -- it says nothing about where a 3xx response from an
+    // otherwise-allowed host might redirect to. Before this fix, sendWebhook's fetch
+    // followed redirects, so a guard-passing URL could still 302 the ACTUAL request to a
+    // private/loopback address (or cloud metadata), reaching exactly the host the guard
+    // exists to keep this server off of. `webhookAllowInsecureHosts: true` here is only
+    // standing in for "the guard passed" (matches the test right above it) -- the
+    // property under test is `sendWebhook`'s OWN `redirect: 'error'`, independent of the
+    // guard.
+    it('refuses to follow a redirect even from an allowed URL -- the redirect target is never reached; the action fails cleanly and later actions still run', async () => {
+      seed();
+      let secondServerHits = 0;
+      const secondServer = Fastify();
+      secondServer.route({
+        method: ['GET', 'POST'], url: '/private-secret',
+        handler: async () => { secondServerHits += 1; return {}; },
+      });
+      await secondServer.listen({ port: 0, host: '127.0.0.1' });
+      const secondPort = (secondServer.server.address() as { port: number }).port;
+
+      const redirectingServer = Fastify();
+      redirectingServer.post('/hook', async (_req, reply) => {
+        reply.code(302).header('location', `http://127.0.0.1:${secondPort}/private-secret`).send();
+      });
+      await redirectingServer.listen({ port: 0, host: '127.0.0.1' });
+      const redirectingPort = (redirectingServer.server.address() as { port: number }).port;
+
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      createAutomation(db, ruleFor({ type: 'pour_completed' }, [
+        { type: 'webhook', url: `http://127.0.0.1:${redirectingPort}/hook`, bodyTemplate: '{}' },
+        { type: 'wall_banner', text: 'still runs', kind: 'info' },
+      ]));
+      makeEngine({ webhookAllowInsecureHosts: true }).start();
+      bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+      await engine!.flush();
+
+      expect(secondServerHits).toBe(0);
+      expect(banners).toHaveLength(1); // the later action in the SAME rule still ran
+      expect(errSpy).toHaveBeenCalled();
+      errSpy.mockRestore();
+      await redirectingServer.close();
+      await secondServer.close();
     });
   });
 

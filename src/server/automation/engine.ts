@@ -47,8 +47,11 @@ import {
 //    keyed per (ruleId, entityKey) -- so rule "keg low" firing for tap 1 doesn't put tap
 //    2's instance of the SAME rule on cooldown. Both can be configured on the same rule
 //    (both must then pass) with no conflict -- they answer different questions ("has
-//    this exact rule fired recently AT ALL" vs "is THIS entity's alert already active and
-//    was it just reminded").
+//    this exact rule fired recently AT ALL" vs "has THIS entity's alert fired recently").
+//    `cooldownMinutes` gates on time-since-last-FIRE regardless of the entity's current
+//    active/resolved state (Task 3 review Fix round 1) -- an oscillating signal that
+//    auto-resolves between crossings is still capped at one fire per cooldown window,
+//    not one fire per crossing; see `considerFire`'s doc comment.
 // 2. Entity key (`entityKeyFor`): `tap:{tapId}` when the triggering event resolves to a
 //    tap, else `monitor:{monitorRefKey}` when it resolves to a bound monitor, else
 //    `'global'` (schedule/app_startup). This is what "per-(rule, entity) active state"
@@ -511,8 +514,19 @@ export class AutomationEngine {
     const stateKey = `${rule.id}:${this.entityKeyFor(ctx)}`;
 
     if (rule.isAlert && rule.alertConfig) {
+      // Task 3 review Fix round 1 (Important): gated on time-since-last-FIRE
+      // REGARDLESS of the entity's current active/resolved state -- NOT `st?.active`
+      // only. An oscillating signal (e.g. temp bouncing around a threshold) with
+      // `autoResolve: true` resolves between crossings, so checking `active` alone lets
+      // every single re-crossing fire again the instant it resolves, bounded only by the
+      // runaway guard -- a rule author setting `cooldownMinutes: 60` expects AT MOST ONE
+      // fire per hour, not "one fire per hour while continuously active". `st.lastFiredAt`
+      // is only ever updated by an ACTUAL fire (never by a suppressed attempt or a
+      // resolve), so this is genuinely "time since this (rule, entity) last fired",
+      // independent of whether it's currently active. Resolve/`notifyOnResolve` are
+      // untouched by this check -- `handleResolve` doesn't call `considerFire` at all.
       const st = this.alertState.get(stateKey);
-      if (st?.active) {
+      if (st) {
         const elapsedMinutes = (now.getTime() - st.lastFiredAt) / 60_000;
         if (elapsedMinutes < rule.alertConfig.cooldownMinutes) return; // suppressed by cooldown
       }

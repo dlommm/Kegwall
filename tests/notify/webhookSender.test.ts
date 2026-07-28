@@ -95,4 +95,50 @@ describe('sendWebhook', () => {
       sendWebhook(`${upstreamUrl}/slow-hook`, '{}', { timeoutMs: 20, backoffMs: [], sleep: () => Promise.resolve() }),
     ).rejects.toThrow();
   });
+
+  // Task 3 review Fix round 1 (Critical/SSRF): an editor-authored webhook URL can pass
+  // the engine's assertPublicHost check (it's a legitimate public host) and STILL 302 to
+  // a private/loopback address (or cloud metadata) -- the exact same
+  // validated-then-redirected bypass `downloadAndStoreLabel` (routes/lookup.ts) already
+  // closes via `redirect: 'error'`. This sender needed the identical fix: it must never
+  // follow a redirect, regardless of where it points.
+  it('refuses to follow a redirect -- the redirect target is never reached, and the failure is a normal (redacted) send failure', async () => {
+    let secondServerHits = 0;
+    const secondServer = Fastify();
+    // A 302 response to a non-GET/HEAD request is followed as a GET (fetch downgrades
+    // the method per spec) -- registered for BOTH methods so this test actually detects
+    // "was the redirect followed at all", not just "was it followed as a POST".
+    secondServer.route({
+      method: ['GET', 'POST'], url: '/private-secret',
+      handler: async () => { secondServerHits += 1; return { ok: true }; },
+    });
+    await secondServer.listen({ port: 0, host: '127.0.0.1' });
+    const secondPort = (secondServer.server.address() as { port: number }).port;
+
+    const redirectingServer = Fastify();
+    redirectingServer.post('/hook', async (_req, reply) => {
+      reply.code(302).header('location', `http://127.0.0.1:${secondPort}/private-secret`).send();
+    });
+    await redirectingServer.listen({ port: 0, host: '127.0.0.1' });
+    const redirectingPort = (redirectingServer.server.address() as { port: number }).port;
+    const redirectingUrl = `http://127.0.0.1:${redirectingPort}/hook`;
+
+    try {
+      let threw = false;
+      try {
+        await sendWebhook(redirectingUrl, '{}', FAST_RETRY);
+      } catch (err) {
+        threw = true;
+        const message = err instanceof Error ? err.message : String(err);
+        // Redacted -- same discipline as every other failure mode this sender throws.
+        expect(message).not.toContain(redirectingUrl);
+        expect(message).not.toContain(String(secondPort));
+      }
+      expect(threw).toBe(true);
+      expect(secondServerHits).toBe(0);
+    } finally {
+      await redirectingServer.close();
+      await secondServer.close();
+    }
+  });
 });
