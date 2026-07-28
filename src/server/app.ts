@@ -19,11 +19,27 @@ export interface AppOptions {
   dataDir?: string;
   context?: AppContext;
   webDir?: string;
+  /** Whether to actually start the registered ingest sources (Task 8's
+   * `registerConfiguredSources`, always run by `createContext()`) — i.e. call
+   * `ctx.sources.startAll()`. Defaults to `false` so building an app in tests never
+   * opens real sockets / MQTT connections / mdash.net requests just by calling
+   * `buildApp()`. Production's `index.ts` explicitly passes `true`. */
+  startSources?: boolean;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
   app.decorate('ctx', opts.context ?? createContext(opts.dataDir ?? './data'));
+  // Always torn down on close, even if startSources was never set — registering a
+  // source (which createContext() always does) without ever starting it is a safe
+  // no-op for every source's stop() (see e.g. cloudSource.ts's stop()), so this hook
+  // is harmless for the many tests that build an app without starting sources.
+  app.addHook('onClose', async () => {
+    await app.ctx.sources.stopAll();
+  });
+  if (opts.startSources) {
+    await app.ctx.sources.startAll();
+  }
 
   await app.register(cookie);
   await app.register(rateLimit, { global: false });

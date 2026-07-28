@@ -89,4 +89,23 @@ describe('SourceManager', () => {
     const status = manager.status().find((s) => s.name === 'mqtt_publisher')!;
     expect(status.registered).toBe(true);
   });
+
+  it('reset() clears registrations so status() reports registered:false again', () => {
+    const bus = new EventBus();
+    const manager = new SourceManager(bus);
+    manager.register(fakeSource('gen1_mqtt'));
+    expect(manager.status().find((s) => s.name === 'gen1_mqtt')!.registered).toBe(true);
+
+    manager.reset();
+
+    expect(manager.status().find((s) => s.name === 'gen1_mqtt')!.registered).toBe(false);
+  });
+
+  it('isStarted() is false until startAll() has been called at least once', async () => {
+    const bus = new EventBus();
+    const manager = new SourceManager(bus);
+    expect(manager.isStarted()).toBe(false);
+    await manager.startAll();
+    expect(manager.isStarted()).toBe(true);
+  });
 });

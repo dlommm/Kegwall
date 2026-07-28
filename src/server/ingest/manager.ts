@@ -26,6 +26,7 @@ interface HealthEntry {
 export class SourceManager {
   private sources = new Map<SourceName, Source>();
   private health = new Map<SourceName, HealthEntry>();
+  private started = false;
 
   constructor(bus: EventBus) {
     bus.on('source_status', (e) => {
@@ -37,7 +38,19 @@ export class SourceManager {
     this.sources.set(source.name, source);
   }
 
+  /** Clears all registrations (not accumulated health data) — used by Task 8's
+   * `registerConfiguredSources()` to rebuild the registered-source set from scratch on
+   * every call (initial app boot AND every settings-triggered restart), so a source
+   * whose configuration was just removed (e.g. `mqtt` cleared in settings) doesn't
+   * linger `registered:true` pointing at a stale, already-stopped instance. Callers are
+   * responsible for `stopAll()`-ing any previously-registered sources first if they were
+   * running — `reset()` itself only touches bookkeeping, never a live source. */
+  reset(): void {
+    this.sources.clear();
+  }
+
   async startAll(): Promise<void> {
+    this.started = true;
     for (const source of this.sources.values()) {
       try {
         await source.start();
@@ -59,6 +72,20 @@ export class SourceManager {
         console.error(`[sources] ${source.name} stop() threw`, err);
       }
     }
+  }
+
+  /** True once `startAll()` has been invoked at least once. Used by the settings PATCH
+   * route (`routes/crud.ts`) to decide whether a relevant settings change should trigger
+   * a live stop/reconfigure/restart cycle. In production this is always true by the time
+   * an authenticated settings PATCH can even reach the server (`index.ts` always passes
+   * `startSources: true` to `buildApp()`, and the PATCH route only exists on an
+   * already-running app). In tests that build the app with the default
+   * `startSources: false` and never manually start sources, this stays `false`, so an
+   * incidental settings PATCH (e.g. existing tests that set `kegtronApiKey` to a fake
+   * value) does NOT spin up a real `KegtronCloudSource` against the live mdash.net API —
+   * see task-8-report.md "Deviations". */
+  isStarted(): boolean {
+    return this.started;
   }
 
   status(): SourceStatus[] {

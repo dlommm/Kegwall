@@ -49,6 +49,25 @@ export interface KegtronUdpSourceOptions {
    * pour, which also covers "cloud is down" automatically without this source needing
    * to know about it. Reserved for future cross-source health-status coordination. */
   isCloudHealthy: () => boolean;
+  /** Monitor identity reconciliation (Task 8, HARD REQUIREMENT from the Task 6 review):
+   * UDP packets only ever carry the device's `serialNum`, while cloud discovery keys
+   * monitors by the mdash device id (see `monitors.ts`'s `reconcileProMonitor` doc
+   * comment for the full rationale). When provided, this is called for every packet's
+   * `(serialNum, portIndex)` and, if it resolves, its result is used as the emitted
+   * MonitorRef — landing UDP events on the SAME monitor row cloud discovery already
+   * created, which is what lets `PourDeduper` (Task 5) actually collapse a duplicate
+   * cloud/UDP report of the same physical pour. When it returns `null` (no cloud row for
+   * that serial+port yet) OR when this option is omitted entirely, falls back to a
+   * synthetic `udp:{serialNum}` identifier — see `monitorRef()` below. Left `undefined`
+   * (not defaulted to a no-op `() => null`) so omitting it entirely preserves this
+   * source's pre-Task-8 behavior of using the bare `serialNum` as the identifier
+   * (no `udp:` prefix) — required for backward compatibility with this file's own
+   * existing unit tests, which construct the source without a `reconcile` option and
+   * assert on the bare-serialNum identifier. Task 8's `bootstrap.ts` always supplies
+   * this in the real running app (wired to `reconcileProMonitor(ctx.db, ...)`), so the
+   * prefixed fallback is what production actually uses once a `reconcile` function is
+   * wired up — see task-8-report.md "Deviations" for the full reasoning. */
+  reconcile?: (serialNum: string, portIndex: number) => MonitorRef | null;
   /** Multicast group to join (production default 239.50.50.50 per the PDF). Pass a
    * value the current interface can't actually join (e.g. when bindAddress is a
    * unicast test address) and the join is simply skipped/logged, not fatal — see
@@ -155,6 +174,7 @@ export class KegtronUdpSource implements Source {
   private readonly bus: EventBus;
   private readonly settings: SettingsStore;
   private readonly isCloudHealthy: () => boolean;
+  private readonly reconcile: ((serialNum: string, portIndex: number) => MonitorRef | null) | undefined;
   private readonly group: string;
   private readonly configuredPort: number;
   private readonly bindAddress: string;
@@ -164,12 +184,14 @@ export class KegtronUdpSource implements Source {
   private boundAddress: { address: string; port: number } | null = null;
   private readonly ports = new Map<string, PortState>();
   private readonly lastTemp = new Map<string, number>();
+  private readonly discoveredPorts = new Set<string>();
   private stopped = true;
 
   constructor(opts: KegtronUdpSourceOptions) {
     this.bus = opts.bus;
     this.settings = opts.settings;
     this.isCloudHealthy = opts.isCloudHealthy;
+    this.reconcile = opts.reconcile;
     this.group = opts.group ?? DEFAULT_GROUP;
     this.configuredPort = opts.port ?? DEFAULT_PORT;
     this.bindAddress = opts.bindAddress ?? DEFAULT_BIND_ADDRESS;
@@ -203,6 +225,7 @@ export class KegtronUdpSource implements Source {
     }
     this.ports.clear();
     this.lastTemp.clear();
+    this.discoveredPorts.clear();
     const socket = this.socket;
     this.socket = null;
     this.boundAddress = null;
@@ -305,6 +328,16 @@ export class KegtronUdpSource implements Source {
 
     const monitor = this.monitorRef(serialNum, port.portIndex);
 
+    if (!this.discoveredPorts.has(key)) {
+      this.discoveredPorts.add(key);
+      // Reconciled-or-fallback `monitor` (see monitorRef()) is what gets persisted —
+      // when unmatched, this is what actually creates the `udp:{serialNum}` monitor
+      // row so a cloudless UDP-only setup still has something to bind in the admin UI
+      // (brief: "so it still surfaces in admin for binding"). When matched, this just
+      // touches the existing cloud-discovered row (harmless no-op upsert).
+      this.bus.emit('device_discovered', { monitor, serial: serialNum });
+    }
+
     if (
       state.lastVolStartMl !== port.volStartMl
       || state.lastVolDispMl !== port.volDispensedMl
@@ -370,8 +403,16 @@ export class KegtronUdpSource implements Source {
     state.pourStartedAtMs = null;
   }
 
+  /** Resolves a packet's `(serialNum, portIndex)` to the MonitorRef every event for it
+   * gets emitted under. No `reconcile` option at all -> bare `serialNum` as identifier
+   * (pre-Task-8 behavior, preserved for backward compatibility — see the constructor
+   * option's doc comment). With `reconcile` wired: its result when matched (lands on
+   * the SAME monitor row cloud discovery created), else a synthetic `udp:{serialNum}`
+   * fallback (cloudless UDP-only setups still get a bindable monitor). */
   private monitorRef(serialNum: string, portIndex: number): MonitorRef {
-    return { type: 'kegtron_pro', identifier: serialNum, portIndex };
+    if (!this.reconcile) return { type: 'kegtron_pro', identifier: serialNum, portIndex };
+    const reconciled = this.reconcile(serialNum, portIndex);
+    return reconciled ?? { type: 'kegtron_pro', identifier: `udp:${serialNum}`, portIndex };
   }
 
   private emitStatus(healthy: boolean, detail: string): void {
