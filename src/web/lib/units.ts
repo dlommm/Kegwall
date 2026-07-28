@@ -25,3 +25,17 @@ export function formatVolumeMl(ml: number, units: VolumeUnits): string {
   const oz = safeMl / ML_PER_US_FL_OZ;
   return `${oz.toFixed(1)} oz`;
 }
+
+/**
+ * Formats a Celsius temperature reading for display (WallHeader's temp readout):
+ * `'metric'` renders the Celsius value directly, `'us'` converts to Fahrenheit — both
+ * rounded to the nearest whole degree, which is plenty of precision for a taproom
+ * ambient/fridge reading.
+ */
+export function formatTempC(tempC: number, units: VolumeUnits): string {
+  if (units === 'metric') {
+    return `${Math.round(tempC)}°C`;
+  }
+  const f = (tempC * 9) / 5 + 32;
+  return `${Math.round(f)}°F`;
+}

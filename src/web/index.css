@@ -81,6 +81,21 @@
   50% { box-shadow: 0 0 1.5rem 0.25rem var(--liquid-highlight, var(--accent)); }
 }
 
+/*
+ * WallGrid — sized to `config.columns` via the `--wall-columns` custom property (set
+ * inline by WallGrid.tsx). Fewer columns means more room per cell, which is the entire
+ * "card scale" story per the design direction: no separate zoom/scale knob needed.
+ */
+.wall-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--wall-columns, 2), minmax(0, 1fr));
+  gap: 1.25rem;
+  width: 100%;
+  height: 100%;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
 /* TapCard templates. */
 .tap-card {
   position: relative;
@@ -208,4 +223,219 @@
   padding: 0.15rem 0.6rem;
   transform: rotate(-8deg);
   opacity: 0.85;
+}
+
+/*
+ * WallPage chrome — fullscreen root, no browser chrome, dimmed + a "Reconnecting" pill
+ * once the WS feed has gone stale (see WallPage.tsx). The 1px ScreenCare drift (below)
+ * transitions smoothly so it reads as a barely-perceptible settle rather than a jump.
+ */
+.wall-page {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.wall-page__dimmable--stale {
+  filter: brightness(0.82) saturate(0.85);
+}
+
+.wall-page__reconnecting {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 70%, black);
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-page__reconnecting-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: wall-reconnect-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes wall-reconnect-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* .wall-page__loading / .wall-page__error: no CSS here — WallPage.tsx uses plain
+   Tailwind utilities for these two pre-theme-load states (see its own comment for why:
+   there's no wall config yet to mount ThemeProvider's CSS-variable tokens with). */
+
+/* ScreenCare: the drift wrapper needs a smooth transition, and full height so the grid
+   beneath it keeps filling the viewport as it nudges by a css pixel. */
+.screen-care {
+  min-height: 100vh;
+  transition: transform 2s ease;
+}
+
+.screen-care__saver {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: color-mix(in srgb, var(--bg) 92%, black);
+}
+
+.screen-care__saver-title {
+  font-size: 3rem;
+  opacity: 0.35;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.screen-care__saver-highlight {
+  color: var(--accent);
+  opacity: 0.6;
+  font-size: 1.1rem;
+}
+
+/* WallHeader */
+.wall-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem 0;
+}
+
+.wall-header__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.wall-header__logo {
+  height: 2.5rem;
+  width: auto;
+}
+
+.wall-header__title {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wall-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+.wall-header__ticker {
+  grid-column: 1 / -1;
+  width: 100%;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  padding: 0.35rem 0 0;
+}
+
+/* BannerLane */
+.banner-lane {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  z-index: 45;
+  pointer-events: none;
+}
+
+.banner-lane__banner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+  animation: banner-lane-slide-in 400ms ease-out;
+}
+
+.banner-lane__banner--warning {
+  border-color: color-mix(in srgb, #e0793d 60%, transparent);
+}
+
+.banner-lane__banner--success {
+  border-color: color-mix(in srgb, #4caf6f 60%, transparent);
+}
+
+.banner-lane__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+
+@keyframes banner-lane-slide-in {
+  from { transform: translateY(1rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* QrOverlay */
+.qr-overlay {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  line-height: 0;
+}
+
+.qr-overlay svg {
+  width: 6rem;
+  height: 6rem;
+  display: block;
+}
+
+/* Page-rotation transitions — the content wrapper is remounted (React `key`) per page
+   change, which is what replays these entrance animations each time. */
+.wall-grid-transition--crossfade {
+  animation: wall-grid-crossfade 600ms ease;
+}
+
+.wall-grid-transition--slide {
+  animation: wall-grid-slide 500ms ease;
+}
+
+.wall-grid-transition--none {
+  animation: none;
+}
+
+@keyframes wall-grid-crossfade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wall-grid-slide {
+  from { opacity: 0; transform: translateX(2.5%); }
+  to { opacity: 1; transform: translateX(0); }
 }

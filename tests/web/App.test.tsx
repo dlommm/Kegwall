@@ -17,14 +17,18 @@ describe('App', () => {
     expect(screen.getByText(/menu/i)).toBeInTheDocument();
   });
 
-  it('renders the wall placeholder with the slug from the URL', () => {
+  it('routes /wall/:slug to WallPage (its own suite covers WallPage\'s actual behavior)', () => {
     render(
       <MemoryRouter initialEntries={['/wall/main']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/main/i)).toBeInTheDocument();
+    // Real WallPage now does real data fetching (no api/hook mocks at this App-level
+    // smoke test), so the only deterministic, synchronously-observable state is its
+    // loading placeholder — this is enough to prove the router matched /wall/:slug and
+    // rendered WallPage rather than MenuPage or the unknown-route redirect.
+    expect(screen.getByTestId('wall-page-loading')).toBeInTheDocument();
   });
 
   it('redirects unknown routes to /menu', () => {

@@ -60,6 +60,24 @@ export function getActiveKegForTap(db: Database.Database, tapId: number): Keg | 
   return r ? rowToKeg(r) : null;
 }
 
+/**
+ * Most recently kicked keg for a tap. `kegs` has no `kicked_at` column and a kick (see
+ * `routes/crud.ts`'s `PATCH /api/kegs/:id` and `swapKeg` above) only ever flips
+ * `status`, never re-inserts the row — so the highest `id` among a tap's `status =
+ * 'kicked'` rows is the best available proxy for "most recently kicked" (a tap's keg
+ * lifecycle is create -> optionally kick -> replace, so the newest kicked row is always
+ * the one that was on_tap immediately before whatever replaced it, or before the tap
+ * went empty). `StateManager.getTapStates()` falls back to this only when
+ * `getActiveKegForTap` finds nothing, so a kicked keg with no replacement tapped still
+ * surfaces as `status: 'kicked'` on the wall instead of reading as a generic empty tap.
+ */
+export function getLatestKickedKegForTap(db: Database.Database, tapId: number): Keg | null {
+  const r = db.prepare(
+    `SELECT * FROM kegs WHERE tap_id = ? AND status = 'kicked' ORDER BY id DESC LIMIT 1`,
+  ).get(tapId);
+  return r ? rowToKeg(r) : null;
+}
+
 export function applyDispense(db: Database.Database, kegId: number, volDispensedMl: number): Keg {
   const keg = getKeg(db, kegId);
   if (!keg) throw new NotFoundError(`keg ${kegId}`);

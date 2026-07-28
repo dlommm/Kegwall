@@ -32,6 +32,7 @@ describe('public routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
     expect(res.statusCode).toBe(200);
     expect(res.json().taps[0].beer.name).toBe('Citra IPA');
+    expect(res.json().units).toBe('us');
     expect((await app.inject({ method: 'GET', url: '/api/public/wall/nope' })).statusCode).toBe(404);
   });
 
@@ -39,6 +40,15 @@ describe('public routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/public/menu' });
     expect(res.json().siteName).toBe('My Taproom');
     expect(res.json().taps).toHaveLength(1);
+    expect(res.json().units).toBe('us');
+  });
+
+  it('reflects the configured display units on wall and menu payloads', async () => {
+    app.ctx.settings.set('displayUnits', 'metric');
+    const wall = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
+    expect(wall.json().units).toBe('metric');
+    const menu = await app.inject({ method: 'GET', url: '/api/public/menu' });
+    expect(menu.json().units).toBe('metric');
   });
 
   it('lists recent pours and claims one exactly once', async () => {

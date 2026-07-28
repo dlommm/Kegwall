@@ -24,7 +24,7 @@ describe('useWallData', () => {
   it('fetches wall config and seeds initial taps via getWall', async () => {
     const taps = [{ tapId: 1 }];
     const wall = { slug: 'main', name: 'Main', config: {} };
-    (getWall as Mock).mockResolvedValue({ ok: true, data: { wall, taps } });
+    (getWall as Mock).mockResolvedValue({ ok: true, data: { wall, taps, units: 'us' } });
 
     const { result } = renderHook(() => useWallData('main'));
 
@@ -37,6 +37,38 @@ describe('useWallData', () => {
     expect(getWall).toHaveBeenCalledTimes(1);
   });
 
+  it('defaults units to "us" before the fetch resolves', () => {
+    (getWall as Mock).mockReturnValue(new Promise(() => {})); // never resolves
+
+    const { result } = renderHook(() => useWallData('main'));
+
+    expect(result.current.units).toBe('us');
+  });
+
+  it('surfaces the units reported by getWall', async () => {
+    const wall = { slug: 'main', name: 'Main', config: {} };
+    (getWall as Mock).mockResolvedValue({ ok: true, data: { wall, taps: [], units: 'metric' } });
+
+    const { result } = renderHook(() => useWallData('main'));
+
+    await waitFor(() => expect(result.current.units).toBe('metric'));
+  });
+
+  it('refreshes units on reconnect refetch alongside wall config', async () => {
+    const wall = { slug: 'main', name: 'Main', config: {} };
+    (getWall as Mock)
+      .mockResolvedValueOnce({ ok: true, data: { wall, taps: [], units: 'us' } })
+      .mockResolvedValueOnce({ ok: true, data: { wall, taps: [], units: 'metric' } });
+
+    const { result, rerender } = renderHook(() => useWallData('main'));
+    await waitFor(() => expect(result.current.units).toBe('us'));
+
+    (useTapStates as Mock).mockReturnValue({ ...baseTapStatesResult, reconnectCount: 1 });
+    rerender();
+
+    await waitFor(() => expect(result.current.units).toBe('metric'));
+  });
+
   it('surfaces a typed error without throwing when getWall 404s', async () => {
     (getWall as Mock).mockResolvedValue({ ok: false, status: 404, message: 'No such wall' });
 
@@ -45,6 +77,22 @@ describe('useWallData', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.wall).toBeNull();
     expect(result.current.error).toBe('No such wall');
+    expect(result.current.notFound).toBe(true);
+  });
+
+  it('does not flag notFound for a non-404 failure', async () => {
+    (getWall as Mock).mockResolvedValue({ ok: false, status: 500, message: 'Boom' });
+
+    const { result } = renderHook(() => useWallData('main'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.notFound).toBe(false);
+  });
+
+  it('notFound is false before any fetch resolves', () => {
+    (getWall as Mock).mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useWallData('main'));
+    expect(result.current.notFound).toBe(false);
   });
 
   it('refetches wall config when useTapStates reports a reconnect', async () => {

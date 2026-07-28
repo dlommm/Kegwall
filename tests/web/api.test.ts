@@ -25,7 +25,7 @@ describe('web api client', () => {
   });
 
   it('getWall parses a successful response into a typed result', async () => {
-    const payload = { wall: { slug: 'main', name: 'Main', config: {} }, taps: [] };
+    const payload = { wall: { slug: 'main', name: 'Main', config: {} }, taps: [], units: 'us' };
     mockFetchOnce(200, payload);
 
     const result = await getWall('main');
@@ -43,7 +43,7 @@ describe('web api client', () => {
   });
 
   it('getMenu parses a successful response', async () => {
-    const payload = { siteName: 'My Taproom', taps: [] };
+    const payload = { siteName: 'My Taproom', taps: [], units: 'metric' };
     mockFetchOnce(200, payload);
 
     const result = await getMenu();

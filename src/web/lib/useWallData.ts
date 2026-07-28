@@ -3,14 +3,22 @@ import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { getWall } from './api';
 import { useTapStates } from './useTapStates';
+import type { VolumeUnits } from './units';
 
 export interface UseWallDataResult {
   wall: { slug: string; name: string; config: WallConfig } | null;
   taps: TapState[];
+  /** The taproom's configured display units. Defaults to `'us'` until the first
+   * successful `getWall` response resolves (matches the server's own default). */
+  units: VolumeUnits;
   stale: boolean;
   connected: boolean;
   loading: boolean;
   error: string | null;
+  /** True specifically when the wall fetch failed with HTTP 404 (no such wall) — lets
+   * WallPage show a "this wall doesn't exist" page distinct from a generic/transient
+   * fetch failure. */
+  notFound: boolean;
 }
 
 /**
@@ -21,14 +29,18 @@ export interface UseWallDataResult {
 export function useWallData(slug: string | undefined): UseWallDataResult {
   const [wall, setWall] = useState<UseWallDataResult['wall']>(null);
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
+  const [units, setUnits] = useState<VolumeUnits>('us');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!slug) {
       setWall(null);
       setInitialTaps([]);
+      setUnits('us');
       setError(null);
+      setNotFound(false);
       setLoading(false);
       return;
     }
@@ -41,9 +53,12 @@ export function useWallData(slug: string | undefined): UseWallDataResult {
       if (result.ok) {
         setWall(result.data.wall);
         setInitialTaps(result.data.taps);
+        setUnits(result.data.units ?? 'us');
         setError(null);
+        setNotFound(false);
       } else {
         setError(result.message);
+        setNotFound(result.status === 404);
       }
       setLoading(false);
     });
@@ -67,9 +82,12 @@ export function useWallData(slug: string | undefined): UseWallDataResult {
       if (cancelled) return;
       if (result.ok) {
         setWall(result.data.wall);
+        setUnits(result.data.units ?? 'us');
         setError(null);
+        setNotFound(false);
       } else {
         setError(result.message);
+        setNotFound(result.status === 404);
       }
     });
 
@@ -82,6 +100,6 @@ export function useWallData(slug: string | undefined): UseWallDataResult {
   }, [reconnectCount]);
 
   return {
-    wall, taps, stale, connected, loading, error,
+    wall, taps, units, stale, connected, loading, error, notFound,
   };
 }

@@ -1,17 +1,22 @@
 import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import type { Pour } from '../../server/db/kegs.js';
+import type { VolumeUnits } from './units';
 
 /** A public wall's identity + config as returned by GET /api/public/wall/:slug. */
 export interface WallResponse {
   wall: { slug: string; name: string; config: WallConfig };
   taps: TapState[];
+  /** The taproom's configured display units (global settings' `displayUnits`). */
+  units: VolumeUnits;
 }
 
 /** GET /api/public/menu. */
 export interface MenuResponse {
   siteName: string;
   taps: TapState[];
+  /** The taproom's configured display units (global settings' `displayUnits`). */
+  units: VolumeUnits;
 }
 
 /** The public-facing projection of a drinker (see listDrinkers + publicRoutes). */

@@ -5,7 +5,7 @@ import { EventBus } from '../../src/server/core/events.js';
 import { StateManager } from '../../src/server/core/state.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
-import { createKeg } from '../../src/server/db/kegs.js';
+import { createKeg, getActiveKegForTap } from '../../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -124,5 +124,32 @@ describe('StateManager', () => {
     const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
     expect((db.prepare('SELECT COUNT(*) c FROM pours').get() as any).c).toBe(2);
     expect(tap.lastPour?.volumeMl).toBe(400);
+  });
+
+  // Wall Task 5 review requirement: a kicked keg with no replacement tapped must still
+  // surface as `status: 'kicked'` on its tap's TapState so the wall's KICKED presentation
+  // (drained, desaturated, "Kicked" stamp) is reachable — previously getTapStates only
+  // ever read getActiveKegForTap, so a kicked-without-replacement tap fell through to a
+  // generic empty tap instead.
+  it('falls back to the most recently kicked keg when a tap has no active keg', () => {
+    const kegId = getActiveKegForTap(db, tapId)!.id;
+    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(kegId);
+
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.keg?.id).toBe(kegId);
+    expect(tap.keg?.status).toBe('kicked');
+    expect(tap.beer?.name).toBe('Citra IPA');
+  });
+
+  it('prefers a newly tapped keg over a previously kicked one on the same tap', () => {
+    const kickedId = getActiveKegForTap(db, tapId)!.id;
+    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(kickedId);
+    const freshBeer = createBeer(db, { name: 'Fresh Pils' });
+    const fresh = createKeg(db, { beerId: freshBeer.id, sizeMl: 19000, volStartMl: 19000, tapId });
+
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.keg?.id).toBe(fresh.id);
+    expect(tap.keg?.status).toBe('on_tap');
+    expect(tap.beer?.name).toBe('Fresh Pils');
   });
 });
