@@ -5,6 +5,8 @@ import { createKeg, recordPourTx } from '../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../src/server/db/monitors.js';
 import { createDrinker } from '../src/server/db/users.js';
 import { createWall, getWallBySlug } from '../src/server/routes/crud.js';
+import { createAutomation, listAutomations } from '../src/server/db/automations.js';
+import { getTemplate } from '../src/server/automation/templates.js';
 
 const { db } = createContext(process.env.DATA_DIR ?? './data');
 
@@ -62,4 +64,26 @@ kegs.forEach((keg, i) => {
   db.prepare('UPDATE kegs SET vol_dispensed_ml = ? WHERE id = ?').run(dispensed[i], keg.id);
 });
 
-console.log('Seeded: 4 beers, 4 taps, 4 kegs, 2 monitors, 2 drinkers, 30 days of pours');
+// Phase 5 Task 4: 2 example automations, named distinctively enough to skip re-creating
+// on a re-run (same "second run adds more rows, never crashes" guard as the tap-number/
+// wall-slug fixes above — automations have no unique constraint of their own, so this
+// checks by name before inserting).
+const existingAutomationNames = new Set(listAutomations(db).map((a) => a.name));
+
+if (!existingAutomationNames.has('Banner on pour')) {
+  createAutomation(db, {
+    name: 'Banner on pour',
+    trigger: { type: 'pour_completed' },
+    actions: [{
+      type: 'wall_banner', text: '{{beer.name}} poured on tap {{tap.number}}', kind: 'celebrate', durationMs: 6000,
+    }],
+  });
+}
+
+const kegLowName = 'Keg low (below 15%)';
+if (!existingAutomationNames.has(kegLowName)) {
+  const [kegLowRule] = getTemplate('keg_low')!.build({ thresholdPct: 15 }, { servingSizeMl: 473 });
+  createAutomation(db, kegLowRule!);
+}
+
+console.log('Seeded: 4 beers, 4 taps, 4 kegs, 2 monitors, 2 drinkers, 30 days of pours, 2 automations');

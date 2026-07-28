@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TapState } from '../../server/core/state.js';
 
 const STALE_TIMEOUT_MS = 60_000;
@@ -11,6 +11,16 @@ export interface UseTapStatesOptions {
    * URL from `window.location`); tests use it to point at a fake/real ws server directly.
    */
   url?: string;
+  /**
+   * Phase 5 Task 4: invoked for EVERY successfully-parsed message this socket receives
+   * (snapshot/ping included, not just new message kinds) -- a generic escape hatch rather
+   * than a typed field per message kind, so consumers (WallPage's banner queue / party
+   * mode, a future admin bell-badge) can subscribe to whatever `type`s they care about
+   * without this hook needing to know about them. Kept in a ref internally (see the
+   * connect effect's dep list) so a new function identity across renders never tears
+   * down/reopens the socket -- only `url` does that.
+   */
+  onMessage?: (msg: unknown) => void;
 }
 
 export interface UseTapStatesResult {
@@ -56,7 +66,11 @@ export function useTapStates(
   initial: TapState[],
   options: UseTapStatesOptions = {},
 ): UseTapStatesResult {
-  const { url } = options;
+  const { url, onMessage } = options;
+  const onMessageRef = useRef(onMessage);
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
   // `liveTaps` starts null (no message received yet) and is set permanently once the
   // first snapshot arrives. Until then, the returned taps track the latest `initial`
   // argument — so a REST fetch that resolves after mount (e.g. useWallData's getWall)
@@ -110,6 +124,7 @@ export function useTapStates(
         if (isSnapshotMessage(parsed)) {
           setLiveTaps(parsed.taps);
         }
+        onMessageRef.current?.(parsed);
       };
 
       socket.onclose = () => {

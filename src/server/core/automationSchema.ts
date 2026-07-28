@@ -50,6 +50,20 @@ export const TriggerSchema = z.discriminatedUnion('type', [
     value: z.number(),
     direction: crossDirectionSchema,
   }),
+  // Phase 5 Task 4: sibling of `temp_crosses` above, not a merged/generic
+  // `telemetry_crosses {field: 'temp'|'humidity', ...}` — see the Task 4 report's "my
+  // call" note. `telemetry` events already carry both `temp` and `humidity`
+  // independently (core/events.ts), and the engine's per-kind trigger-matching loop
+  // pattern (one bus handler, one `switch`-style `rule.trigger.type !== '...'` filter per
+  // kind) is duplicated cheaply for a second field rather than generalized — a generic
+  // `field` union would also touch every `crossed`/`opposite` call site and both
+  // `TemplateContext` monitor-mapping helpers for one extra trigger kind, which isn't
+  // worth the abstraction yet with only two fields in play.
+  z.object({
+    type: z.literal('humidity_crosses'),
+    value: z.number(),
+    direction: crossDirectionSchema,
+  }),
   z.object({
     type: z.literal('schedule'),
     time: timeOfDaySchema,
@@ -72,6 +86,16 @@ export const ConditionSchema = z.discriminatedUnion('type', [
     value: z.number(),
   }),
   z.object({ type: z.literal('min_interval'), minutes: z.number().int().positive() }),
+  // Phase 5 Task 4 (cleaning-due template ledger note): `value_compare`/the rest of
+  // `ConditionEvalCtx` has no notion of a monitor's Kegtron-reported `dateCleaned` (it's
+  // per-MONITOR device-shadow data, not a per-EVENT sample like level%/temp), so this is
+  // its own condition kind rather than a `value_compare` field. Evaluated against
+  // `ConditionEvalCtx.daysSinceCleaned`, which the ENGINE computes (per monitor, from
+  // `monitors.meta.dateCleaned` — see shadow.ts) and stamps onto the eval context before
+  // calling `evaluateConditions` — this file/`conditions.ts` stay dependency-free (no db
+  // access), matching every other condition here. True when at least `days` have elapsed
+  // since the monitor's last recorded cleaning (i.e. "cleaning is due" / overdue).
+  z.object({ type: z.literal('days_since_cleaned'), days: z.number().int().positive() }),
 ]);
 
 export type Condition = z.infer<typeof ConditionSchema>;

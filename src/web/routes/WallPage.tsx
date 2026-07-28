@@ -1,4 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
 import { useParams } from 'react-router-dom';
 import { useWallData } from '../lib/useWallData';
 import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
@@ -14,12 +16,63 @@ import { ScreenCare } from '../components/ScreenCare';
 declare global {
   interface Window {
     /** Dev-build-only manual test hook for pushing a wall banner (see the Task 5 plan) —
-     * Phase 5 automations will eventually push banners over the WS feed instead. */
+     * kept alongside the real server-driven path below (Phase 5 Task 4), not replaced by
+     * it — still handy for local dev/design work without a running automation rule. */
     __wall?: { banner: (text: string, kind?: BannerKind) => void };
   }
 }
 
 const DEFAULT_ROTATION_SECONDS = 15;
+
+/** The server's `wall_banner` action kind (`{type:'banner', kind: 'info'|'celebrate'|
+ * 'warning', ...}`, see core/automationSchema.ts's ActionSchema) is a distinct enum from
+ * the wall's local `BannerKind` (`'info'|'warning'|'success'`, from Phase 3's
+ * `useBanners`) — 'celebrate' maps onto the existing 'success' styling (BannerLane/
+ * index.css already define a `--success` accent treatment; no new CSS needed), the other
+ * two pass straight through. */
+function mapServerBannerKind(kind: string): BannerKind {
+  if (kind === 'celebrate') return 'success';
+  if (kind === 'warning') return 'warning';
+  return 'info';
+}
+
+interface WsBannerMessage {
+  type: 'banner';
+  text: string;
+  kind: string;
+  durationMs?: number;
+}
+
+interface WsThemeOverrideMessage {
+  type: 'theme_override';
+  minutes: number;
+}
+
+function isWsBannerMessage(msg: unknown): msg is WsBannerMessage {
+  return typeof msg === 'object' && msg !== null && (msg as { type?: unknown }).type === 'banner'
+    && typeof (msg as { text?: unknown }).text === 'string' && typeof (msg as { kind?: unknown }).kind === 'string';
+}
+
+function isWsThemeOverrideMessage(msg: unknown): msg is WsThemeOverrideMessage {
+  return typeof msg === 'object' && msg !== null && (msg as { type?: unknown }).type === 'theme_override'
+    && typeof (msg as { minutes?: unknown }).minutes === 'number';
+}
+
+/**
+ * Party mode's "temporary theme override" (Phase 5 Task 4): rather than swapping to a
+ * whole separate named theme (which would mean either adding a 5th entry to
+ * `themes.ts`'s curated, exactly-four `THEMES` catalog — a deliberate Phase 3 design
+ * boundary, see themes.test.ts's "ships exactly the four built-in themes" — or
+ * maintaining a hidden non-catalog theme object), this layers a fixed accent-color
+ * override on top of whatever theme the wall is already configured with, using
+ * `ThemeProvider`'s existing `theme.overrides` mechanism (already used for wall-level
+ * per-token customization, already CSS-injection-guarded by `themes.ts`'s
+ * `isSafeOverride`). No CSS animation is added for this (unlike BannerLane's slide-in) —
+ * a static color swap needs no `prefers-reduced-motion` gating in the first place, so the
+ * plan's "wall/banner changes respect prefers-reduced-motion" constraint is honored
+ * trivially rather than needing a second reduced-motion branch here.
+ */
+const PARTY_MODE_OVERRIDES: Record<string, string> = { '--accent': '#ff2fb0' };
 
 /**
  * The wall itself: `/wall/:slug`, fullscreen, no browser chrome. Composes the live data
@@ -33,11 +86,38 @@ const DEFAULT_ROTATION_SECONDS = 15;
  */
 export function WallPage() {
   const { slug } = useParams<{ slug: string }>();
-  const {
-    wall, taps, units, stale, loading, error, notFound,
-  } = useWallData(slug);
   const reducedMotion = usePrefersReducedMotion();
   const { queue, push, dismiss } = useBanners();
+
+  // Party mode's countdown-revert timer -- a ref (not state) because it's pure
+  // bookkeeping for the effect below, not something a render needs to read.
+  const partyModeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [partyMode, setPartyMode] = useState(false);
+
+  const handleWsMessage = useCallback((msg: unknown) => {
+    if (isWsBannerMessage(msg)) {
+      push(msg.text, mapServerBannerKind(msg.kind), msg.durationMs);
+    } else if (isWsThemeOverrideMessage(msg)) {
+      if (partyModeTimerRef.current) clearTimeout(partyModeTimerRef.current);
+      setPartyMode(true);
+      partyModeTimerRef.current = setTimeout(() => {
+        setPartyMode(false);
+        partyModeTimerRef.current = null;
+      }, msg.minutes * 60_000);
+    }
+    // Any other/unrecognized `type` is silently ignored (same "unknown types are
+    // harmless" contract useTapStates' snapshot handling already has).
+  }, [push]);
+
+  // Countdown timer cleanup on unmount -- doesn't touch state (nothing to revert to on an
+  // unmounted page), just prevents a dangling setTimeout outliving the component.
+  useEffect(() => () => {
+    if (partyModeTimerRef.current) clearTimeout(partyModeTimerRef.current);
+  }, []);
+
+  const {
+    wall, taps, units, stale, loading, error, notFound,
+  } = useWallData(slug, { onMessage: handleWsMessage });
 
   const config = wall?.config ?? null;
   const pages = useMemo(
@@ -92,9 +172,14 @@ export function WallPage() {
 
   const title = config.header.title ?? wall.name;
   const menuUrl = `${window.location.origin}/menu`;
+  // Party mode layers a fixed accent override on top of the wall's OWN configured theme
+  // (id + its own overrides untouched) -- see PARTY_MODE_OVERRIDES' doc comment above.
+  const theme = partyMode
+    ? { ...config.theme, overrides: { ...(config.theme?.overrides ?? {}), ...PARTY_MODE_OVERRIDES } }
+    : config.theme;
 
   return (
-    <ThemeProvider theme={config.theme} customCss={config.customCss} className="wall-page">
+    <ThemeProvider theme={theme} customCss={config.customCss} className="wall-page">
       <div
         className={stale ? 'wall-page__dimmable wall-page__dimmable--stale' : 'wall-page__dimmable'}
         data-testid="wall-page-dimmable"

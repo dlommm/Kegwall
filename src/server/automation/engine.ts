@@ -74,13 +74,12 @@ import {
 //    `"Back within normal range"`) -- the schema has no `alertConfig`-level template
 //    field for this, and a resolve is informational, not another instance of the
 //    author-written notify body. Quiet hours apply identically to resolve notifications.
-// 5. `automations_changed` (added to `EventMap` in this task) is a HOOK POINT, not fully
-//    wired: the engine subscribes to it and calls `reloadRules()`, but nothing emits it
-//    yet -- Task 6's automations CRUD routes don't exist in this codebase yet (per the
-//    plan's own task breakdown). `reloadRules()` is also directly exported/callable so a
-//    future route (or this task's own tests) can force a reload without round-tripping
-//    through the bus. Documented per the plan's explicit "leave hook point; document
-//    choice" instruction.
+// 5. `automations_changed` (added to `EventMap` in this task) is a HOOK POINT: the engine
+//    subscribes to it and calls `reloadRules()`. `reloadRules()` is also directly
+//    exported/callable so a caller can force a reload without round-tripping through the
+//    bus. UPDATE (Phase 5 Task 4): `routes/automations.ts`'s CRUD/from-template routes
+//    now emit it on every rule mutation -- this is that hook point's first (and, as of
+//    this task, only) emitter.
 // 6. Lifecycle: constructed in `context.ts`'s `createContext` (cheap: no I/O), but
 //    `start()`/`stop()` are called alongside `sources.startAll()`/`stopAll()` in
 //    `app.ts` (gated behind the SAME `startSources` option), NOT unconditionally like
@@ -93,6 +92,31 @@ import {
 //    tracked in `this.inFlight` so `flush()` can await "everything currently pending" --
 //    used by `stop()` is NOT required to wait (see its own doc comment) but tests use
 //    `flush()` extensively for deterministic assertions instead of arbitrary sleeps.
+//
+// PHASE 5 TASK 4 additions (alert templates + wall banner delivery + WS + run-now):
+//
+// 8. `humidity_crosses` is a SIBLING trigger kind of `temp_crosses` (own
+//    `handleHumidityCrossing` method, own `previousHumidityByMonitor` baseline map), not
+//    a generalized `telemetry_crosses {field}` union -- see `automationSchema.ts`'s doc
+//    comment on the trigger for the full "my call" reasoning. `onTelemetry` now evaluates
+//    temp/humidity crossings INDEPENDENTLY (a telemetry sample with only one field
+//    non-null still evaluates that field's crossings -- see `onTelemetry`'s own doc
+//    comment for why this is a behavior change from Task 3's single early-return).
+// 9. `days_since_cleaned` (the cleaning-due alert template's condition) needs "which
+//    monitor", which a bare schedule tick has none of -- `checkScheduleRules` detects a
+//    `days_since_cleaned` condition on a schedule rule and hands it to
+//    `checkCleaningDueRule`, which evaluates/fires the rule ONCE PER Kegtron Pro monitor
+//    (not once globally, unlike every other schedule rule) using `daysSinceCleaned`
+//    computed fresh from that monitor's `meta.dateCleaned` (stamped at cloud discovery --
+//    see shadow.ts). `ConditionEvalCtx.daysSinceCleaned` is OPTIONAL specifically so this
+//    doesn't ripple a new required field through every other `EvalCtx` builder.
+// 10. `runRuleOnce` (`POST /api/automations/:id/run`'s test-run support) is a SEPARATE
+//     dispatch path from `considerFire`/`dispatchActions`, not a flag on them -- it skips
+//     cooldown/runaway/`touchLastFired`/alert-state entirely (a manual test-run must
+//     never consume the rule's real budget) and runs against a fabricated
+//     `buildSyntheticEvalCtx()` (no real triggering event exists for a manual run), but
+//     still genuinely DISPATCHES each action (a real dry-run, not a preview) and reports
+//     per-action `{type, ok, error?}` results instead of "log and continue".
 // ---------------------------------------------------------------------------
 
 const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
@@ -141,6 +165,16 @@ export interface EngineOptions {
   mdashClientFactory?: (settings: SettingsStore) => MdashRpcClient;
 }
 
+/** One action's outcome from `AutomationEngine.runRuleOnce` (Phase 5 Task 4's
+ * `POST /api/automations/:id/run` test-run support). `error` is the same humanized
+ * `Error#message` every action's real dispatch path already logs -- never a raw/opaque
+ * value -- and is only present when `ok` is `false`. */
+export interface ActionRunResult {
+  type: Action['type'];
+  ok: boolean;
+  error?: string;
+}
+
 /** The engine's own per-event evaluation context -- `ConditionEvalCtx` (conditions.ts)
  * plus the raw `monitorRef` (for entity-keying/auto-resolve) and the fully-built
  * `TemplateContext` (notify/template.ts) actions render against. */
@@ -170,6 +204,25 @@ async function runWithTimeout<T>(fn: () => Promise<T>, ms: number): Promise<T> {
   } finally {
     clearTimeout(timer!);
   }
+}
+
+/**
+ * Pure helper behind the `days_since_cleaned` condition: whole days elapsed between a
+ * monitor's raw `meta.dateCleaned` (whatever date-string format the Kegtron Pro device
+ * reported -- see shadow.ts's `ParsedPort.dateCleaned` doc comment, `YYYY/MM/DD` in every
+ * fixture seen so far, parsed via the `Date` constructor's general string parsing) and
+ * `now`. Returns `null` -- "not applicable", never "0 days" -- for a missing/non-string/
+ * unparsable value, or a value that parses to a moment AFTER `now` (clock skew / bad
+ * device data; a keg can't have been cleaned in the future, so this is never treated as
+ * "just cleaned" either). Never throws.
+ */
+function computeDaysSinceCleaned(dateCleaned: unknown, now: Date): number | null {
+  if (typeof dateCleaned !== 'string' || dateCleaned.length === 0) return null;
+  const parsed = new Date(dateCleaned);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const diffMs = now.getTime() - parsed.getTime();
+  if (diffMs < 0) return null;
+  return Math.floor(diffMs / 86_400_000);
 }
 
 /** The channel set a resolve notification (`notifyOnResolve`) sends through -- the union
@@ -250,6 +303,7 @@ export class AutomationEngine {
    * (there's nothing to have crossed FROM), so it's just recorded, not evaluated. */
   private previousLevelByTap = new Map<number, number>();
   private previousTempByMonitor = new Map<string, number>();
+  private previousHumidityByMonitor = new Map<string, number>();
   private alertState = new Map<string, AlertEntityState>();
   private fireTimestamps = new Map<number, number[]>();
   private inFlight = new Set<Promise<void>>();
@@ -396,25 +450,64 @@ export class AutomationEngine {
     }
   }
 
+  /**
+   * `temp`/`humidity` crossings are evaluated INDEPENDENTLY -- a `telemetry` event that
+   * has one field null (many Kegtron Pro payloads only update one sensor per sample --
+   * see shadow.ts's `diffToEvents`) must still evaluate crossings for whichever field DID
+   * report a value, rather than a single early return bailing out of both (that was this
+   * method's behavior before `humidity_crosses` existed, when only `temp_crosses` needed
+   * handling here).
+   */
   private onTelemetry(e: EventMap['telemetry']): void {
-    if (e.temp === null) return;
+    const tapId = resolveTapForRef(this.db, e.monitor);
+    if (e.temp !== null) this.handleTempCrossing(e, tapId);
+    if (e.humidity !== null) this.handleHumidityCrossing(e, tapId);
+  }
+
+  private handleTempCrossing(e: EventMap['telemetry'], tapId: number | null): void {
+    const temp = e.temp as number; // caller guarantees non-null
     const key = monitorRefKey(e.monitor);
     const prevTemp = this.previousTempByMonitor.get(key);
-    this.previousTempByMonitor.set(key, e.temp);
+    this.previousTempByMonitor.set(key, temp);
     if (prevTemp === undefined) return;
 
-    const tapId = resolveTapForRef(this.db, e.monitor);
-    const ctx = this.buildMonitorEvalCtx(e.monitor, tapId, e.ts, { temp: e.temp, humidity: e.humidity });
+    const ctx = this.buildMonitorEvalCtx(e.monitor, tapId, e.ts, { temp, humidity: e.humidity });
     const now = new Date();
     for (const rule of this.rules) {
       if (rule.trigger.type !== 'temp_crosses') continue;
       const { value, direction } = rule.trigger;
-      if (crossed(prevTemp, e.temp, value, direction)) {
+      if (crossed(prevTemp, temp, value, direction)) {
         if (evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) {
           this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
         }
       } else if (rule.isAlert && rule.alertConfig?.autoResolve
-        && crossed(prevTemp, e.temp, value, opposite(direction))) {
+        && crossed(prevTemp, temp, value, opposite(direction))) {
+        this.handleResolve(rule, ctx);
+      }
+    }
+  }
+
+  /** Sibling of `handleTempCrossing` above for the `humidity_crosses` trigger -- see
+   * `automationSchema.ts`'s doc comment on that trigger for why it's a separate method/
+   * trigger kind rather than a generalized `field` parameter. */
+  private handleHumidityCrossing(e: EventMap['telemetry'], tapId: number | null): void {
+    const humidity = e.humidity as number; // caller guarantees non-null
+    const key = monitorRefKey(e.monitor);
+    const prevHumidity = this.previousHumidityByMonitor.get(key);
+    this.previousHumidityByMonitor.set(key, humidity);
+    if (prevHumidity === undefined) return;
+
+    const ctx = this.buildMonitorEvalCtx(e.monitor, tapId, e.ts, { temp: e.temp ?? undefined, humidity });
+    const now = new Date();
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== 'humidity_crosses') continue;
+      const { value, direction } = rule.trigger;
+      if (crossed(prevHumidity, humidity, value, direction)) {
+        if (evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) {
+          this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+        }
+      } else if (rule.isAlert && rule.alertConfig?.autoResolve
+        && crossed(prevHumidity, humidity, value, opposite(direction))) {
         this.handleResolve(rule, ctx);
       }
     }
@@ -452,7 +545,38 @@ export class AutomationEngine {
       if (this.lastScheduleFireKey.get(rule.id) === minuteKey) continue; // already fired this exact minute
       this.lastScheduleFireKey.set(rule.id, minuteKey);
 
+      // Phase 5 Task 4 (cleaning-due alert template ledger note): a `days_since_cleaned`
+      // condition needs "which monitor" -- a bare schedule tick has no such notion (every
+      // OTHER schedule rule fires once, globally). Detected here and dispatched to a
+      // dedicated per-monitor path instead of the single `buildGlobalEvalCtx` below.
+      if (rule.conditions.some((c) => c.type === 'days_since_cleaned')) {
+        this.checkCleaningDueRule(rule, now);
+        continue;
+      }
+
       const ctx = this.buildGlobalEvalCtx(now.toISOString());
+      if (!evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) continue;
+      this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+    }
+  }
+
+  /**
+   * `days_since_cleaned`-conditioned schedule rules are evaluated PER Kegtron Pro monitor
+   * (`dateCleaned` is Pro-only device-shadow data stamped into `monitors.meta` at cloud
+   * discovery -- see shadow.ts) rather than once globally like every other schedule rule:
+   * "is cleaning due" is inherently a per-device question. Each monitor gets its own
+   * tap-scoped `EvalCtx` (so `tap_scope`/alert cooldown/entity-keyed state all work
+   * per-monitor, exactly like any other monitor-derived event) with `daysSinceCleaned`
+   * computed fresh from THAT monitor's `meta.dateCleaned`. A rule with 3 overdue monitors
+   * fires 3 times (once per monitor) from a single schedule tick -- intentional, each is
+   * a distinct alert.
+   */
+  private checkCleaningDueRule(rule: AutomationRule, now: Date): void {
+    for (const monitor of listMonitors(this.db)) {
+      if (monitor.type !== 'kegtron_pro') continue;
+      const ref: MonitorRef = { type: monitor.type, identifier: monitor.identifier, portIndex: monitor.portIndex };
+      const ctx = this.buildMonitorEvalCtx(ref, monitor.tapId, now.toISOString(), {});
+      ctx.daysSinceCleaned = computeDaysSinceCleaned(monitor.meta?.dateCleaned, now);
       if (!evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) continue;
       this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
     }
@@ -570,6 +694,41 @@ export class AutomationEngine {
         channels, { title: `${rule.name} resolved`, body: 'Back within normal range', severity }, rule.id,
       ).catch((err) => this.logError(rule, 'resolve-notify', err)),
     );
+  }
+
+  /**
+   * Phase 5 Task 4: `POST /api/automations/:id/run`'s "test-run" support -- runs every
+   * action of `rule` in order against a fabricated `buildSyntheticEvalCtx()` (there is no
+   * real triggering event for a manual test-run) and reports a per-action `{type, ok,
+   * error?}` result instead of the fire-and-forget "log and continue" behavior
+   * `dispatchActions` (the REAL fire path) uses. Deliberately bypasses `considerFire`
+   * entirely -- no cooldown/runaway-guard check, no `touchLastFired`/alert-active-state
+   * write, no template `alert` field beyond what `rule.isAlert` already implies -- a
+   * manual test-run must never consume the rule's real cooldown budget or be
+   * indistinguishable, in `automations.last_fired_at`, from an actual fire. A real
+   * `notify`/`webhook`/`mqtt_publish`/`wall_banner`/`party_mode` action still genuinely
+   * SENDS (this is a real dry-run of the rule's configured actions, not a preview) --
+   * only the engine's own bookkeeping is skipped. `kegtron_reset_volume` will always fail
+   * here (the synthetic ctx has no real tap), which is the correct, honest outcome for a
+   * test-run with no live trigger context.
+   */
+  async runRuleOnce(rule: AutomationRule): Promise<ActionRunResult[]> {
+    const ctx = this.buildSyntheticEvalCtx();
+    const templateCtx: TemplateContext = {
+      ...ctx.templateCtx,
+      alert: rule.isAlert ? { name: rule.name, severity: rule.alertConfig?.severity ?? 'info' } : null,
+    };
+    const timeoutMs = this.opts.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
+    const results: ActionRunResult[] = [];
+    for (const action of rule.actions) {
+      try {
+        await runWithTimeout(() => this.executeAction(action, templateCtx, ctx, rule), timeoutMs);
+        results.push({ type: action.type, ok: true });
+      } catch (err) {
+        results.push({ type: action.type, ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return results;
   }
 
   private async dispatchActions(rule: AutomationRule, templateCtx: TemplateContext, ctx: EvalCtx): Promise<void> {
@@ -802,6 +961,38 @@ export class AutomationEngine {
     return {
       tapId: null, beerId: null, levelPct: null, volumeMl: null, temp: null, ts, monitorRef: null,
       templateCtx: { beer: null, tap: null, keg: null, pour: null, monitor: null },
+    };
+  }
+
+  /**
+   * `runRuleOnce`'s fabricated ctx -- there is no real triggering event for a manual
+   * test-run, so every `{{...}}` template placeholder still needs SOMETHING plausible to
+   * resolve against (an all-null ctx would render every placeholder as '', making the
+   * test-run result useless for previewing a rule's notify/webhook/mqtt body). Values are
+   * representative sample data, not tied to any real row in the DB (`id: 0` throughout).
+   * `tapId`/`monitorRef` are deliberately `null` -- a test-run has no real tap/monitor
+   * context, so a `kegtron_reset_volume` action correctly fails here the same honest way
+   * it would for any trigger that doesn't resolve a tap.
+   */
+  private buildSyntheticEvalCtx(): EvalCtx {
+    const ts = new Date().toISOString();
+    return {
+      tapId: null, beerId: null, levelPct: 50, volumeMl: 355, temp: 4, ts, monitorRef: null,
+      templateCtx: {
+        beer: {
+          id: 0, name: 'Sample Beer', brewery: 'Sample Brewery', style: 'IPA',
+          abv: 6.5, ibu: 40, srm: 8, description: null, label_image: null,
+        },
+        tap: { id: 0, number: 1, name: 'Sample Tap' },
+        keg: {
+          id: 0, size_ml: 19000, vol_start_ml: 19000, vol_dispensed_ml: 9500,
+          level_pct: 50, remaining_ml: 9500, date_tapped: null, status: 'on_tap',
+        },
+        pour: { volume_ml: 355, duration_ms: 4200, ts },
+        monitor: {
+          type: 'kegtron_pro', identifier: 'sample', port_index: 0, temp: 4, humidity: 45,
+        },
+      },
     };
   }
 }

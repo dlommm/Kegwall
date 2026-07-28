@@ -141,6 +141,22 @@ describe('useWallData', () => {
     expect(result.current.connected).toBe(false);
   });
 
+  // Phase 5 Task 4: WallPage subscribes to WS banner/theme_override messages by handing
+  // an onMessage callback down through useWallData -> useTapStates, so there's still only
+  // ONE socket for the whole wall page.
+  it('threads an onMessage option through to useTapStates unchanged', async () => {
+    (getWall as Mock).mockResolvedValue({
+      ok: true, data: { wall: { slug: 'main', name: 'Main', config: {} }, taps: [] },
+    });
+    const onMessage = () => {};
+
+    renderHook(() => useWallData('main', { onMessage }));
+
+    await waitFor(() => expect(useTapStates).toHaveBeenCalled());
+    const lastCall = (useTapStates as Mock).mock.calls.at(-1)!;
+    expect(lastCall[1]).toMatchObject({ onMessage });
+  });
+
   it('refetches when the slug changes', async () => {
     const wallMain = { slug: 'main', name: 'Main', config: {} };
     const wallPatio = { slug: 'patio', name: 'Patio', config: {} };

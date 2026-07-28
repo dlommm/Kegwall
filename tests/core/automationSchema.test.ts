@@ -14,6 +14,8 @@ describe('TriggerSchema', () => {
     { type: 'device_online' },
     { type: 'device_offline' },
     { type: 'temp_crosses', value: 38, direction: 'above' },
+    { type: 'humidity_crosses', value: 70, direction: 'above' },
+    { type: 'humidity_crosses', value: 20, direction: 'below' },
     { type: 'schedule', time: '09:00', weekdays: [1, 2, 3, 4, 5] },
     { type: 'schedule', time: '23:59', weekdays: [] },
     { type: 'app_startup' },
@@ -31,6 +33,8 @@ describe('TriggerSchema', () => {
     { type: 'keg_level_crosses', thresholdPct: -1, direction: 'below' },
     { type: 'keg_level_crosses', thresholdPct: 15, direction: 'sideways' },
     { type: 'temp_crosses', value: 'hot', direction: 'above' },
+    { type: 'humidity_crosses', value: 'damp', direction: 'above' },
+    { type: 'humidity_crosses', value: 50 }, // missing direction
     { type: 'schedule', time: '9:00', weekdays: [1] }, // not zero-padded
     { type: 'schedule', time: '25:00', weekdays: [1] }, // invalid hour
     { type: 'schedule', time: '09:00', weekdays: [7] }, // out of 0-6 range
@@ -61,6 +65,8 @@ describe('ConditionSchema', () => {
     { type: 'value_compare', field: 'volume_ml', op: 'gte', value: 500 },
     { type: 'value_compare', field: 'temp', op: 'gt', value: 40 },
     { type: 'min_interval', minutes: 30 },
+    { type: 'days_since_cleaned', days: 30 },
+    { type: 'days_since_cleaned', days: 1 },
   ];
 
   it.each(validConditions)('accepts %j', (condition) => {
@@ -78,6 +84,9 @@ describe('ConditionSchema', () => {
     { type: 'min_interval', minutes: 0 },
     { type: 'min_interval', minutes: -5 },
     { type: 'min_interval', minutes: 1.5 },
+    { type: 'days_since_cleaned', days: 0 },
+    { type: 'days_since_cleaned', days: -1 },
+    { type: 'days_since_cleaned', days: 'thirty' },
   ];
 
   it.each(invalidConditions)('rejects %j', (condition) => {

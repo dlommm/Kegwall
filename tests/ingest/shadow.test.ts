@@ -44,6 +44,7 @@ describe('parseDeviceShadow', () => {
       volDispensedMl: 6934,
       lastServingMl: 262,
       dateTapped: '2020/03/28',
+      dateCleaned: '2020/03/01',
       enabled: true,
       labelUrl: 0,
     });
@@ -99,6 +100,7 @@ describe('parseDeviceShadow', () => {
       volDispensedMl: 0,
       lastServingMl: null,
       dateTapped: null,
+      dateCleaned: null,
       enabled: true,
       labelUrl: null,
     });
@@ -142,6 +144,10 @@ describe('diffToEvents', () => {
         // discovery, so the Monitors admin page can display them without a live RPC
         // round-trip (see MonitorsPage.tsx / the doc comment on this branch below).
         fw: '20200507', online: true,
+        // Phase 5 Task 4 (cleaning-due alert template ledger note): dateCleaned stamped
+        // the same way -- see the doc comment on this branch below for the "snapshot at
+        // discovery, not continuously live" caveat this inherits from fw/online.
+        dateCleaned: '2020/03/01',
       },
     });
   });

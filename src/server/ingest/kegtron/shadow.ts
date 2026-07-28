@@ -48,6 +48,14 @@ export interface ParsedPort {
   volDispensedMl: number;
   lastServingMl: number | null;
   dateTapped: string | null;
+  /** Raw `config_readonly.portN.dateCleaned` (kegtron-pro.v2.yaml's port-readonly
+   * schema, sibling of `dateTapped` above) — last-cleaned date for this port, if the
+   * device has ever reported one. Phase 5 Task 4 (cleaning-due alert template): feeds
+   * `monitors.meta.dateCleaned` (see `diffToEvents`' `device_discovered` payload below),
+   * which the automation engine's `days_since_cleaned` condition reads. Passed through
+   * as-is (same "no parsing here" convention as `dateTapped`) — whatever date-string
+   * format the device reports (`YYYY/MM/DD` in every fixture seen so far). */
+  dateCleaned: string | null;
   enabled: boolean;
   /** Raw `port-config.labelUrl` (kegtron-pro.v2.yaml ~line 2398) — the packed 64-bit
    * Untappd label id, `0` when no label is set. Accepted as either a number or a string
@@ -101,6 +109,7 @@ const portReadonlySchema = z.object({
   volDisp: numOrZero,
   lastServing: numOrNull,
   dateTapped: strOrNull,
+  dateCleaned: strOrNull,
 }).passthrough();
 
 const configSchema = z.object({
@@ -245,6 +254,7 @@ export function parseDeviceShadow(shadow: unknown): ParsedDevice | null {
       volDispensedMl: ro?.volDisp ?? 0,
       lastServingMl: ro?.lastServing ?? null,
       dateTapped: normalizeDate(ro?.dateTapped),
+      dateCleaned: normalizeDate(ro?.dateCleaned),
       enabled: cfg?.state !== 0,
       labelUrl: cfg?.labelUrl ?? null,
     });
@@ -315,6 +325,15 @@ export function diffToEvents(
             // a successful call to ANY RPC is itself proof the device just answered).
             fw: next.fw,
             online: next.online,
+            // Phase 5 Task 4 (cleaning-due alert template ledger note): same
+            // snapshot-at-discovery caveat as fw/online above -- a cleaning performed
+            // after this device's most recent (re)discovery won't be reflected in
+            // monitors.meta.dateCleaned until the next discovery (a fresh process
+            // start, or this device dropping out of and back into the cloud source's
+            // cache). The `days_since_cleaned` condition (automation/engine.ts) reads
+            // whatever is currently stored here; accepted as a known v1 limitation
+            // rather than adding a live-refresh path for one field.
+            dateCleaned: port.dateCleaned,
           },
         },
       });

@@ -24,6 +24,16 @@ export interface ConditionEvalCtx {
   /** ISO 8601 timestamp of the triggering event (or "now" for schedule/app_startup) —
    * `time_window`/`weekday` conditions read LOCAL time-of-day/weekday off this. */
   ts: string;
+  /** `days_since_cleaned`'s input — OPTIONAL (unlike every other field above), because
+   * unlike level%/temp/volume (which every event-derived ctx at least attempts to
+   * resolve, even to `null`), this is only ever meaningful for the engine's per-monitor
+   * `days_since_cleaned`-conditioned schedule check (see engine.ts's
+   * `checkCleaningDueRule`) — every other ctx builder simply never sets it. Left
+   * `undefined`, it behaves exactly like `null` ("not applicable" -> condition fails) —
+   * see `evaluateCondition` below. Kept optional rather than required specifically so
+   * this addition doesn't ripple through every existing `EvalCtx` builder/test fixture
+   * that has no notion of "which monitor" to compute it for. */
+  daysSinceCleaned?: number | null;
 }
 
 function timeOfDayMinutes(d: Date): number {
@@ -113,6 +123,8 @@ function evaluateCondition(
       const elapsedMinutes = (now.getTime() - new Date(lastFiredAt).getTime()) / 60_000;
       return elapsedMinutes >= c.minutes;
     }
+    case 'days_since_cleaned':
+      return ctx.daysSinceCleaned != null && ctx.daysSinceCleaned >= c.days;
   }
 }
 

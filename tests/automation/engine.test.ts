@@ -16,7 +16,7 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import { createKeg } from '../../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
-import { createAutomation } from '../../src/server/db/automations.js';
+import { createAutomation, getAutomation } from '../../src/server/db/automations.js';
 import { listNotifications } from '../../src/server/db/notificationsRepo.js';
 import type { MqttSender } from '../../src/server/notify/mqttSender.js';
 import type { AutomationRuleInput, Action, Trigger, Condition } from '../../src/server/core/automationSchema.js';
@@ -233,6 +233,76 @@ describe('trigger kinds', () => {
     });
   });
 
+  describe('humidity_crosses', () => {
+    it('direction "above": fires on crossing above the value', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'humidity_crosses', value: 70, direction: 'above' }, [bannerAction()]));
+      makeEngine().start();
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 50, ts: NOW }); // baseline
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 85, ts: NOW }); // crosses above 70
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('direction "below": fires on crossing below the value', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'humidity_crosses', value: 20, direction: 'below' }, [bannerAction()]));
+      makeEngine().start();
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 30, ts: NOW }); // baseline
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 10, ts: NOW }); // crosses below 20
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('a null humidity reading is ignored (no baseline set, no crash) -- independent of temp', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'humidity_crosses', value: 20, direction: 'below' }, [bannerAction()]));
+      makeEngine().start();
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: null, ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+    });
+
+    it('a telemetry event with temp:null still evaluates humidity_crosses (temp/humidity handled independently)', async () => {
+      seed();
+      createAutomation(db, ruleFor({ type: 'humidity_crosses', value: 20, direction: 'below' }, [bannerAction()]));
+      makeEngine().start();
+      bus.emit('telemetry', { monitor: REF, temp: null, humidity: 30, ts: NOW }); // baseline
+      await engine!.flush();
+      bus.emit('telemetry', { monitor: REF, temp: null, humidity: 10, ts: NOW }); // crosses below 20
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('auto-resolves on the opposite-direction crossing, independently of temp_crosses', async () => {
+      seed();
+      createAutomation(db, ruleFor(
+        { type: 'humidity_crosses', value: 70, direction: 'above' },
+        [notifyInAppAction('Humidity high', 'body')],
+        { isAlert: true, alertConfig: { cooldownMinutes: 60, autoResolve: true, notifyOnResolve: true, severity: 'warning' } },
+      ));
+      makeEngine().start();
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 50, ts: NOW }); // baseline
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 85, ts: NOW }); // crosses above -- fires
+      await engine!.flush();
+      expect(listNotifications(db)).toHaveLength(1);
+
+      bus.emit('telemetry', { monitor: REF, temp: 4, humidity: 50, ts: NOW }); // crosses below -- resolves
+      await engine!.flush();
+      expect(listNotifications(db)).toHaveLength(2);
+      expect(listNotifications(db)[0]?.title).toContain('resolved');
+    });
+  });
+
   describe('schedule', () => {
     beforeEach(() => vi.useFakeTimers());
 
@@ -285,6 +355,123 @@ describe('trigger kinds', () => {
       await engine!.flush();
       expect(banners).toHaveLength(2);
     });
+  });
+
+  // Phase 5 Task 4 (cleaning-due alert template ledger note): a `days_since_cleaned`-
+  // conditioned schedule rule is evaluated PER Kegtron Pro monitor (not once globally
+  // like every other schedule rule) -- see engine.ts's `checkCleaningDueRule`.
+  describe('days_since_cleaned (cleaning-due schedule rules, evaluated per Kegtron Pro monitor)', () => {
+    beforeEach(() => vi.useFakeTimers());
+
+    it('fires for a monitor whose dateCleaned is at least `days` in the past', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0)); // 2026-01-05
+      seed();
+      upsertMonitor(db, REF, { meta: { dateCleaned: '2025/12/01' } }); // 35 days overdue
+      createAutomation(db, ruleFor(
+        { type: 'schedule', time: '09:00', weekdays: [] },
+        [bannerAction()],
+        { conditions: [{ type: 'days_since_cleaned', days: 30 }] },
+      ));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('does not fire when the monitor was cleaned recently enough', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
+      seed();
+      upsertMonitor(db, REF, { meta: { dateCleaned: '2026/01/01' } }); // 4 days ago
+      createAutomation(db, ruleFor(
+        { type: 'schedule', time: '09:00', weekdays: [] },
+        [bannerAction()],
+        { conditions: [{ type: 'days_since_cleaned', days: 30 }] },
+      ));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+    });
+
+    it('does not fire when the monitor has no recorded dateCleaned at all', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
+      seed(); // no meta.dateCleaned stamped
+      createAutomation(db, ruleFor(
+        { type: 'schedule', time: '09:00', weekdays: [] },
+        [bannerAction()],
+        { conditions: [{ type: 'days_since_cleaned', days: 30 }] },
+      ));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+    });
+
+    it('fires independently per monitor -- only the overdue one triggers', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
+      seed();
+      upsertMonitor(db, REF, { meta: { dateCleaned: '2025/11/01' } }); // very overdue
+
+      const beer2 = createBeer(db, { name: 'Second Beer' });
+      const tap2 = createTap(db, { number: 2 });
+      createKeg(db, { beerId: beer2.id, sizeMl: 19000, volStartMl: 19000, tapId: tap2.id });
+      const ref2 = { type: 'kegtron_pro' as const, identifier: 'dev2', portIndex: 0 };
+      const mon2 = upsertMonitor(db, ref2, { meta: { dateCleaned: '2026/01/04' } }); // cleaned yesterday
+      bindMonitorToTap(db, mon2.id, tap2.id);
+
+      createAutomation(db, ruleFor(
+        { type: 'schedule', time: '09:00', weekdays: [] },
+        [bannerAction()],
+        { conditions: [{ type: 'days_since_cleaned', days: 30 }] },
+      ));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+  });
+});
+
+describe('runRuleOnce (POST /api/automations/:id/run test-run support)', () => {
+  it('runs every action against a synthetic ctx and reports per-action ok results, without touching cooldown/lastFiredAt', async () => {
+    const rule = createAutomation(db, ruleFor(
+      { type: 'pour_completed' },
+      [bannerAction('{{beer.name}} test'), notifyInAppAction('Title', 'Body')],
+      { isAlert: true, alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' } },
+    ));
+    makeEngine();
+    const results = await engine!.runRuleOnce(rule);
+
+    expect(results).toEqual([
+      { type: 'wall_banner', ok: true },
+      { type: 'notify', ok: true },
+    ]);
+    expect(banners).toHaveLength(1);
+    // the synthetic ctx's template values resolved to something non-empty, not left blank
+    expect((banners[0] as any).text).not.toBe('{{beer.name}} test');
+    expect((banners[0] as any).text.endsWith(' test')).toBe(true);
+    expect(listNotifications(db)).toHaveLength(1);
+
+    // a manual test-run must never consume the rule's real cooldown/lastFiredAt budget
+    const reloaded = getAutomation(db, rule.id)!;
+    expect(reloaded.lastFiredAt).toBeNull();
+  });
+
+  it('reports a failing action without aborting the remaining actions', async () => {
+    const rule = createAutomation(db, ruleFor(
+      { type: 'pour_completed' },
+      [{ type: 'mqtt_publish', topic: 'x', payloadTemplate: 'y' }, bannerAction()],
+    ));
+    makeEngine();
+    const results = await engine!.runRuleOnce(rule);
+
+    expect(results[0]).toMatchObject({ type: 'mqtt_publish', ok: false });
+    expect(typeof (results[0] as any).error).toBe('string');
+    expect(results[1]).toEqual({ type: 'wall_banner', ok: true });
+    expect(banners).toHaveLength(1);
+  });
+
+  it('a kegtron_reset_volume action fails cleanly -- the synthetic ctx has no real tap context', async () => {
+    const rule = createAutomation(db, ruleFor({ type: 'pour_completed' }, [{ type: 'kegtron_reset_volume' }]));
+    makeEngine();
+    const results = await engine!.runRuleOnce(rule);
+    expect(results).toEqual([{ type: 'kegtron_reset_volume', ok: false, error: expect.any(String) }]);
   });
 });
 

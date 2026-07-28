@@ -159,6 +159,25 @@ describe('evaluateConditions', () => {
     });
   });
 
+  describe('days_since_cleaned', () => {
+    it('is false when daysSinceCleaned is not set on the ctx (not applicable)', () => {
+      const c: Condition = { type: 'days_since_cleaned', days: 30 };
+      expect(evaluateConditions([c], baseCtx(), null, new Date())).toBe(false);
+    });
+
+    it('is false when daysSinceCleaned is null (monitor has no recorded cleaning date)', () => {
+      const c: Condition = { type: 'days_since_cleaned', days: 30 };
+      expect(evaluateConditions([c], baseCtx({ daysSinceCleaned: null }), null, new Date())).toBe(false);
+    });
+
+    it('is true once at least `days` have elapsed (inclusive)', () => {
+      const c: Condition = { type: 'days_since_cleaned', days: 30 };
+      expect(evaluateConditions([c], baseCtx({ daysSinceCleaned: 29 }), null, new Date())).toBe(false);
+      expect(evaluateConditions([c], baseCtx({ daysSinceCleaned: 30 }), null, new Date())).toBe(true);
+      expect(evaluateConditions([c], baseCtx({ daysSinceCleaned: 45 }), null, new Date())).toBe(true);
+    });
+  });
+
   it('ANDs every condition -- one failure fails the whole list', () => {
     const conditions: Condition[] = [
       { type: 'tap_scope', tapIds: [1] },
