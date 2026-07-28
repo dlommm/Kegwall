@@ -16,6 +16,7 @@ import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
+import type { HostResolver } from './core/ssrfGuard.js';
 
 /**
  * Maps a raw better-sqlite3 `SqliteError` to a clean API error shape — callers (route
@@ -66,6 +67,12 @@ export interface AppOptions {
   /** Overrides `routes/lookup.ts`'s upstream fetch timeout (default 5s) — tests only,
    * same pattern as `wsPingIntervalMs` above / MdashClient's `timeoutMs`. */
   lookupTimeoutMs?: number;
+  /** Overrides `routes/lookup.ts`'s SSRF-guard DNS resolver — tests only; see
+   * `core/ssrfGuard.ts`. */
+  lookupResolveHost?: HostResolver;
+  /** Test-only escape hatch for `routes/lookup.ts`'s SSRF guard — see that file's
+   * `LookupRoutesOptions.allowInsecureHosts` doc comment. Never set by `index.ts`. */
+  lookupAllowInsecureHosts?: boolean;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
@@ -116,9 +123,12 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering
   await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above
-  await lookupRoutes(app, dataDir, { timeoutMs: opts.lookupTimeoutMs }); // direct call —
-                                           // see encapsulation note above; must also run
-                                           // before staticRoutes, like every route module
+  await lookupRoutes(app, dataDir, {
+    timeoutMs: opts.lookupTimeoutMs,
+    resolveHost: opts.lookupResolveHost,
+    allowInsecureHosts: opts.lookupAllowInsecureHosts,
+  }); // direct call — see encapsulation note above; must also run before staticRoutes,
+      // like every route module
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

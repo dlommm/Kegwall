@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { requireRole } from './auth.js';
 import { MAX_BYTES, writeLabelFile } from './uploads.js';
 import type { BreweryLookupResult, UntappdLookupResult } from '../core/lookupTypes.js';
+import { assertPublicHost, ForbiddenHostError, type HostResolver } from '../core/ssrfGuard.js';
 
 // Re-exported so anything importing FROM this route module (rather than the shared
 // core/lookupTypes.ts directly) keeps working — but see that file's doc comment for why
@@ -134,10 +135,21 @@ async function fetchJsonOrFail(url: string, timeoutMs: number): Promise<unknown 
 
 const importSchema = z.object({ labelUrl: z.string() });
 
+export interface LookupRoutesOptions {
+  timeoutMs?: number;
+  /** Overrides the SSRF guard's DNS resolver — tests only; see `core/ssrfGuard.ts`. */
+  resolveHost?: HostResolver;
+  /** Test-only escape hatch for the SSRF guard (never set outside a test build of the
+   * app): lets an import test's fake upstream server live on 127.0.0.1, which the guard
+   * would otherwise (correctly) reject as loopback. Production (`index.ts`) never passes
+   * this, so the guard stays strict for every real request. */
+  allowInsecureHosts?: boolean;
+}
+
 export async function lookupRoutes(
   app: FastifyInstance,
   dataDir: string,
-  opts: { timeoutMs?: number } = {},
+  opts: LookupRoutesOptions = {},
 ) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const editor = { preHandler: requireRole('editor') };
@@ -211,11 +223,26 @@ export async function lookupRoutes(
       return reply.code(400).send({ error: 'validation', message: 'labelUrl must be a valid URL' });
     }
     // http(s) only — blocks file://, data:, and other schemes a raw fetch() would
-    // otherwise happily follow. Editor role already carries significant trust in this
-    // app (e.g. the Kegtron import route lets it pull arbitrary mdash device data), so
-    // this is a minimum scheme guard rather than a full SSRF-hardened fetch.
+    // otherwise happily follow. The HOST-based SSRF guard (loopback/private/link-local/
+    // etc.) is the next check below, in core/ssrfGuard.ts.
     if (target.protocol !== 'http:' && target.protocol !== 'https:') {
       return reply.code(400).send({ error: 'validation', message: 'labelUrl must be an http(s) URL' });
+    }
+
+    // SSRF guard: reject a literal loopback/private/link-local/unspecified/unique-local
+    // host outright, and reject a hostname that resolves to ANY such address — this is
+    // the only place in the app where a user-supplied host reaches a server-side fetch.
+    // See core/ssrfGuard.ts for the full range list and the documented DNS-rebinding
+    // caveat this check does NOT close.
+    if (!opts.allowInsecureHosts) {
+      try {
+        await assertPublicHost(target, { resolve: opts.resolveHost });
+      } catch (err) {
+        if (err instanceof ForbiddenHostError) {
+          return reply.code(400).send({ error: 'validation', message: err.message });
+        }
+        throw err;
+      }
     }
 
     let res: Response;

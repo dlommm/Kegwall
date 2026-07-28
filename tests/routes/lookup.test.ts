@@ -130,7 +130,15 @@ beforeEach(async () => {
 
   // Short timeout override (a la wsPingIntervalMs/MdashClient.timeoutMs) so the timeout
   // tests below run in milliseconds instead of the real 5s production default.
-  app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')), lookupTimeoutMs: 100 });
+  // `lookupAllowInsecureHosts: true` is the test-only SSRF-guard bypass (see
+  // LookupRoutesOptions in lookup.ts) — this fixture's fake upstream server binds to
+  // 127.0.0.1, which the guard correctly rejects by default; the dedicated "SSRF guard"
+  // describe block below builds its OWN strict (non-bypassed) app to test that default.
+  app = await buildApp({
+    dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')),
+    lookupTimeoutMs: 100,
+    lookupAllowInsecureHosts: true,
+  });
   app.ctx.settings.set('openBreweryBaseUrl', upstreamUrl);
   app.ctx.settings.set('untappdBaseUrl', upstreamUrl);
 
@@ -408,5 +416,137 @@ describe('POST /api/lookup/untappd/import', () => {
     const elapsed = Date.now() - start;
     expect(res.statusCode).toBe(502);
     expect(elapsed).toBeLessThan(500);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SSRF guard (Fix round 1): POST /api/lookup/untappd/import's labelUrl reaches a real
+// server-side fetch, so it's the one place in the app where a user-supplied host could
+// make the SERVER probe internal services / cloud metadata on the editor's behalf. This
+// describe block builds its OWN app WITHOUT `lookupAllowInsecureHosts` — i.e. the real,
+// strict, production default — unlike the shared `app` fixture above (which needs the
+// bypass purely because its fake upstream server happens to bind to 127.0.0.1).
+// ---------------------------------------------------------------------------
+describe('POST /api/lookup/untappd/import — SSRF guard', () => {
+  let strictApp: FastifyInstance;
+  let strictEditorCookies: { session: string };
+  // Set by whichever test needs it — a stand-in DNS resolver injected via
+  // `lookupResolveHost` so these tests never touch real DNS.
+  let resolveHost: ((hostname: string) => Promise<string[]>) | undefined;
+
+  beforeEach(async () => {
+    resolveHost = undefined;
+    strictApp = await buildApp({
+      dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')),
+      lookupTimeoutMs: 100,
+      // No lookupAllowInsecureHosts — strict by default. resolveHost is read lazily via
+      // the closure below so each test can set it before making its request.
+      lookupResolveHost: (hostname: string) => (resolveHost ?? (async () => []))(hostname),
+    });
+    strictApp.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
+
+    const setup = await strictApp.inject({
+      method: 'POST', url: '/api/auth/setup',
+      payload: { username: 'dan', displayName: 'Dan', password: 'hunter22' },
+    });
+    const adminSession = { session: setup.cookies.find((c: any) => c.name === 'session')!.value };
+    await strictApp.inject({
+      method: 'POST', url: '/api/users', cookies: adminSession,
+      payload: { username: 'ed', displayName: 'Ed', password: 'password1', role: 'editor' },
+    });
+    const editorLogin = await strictApp.inject({
+      method: 'POST', url: '/api/auth/login', payload: { username: 'ed', password: 'password1' },
+    });
+    strictEditorCookies = { session: editorLogin.cookies.find((c: any) => c.name === 'session')!.value };
+  });
+
+  afterEach(async () => {
+    await strictApp.close();
+  });
+
+  it.each([
+    ['http://127.0.0.1/label.png', 'loopback IPv4'],
+    ['http://192.168.1.1/label.png', 'private IPv4 (192.168/16)'],
+    ['http://169.254.169.254/latest/meta-data/', 'link-local IPv4 (cloud metadata)'],
+    ['http://10.0.0.5/label.png', 'private IPv4 (10/8)'],
+    ['http://172.16.0.1/label.png', 'private IPv4 (172.16/12)'],
+    ['http://0.0.0.0/label.png', 'unspecified IPv4'],
+    ['http://[::1]/label.png', 'loopback IPv6'],
+    ['http://[fe80::1]/label.png', 'link-local IPv6'],
+    ['http://[fc00::1]/label.png', 'unique-local IPv6'],
+  ])('rejects a literal %s (%s) with 400, without ever attempting a fetch', async (labelUrl) => {
+    const start = Date.now();
+    const res = await strictApp.inject({
+      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
+      payload: { labelUrl },
+    });
+    const elapsed = Date.now() - start;
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'validation', message: 'That image URL is not allowed' });
+    // Fast — proves this was rejected synchronously by the guard, not after a real
+    // connection attempt/timeout to an unroutable address like 169.254.169.254.
+    expect(elapsed).toBeLessThan(90);
+  });
+
+  it('rejects a hostname that resolves (per the injected resolver) to a private address', async () => {
+    resolveHost = async (hostname) => {
+      expect(hostname).toBe('internal.example.test');
+      return ['10.1.2.3'];
+    };
+    const res = await strictApp.inject({
+      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
+      payload: { labelUrl: 'http://internal.example.test/label.png' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'validation', message: 'That image URL is not allowed' });
+  });
+
+  it('rejects a hostname if ANY of its resolved addresses is private, even if another is public', async () => {
+    resolveHost = async () => ['8.8.8.8', '10.1.2.3'];
+    const res = await strictApp.inject({
+      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
+      payload: { labelUrl: 'http://multi-homed.example.test/label.png' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('allows a hostname that resolves to a public address through to the real fetch', async () => {
+    // "localhost" is used as the hostname so the REAL fetch() call (which does its own,
+    // un-injected DNS resolution) connects to our loopback-bound fake server below — the
+    // injected resolver below only feeds the GUARD's own check, standing in for
+    // whatever real public address a real hostname would resolve to.
+    resolveHost = async (hostname) => {
+      expect(hostname).toBe('localhost');
+      return ['8.8.8.8'];
+    };
+    const fakeLabelServer = Fastify();
+    fakeLabelServer.get('/label.png', async (_req, reply) => {
+      reply.header('content-type', 'image/png');
+      return PNG_BYTES;
+    });
+    await fakeLabelServer.listen({ port: 0, host: '127.0.0.1' });
+    const port = (fakeLabelServer.server.address() as { port: number }).port;
+
+    try {
+      const res = await strictApp.inject({
+        method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
+        payload: { labelUrl: `http://localhost:${port}/label.png` },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().path).toMatch(/^\/labels\/[0-9a-f-]+\.png$/);
+    } finally {
+      await fakeLabelServer.close();
+    }
+  });
+
+  it('fails closed (400) when the hostname cannot be resolved at all', async () => {
+    resolveHost = async () => {
+      throw new Error('ENOTFOUND');
+    };
+    const res = await strictApp.inject({
+      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
+      payload: { labelUrl: 'http://does-not-resolve.example.test/label.png' },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
