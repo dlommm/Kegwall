@@ -244,6 +244,28 @@
 }
 
 /*
+ * `compact`'s kicked treatment (Phase 3 final review, finding I2): an inline text pill
+ * next to the beer name rather than the absolute-positioned stamp above, which overflows
+ * the tiny 28x40px compact liquid swatch. It sits inside `.tap-card__info`, which already
+ * picks up the kicked grayscale/brightness filter above, so no separate desaturation
+ * rule is needed here.
+ */
+.tap-card__kicked-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  border: 1px solid var(--text-dim);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+}
+
+/*
  * WallPage chrome — fullscreen root, no browser chrome, dimmed + a "Reconnecting" pill
  * once the WS feed has gone stale (see WallPage.tsx). The 1px ScreenCare drift (below)
  * transitions smoothly so it reads as a barely-perceptible settle rather than a jump.

@@ -14,6 +14,7 @@ const FALLBACK_AVATAR_COLOR = '#7A6C58';
 
 type ClaimStatus = 'idle' | 'claiming' | 'success' | 'error';
 type ClaimErrorKind = 'conflict' | 'rateLimited' | 'other';
+type DrinkersStatus = 'loading' | 'error' | 'loaded';
 
 /** First letter of the first and last "words" in a display name (e.g. "Sam Lee" -> "SL",
  * a single-word name -> just that letter). Never empty — an all-whitespace name falls
@@ -28,10 +29,12 @@ function getInitials(name: string): string {
 interface DrinkerPickerSheetProps {
   pour: RecentPour;
   drinkers: PublicDrinker[];
+  drinkersStatus: DrinkersStatus;
   status: ClaimStatus;
   errorKind: ClaimErrorKind | null;
   claimedDrinker: PublicDrinker | null;
   onSelectDrinker: (drinker: PublicDrinker) => void;
+  onRetryDrinkers: () => void;
   onClose: () => void;
 }
 
@@ -43,7 +46,7 @@ interface DrinkerPickerSheetProps {
  * plain retry notice (429/other, list stays visible so a fresh tap just retries).
  */
 function DrinkerPickerSheet({
-  pour, drinkers, status, errorKind, claimedDrinker, onSelectDrinker, onClose,
+  pour, drinkers, drinkersStatus, status, errorKind, claimedDrinker, onSelectDrinker, onRetryDrinkers, onClose,
 }: DrinkerPickerSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -116,28 +119,46 @@ function DrinkerPickerSheet({
                 Something went wrong. Try again.
               </p>
             )}
-            <ul className="claim-sheet__drinker-list" data-testid="claim-sheet-drinkers">
-              {drinkers.map((drinker) => (
-                <li key={drinker.id}>
-                  <button
-                    type="button"
-                    className="claim-sheet__drinker-button"
-                    data-testid="claim-sheet-drinker"
-                    disabled={status === 'claiming'}
-                    onClick={() => onSelectDrinker(drinker)}
-                  >
-                    <span
-                      className="claim-sheet__avatar font-tabular"
-                      aria-hidden="true"
-                      style={{ backgroundColor: drinker.avatarColor ?? FALLBACK_AVATAR_COLOR }}
+            {drinkersStatus === 'loading' && (
+              <p className="claim-sheet__status" data-testid="claim-sheet-drinkers-loading">Loading drinkers…</p>
+            )}
+            {drinkersStatus === 'error' && (
+              <div className="claim-sheet__notice claim-sheet__notice--error" data-testid="claim-sheet-drinkers-error" role="alert">
+                <p>Couldn&rsquo;t load drinkers.</p>
+                <button
+                  type="button"
+                  className="claim-sheet__retry"
+                  data-testid="claim-sheet-drinkers-retry"
+                  onClick={onRetryDrinkers}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {drinkersStatus === 'loaded' && (
+              <ul className="claim-sheet__drinker-list" data-testid="claim-sheet-drinkers">
+                {drinkers.map((drinker) => (
+                  <li key={drinker.id}>
+                    <button
+                      type="button"
+                      className="claim-sheet__drinker-button"
+                      data-testid="claim-sheet-drinker"
+                      disabled={status === 'claiming'}
+                      onClick={() => onSelectDrinker(drinker)}
                     >
-                      {getInitials(drinker.displayName)}
-                    </span>
-                    <span className="claim-sheet__drinker-name font-body">{drinker.displayName}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <span
+                        className="claim-sheet__avatar font-tabular"
+                        aria-hidden="true"
+                        style={{ backgroundColor: drinker.avatarColor ?? FALLBACK_AVATAR_COLOR }}
+                      >
+                        {getInitials(drinker.displayName)}
+                      </span>
+                      <span className="claim-sheet__drinker-name font-body">{drinker.displayName}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )}
       </div>
@@ -156,6 +177,8 @@ function DrinkerPickerSheet({
 export function ClaimSheet() {
   const [pours, setPours] = useState<RecentPour[]>([]);
   const [drinkers, setDrinkers] = useState<PublicDrinker[]>([]);
+  const [drinkersStatus, setDrinkersStatus] = useState<DrinkersStatus>('loading');
+  const [drinkersRetryToken, setDrinkersRetryToken] = useState(0);
   const [selectedPour, setSelectedPour] = useState<RecentPour | null>(null);
   const [status, setStatus] = useState<ClaimStatus>('idle');
   const [errorKind, setErrorKind] = useState<ClaimErrorKind | null>(null);
@@ -194,14 +217,34 @@ export function ClaimSheet() {
     };
   }, []);
 
+  const isSheetOpen = selectedPour !== null;
+
+  // Drinkers used to be fetched once at mount and never retried — a transient failure
+  // left the picker's drinker list empty for the rest of the session, with no recovery
+  // short of a full page reload (Phase 3 final review, finding I3). Re-fetching on every
+  // sheet open is simpler than a background retry/backoff loop and self-heals naturally:
+  // each open is a fresh attempt. `drinkersRetryToken` lets the "Try again" button
+  // (DrinkerPickerSheet) re-run this effect without closing the sheet.
   useEffect(() => {
+    if (!isSheetOpen) return undefined;
     let cancelled = false;
+    setDrinkersStatus('loading');
     getDrinkers().then((result) => {
-      if (!cancelled && result.ok) setDrinkers(result.data);
+      if (cancelled) return;
+      if (result.ok) {
+        setDrinkers(result.data);
+        setDrinkersStatus('loaded');
+      } else {
+        setDrinkersStatus('error');
+      }
     });
     return () => {
       cancelled = true;
     };
+  }, [isSheetOpen, drinkersRetryToken]);
+
+  const retryDrinkers = useCallback(() => {
+    setDrinkersRetryToken((n) => n + 1);
   }, []);
 
   const closeSheet = useCallback(() => {
@@ -295,10 +338,12 @@ export function ClaimSheet() {
         <DrinkerPickerSheet
           pour={selectedPour}
           drinkers={drinkers}
+          drinkersStatus={drinkersStatus}
           status={status}
           errorKind={errorKind}
           claimedDrinker={claimedDrinker}
           onSelectDrinker={handleSelectDrinker}
+          onRetryDrinkers={retryDrinkers}
           onClose={closeSheet}
         />
       )}

@@ -26,6 +26,8 @@ export interface AppOptions {
    * opens real sockets / MQTT connections / mdash.net requests just by calling
    * `buildApp()`. Production's `index.ts` explicitly passes `true`. */
   startSources?: boolean;
+  /** Overrides the `/ws` heartbeat interval (default 30s) — tests only; see `wsRoutes`. */
+  wsPingIntervalMs?: number;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
@@ -63,8 +65,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   // away from the other modules and break staticRoutes' setNotFoundHandler.
   await authRoutes(app);
   await crudRoutes(app);   // direct call — see encapsulation note above
-  await wsRoutes(app);     // direct call — @fastify/websocket it registers internally
-                           // attaches to the root instance, same reasoning as above
+  await wsRoutes(app, { pingIntervalMs: opts.wsPingIntervalMs }); // direct call —
+                           // @fastify/websocket it registers internally attaches to the
+                           // root instance, same reasoning as above
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
   await kegtronRoutes(app); // direct call — see encapsulation note above

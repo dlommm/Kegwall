@@ -178,6 +178,46 @@ describe('ClaimSheet', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  // Phase 3 final review, finding I3: getDrinkers used to be fetched once at mount and
+  // never retried — one transient failure left the claim picker's drinker list empty for
+  // the rest of the session, with no recovery short of a full page reload. The simpler,
+  // robust fix: fetch drinkers each time the picker sheet opens (not once at mount), and
+  // surface an inline error + "Try again" button on failure.
+  describe('drinkers fetch failure + retry (I3)', () => {
+    it('shows an inline error with a Try again button when the drinkers fetch fails, and retrying succeeds', async () => {
+      (getDrinkers as Mock).mockResolvedValueOnce({ ok: false, status: 500, message: 'Boom' });
+      render(<ClaimSheet />);
+      fireEvent.click(await screen.findByTestId('claim-sheet-pour'));
+
+      expect(await screen.findByTestId('claim-sheet-drinkers-error')).toBeInTheDocument();
+      expect(screen.queryByTestId('claim-sheet-drinkers')).not.toBeInTheDocument();
+      expect(getDrinkers).toHaveBeenCalledTimes(1);
+
+      (getDrinkers as Mock).mockResolvedValueOnce({ ok: true, data: [drinker()] });
+      fireEvent.click(screen.getByTestId('claim-sheet-drinkers-retry'));
+
+      expect(await screen.findAllByTestId('claim-sheet-drinker')).toHaveLength(1);
+      expect(screen.queryByTestId('claim-sheet-drinkers-error')).not.toBeInTheDocument();
+      expect(getDrinkers).toHaveBeenCalledTimes(2);
+    });
+
+    it('refetches drinkers every time the picker sheet is (re)opened, not just once per session', async () => {
+      render(<ClaimSheet />);
+      await openPicker();
+      expect(getDrinkers).toHaveBeenCalledTimes(1);
+
+      fireEvent.keyDown(document, { key: 'Escape' }); // close the sheet
+      await openPicker();
+      expect(getDrinkers).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not fetch drinkers until the picker sheet is actually opened', async () => {
+      render(<ClaimSheet />);
+      await screen.findByTestId('claim-sheet-pour');
+      expect(getDrinkers).not.toHaveBeenCalled();
+    });
+  });
+
   describe('re-entrancy / stale-response guard', () => {
     it('a rapid double-tap only fires claimPour once, so a stale second response cannot clobber the success state', async () => {
       // If a second call went out, its (later) response would be this 409 — proving the

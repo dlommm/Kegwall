@@ -176,6 +176,35 @@ describe('useTapStates (fake WebSocket + fake timers)', () => {
     expect(result.current.stale).toBe(true);
   });
 
+  it('treats a server heartbeat ping as liveness too, resetting staleness without touching taps', () => {
+    // Phase 3 final review, finding I1: the server now sends {type:'ping', ts} every 30s
+    // so an idle wall (no snapshot for minutes) doesn't falsely show "Reconnecting…". The
+    // hook must reset its 60s stale timer on ANY message, not just snapshot messages.
+    const { result } = renderHook(() => useTapStates([]));
+    const socket = FakeWebSocket.instances[0]!;
+    act(() => socket.triggerOpen());
+
+    act(() => {
+      vi.advanceTimersByTime(59_000);
+    });
+    expect(result.current.stale).toBe(false);
+
+    act(() => socket.triggerMessage({ type: 'ping', ts: new Date().toISOString() }));
+    expect(result.current.stale).toBe(false);
+    // A ping is not a snapshot — it must not clobber the (empty) taps array.
+    expect(result.current.taps).toEqual([]);
+
+    act(() => {
+      vi.advanceTimersByTime(59_000);
+    });
+    expect(result.current.stale).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(result.current.stale).toBe(true);
+  });
+
   it('reconnects with exponential backoff (1s doubling, capped at 30s)', () => {
     renderHook(() => useTapStates([]));
     expect(FakeWebSocket.instances).toHaveLength(1);

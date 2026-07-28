@@ -115,7 +115,15 @@ export function TapCard({
           curServMl={tap.curServMl}
           units={units}
         />
-        {isKicked && <KickedBadge className="tap-card__kicked-badge" />}
+        {/*
+          The stamp is sized against this wrapper via `position: absolute; inset: 0`
+          (see index.css) — fine at the full/standard/minimal liquid heights (8-10rem),
+          but `compact`'s liquid swatch is a 28x40px corner element, far too small to
+          contain the rotated stamp without it overflowing onto the neighbouring "TAP N"
+          label (Phase 3 final review, finding I2). Compact gets an inline pill next to
+          the beer name instead — see below.
+        */}
+        {isKicked && template !== 'compact' && <KickedBadge className="tap-card__kicked-badge" />}
       </div>
 
       <div className="tap-card__info">
@@ -125,6 +133,11 @@ export function TapCard({
         <h2 className="tap-card__name font-display" data-testid="tap-card-name">
           {beer.name}
         </h2>
+        {isKicked && template === 'compact' && (
+          <span className="tap-card__kicked-pill" data-testid="tap-card-kicked-pill">
+            Kicked
+          </span>
+        )}
 
         {resolvedFields.brewery && beer.brewery && (
           <p className="tap-card__brewery font-body" data-testid="tap-card-brewery">

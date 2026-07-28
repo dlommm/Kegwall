@@ -222,6 +222,44 @@ describe('TapCard', () => {
       render(<TapCard tap={makeTap({ keg: makeKeg({ status: 'kicked' }) })} />);
       expect(screen.getByTestId('tap-card-name')).toHaveTextContent('Hazy Trail IPA');
     });
+
+    // Phase 3 final review, finding I2: the absolute-positioned Kicked stamp is sized
+    // against `.tap-card__liquid`, which in `compact` is a 28x40px swatch — far too small
+    // to contain the stamp, so it overflows onto the neighbouring "TAP N" label. Compact
+    // gets an inline text pill next to the beer name instead; every other template keeps
+    // the stamp unchanged.
+    describe('compact template', () => {
+      it('renders an inline Kicked pill next to the beer name instead of the stamp', () => {
+        mockReducedMotion(false);
+        render(<TapCard tap={makeTap({ keg: makeKeg({ status: 'kicked' }) })} template="compact" />);
+        expect(screen.getByTestId('tap-card-kicked-pill')).toHaveTextContent('Kicked');
+      });
+
+      it('does not render the absolute-positioned stamp badge', () => {
+        mockReducedMotion(false);
+        render(<TapCard tap={makeTap({ keg: makeKeg({ status: 'kicked' }) })} template="compact" />);
+        // The stamp badge (KickedBadge) exposes role="status" — compact must not render it.
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      });
+
+      it('omits the pill entirely when the tap is not kicked', () => {
+        mockReducedMotion(false);
+        render(<TapCard tap={makeTap()} template="compact" />);
+        expect(screen.queryByTestId('tap-card-kicked-pill')).not.toBeInTheDocument();
+      });
+    });
+
+    it('still renders the absolute-positioned stamp badge for full/standard/minimal (unchanged)', () => {
+      mockReducedMotion(false);
+      for (const template of ['full', 'standard', 'minimal'] as const) {
+        const { unmount } = render(
+          <TapCard tap={makeTap({ keg: makeKeg({ status: 'kicked' }) })} template={template} />,
+        );
+        expect(screen.getByRole('status')).toHaveTextContent('Kicked');
+        expect(screen.queryByTestId('tap-card-kicked-pill')).not.toBeInTheDocument();
+        unmount();
+      }
+    });
   });
 
   describe('last-pour relative time', () => {
