@@ -539,6 +539,50 @@ describe('POST /api/lookup/untappd/import — SSRF guard', () => {
     }
   });
 
+  it('refuses to follow a redirect — a validated host cannot be used to reach a different one via a 302', async () => {
+    // The guard only validates the ORIGINAL host (here, "localhost", made to look
+    // public via the injected resolver, same trick as the previous test) — this test's
+    // point is that the redirect target ("the second server") must never be reached at
+    // all, regardless of what it is, because `redirect: 'error'` refuses to follow it.
+    resolveHost = async (hostname) => {
+      expect(hostname).toBe('localhost');
+      return ['8.8.8.8'];
+    };
+
+    let secondServerHits = 0;
+    const secondServer = Fastify();
+    secondServer.get('/private-secret.png', async (_req, reply) => {
+      secondServerHits += 1;
+      reply.header('content-type', 'image/png');
+      return PNG_BYTES;
+    });
+    await secondServer.listen({ port: 0, host: '127.0.0.1' });
+    const secondPort = (secondServer.server.address() as { port: number }).port;
+
+    const redirectingServer = Fastify();
+    redirectingServer.get('/label.png', async (_req, reply) => {
+      reply.code(302).header('location', `http://localhost:${secondPort}/private-secret.png`).send();
+    });
+    await redirectingServer.listen({ port: 0, host: '127.0.0.1' });
+    const redirectingPort = (redirectingServer.server.address() as { port: number }).port;
+
+    try {
+      const res = await strictApp.inject({
+        method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
+        payload: { labelUrl: `http://localhost:${redirectingPort}/label.png` },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toEqual({
+        error: 'validation',
+        message: 'That image URL redirects somewhere else. Use the direct image URL.',
+      });
+      expect(secondServerHits).toBe(0);
+    } finally {
+      await redirectingServer.close();
+      await secondServer.close();
+    }
+  });
+
   it('fails closed (400) when the hostname cannot be resolved at all', async () => {
     resolveHost = async () => {
       throw new Error('ENOTFOUND');

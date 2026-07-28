@@ -135,6 +135,18 @@ async function fetchJsonOrFail(url: string, timeoutMs: number): Promise<unknown 
 
 const importSchema = z.object({ labelUrl: z.string() });
 
+/** True when `err` is the `TypeError` Node's fetch (undici) throws for `redirect:
+ * 'error'` hitting a 3xx response — its `cause` is an `Error` whose message is exactly
+ * "unexpected redirect" (verified directly against this Node/undici version; matched
+ * loosely via a substring check rather than an exact-equality one so a future undici
+ * wording tweak degrades to "generic 502" instead of silently stopping being detected).
+ * Distinguishing this from every OTHER fetch failure is what lets the import route give
+ * a specific, actionable message instead of the generic "could not download" one. */
+function isRedirectRejection(err: unknown): boolean {
+  const cause = err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
+  return cause instanceof Error && /redirect/i.test(cause.message);
+}
+
 export interface LookupRoutesOptions {
   timeoutMs?: number;
   /** Overrides the SSRF guard's DNS resolver — tests only; see `core/ssrfGuard.ts`. */
@@ -233,7 +245,9 @@ export async function lookupRoutes(
     // host outright, and reject a hostname that resolves to ANY such address — this is
     // the only place in the app where a user-supplied host reaches a server-side fetch.
     // See core/ssrfGuard.ts for the full range list and the documented DNS-rebinding
-    // caveat this check does NOT close.
+    // caveat this check does NOT close (the fetch call below closes off the OTHER
+    // bypass this check alone doesn't — a validated public host 302ing to a private
+    // one — via `redirect: 'error'`, not by re-validating each hop).
     if (!opts.allowInsecureHosts) {
       try {
         await assertPublicHost(target, { resolve: opts.resolveHost });
@@ -247,8 +261,19 @@ export async function lookupRoutes(
 
     let res: Response;
     try {
-      res = await fetch(target, { signal: AbortSignal.timeout(timeoutMs) });
-    } catch {
+      // redirect: 'error' — a validated PUBLIC host could still 302 to a private/
+      // loopback address (or to cloud metadata), and following it would silently bypass
+      // the assertPublicHost() check above entirely (that check never re-runs against
+      // the redirect target). Refusing every redirect outright closes this off
+      // completely, rather than trying to re-validate each hop.
+      res = await fetch(target, { signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
+    } catch (err) {
+      if (isRedirectRejection(err)) {
+        return reply.code(400).send({
+          error: 'validation',
+          message: 'That image URL redirects somewhere else. Use the direct image URL.',
+        });
+      }
       return reply.code(502).send({ error: 'upstream_error', message: 'Could not download the label image' });
     }
     if (!res.ok) {

@@ -137,15 +137,25 @@ export interface AssertPublicHostOptions {
  * to even one forbidden address is rejected, not just the first one a resolver happens
  * to return first.
  *
- * KNOWN LIMITATION (accepted, not fixed): this is a resolve-THEN-fetch check, not an
- * atomic one. A DNS-rebinding attacker who controls the target hostname's DNS record
- * could have it answer with a public address here and a private one moments later when
- * `fetch()` itself re-resolves and actually connects. Closing that gap fully would need
- * either pinning the exact address this check resolved for the real connection (not
- * expressible through the plain `fetch()` API without a custom dispatcher/agent) or a
- * network-level egress block — out of scope here. Accepted as a residual risk given this
- * endpoint is already `editor`-role-gated (not anonymous/public) in a small, largely
- * self-hosted taproom app, not a multi-tenant "fetch any URL" service.
+ * This function ONLY validates `url` itself — it says nothing about where a redirect
+ * response from that URL might point. A validated PUBLIC host can still 302 to a
+ * private/loopback address (or cloud metadata), and this check does not re-run against
+ * a redirect target (there is no hook here for that — a caller that lets its `fetch()`
+ * follow redirects would silently reopen the exact hole this function exists to close).
+ * `routes/lookup.ts`'s caller closes this off completely on its side by passing
+ * `redirect: 'error'` to `fetch()`, refusing EVERY redirect outright rather than trying
+ * to re-validate each hop.
+ *
+ * KNOWN LIMITATION (accepted, not fixed): this is still a resolve-THEN-fetch check, not
+ * an atomic one, for the ORIGINAL host. A DNS-rebinding attacker who controls the target
+ * hostname's DNS record could have it answer with a public address here and a private
+ * one moments later when `fetch()` itself re-resolves and actually connects. Closing
+ * that gap fully would need either pinning the exact address this check resolved for
+ * the real connection (not expressible through the plain `fetch()` API without a custom
+ * dispatcher/agent) or a network-level egress block — out of scope here. Accepted as a
+ * residual risk given this endpoint is already `editor`-role-gated (not anonymous/
+ * public) in a small, largely self-hosted taproom app, not a multi-tenant "fetch any
+ * URL" service.
  */
 export async function assertPublicHost(url: URL, opts: AssertPublicHostOptions = {}): Promise<void> {
   const resolve = opts.resolve ?? defaultResolver;
