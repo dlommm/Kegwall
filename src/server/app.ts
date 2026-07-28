@@ -14,6 +14,7 @@ import { kegtronRoutes } from './routes/kegtron.js';
 import { activityRoutes } from './routes/activity.js';
 import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
+import { backupRoutes } from './routes/backup.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 import type { HostResolver } from './core/ssrfGuard.js';
@@ -129,6 +130,11 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
     allowInsecureHosts: opts.lookupAllowInsecureHosts,
   }); // direct call — see encapsulation note above; must also run before staticRoutes,
       // like every route module
+  await backupRoutes(app, dataDir);       // direct call — see encapsulation note above;
+                                           // registered AFTER uploadsRoutes because its
+                                           // restore handler relies on the @fastify/
+                                           // multipart decorators uploadsRoutes registers
+                                           // (see backup.ts's doc comment on MAX_RESTORE_BYTES)
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

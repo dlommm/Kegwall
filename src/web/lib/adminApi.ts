@@ -1,4 +1,10 @@
-import type { User } from '../../server/db/users.js';
+import type { Role, User } from '../../server/db/users.js';
+// From db/settings.ts, a plain db module with no Fastify-specific imports of its own (its
+// only value import, core/errors.ts, is dependency-free) — safe to type-import here the
+// same way db/beers.ts, db/taps.ts, etc. already are (see core/lookupTypes.ts's doc
+// comment above for the routes-file case this is NOT: that one drags in Fastify request/
+// reply augmentations that don't typecheck in tsconfig.web.json's program).
+import type { Settings } from '../../server/db/settings.js';
 import type { Pour, Keg, KegStatus } from '../../server/db/kegs.js';
 import type { Tap } from '../../server/db/taps.js';
 import type { Monitor } from '../../server/db/monitors.js';
@@ -328,4 +334,73 @@ export function updateWall(
  * immediately (no FK/conflict case today — nothing else references a wall row). */
 export function deleteWall(id: number): Promise<ApiResult<null>> {
   return request(`/api/walls/${id}`, { method: 'DELETE' });
+}
+
+// --- Task 8: users, settings, backup ---
+
+export function listUsers(): Promise<ApiResult<User[]>> {
+  return request('/api/users');
+}
+
+/** POST /api/users for a real login account (username + password + role). The server
+ * branches on `drinkerOnly` (see routes/crud.ts) — omitted here, unlike
+ * `createDrinkerProfile` below, so this always takes the login-user path. */
+export function createLoginUser(input: {
+  username: string; displayName: string; password: string; role: Role;
+}): Promise<ApiResult<User>> {
+  return request('/api/users', { method: 'POST', body: JSON.stringify(input) });
+}
+
+/** POST /api/users for a drinker-only profile (no login, `role: null`) — the leaderboard/
+ * claim-a-pour identity with no admin access. `drinkerOnly: true` is what routes the
+ * server to `createDrinker` instead of `createUser` (see routes/crud.ts). */
+export function createDrinkerProfile(input: {
+  displayName: string; avatarColor?: string;
+}): Promise<ApiResult<User>> {
+  return request('/api/users', {
+    method: 'POST',
+    body: JSON.stringify({ ...input, drinkerOnly: true }),
+  });
+}
+
+/** PATCH /api/users/:id — edits a login user's display name/role/password (password
+ * optional: omit to leave the hash untouched) or a drinker profile's display
+ * name/avatar/`isDrinker` flag. 409 (`ApiFailure`) when demoting the last admin — see
+ * db/users.ts's `updateUser`. */
+export function updateUser(id: number, input: {
+  displayName?: string; role?: Role; password?: string;
+  avatarColor?: string | null; isDrinker?: boolean;
+}): Promise<ApiResult<User>> {
+  return request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** DELETE /api/users/:id — 204 on success; 409 (`ApiFailure`, message "cannot delete the
+ * last admin") when `id` is the sole remaining admin — see db/users.ts's `deleteUser`. */
+export function deleteUser(id: number): Promise<ApiResult<null>> {
+  return request(`/api/users/${id}`, { method: 'DELETE' });
+}
+
+/** GET /api/settings — secrets (kegtronApiKey, mqtt.password, untappd.clientSecret) come
+ * back masked (see db/settings.ts's `masked()`); SettingsPage never PATCHes one of these
+ * mask strings back — see `patchSettings` below. */
+export function getSettings(): Promise<ApiResult<Settings>> {
+  return request('/api/settings');
+}
+
+/** PATCH /api/settings — callers pass ONLY the keys that actually changed (the server
+ * scopes writes to the literal top-level keys present on the request body — see
+ * routes/crud.ts's `requestedKeys` — so an omitted key is left untouched, not reset to
+ * its schema default). Returns the fresh masked settings on success. */
+export function patchSettings(patch: Partial<Settings>): Promise<ApiResult<Settings>> {
+  return request('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+/** POST /api/admin/restore — multipart upload of a full `app.db` snapshot (e.g. one
+ * downloaded from this same install's own `GET /api/admin/backup`, or another install's)
+ * to stage as `DATA_DIR/pending-restore.db`. Only takes effect on the NEXT server
+ * restart — see db/db.ts's `applyPendingRestore` — this call alone changes nothing live. */
+export function uploadRestore(file: File): Promise<ApiResult<{ ok: boolean; message: string }>> {
+  const form = new FormData();
+  form.append('file', file);
+  return request('/api/admin/restore', { method: 'POST', body: form });
 }
