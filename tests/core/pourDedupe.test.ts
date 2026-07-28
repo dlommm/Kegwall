@@ -65,4 +65,38 @@ describe('PourDeduper', () => {
     }
     expect(dd.size()).toBeLessThan(10);
   });
+
+  // Fix round 1 regressions ---------------------------------------------------------
+
+  it('prunes entries with a future ts relative to the incoming event (regression: signed-delta expiry bug)', () => {
+    const dd = new PourDeduper();
+    const base = Date.parse('2026-07-27T01:00:00.000Z');
+    // Register a pour carrying a ts 3600s AHEAD of what will be checked next (e.g. an
+    // out-of-order/backfilled report processed before a "normal" one).
+    expect(dd.shouldRecord(ref, 400, new Date(base + 3_600_000).toISOString())).toBe(true);
+    expect(dd.size()).toBe(1);
+
+    // A call at `base` — 3600s in the PAST relative to that entry, well beyond the 60s
+    // expiry in either direction. With the pre-fix signed-delta prune
+    // (`tsMs - e.tsMs < EXPIRY_MS`), this delta is very negative and so always "less
+    // than" EXPIRY_MS — the stale future entry would never be pruned and would linger
+    // forever, leaving size() at 2 after this call. The fixed abs()-based prune must
+    // drop it, leaving only this call's own registration.
+    expect(dd.shouldRecord(ref, 400, new Date(base).toISOString())).toBe(true);
+    expect(dd.size()).toBe(1);
+  });
+
+  it('applies a symmetric tolerance regardless of which report arrives first (regression: order-dependent tolerance)', () => {
+    // tol = max(0.10 * max(400, 444), 30) = 44.4; diff = |444-400| = 44 <= 44.4 ->
+    // duplicate, in EITHER arrival order (pre-fix, tolerance was anchored only to the
+    // *registered* volume: 400-then-444 used tol=40 (diff 44 > 40, not a duplicate) while
+    // 444-then-400 used tol=44.4 (duplicate) — same physical pair, opposite outcomes).
+    const forward = new PourDeduper();
+    expect(forward.shouldRecord(ref, 400, '2026-07-27T01:00:00.000Z')).toBe(true);
+    expect(forward.shouldRecord(ref, 444, '2026-07-27T01:00:05.000Z')).toBe(false);
+
+    const reverse = new PourDeduper();
+    expect(reverse.shouldRecord(ref, 444, '2026-07-27T01:00:00.000Z')).toBe(true);
+    expect(reverse.shouldRecord(ref, 400, '2026-07-27T01:00:05.000Z')).toBe(false);
+  });
 });

@@ -3,11 +3,15 @@ import type { MonitorRef } from './events.js';
 // A pour is a duplicate of an already-registered one for the same monitor when it
 // arrives within this many ms of the registered pour's ts...
 const WINDOW_MS = 30_000;
-// ...and its volume is within tolerance: max(TOLERANCE_PCT * registeredVolume, MIN_TOLERANCE_ML).
+// ...and its volume is within tolerance: max(TOLERANCE_PCT * max(volumeMl, entry.volumeMl), MIN_TOLERANCE_ML).
+// Anchored to the LARGER of the two volumes (not just the registered one) so the
+// outcome is symmetric regardless of which report — the original or the duplicate —
+// happened to arrive first (see Fix round 1: order-dependent tolerance).
 const TOLERANCE_PCT = 0.1;
 const MIN_TOLERANCE_ML = 30;
-// Tracked entries older than this (relative to the incoming event's own ts) are pruned
-// before every check, so the ring never grows past what's still "live" for dedup purposes.
+// Tracked entries whose ts is more than this far from the incoming event's ts (in
+// either direction — see Fix round 1) are pruned before every check, so the ring
+// never grows past what's still "live" for dedup purposes.
 const EXPIRY_MS = 60_000;
 
 function refKey(ref: MonitorRef): string {
@@ -49,12 +53,15 @@ export class PourDeduper {
 
     // Prune expired entries first so the ring never accumulates stale state — this is
     // what keeps memory bounded even under sustained, well-spaced-out legitimate pours
-    // (see pourDedupe.test.ts's 10k-pour memory-bound case).
-    const live = (this.entries.get(key) ?? []).filter((e) => tsMs - e.tsMs < EXPIRY_MS);
+    // (see pourDedupe.test.ts's 10k-pour memory-bound case). Uses an absolute delta so
+    // an entry with a FUTURE ts relative to this call (e.g. an earlier-arriving report
+    // that happens to carry a later event ts, or an out-of-order backfill) still ages
+    // out instead of lingering forever (Fix round 1).
+    const live = (this.entries.get(key) ?? []).filter((e) => Math.abs(tsMs - e.tsMs) < EXPIRY_MS);
 
     const isDuplicate = live.some((e) => {
       if (Math.abs(tsMs - e.tsMs) > WINDOW_MS) return false;
-      const tolerance = Math.max(e.volumeMl * TOLERANCE_PCT, MIN_TOLERANCE_ML);
+      const tolerance = Math.max(TOLERANCE_PCT * Math.max(volumeMl, e.volumeMl), MIN_TOLERANCE_ML);
       return Math.abs(volumeMl - e.volumeMl) <= tolerance;
     });
 
