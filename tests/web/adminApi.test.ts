@@ -9,6 +9,7 @@ import {
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
+  listWalls, createWall, updateWall, deleteWall,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -411,5 +412,47 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getMonitorTelemetry(1, 48);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=48', expect.any(Object));
+  });
+
+  // --- Task 7: walls ---
+
+  const wall = {
+    id: 1, slug: 'main-bar', name: 'Main bar', config: { columns: 2 },
+  };
+
+  it('listWalls GETs /api/walls', async () => {
+    mockFetchOnce(200, [wall]);
+    const result = await listWalls();
+    expect(result).toEqual({ ok: true, data: [wall] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/walls', expect.any(Object));
+  });
+
+  it('createWall POSTs the input', async () => {
+    mockFetchOnce(201, wall);
+    const result = await createWall({ slug: 'main-bar', name: 'Main bar' });
+    expect(result).toEqual({ ok: true, data: wall });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/walls');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ slug: 'main-bar', name: 'Main bar' });
+  });
+
+  it('updateWall PATCHes /api/walls/:id with slug/name/config', async () => {
+    mockFetchOnce(200, wall);
+    const result = await updateWall(1, { name: 'Front bar', config: { columns: 3 } });
+    expect(result).toEqual({ ok: true, data: wall });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/walls/1');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ name: 'Front bar', config: { columns: 3 } });
+  });
+
+  it('deleteWall DELETEs /api/walls/:id', async () => {
+    mockFetchOnce(204, null);
+    const result = await deleteWall(1);
+    expect(result).toEqual({ ok: true, data: null });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/walls/1');
+    expect(call[1].method).toBe('DELETE');
   });
 });

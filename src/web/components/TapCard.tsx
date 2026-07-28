@@ -5,35 +5,13 @@ import { LiquidFill } from './LiquidFill';
 import { KickedBadge } from './KickedBadge';
 import { useRelativeTime } from '../lib/useRelativeTime';
 import type { VolumeUnits } from '../lib/units';
+import { FIELD_KEYS, TEMPLATE_DEFAULT_FIELDS, type CardTemplate, type ResolvedFields } from '../lib/cardFields';
 
-export type CardTemplate = 'full' | 'standard' | 'compact' | 'minimal';
-
-const FIELD_KEYS = ['labelImage', 'brewery', 'style', 'description', 'abv', 'ibu', 'lastPour'] as const;
-type FieldKey = typeof FIELD_KEYS[number];
-type ResolvedFields = Record<FieldKey, boolean>;
-
-/**
- * Per-template default field visibility, per the Task 4 plan: `full` (label
- * art + all fields), `standard` (everything full has, minus the
- * description), `compact` (a dense row — just enough to identify the beer),
- * `minimal` (name + liquid only). A wall's `config.fields` overrides
- * individual keys on top of whichever template is active (see
- * `resolveFields`).
- */
-const TEMPLATE_DEFAULT_FIELDS: Record<CardTemplate, ResolvedFields> = {
-  full: {
-    labelImage: true, brewery: true, style: true, description: true, abv: true, ibu: true, lastPour: true,
-  },
-  standard: {
-    labelImage: true, brewery: true, style: true, description: false, abv: true, ibu: true, lastPour: true,
-  },
-  compact: {
-    labelImage: false, brewery: false, style: true, description: false, abv: true, ibu: false, lastPour: false,
-  },
-  minimal: {
-    labelImage: false, brewery: false, style: false, description: false, abv: false, ibu: false, lastPour: false,
-  },
-};
+// Re-exported for existing import sites (e.g. `WallGrid.tsx`'s `import { TapCard, type
+// CardTemplate } from './TapCard'`) — the type itself now lives in `lib/cardFields.ts`
+// alongside `FIELD_KEYS`/`TEMPLATE_DEFAULT_FIELDS`, which the wall editor (Task 7) also
+// needs and shouldn't have to import a component module to get at.
+export type { CardTemplate };
 
 /** Applies a wall's `config.fields` overrides on top of a template's defaults. */
 function resolveFields(template: CardTemplate, overrides?: WallConfig['fields']): ResolvedFields {

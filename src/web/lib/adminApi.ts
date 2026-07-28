@@ -6,6 +6,13 @@ import type { ActivityEvent } from '../../server/db/activity.js';
 import type { SourceStatus } from '../../server/ingest/manager.js';
 import type { Beer, BeerInput } from '../../server/db/beers.js';
 import type { TelemetryPoint } from '../../server/db/telemetry.js';
+// From core/wallConfig.ts, NOT routes/crud.ts — same "type-only import of a routes file
+// drags in its Fastify-augmenting value imports" issue documented above for
+// core/lookupTypes.ts. wallConfig.ts has no imports beyond zod, so it's a safe
+// dependency-free type source for the `Wall` interface below (`routes/crud.ts` types its
+// own `config` field as `unknown`; the client-side type is stricter since every wall
+// PATCH already validates against this exact schema — see `web/lib/wallEditorConfig.ts`).
+import type { WallConfig } from '../../server/core/wallConfig.js';
 // From core/lookupTypes.ts, NOT routes/lookup.ts — see that core module's doc comment:
 // a type-only import of a ROUTES file would drag its Fastify-request-augmenting value
 // imports into this (web) tsconfig's program, where they don't typecheck.
@@ -291,4 +298,34 @@ export function bindMonitor(id: number, tapId: number | null): Promise<ApiResult
  * defaults to 24 server-side when omitted. */
 export function getMonitorTelemetry(id: number, hours = 24): Promise<ApiResult<TelemetryPoint[]>> {
   return request(`/api/monitors/${id}/telemetry?hours=${hours}`);
+}
+
+// --- Task 7: walls (list, editor, live preview) ---
+
+export interface Wall { id: number; slug: string; name: string; config: WallConfig }
+
+export function listWalls(): Promise<ApiResult<Wall[]>> {
+  return request('/api/walls');
+}
+
+/** `config` is left `unknown` on the way IN (the caller — `WallEditor`'s save flow —
+ * always runs it through `wallConfigSchema`/`parseWallConfigForm` first, see
+ * `wallEditorConfig.ts`; re-typing it here would just duplicate that check with a
+ * weaker one). Omitting `config` entirely lets the walls list's "Add wall" form create a
+ * bare wall (server fills schema defaults — see `routes/crud.ts`'s `createWall`). */
+export function createWall(input: { slug: string; name: string; config?: unknown }): Promise<ApiResult<Wall>> {
+  return request('/api/walls', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateWall(
+  id: number,
+  input: { slug?: string; name?: string; config?: unknown },
+): Promise<ApiResult<Wall>> {
+  return request(`/api/walls/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** DELETE /api/walls/:id — 204 on success; the wall's `/wall/:slug` URL stops resolving
+ * immediately (no FK/conflict case today — nothing else references a wall row). */
+export function deleteWall(id: number): Promise<ApiResult<null>> {
+  return request(`/api/walls/${id}`, { method: 'DELETE' });
 }

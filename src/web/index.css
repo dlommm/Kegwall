@@ -1347,6 +1347,14 @@
   color: var(--text-dim);
 }
 
+/* Task 7's "Pages"/"Live preview" section headings reuse this class for the same quiet
+   label look, but as real `<h2>`s (a11y landmark, not just styled text) — this resets
+   the browser's default heading margin/weight so it still reads identically. */
+h2.admin-field__label-text {
+  margin: 0 0 0.3rem;
+  font-weight: 500;
+}
+
 .beer-form__label-row {
   display: flex;
   align-items: center;
@@ -2134,4 +2142,469 @@
 .monitors-row__actions button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/*
+ * Walls page + wall editor (Phase 4 Task 7). The list reuses `.admin-table` (as beers/
+ * monitors do); the delete confirm reuses `.admin-confirm`. Everything below is new:
+ * the URL/copy/open cell, the inline create form, the pages builder, and the full
+ * editor + live-preview split.
+ */
+.walls-table__url {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.walls-table__url-text {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-family: var(--font-mono-numeric, inherit);
+  word-break: break-all;
+}
+
+.walls-table__url button,
+.walls-table__url a {
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.walls-table__url button:hover,
+.walls-table__url a:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.walls-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.walls-table__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.walls-table__actions button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* The inline read-only preview row a click on "Preview" expands under any wall's row. */
+.walls-table__preview-frame {
+  display: block;
+  width: 100%;
+  height: 20rem;
+  margin: 0.5rem 0;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: var(--card-radius, 0.75rem);
+  background: #000;
+}
+
+.wall-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.wall-create-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.85rem;
+}
+
+.wall-create-form__notice {
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.wall-create-form__actions,
+.wall-editor__save-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.wall-create-form__actions button,
+.wall-editor__save-row button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wall-create-form__actions button:last-child {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.wall-create-form__actions button:disabled,
+.wall-editor__save-row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- Wall editor shell: form column + a preview column that stays put alongside it --- */
+.wall-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.wall-editor__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.wall-editor__back {
+  align-self: flex-start;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.wall-editor__back:hover {
+  color: var(--text);
+}
+
+.wall-editor__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.wall-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.85rem;
+}
+
+.wall-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 0.5rem;
+}
+
+.wall-editor__section legend {
+  padding: 0 0.4rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wall-editor__field-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem;
+}
+
+.wall-editor__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wall-editor__tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wall-editor__token-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wall-editor__token-label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-editor__token-row input[type='color'] {
+  width: 2.75rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  cursor: pointer;
+}
+
+.wall-editor__token-row input[type='text'] {
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.wall-editor__token-row button {
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.wall-editor__token-row button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wall-editor__css-textarea {
+  min-height: 6rem;
+  font-family: var(--font-mono-numeric, monospace);
+  font-size: 0.85rem;
+}
+
+/* The mandated inline trust warning next to custom CSS — same warm-attention tint as the
+   "Not bound" monitor nudge and the auth notices, never just quiet gray text. */
+.wall-editor__css-warning {
+  margin-top: -0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.wall-editor__errors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+  list-style: disc;
+  list-style-position: inside;
+}
+
+.wall-editor__live-note {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-editor__preview {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.wall-preview__frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: var(--card-radius, 0.75rem);
+  background: #000;
+}
+
+/* --- Wall pages builder --- */
+.wall-pages-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.wall-pages-builder__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wall-pages-builder__header button {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.wall-page-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.wall-page-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.wall-page-block__title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wall-page-block__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.wall-page-block__actions button {
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.wall-page-block__actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wall-page-block__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+.wall-page-block__label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wall-page-block__membership ul,
+.wall-page-block__order ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-page-block__membership label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wall-page-block__order li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.wall-page-block__order li span {
+  flex: 1;
+}
+
+.wall-page-block__order li button {
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wall-page-block__order li button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Visible keyboard focus for every new Task 7 interactive element. */
+.walls-table__url button:focus-visible,
+.walls-table__url a:focus-visible,
+.walls-table__actions button:focus-visible,
+.wall-create-form__actions button:focus-visible,
+.wall-editor__back:focus-visible,
+.wall-editor__save-row button:focus-visible,
+.wall-editor__token-row button:focus-visible,
+.wall-editor__token-row input:focus-visible,
+.wall-pages-builder__header button:focus-visible,
+.wall-page-block__actions button:focus-visible,
+.wall-page-block__order li button:focus-visible,
+.wall-page-block__membership input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 64rem) {
+  .wall-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .wall-editor__preview {
+    position: static;
+  }
 }
