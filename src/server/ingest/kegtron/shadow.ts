@@ -49,6 +49,13 @@ export interface ParsedPort {
   lastServingMl: number | null;
   dateTapped: string | null;
   enabled: boolean;
+  /** Raw `port-config.labelUrl` (kegtron-pro.v2.yaml ~line 2398) — the packed 64-bit
+   * Untappd label id, `0` when no label is set. Accepted as either a number or a string
+   * (some JSON producers stringify 64-bit ints to dodge JS's 53-bit safe-integer limit;
+   * this field is passed through as-is, not pre-decoded — see `decodeUntappdLabelUrl`
+   * below for the actual URL-reconstruction logic, called from routes/kegtron.ts's Pro
+   * import handler). */
+  labelUrl: number | string | null;
 }
 
 export interface ParsedDevice {
@@ -71,6 +78,10 @@ export interface ParsedDevice {
 const strOrNull = z.string().nullable().catch(null);
 const numOrNull = z.number().nullable().catch(null);
 const numOrZero = z.number().catch(0);
+// See ParsedPort.labelUrl's doc comment — a number OR a numeric-looking string, both
+// tolerated (some JSON producers stringify 64-bit ints to dodge JS's float-precision
+// limit); anything else (missing key, wrong type entirely) degrades to null.
+const numOrStrOrNull = z.union([z.number(), z.string()]).nullable().catch(null);
 
 const portConfigSchema = z.object({
   userName: strOrNull,
@@ -82,6 +93,7 @@ const portConfigSchema = z.object({
   volSize: numOrNull,
   tapLabel: strOrNull,
   state: numOrNull, // 1 = enabled, 0 = disabled (port-config schema, kegtron-pro.v2.yaml ~line 2407)
+  labelUrl: numOrStrOrNull,
 }).passthrough();
 
 const portReadonlySchema = z.object({
@@ -148,6 +160,55 @@ function normalizeDate(v: string | null | undefined): string | null {
 }
 
 /**
+ * Decodes a Kegtron Pro port's `labelUrl` config field (`ParsedPort.labelUrl`) into an
+ * Untappd beer-label image URL. Per docs/kegtron/kegtron-pro.v2.yaml (`port-config`
+ * schema, `labelUrl`, ~line 2398): "Untappd beer label encoded as a 64-bit integer. Upper
+ * 32 bits contain the hex portion of the Untappd image filename; lower 32 bits contain
+ * the decimal portion. 0 = no label set."
+ *
+ * Untappd's beer-logo CDN convention is `beer-<decimal>_<hex>.jpeg` (the decimal segment
+ * is the beer's numeric id; the hex segment a short filename suffix) — this reconstructs
+ * that URL from the two packed halves. Decoded via `BigInt` (not `Number`'s 32-bit-only
+ * bitwise ops) so a genuinely large 64-bit value never silently truncates, even though in
+ * practice the "hex portion" half is small enough that the packed value stays within JS's
+ * safe-integer range.
+ *
+ * NOT verified against a real device or Untappd account: every fixture's `labelUrl` is
+ * `0` (no label configured), so no real packed sample was available while implementing
+ * this. If a real KT-420 turns out to pack the halves in the opposite order, or Untappd's
+ * CDN path has since changed, this will need a follow-up fix once checked against a real
+ * device — flagged the same way this codebase already flags other unverified vendor
+ * behavior (see the Theengs Gen1 payload note in the Phase 3 review ledger). The caller
+ * (`routes/kegtron.ts`'s Pro import handler) treats a failed/garbage download from this
+ * URL as "no label", never as a reason to fail the whole import.
+ *
+ * `baseUrl` defaults to the real Untappd CDN host but is overridable — same hidden,
+ * test-injectable pattern as `settings.kegtronBaseUrl`/`openBreweryBaseUrl`/
+ * `untappdBaseUrl` (see db/settings.ts's `untappdImageBaseUrl`); `routes/kegtron.ts`'s Pro
+ * import handler always passes that settings value, so tests can point it at a local fake
+ * image server instead of the real untappd.akamaized.net.
+ *
+ * Returns `null` for `0`/absent/negative/malformed input; never throws.
+ */
+export function decodeUntappdLabelUrl(
+  labelUrl: number | string | null | undefined,
+  baseUrl = 'https://untappd.akamaized.net',
+): string | null {
+  if (labelUrl === null || labelUrl === undefined) return null;
+  let packed: bigint;
+  try {
+    packed = typeof labelUrl === 'number' ? BigInt(Math.trunc(labelUrl)) : BigInt(labelUrl.trim());
+  } catch {
+    return null;
+  }
+  if (packed <= 0n) return null;
+  const hexPart = (packed >> 32n) & 0xffffffffn;
+  const decPart = packed & 0xffffffffn;
+  if (hexPart === 0n && decPart === 0n) return null;
+  return `${baseUrl}/site/beer_logos/beer-${decPart}_${hexPart.toString(16)}.jpeg`;
+}
+
+/**
  * Tolerant parser for a Kegtron Pro device shadow (mdash.net response body or WebSocket
  * notify payload). Returns null for anything that isn't shaped like a device shadow;
  * never throws. Missing/malformed ports, config keys, or device-level fields degrade to
@@ -185,6 +246,7 @@ export function parseDeviceShadow(shadow: unknown): ParsedDevice | null {
       lastServingMl: ro?.lastServing ?? null,
       dateTapped: normalizeDate(ro?.dateTapped),
       enabled: cfg?.state !== 0,
+      labelUrl: cfg?.labelUrl ?? null,
     });
   }
 
@@ -241,6 +303,18 @@ export function diffToEvents(
             ibu: port.ibu,
             srm: port.srm,
             volSizeMl: port.volSizeMl,
+            // Phase 5 Task 0 spec-parity item: firmware + online state, stamped once at
+            // discovery (this branch only fires on FIRST sight of the device — see the
+            // `prev === null` guard) so the Monitors admin page can show them straight
+            // off `monitors.meta` (GET /api/monitors) without an extra live RPC round-
+            // trip. This is a snapshot as of the device's last (re)discovery — a fresh
+            // process start, or the first shadow read after this device drops out of
+            // and back into the cloud source's in-memory cache — not continuously kept
+            // live thereafter; a WiFi-RSSI-style on-demand refresh RPC exists for
+            // "is it online RIGHT NOW" (see routes/kegtron.ts's wifi-rssi endpoint —
+            // a successful call to ANY RPC is itself proof the device just answered).
+            fw: next.fw,
+            online: next.online,
           },
         },
       });

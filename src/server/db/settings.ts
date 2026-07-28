@@ -24,6 +24,11 @@ export const settingsSchema = z.object({
   // credential lives in either URL) and neither is surfaced in any settings form.
   openBreweryBaseUrl: z.string().default('https://api.openbrewerydb.org'),
   untappdBaseUrl: z.string().default('https://api.untappd.com'),
+  // Same hidden, test-injectable pattern as the two above — the CDN host
+  // `decodeUntappdLabelUrl` (ingest/kegtron/shadow.ts) reconstructs a Pro import's label
+  // image URL against (Phase 5 Task 0's labelUrl-decode spec-parity item). Not a secret;
+  // no admin UI form.
+  untappdImageBaseUrl: z.string().default('https://untappd.akamaized.net'),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.

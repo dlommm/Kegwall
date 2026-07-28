@@ -119,10 +119,18 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                            // root instance, same reasoning as above
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
-  await kegtronRoutes(app); // direct call — see encapsulation note above
+  const dataDir = resolve(opts.dataDir ?? './data');
+  // kegtronRoutes' Pro import handler downloads a decoded labelUrl through the same
+  // SSRF-guarded path lookupRoutes uses (Phase 5 Task 0) — needs `dataDir` (for the
+  // labels directory) and the same test-injectable SSRF options, so it's registered
+  // here, after `dataDir` is resolved, rather than at its old spot above.
+  await kegtronRoutes(app, dataDir, {
+    timeoutMs: opts.lookupTimeoutMs,
+    resolveHost: opts.lookupResolveHost,
+    allowInsecureHosts: opts.lookupAllowInsecureHosts,
+  }); // direct call — see encapsulation note above
   await activityRoutes(app); // direct call — see encapsulation note above
   await statsRoutes(app);    // direct call — see encapsulation note above
-  const dataDir = resolve(opts.dataDir ?? './data');
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering
   await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above

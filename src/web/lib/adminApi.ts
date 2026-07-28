@@ -158,6 +158,22 @@ export function getPoursSince(sinceIso: string): Promise<ApiResult<Pour[]>> {
   return request(`/api/pours?since=${encodeURIComponent(sinceIso)}&limit=2000`);
 }
 
+// --- Phase 5 Task 0: admin pours management (reassign/unclaim + per-tap default drinker) ---
+
+/** GET /api/pours?limit=100 — the pours admin page's "recent 100" table (viewer role for
+ * the read; reassign/unclaim below is what's editor-gated). Newest first (see
+ * `listPours`, db/pours.ts). */
+export function listRecentPours(): Promise<ApiResult<Pour[]>> {
+  return request('/api/pours?limit=100');
+}
+
+/** PATCH /api/pours/:id/drinker — editor-role admin reassign/unclaim (`drinkerId: null`
+ * unclaims). Unlike the public claim flow, this always overrides any existing claim —
+ * see routes/crud.ts's doc comment on the route. */
+export function setPourDrinker(pourId: number, drinkerId: number | null): Promise<ApiResult<Pour>> {
+  return request(`/api/pours/${pourId}/drinker`, { method: 'PATCH', body: JSON.stringify({ drinkerId }) });
+}
+
 // --- Task 4: beers + lookup services ---
 
 export function listBeers(): Promise<ApiResult<Beer[]>> {
@@ -217,12 +233,14 @@ export function listTaps(): Promise<ApiResult<Tap[]>> {
   return request('/api/taps');
 }
 
-export function createTap(input: { number: number; name?: string | null }): Promise<ApiResult<Tap>> {
+export function createTap(
+  input: { number: number; name?: string | null; defaultDrinkerId?: number | null },
+): Promise<ApiResult<Tap>> {
   return request('/api/taps', { method: 'POST', body: JSON.stringify(input) });
 }
 
 export function updateTap(
-  id: number, input: { number?: number; name?: string | null },
+  id: number, input: { number?: number; name?: string | null; defaultDrinkerId?: number | null },
 ): Promise<ApiResult<Tap>> {
   return request(`/api/taps/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
@@ -307,6 +325,15 @@ export function bindMonitor(id: number, tapId: number | null): Promise<ApiResult
  * defaults to 24 server-side when omitted. */
 export function getMonitorTelemetry(id: number, hours = 24): Promise<ApiResult<TelemetryPoint[]>> {
   return request(`/api/monitors/${id}/telemetry?hours=${hours}`);
+}
+
+/** POST /api/kegtron/wifi-rssi/:monitorId — a live Kegtron.GetWiFiRssi RPC round-trip
+ * (editor role, matching every other kegtron.ts RPC bridge) for a bound Pro monitor's
+ * WiFi signal strength in dBm; the Monitors page's Pro detail panel button (Phase 5 Task
+ * 0). A 502 (device unreachable / mdash error) is the expected "gentle" failure mode —
+ * same shape as `resetKegtronVolume` above. */
+export function getMonitorWifiRssi(monitorId: number): Promise<ApiResult<{ rssi: number }>> {
+  return request(`/api/kegtron/wifi-rssi/${monitorId}`, { method: 'POST' });
 }
 
 // --- Task 7: walls (list, editor, live preview) ---

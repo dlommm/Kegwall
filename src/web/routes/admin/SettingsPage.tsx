@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { Settings } from '../../../server/db/settings.js';
-import { getSettings, patchSettings } from '../../lib/adminApi';
+// A real VALUE import (not type-only) of a server `core/` module — see that file's doc
+// comment for why this is safe under tsconfig.web.json (a dependency-free module, only a
+// type import of db/settings.ts) and why it replaces what used to be a hand-duplicated
+// local copy of this same constant.
+import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
+import { getSettings, patchSettings, uploadLabel } from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
 
 /**
@@ -21,18 +26,6 @@ const MQTT_DEFAULTS = {
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegtron-dashboard',
 };
-
-/**
- * Settings keys whose value changing makes the server tear down and restart the live
- * ingest sources — kept by hand in sync with `routes/crud.ts`'s own (non-exported)
- * `SOURCE_RESTART_KEYS`. That file can't be imported here even type-only: it's a routes
- * module with Fastify request/reply augmentations that don't typecheck in
- * `tsconfig.web.json`'s program (see `core/lookupTypes.ts`'s doc comment for the same
- * issue elsewhere).
- */
-const SOURCE_RESTART_KEYS: readonly (keyof Settings)[] = [
-  'kegtronApiKey', 'udpEnabled', 'mqtt', 'bleDirectEnabled',
-];
 
 function triggersRestart(patch: Partial<Settings>): boolean {
   return Object.keys(patch).some((k) => SOURCE_RESTART_KEYS.includes(k as keyof Settings));
@@ -96,17 +89,42 @@ function MaskedSecretField({
   );
 }
 
-/** Site group (Task 8): siteName + displayUnits — the two fields the plan scopes to this
- * group. `siteLogo` and `servingSizeMl` are real settings keys with no admin UI form yet
- * (no logo-upload flow exists in this phase, and no page surfaces a serving-size editor)
- * — left untouched here rather than half-building unrequested UI for them. */
+/** Site group (Task 8; Phase 5 Task 0 adds `siteLogo` upload + `servingSizeMl`):
+ * siteName, displayUnits, a site logo (reuses the beers-form label-upload infra — same
+ * generic `POST /api/uploads/label` endpoint, same stored-path convention), and the
+ * default serving size (mL) used to estimate remaining servings. Nothing else in the
+ * admin UI renders `siteLogo` yet (no consumer was in scope for this change — see the
+ * Phase 4 final review's framing of this as "a two-sided gap"; this closes the upload
+ * side only), same as `servingSizeMl` not yet feeding any estimate elsewhere. */
 function SiteGroup({ settings, onSaved }: GroupProps) {
   const [siteName, setSiteName] = useState(settings.siteName);
   const [displayUnits, setDisplayUnits] = useState(settings.displayUnits);
+  const [siteLogo, setSiteLogo] = useState(settings.siteLogo);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [servingSizeMl, setServingSizeMl] = useState(String(settings.servingSizeMl));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dirty = siteName !== settings.siteName || displayUnits !== settings.displayUnits;
+  const dirty = siteName !== settings.siteName
+    || displayUnits !== settings.displayUnits
+    || siteLogo !== settings.siteLogo
+    || servingSizeMl !== String(settings.servingSizeMl);
+
+  async function handleLogoFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // lets the same file be re-selected later (e.g. after an error)
+    if (!file) return;
+    setLogoError(null);
+    setLogoBusy(true);
+    const result = await uploadLabel(file);
+    setLogoBusy(false);
+    if (result.ok) {
+      setSiteLogo(result.data.path);
+    } else {
+      setLogoError(result.message);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -115,11 +133,18 @@ function SiteGroup({ settings, onSaved }: GroupProps) {
       setError('Site name is required.');
       return;
     }
+    const servingSize = Number(servingSizeMl.trim());
+    if (!Number.isInteger(servingSize) || servingSize <= 0) {
+      setError('Serving size must be a whole number of mL greater than 0.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     const patch: Partial<Settings> = {};
     if (siteName !== settings.siteName) patch.siteName = siteName.trim();
     if (displayUnits !== settings.displayUnits) patch.displayUnits = displayUnits;
+    if (siteLogo !== settings.siteLogo) patch.siteLogo = siteLogo;
+    if (servingSize !== settings.servingSizeMl) patch.servingSizeMl = servingSize;
     const result = await patchSettings(patch);
     setSubmitting(false);
     if (!result.ok) {
@@ -153,7 +178,62 @@ function SiteGroup({ settings, onSaved }: GroupProps) {
             <option value="metric">Metric (mL, °C)</option>
           </select>
         </label>
+        <label className="admin-field">
+          <span>Default serving size (mL)</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            data-testid="settings-site-serving-size"
+            value={servingSizeMl}
+            onChange={(e) => setServingSizeMl(e.target.value)}
+          />
+        </label>
       </div>
+
+      <div className="beer-form__label">
+        <span className="admin-field__label-text">Site logo</span>
+        <div className="beer-form__label-row">
+          {siteLogo ? (
+            <img
+              src={siteLogo}
+              alt=""
+              className="beer-form__label-thumb"
+              data-testid="settings-site-logo-thumb"
+            />
+          ) : (
+            <span className="beer-form__label-placeholder" data-testid="settings-site-logo-placeholder">
+              No logo
+            </span>
+          )}
+
+          <label className="beer-form__upload-button">
+            {logoBusy ? 'Uploading…' : 'Upload logo'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              data-testid="settings-site-logo-file"
+              onChange={handleLogoFileChange}
+              disabled={logoBusy}
+              hidden
+            />
+          </label>
+
+          {siteLogo && (
+            <button
+              type="button"
+              className="beer-form__label-clear"
+              data-testid="settings-site-logo-clear"
+              onClick={() => setSiteLogo(null)}
+            >
+              Remove logo
+            </button>
+          )}
+        </div>
+        {logoError && (
+          <p className="beer-form__notice" role="alert" data-testid="settings-site-logo-error">{logoError}</p>
+        )}
+      </div>
+
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-site-error">{error}</p>}
       <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-site-save">
         {submitting ? 'Saving…' : 'Save changes'}

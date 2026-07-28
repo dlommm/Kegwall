@@ -4,12 +4,13 @@ import {
 import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPage } from '../../../src/web/routes/admin/SettingsPage';
-import { getSettings, patchSettings } from '../../../src/web/lib/adminApi';
+import { getSettings, patchSettings, uploadLabel } from '../../../src/web/lib/adminApi';
 import type { Settings } from '../../../src/server/db/settings';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   getSettings: vi.fn(),
   patchSettings: vi.fn(),
+  uploadLabel: vi.fn(),
 }));
 
 vi.mock('../../../src/web/routes/admin/BackupPanel', () => ({
@@ -33,6 +34,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     kegtronBaseUrl: 'https://mdash.net',
     openBreweryBaseUrl: 'https://api.openbrewerydb.org',
     untappdBaseUrl: 'https://api.untappd.com',
+    untappdImageBaseUrl: 'https://untappd.akamaized.net',
     backfillCursors: {},
     udpEnabled: false,
     bleDirectEnabled: false,
@@ -114,6 +116,72 @@ describe('SettingsPage', () => {
 
       expect(screen.getByTestId('settings-saved-notice')).toBeInTheDocument();
       expect(screen.queryByTestId('settings-restart-notice')).not.toBeInTheDocument();
+    });
+
+    it('changing serving size marks the form dirty and PATCHes only servingSizeMl', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ servingSizeMl: 473 }) });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ servingSizeMl: 355 }) });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-site');
+
+      expect(screen.getByTestId('settings-site-serving-size')).toHaveValue('473');
+      expect(screen.getByTestId('settings-site-save')).toBeDisabled();
+
+      fireEvent.change(screen.getByTestId('settings-site-serving-size'), { target: { value: '355' } });
+      expect(screen.getByTestId('settings-site-save')).not.toBeDisabled();
+      fireEvent.click(screen.getByTestId('settings-site-save'));
+      await flush();
+
+      expect(patchSettings).toHaveBeenCalledWith({ servingSizeMl: 355 });
+    });
+
+    it('rejects a non-positive serving size without submitting', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-site');
+
+      fireEvent.change(screen.getByTestId('settings-site-serving-size'), { target: { value: '0' } });
+      fireEvent.click(screen.getByTestId('settings-site-save'));
+      await flush();
+
+      expect(screen.getByTestId('settings-site-error')).toHaveTextContent(/serving size/i);
+      expect(patchSettings).not.toHaveBeenCalled();
+    });
+
+    it('uploading a site logo stores the returned path and PATCHes siteLogo on save', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ siteLogo: null }) });
+      (uploadLabel as Mock).mockResolvedValue({ ok: true, data: { path: '/labels/logo-1.png' } });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ siteLogo: '/labels/logo-1.png' }) });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-site');
+
+      expect(screen.getByTestId('settings-site-logo-placeholder')).toBeInTheDocument();
+      const file = new File(['x'], 'logo.png', { type: 'image/png' });
+      fireEvent.change(screen.getByTestId('settings-site-logo-file'), { target: { files: [file] } });
+      await flush();
+
+      expect(uploadLabel).toHaveBeenCalledWith(file);
+      expect(screen.getByTestId('settings-site-logo-thumb')).toHaveAttribute('src', '/labels/logo-1.png');
+      expect(screen.getByTestId('settings-site-save')).not.toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('settings-site-save'));
+      await flush();
+      expect(patchSettings).toHaveBeenCalledWith({ siteLogo: '/labels/logo-1.png' });
+    });
+
+    it('removing an existing logo clears it and PATCHes siteLogo: null', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ siteLogo: '/labels/existing.png' }) });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ siteLogo: null }) });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-site');
+
+      expect(screen.getByTestId('settings-site-logo-thumb')).toHaveAttribute('src', '/labels/existing.png');
+      fireEvent.click(screen.getByTestId('settings-site-logo-clear'));
+      expect(screen.getByTestId('settings-site-save')).not.toBeDisabled();
+
+      fireEvent.click(screen.getByTestId('settings-site-save'));
+      await flush();
+      expect(patchSettings).toHaveBeenCalledWith({ siteLogo: null });
     });
   });
 

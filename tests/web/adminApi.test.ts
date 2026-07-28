@@ -9,11 +9,13 @@ import {
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
+  getMonitorWifiRssi,
   listWalls, createWall, updateWall, deleteWall,
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
   getSettings, patchSettings, uploadRestore,
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard,
+  listRecentPours, setPourDrinker,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -249,7 +251,7 @@ describe('admin api client', () => {
 
   // --- Task 5: taps & kegs ---
 
-  const tap = { id: 1, number: 1, name: 'Left' };
+  const tap = { id: 1, number: 1, name: 'Left', defaultDrinkerId: null };
   const keg = {
     id: 5, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
     dateTapped: null, status: 'on_tap', createdAt: '2026-07-28T00:00:00.000Z',
@@ -279,6 +281,16 @@ describe('admin api client', () => {
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(call[0]).toBe('/api/taps/1');
     expect(call[1].method).toBe('PATCH');
+  });
+
+  it('createTap/updateTap forward defaultDrinkerId (Phase 5 Task 0)', async () => {
+    mockFetchOnce(201, { ...tap, defaultDrinkerId: 9 });
+    await createTap({ number: 1, defaultDrinkerId: 9 });
+    expect(JSON.parse((globalThis.fetch as Mock).mock.calls[0]![1].body)).toEqual({ number: 1, defaultDrinkerId: 9 });
+
+    mockFetchOnce(200, { ...tap, defaultDrinkerId: null });
+    await updateTap(1, { defaultDrinkerId: null });
+    expect(JSON.parse((globalThis.fetch as Mock).mock.calls[1]![1].body)).toEqual({ defaultDrinkerId: null });
   });
 
   it('deleteTap DELETEs /api/taps/:id and reports a 409 conflict', async () => {
@@ -416,6 +428,15 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getMonitorTelemetry(1, 48);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=48', expect.any(Object));
+  });
+
+  it('getMonitorWifiRssi POSTs /api/kegtron/wifi-rssi/:monitorId (Phase 5 Task 0)', async () => {
+    mockFetchOnce(200, { rssi: -52 });
+    const result = await getMonitorWifiRssi(1);
+    expect(result).toEqual({ ok: true, data: { rssi: -52 } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegtron/wifi-rssi/1');
+    expect(call[1].method).toBe('POST');
   });
 
   // --- Task 7: walls ---
@@ -617,5 +638,43 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getLeaderboard('month');
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/leaderboard?window=month', expect.any(Object));
+  });
+
+  // --- Phase 5 Task 0: pours admin (reassign/unclaim) ---
+
+  it('listRecentPours GETs /api/pours?limit=100', async () => {
+    const pour = {
+      id: 1, kegId: 1, ts: '2026-07-28T00:00:00.000Z', volumeMl: 400,
+      durationMs: null, source: 'cloud', drinkerId: null,
+    };
+    mockFetchOnce(200, [pour]);
+    const result = await listRecentPours();
+    expect(result).toEqual({ ok: true, data: [pour] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/pours?limit=100', expect.any(Object));
+  });
+
+  it('setPourDrinker PATCHes /api/pours/:id/drinker', async () => {
+    const pour = {
+      id: 1, kegId: 1, ts: '2026-07-28T00:00:00.000Z', volumeMl: 400,
+      durationMs: null, source: 'cloud', drinkerId: 9,
+    };
+    mockFetchOnce(200, pour);
+    const result = await setPourDrinker(1, 9);
+    expect(result).toEqual({ ok: true, data: pour });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/pours/1/drinker');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ drinkerId: 9 });
+  });
+
+  it('setPourDrinker(id, null) unclaims', async () => {
+    const pour = {
+      id: 1, kegId: 1, ts: '2026-07-28T00:00:00.000Z', volumeMl: 400,
+      durationMs: null, source: 'cloud', drinkerId: null,
+    };
+    mockFetchOnce(200, pour);
+    await setPourDrinker(1, null);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(JSON.parse(call[1].body)).toEqual({ drinkerId: null });
   });
 });
