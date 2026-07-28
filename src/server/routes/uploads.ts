@@ -5,7 +5,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireRole } from './auth.js';
 
-const MAX_BYTES = 5 * 1024 * 1024;
+/** 5MB cap, shared with Task 4's `routes/lookup.ts` Untappd label download (which
+ * bounds its own streamed read against this same constant — see that file). */
+export const MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * Magic-byte sniffers for the three label formats we accept — deliberately NOT trusting
@@ -27,8 +29,23 @@ const SIGNATURES: { ext: 'png' | 'jpg' | 'webp'; matches: (b: Buffer) => boolean
   },
 ];
 
-function detectExt(buf: Buffer): string | null {
+/** Exported for `routes/lookup.ts`'s Untappd label import, which reuses the exact same
+ * magic-byte sniffing on a server-downloaded buffer instead of a multipart upload. */
+export function detectExt(buf: Buffer): string | null {
   return SIGNATURES.find((s) => s.matches(buf))?.ext ?? null;
+}
+
+/** Validates `buf` by magic bytes and, if it's a supported image, writes it to
+ * `<labelsDir>/<uuid>.<ext>` and returns the `/labels/...` path the client should store as
+ * `labelImage`. Returns `null` (writes nothing) for an unsupported/undetectable type.
+ * Shared by this module's multipart upload handler and `routes/lookup.ts`'s Untappd
+ * label-download handler — one place owns "what counts as a valid stored label". */
+export function writeLabelFile(labelsDir: string, buf: Buffer): string | null {
+  const ext = detectExt(buf);
+  if (!ext) return null;
+  const filename = `${randomUUID()}.${ext}`;
+  writeFileSync(join(labelsDir, filename), buf);
+  return `/labels/${filename}`;
 }
 
 /** `POST /api/uploads/label` — editor-role image upload used by the beers form (Task 4)
@@ -65,16 +82,14 @@ export async function uploadsRoutes(app: FastifyInstance, dataDir: string) {
       throw err;
     }
 
-    const ext = detectExt(buf);
-    if (!ext) {
+    const path = writeLabelFile(labelsDir, buf);
+    if (!path) {
       return reply.code(400).send({
         error: 'validation',
         message: 'Unsupported file type — labels must be PNG, JPEG, or WebP',
       });
     }
 
-    const filename = `${randomUUID()}.${ext}`;
-    writeFileSync(join(labelsDir, filename), buf);
-    return reply.code(201).send({ path: `/labels/${filename}` });
+    return reply.code(201).send({ path });
   });
 }

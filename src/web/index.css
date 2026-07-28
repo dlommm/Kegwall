@@ -1168,3 +1168,482 @@
   color: var(--text-dim);
   font-size: 0.75rem;
 }
+
+/*
+ * Beers page (Phase 4 Task 4) — the catalog table, the create/edit form (BeerForm), the
+ * brewery autocomplete, and the Untappd search sheet. Reuses the admin shell's quiet
+ * working-tool language; the SRM chip/swatch is the one place liquid/SRM color reappears
+ * here, per the binding design direction — a small dot, never a full LiquidFill.
+ */
+.admin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-page-header__title {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-page-header__action {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-page-quiet {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table th {
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.admin-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.beers-table__thumb {
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.35rem;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.beers-table__thumb--empty {
+  border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.beers-table__srm-chip {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.beers-table__actions {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.beers-table__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.beers-table__actions button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* The beer create/edit form. */
+.beer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.beer-form__title {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.beer-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.admin-field--full {
+  grid-column: 1 / -1;
+}
+
+.admin-field input[type='text'],
+.admin-field textarea,
+.brewery-autocomplete input {
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.admin-field textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.beer-form__srm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.beer-form__srm-swatch {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.admin-field__label-text {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.beer-form__label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.beer-form__label-thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.beer-form__label-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.4rem;
+  border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  text-align: center;
+}
+
+.beer-form__upload-button,
+.beer-form__untappd-button,
+.beer-form__label-clear {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.beer-form__upload-button:hover,
+.beer-form__untappd-button:hover,
+.beer-form__label-clear:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.beer-form__notice {
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.beer-form__actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.beer-form__submit {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.beer-form__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.beer-form__cancel {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Brewery autocomplete dropdown. */
+.brewery-autocomplete {
+  position: relative;
+}
+
+.brewery-autocomplete__list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: var(--surface);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+.brewery-autocomplete__option {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.brewery-autocomplete__option:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.brewery-autocomplete__meta {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+/* Untappd search sheet. */
+.untappd-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.untappd-sheet {
+  display: flex;
+  width: 100%;
+  max-width: 28rem;
+  max-height: 80vh;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+
+.untappd-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.untappd-sheet__title {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.untappd-sheet__dismiss {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.untappd-sheet__search {
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.untappd-sheet__status {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.untappd-sheet__notice {
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.untappd-sheet__results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+}
+
+.untappd-sheet__result {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.untappd-sheet__result:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.untappd-sheet__result:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.untappd-sheet__result-meta,
+.untappd-sheet__result-stats {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.untappd-sheet__importing {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+/* Delete confirmation — always a full consequence sentence, never a bare "are you sure?"
+   per the binding design direction. */
+.admin-confirm__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.admin-confirm {
+  display: flex;
+  width: 100%;
+  max-width: 24rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
+
+.admin-confirm__actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.admin-confirm__actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.admin-confirm__actions button:first-child {
+  border: none;
+  background: #c94b3f;
+  color: #fff;
+}
+
+/* Visible keyboard focus everywhere, per the design direction. */
+.admin-page-header__action:focus-visible,
+.admin-table button:focus-visible,
+.admin-field input:focus-visible,
+.admin-field textarea:focus-visible,
+.brewery-autocomplete input:focus-visible,
+.brewery-autocomplete__option:focus-visible,
+.beer-form__upload-button:focus-within,
+.beer-form__untappd-button:focus-visible,
+.beer-form__label-clear:focus-visible,
+.beer-form__submit:focus-visible,
+.beer-form__cancel:focus-visible,
+.untappd-sheet__dismiss:focus-visible,
+.untappd-sheet__search:focus-visible,
+.untappd-sheet__result:focus-visible,
+.admin-confirm__actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -18,6 +18,12 @@ export const settingsSchema = z.object({
   // reads this key (KegtronCloudSource is wired with no baseUrl override in bootstrap.ts
   // and so always uses that same default too).
   kegtronBaseUrl: z.string().default('https://mdash.net'),
+  // Same hidden, test-injectable pattern as `kegtronBaseUrl` above — Task 4's
+  // routes/lookup.ts proxies Open Brewery DB and Untappd from real production defaults
+  // here, but tests point these at a local fake server instead. Neither is a secret (no
+  // credential lives in either URL) and neither is surfaced in any settings form.
+  openBreweryBaseUrl: z.string().default('https://api.openbrewerydb.org'),
+  untappdBaseUrl: z.string().default('https://api.untappd.com'),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.

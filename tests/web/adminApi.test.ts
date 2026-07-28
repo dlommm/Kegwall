@@ -4,6 +4,8 @@ import {
 import type { Mock } from 'vitest';
 import {
   needsSetup, login, logout, getMe, setup,
+  listBeers, createBeer, updateBeer, deleteBeer,
+  lookupBreweries, lookupUntappd, importUntappdLabel, uploadLabel,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -149,5 +151,91 @@ describe('admin api client', () => {
       expect(result.message).toContain('Failed to fetch');
     }
     expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  // --- Task 4: beers + lookup services ---
+
+  const beer = {
+    id: 1, name: 'Citra IPA', brewery: 'Test Brewery', style: 'IPA', abv: 6.5, ibu: 60,
+    srm: 6, description: null, labelImage: null, createdAt: '2026-07-28T00:00:00.000Z',
+  };
+
+  it('listBeers GETs /api/beers', async () => {
+    mockFetchOnce(200, [beer]);
+    const result = await listBeers();
+    expect(result).toEqual({ ok: true, data: [beer] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/beers', expect.any(Object));
+  });
+
+  it('createBeer POSTs the input and parses the created beer', async () => {
+    mockFetchOnce(201, beer);
+    const result = await createBeer({ name: 'Citra IPA' });
+    expect(result).toEqual({ ok: true, data: beer });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/beers');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ name: 'Citra IPA' });
+  });
+
+  it('updateBeer PATCHes /api/beers/:id', async () => {
+    mockFetchOnce(200, beer);
+    const result = await updateBeer(1, { abv: 7 });
+    expect(result).toEqual({ ok: true, data: beer });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/beers/1');
+    expect(call[1].method).toBe('PATCH');
+  });
+
+  it('deleteBeer DELETEs /api/beers/:id and reports a 409 conflict', async () => {
+    mockFetchOnce(409, { error: 'conflict', message: 'beer 1 is referenced by 1 keg(s)' });
+    const result = await deleteBeer(1);
+    expect(result).toEqual({ ok: false, status: 409, message: 'beer 1 is referenced by 1 keg(s)' });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/beers/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('lookupBreweries GETs /api/lookup/breweries with an encoded query', async () => {
+    mockFetchOnce(200, [{ name: 'Modern Brew Co', city: 'Portland', state: 'Oregon' }]);
+    const result = await lookupBreweries('modern brew');
+    expect(result.ok).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/lookup/breweries?q=modern%20brew', expect.any(Object));
+  });
+
+  it('lookupUntappd reports a typed 501 when Untappd is not configured', async () => {
+    mockFetchOnce(501, { error: 'not_configured', message: 'Untappd is not configured' });
+    const result = await lookupUntappd('citra');
+    expect(result).toEqual({ ok: false, status: 501, message: 'Untappd is not configured' });
+  });
+
+  it('lookupUntappd parses results when configured', async () => {
+    const hit = {
+      name: 'Citra IPA', brewery: 'Test Brewery', style: 'IPA', abv: 6.5, ibu: 60, labelUrl: 'https://x/label.png',
+    };
+    mockFetchOnce(200, [hit]);
+    const result = await lookupUntappd('citra');
+    expect(result).toEqual({ ok: true, data: [hit] });
+  });
+
+  it('importUntappdLabel POSTs the labelUrl and parses the stored path', async () => {
+    mockFetchOnce(201, { path: '/labels/abc.png' });
+    const result = await importUntappdLabel('https://x/label.png');
+    expect(result).toEqual({ ok: true, data: { path: '/labels/abc.png' } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/lookup/untappd/import');
+    expect(JSON.parse(call[1].body)).toEqual({ labelUrl: 'https://x/label.png' });
+  });
+
+  it('uploadLabel sends a FormData body without forcing a JSON content-type header', async () => {
+    mockFetchOnce(201, { path: '/labels/xyz.jpg' });
+    const file = new File(['fake-bytes'], 'label.jpg', { type: 'image/jpeg' });
+    const result = await uploadLabel(file);
+    expect(result).toEqual({ ok: true, data: { path: '/labels/xyz.jpg' } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/uploads/label');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].body).toBeInstanceOf(FormData);
+    expect(call[1].body.get('file')).toBe(file);
+    expect(call[1].headers['Content-Type']).toBeUndefined();
   });
 });

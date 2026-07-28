@@ -13,6 +13,7 @@ import { sourcesRoutes } from './routes/sources.js';
 import { kegtronRoutes } from './routes/kegtron.js';
 import { activityRoutes } from './routes/activity.js';
 import { uploadsRoutes } from './routes/uploads.js';
+import { lookupRoutes } from './routes/lookup.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 
@@ -62,6 +63,9 @@ export interface AppOptions {
   startSources?: boolean;
   /** Overrides the `/ws` heartbeat interval (default 30s) — tests only; see `wsRoutes`. */
   wsPingIntervalMs?: number;
+  /** Overrides `routes/lookup.ts`'s upstream fetch timeout (default 5s) — tests only,
+   * same pattern as `wsPingIntervalMs` above / MdashClient's `timeoutMs`. */
+  lookupTimeoutMs?: number;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
@@ -112,6 +116,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering
   await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above
+  await lookupRoutes(app, dataDir, { timeoutMs: opts.lookupTimeoutMs }); // direct call —
+                                           // see encapsulation note above; must also run
+                                           // before staticRoutes, like every route module
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

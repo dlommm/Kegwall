@@ -2,6 +2,11 @@ import type { User } from '../../server/db/users.js';
 import type { Pour } from '../../server/db/kegs.js';
 import type { ActivityEvent } from '../../server/db/activity.js';
 import type { SourceStatus } from '../../server/ingest/manager.js';
+import type { Beer, BeerInput } from '../../server/db/beers.js';
+// From core/lookupTypes.ts, NOT routes/lookup.ts — see that core module's doc comment:
+// a type-only import of a ROUTES file would drag its Fastify-request-augmenting value
+// imports into this (web) tsconfig's program, where they don't typecheck.
+import type { BreweryLookupResult, UntappdLookupResult } from '../../server/core/lookupTypes.js';
 
 /**
  * The authed variant of `./api.ts`'s typed-result fetch pattern (see that file's doc
@@ -50,7 +55,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
       // Explicit even though same-origin is fetch's spec default — this call always
       // needs the session cookie, so the intent shouldn't rely on an implicit default.
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      // A FormData body (Task 4's uploadLabel) must NOT get a 'Content-Type:
+      // application/json' header — the browser sets its own 'multipart/form-data;
+      // boundary=...' for FormData, and stamping application/json over it would break
+      // the upload server-side. Every other caller keeps today's exact behavior.
+      headers: {
+        ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(init?.headers ?? {}),
+      },
     });
   } catch (err) {
     return {
@@ -125,4 +137,57 @@ export function getSources(): Promise<ApiResult<SourceStatus[]>> {
  * of pours is never silently truncated. */
 export function getPoursSince(sinceIso: string): Promise<ApiResult<Pour[]>> {
   return request(`/api/pours?since=${encodeURIComponent(sinceIso)}&limit=2000`);
+}
+
+// --- Task 4: beers + lookup services ---
+
+export function listBeers(): Promise<ApiResult<Beer[]>> {
+  return request('/api/beers');
+}
+
+export function createBeer(input: BeerInput): Promise<ApiResult<Beer>> {
+  return request('/api/beers', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateBeer(id: number, input: Partial<BeerInput>): Promise<ApiResult<Beer>> {
+  return request(`/api/beers/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** DELETE /api/beers/:id — 204 no-content on success; 409 (`ApiFailure`, `status: 409`)
+ * when the beer is still referenced by a keg (see db/beers.ts's `deleteBeer`). */
+export function deleteBeer(id: number): Promise<ApiResult<null>> {
+  return request(`/api/beers/${id}`, { method: 'DELETE' });
+}
+
+/** GET /api/lookup/breweries?q= — the beers form's brewery autocomplete. An empty `q`
+ * still round-trips cleanly (server returns `[]` without calling the upstream service). */
+export function lookupBreweries(q: string): Promise<ApiResult<BreweryLookupResult[]>> {
+  return request(`/api/lookup/breweries?q=${encodeURIComponent(q)}`);
+}
+
+/** GET /api/lookup/untappd?q= — 501 `{error:'not_configured'}` (surfaced as
+ * `ApiFailure` with `status: 501`) when Untappd creds aren't set; the Untappd search
+ * sheet uses an empty `q` call as its own "is this even configured?" probe, since that
+ * still 501s without needing a real search term. */
+export function lookupUntappd(q: string): Promise<ApiResult<UntappdLookupResult[]>> {
+  return request(`/api/lookup/untappd?q=${encodeURIComponent(q)}`);
+}
+
+/** POST /api/lookup/untappd/import — downloads `labelUrl` server-side into DATA_DIR/labels
+ * and returns its stored `/labels/...` path; the beers form never renders the raw Untappd
+ * CDN URL directly (see UntappdSearchSheet). */
+export function importUntappdLabel(labelUrl: string): Promise<ApiResult<{ path: string }>> {
+  return request('/api/lookup/untappd/import', {
+    method: 'POST',
+    body: JSON.stringify({ labelUrl }),
+  });
+}
+
+/** POST /api/uploads/label — multipart file upload (Task 1); returns the stored
+ * `/labels/...` path. Sends a real `FormData` body — see `request()`'s Content-Type
+ * handling above for why that must NOT get a `application/json` header. */
+export function uploadLabel(file: File): Promise<ApiResult<{ path: string }>> {
+  const form = new FormData();
+  form.append('file', file);
+  return request('/api/uploads/label', { method: 'POST', body: form });
 }
