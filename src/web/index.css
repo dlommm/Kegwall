@@ -276,11 +276,21 @@
    Tailwind utilities for these two pre-theme-load states (see its own comment for why:
    there's no wall config yet to mount ThemeProvider's CSS-variable tokens with). */
 
-/* ScreenCare: the drift wrapper needs a smooth transition, and full height so the grid
-   beneath it keeps filling the viewport as it nudges by a css pixel. */
+/* ScreenCare: full height so the grid beneath it keeps filling the viewport as it
+   nudges by a css pixel (see the reduced-motion-gated transition just below). */
 .screen-care {
   min-height: 100vh;
-  transition: transform 2s ease;
+}
+
+/* The 1px OLED drift (ScreenCare.tsx) eases over 2s under normal motion, but that's
+   still a recurring, if subtle, transform animation — gated behind prefers-reduced-
+   motion like every other bit of motion on the wall so reduced-motion users get the
+   drift's position change instantly instead of eased. CSS-only (no JS state needed:
+   the drift offset itself is unaffected, only whether its change transitions). */
+@media (prefers-reduced-motion: no-preference) {
+  .screen-care {
+    transition: transform 2s ease;
+  }
 }
 
 .screen-care__saver {
@@ -311,6 +321,7 @@
 /* WallHeader */
 .wall-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -344,8 +355,11 @@
 }
 
 .wall-header__ticker {
-  grid-column: 1 / -1;
-  width: 100%;
+  /* .wall-header is a flex (not grid) container — flex-basis 100% with flex-grow: 1 is
+     the flex equivalent of "span the full row", forcing this onto its own line once
+     .wall-header wraps (see the wrap rule above) instead of cramming inline next to the
+     clock/temp meta group. */
+  flex: 1 0 100%;
   color: var(--text-dim);
   font-size: 0.95rem;
   padding: 0.35rem 0 0;
@@ -372,6 +386,13 @@
   color: var(--text);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+/* Reduced-motion gating mirrors LiquidFill/rotation: BannerLane.tsx computes whether
+   motion is allowed via usePrefersReducedMotion() and only adds this class in that case
+   (rather than a bare `@media` query) so it's the same testable, class-driven pattern
+   used everywhere else in the wall, not a CSS-only escape hatch. */
+.banner-lane__banner--animated {
   animation: banner-lane-slide-in 400ms ease-out;
 }
 

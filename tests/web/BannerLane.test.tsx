@@ -1,9 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { BannerLane } from '../../src/web/components/BannerLane';
 import type { Banner } from '../../src/web/lib/useBanners';
 
+function mockReducedMotion(matches: boolean) {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches,
+    media: '(prefers-reduced-motion: reduce)',
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }) as unknown as typeof window.matchMedia;
+}
+
 describe('BannerLane', () => {
+  afterEach(() => {
+    // @ts-expect-error -- restore jsdom's undefined-by-default matchMedia between tests
+    delete window.matchMedia;
+  });
+
   it('renders nothing visible when the queue is empty', () => {
     render(<BannerLane queue={[]} onDismiss={vi.fn()} />);
     expect(screen.queryByTestId('banner-lane-banner')).not.toBeInTheDocument();
@@ -32,5 +46,21 @@ describe('BannerLane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
     expect(onDismiss).toHaveBeenCalledWith('a');
+  });
+
+  describe('prefers-reduced-motion', () => {
+    it('applies the animated (slide-in) class when motion is allowed', () => {
+      mockReducedMotion(false);
+      const queue: Banner[] = [{ id: 'a', text: 'First', kind: 'info' }];
+      render(<BannerLane queue={queue} onDismiss={vi.fn()} />);
+      expect(screen.getByTestId('banner-lane-banner').className).toMatch(/--animated/);
+    });
+
+    it('omits the animated (slide-in) class under prefers-reduced-motion', () => {
+      mockReducedMotion(true);
+      const queue: Banner[] = [{ id: 'a', text: 'First', kind: 'info' }];
+      render(<BannerLane queue={queue} onDismiss={vi.fn()} />);
+      expect(screen.getByTestId('banner-lane-banner').className).not.toMatch(/--animated/);
+    });
   });
 });
