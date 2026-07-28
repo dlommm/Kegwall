@@ -572,6 +572,100 @@ describe('crud routes', () => {
       const list = await app.inject({ method: 'GET', url: '/api/taps', cookies: adminCookies });
       expect(list.json()[0].defaultDrinkerId).toBe(drinker.id);
     });
+
+    // Fix round 1 (Task 0 review): the FK on default_drinker_id only blocks a
+    // nonexistent user id, not a real login-only staff account that opted out of drinker
+    // status (is_drinker=0) — without an explicit is_drinker check here, a raw API call
+    // could set such a staff member's id as a tap's default and have StateManager
+    // (core/state.ts) publicly attribute every future pour on that tap to them,
+    // unvalidated. NOTE: a login user's `is_drinker` actually DEFAULTS to 1
+    // (db/users.ts's createUser: `input.isDrinker === false ? 0 : 1`) — a genuine
+    // "opted-out staff" fixture needs an explicit `PATCH .../users/:id {isDrinker:
+    // false}`, matching the real admin UI flow (UsersPage's "Also a drinker" toggle).
+    async function createNonDrinkerLoginUser(username: string): Promise<number> {
+      const created = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: {
+          username, displayName: username, password: 'password1', role: 'viewer',
+        },
+      })).json();
+      await app.inject({
+        method: 'PATCH', url: `/api/users/${created.id}`, cookies: adminCookies,
+        payload: { isDrinker: false },
+      });
+      return created.id;
+    }
+
+    it('400s POST /api/taps when defaultDrinkerId refers to a non-drinker (login) user', async () => {
+      const staffId = await createNonDrinkerLoginUser('staffonly1');
+      const res = await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies,
+        payload: { number: 9, defaultDrinkerId: staffId },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toEqual({ error: 'validation', message: 'No such drinker' });
+    });
+
+    it('400s POST /api/taps when defaultDrinkerId does not exist at all', async () => {
+      const res = await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies,
+        payload: { number: 9, defaultDrinkerId: 999999 },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('200s POST /api/taps when defaultDrinkerId refers to a real drinker', async () => {
+      const drinker = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Real Drinker' },
+      })).json();
+      const res = await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies,
+        payload: { number: 9, defaultDrinkerId: drinker.id },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().defaultDrinkerId).toBe(drinker.id);
+    });
+
+    it('400s PATCH /api/taps/:id when defaultDrinkerId refers to a non-drinker (login) user', async () => {
+      const staffId = await createNonDrinkerLoginUser('staffonly2');
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 10 },
+      })).json();
+      const res = await app.inject({
+        method: 'PATCH', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+        payload: { defaultDrinkerId: staffId },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toEqual({ error: 'validation', message: 'No such drinker' });
+      // and the tap's default was never actually set
+      expect((await app.inject({ method: 'GET', url: '/api/taps', cookies: adminCookies }))
+        .json().find((t: any) => t.id === tap.id).defaultDrinkerId).toBeNull();
+    });
+
+    it('200s PATCH /api/taps/:id when defaultDrinkerId refers to a real drinker, and null still clears it', async () => {
+      const drinker = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Real Drinker 2' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 11 },
+      })).json();
+
+      const set = await app.inject({
+        method: 'PATCH', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+        payload: { defaultDrinkerId: drinker.id },
+      });
+      expect(set.statusCode).toBe(200);
+      expect(set.json().defaultDrinkerId).toBe(drinker.id);
+
+      const cleared = await app.inject({
+        method: 'PATCH', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+        payload: { defaultDrinkerId: null },
+      });
+      expect(cleared.statusCode).toBe(200);
+      expect(cleared.json().defaultDrinkerId).toBeNull();
+    });
   });
 
   describe('PATCH /api/pours/:id/drinker (Phase 5 Task 0 — admin reassign/unclaim)', () => {

@@ -37,6 +37,26 @@ export function getWallBySlug(db: any, slug: string): Wall | null {
   return r ? { id: r.id, slug: r.slug, name: r.name, config: JSON.parse(r.config) } : null;
 }
 
+/**
+ * Throws `ValidationError` unless `drinkerId` is `null`/`undefined` (nothing to check —
+ * "no default" / "field omitted") or refers to an existing `is_drinker = 1` user.
+ *
+ * Phase 5 Task 0 review, Fix round 1: the `users.id` FK on both `pours.drinker_id` and
+ * `taps.default_drinker_id` only blocks a NONEXISTENT id — it happily accepts a real
+ * login-only staff account (`is_drinker = 0`) that deliberately opted out of drinker
+ * visibility. `PATCH /api/pours/:id/drinker` (below) already re-checked this by hand;
+ * this is that same check, extracted so `POST`/`PATCH /api/taps` (which had been missing
+ * it entirely — a tap's default drinker gets stamped onto every future pour by
+ * `StateManager`, unvalidated, per core/state.ts) can share it. A raw API caller could
+ * otherwise set a staff member's user id as a tap's default and have every pour on that
+ * tap publicly attributed to them.
+ */
+function assertValidDrinkerId(db: any, drinkerId: number | null | undefined): void {
+  if (drinkerId == null) return;
+  const drinker = db.prepare('SELECT id FROM users WHERE id = ? AND is_drinker = 1').get(drinkerId);
+  if (!drinker) throw new ValidationError('No such drinker');
+}
+
 // Exported (alongside getWallBySlug) for Task 13's wall-display routes, per the
 // Task 11 brief's Produces list — the POST /api/walls handler below delegates here.
 export function createWall(db: any, input: { slug: string; name: string; config?: unknown }): Wall {
@@ -83,12 +103,16 @@ export async function crudRoutes(app: FastifyInstance) {
   });
   app.get('/api/taps', viewer, async () => listTaps(db));
   app.post('/api/taps', editor, async (req, reply) => {
-    const tap = createTap(db, tapSchema.parse(req.body));
+    const body = tapSchema.parse(req.body);
+    assertValidDrinkerId(db, body.defaultDrinkerId);
+    const tap = createTap(db, body);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return reply.code(201).send(tap);
   });
   app.patch('/api/taps/:id', editor, async (req) => {
-    const tap = updateTap(db, Number((req.params as any).id), tapSchema.partial().parse(req.body));
+    const body = tapSchema.partial().parse(req.body);
+    assertValidDrinkerId(db, body.defaultDrinkerId);
+    const tap = updateTap(db, Number((req.params as any).id), body);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return tap;
   });
@@ -222,11 +246,7 @@ export async function crudRoutes(app: FastifyInstance) {
   // deliberately doesn't allow. `drinkerId: null` unclaims.
   app.patch('/api/pours/:id/drinker', editor, async (req) => {
     const body = z.object({ drinkerId: z.number().int().nullable() }).parse(req.body);
-    if (body.drinkerId !== null) {
-      const drinker = db.prepare('SELECT id FROM users WHERE id = ? AND is_drinker = 1')
-        .get(body.drinkerId);
-      if (!drinker) throw new ValidationError('No such drinker');
-    }
+    assertValidDrinkerId(db, body.drinkerId);
     const pour = setPourDrinker(db, Number((req.params as any).id), body.drinkerId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return pour;
