@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Beer } from '../../../server/db/beers.js';
-import type { Role } from '../../../server/db/users.js';
-import { getMe, listBeers, deleteBeer } from '../../lib/adminApi';
+import { listBeers, deleteBeer } from '../../lib/adminApi';
 import { srmToColor } from '../../lib/srm';
 import { BeerForm } from './BeerForm';
+import { useAdminContext } from './useAdminContext';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 type FormState = { mode: 'create' } | { mode: 'edit'; beer: Beer } | null;
@@ -28,22 +28,12 @@ function formatIbu(ibu: number | null): string {
  * on every beers-mutating endpoint.
  */
 export function BeersPage() {
-  const [role, setRole] = useState<Role | null>(null);
+  const { me } = useAdminContext();
   const [beers, setBeers] = useState<Beer[]>([]);
   const [status, setStatus] = useState<ListStatus>('loading');
   const [formState, setFormState] = useState<FormState>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMe().then((result) => {
-      if (!cancelled && result.ok) setRole(result.data.role);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const loadBeers = useCallback(() => {
     setStatus('loading');
@@ -61,7 +51,7 @@ export function BeersPage() {
     loadBeers();
   }, [loadBeers]);
 
-  const canEdit = role === 'editor' || role === 'admin';
+  const canEdit = me.role === 'editor' || me.role === 'admin';
 
   function handleSaved() {
     setFormState(null);

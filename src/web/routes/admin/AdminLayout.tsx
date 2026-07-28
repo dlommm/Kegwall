@@ -4,8 +4,11 @@ import {
 } from 'react-router-dom';
 import type { User } from '../../../server/db/users.js';
 import { getMe, logout } from '../../lib/adminApi';
+import { getMenu } from '../../lib/api';
+import type { VolumeUnits } from '../../lib/units';
 import { ThemeProvider } from '../../themes/ThemeProvider';
 import { ADMIN_NAV_ITEMS, visibleNavItems } from './adminNav';
+import type { AdminOutletContext } from './useAdminContext';
 
 /** True when `pathname` is (or is nested under) one of `ADMIN_NAV_ITEMS`' admin-only
  * sections (Users, Settings) — the route-guarding half of the role matrix: nav hiding
@@ -31,12 +34,25 @@ type Status = 'loading' | 'ready' | 'error';
  * non-admins — see adminNav.ts), a user chip + sign-out control, and the matched child
  * route via `Outlet`. Role-based *page* read-only behavior (viewers) lands with each
  * page in Tasks 3-9; this layer only controls nav visibility + the auth gate.
+ *
+ * Phase 5 Task 0 (Phase 4 final review, "MUST FIX before/at start of Phase 5"): also
+ * fetches the taproom's display units (from the same public `getMenu()` payload
+ * MenuPage/WallPage use — the only units source a non-admin role can read; `GET
+ * /api/settings` is admin-only) and passes `{me, units}` down to every nested page via
+ * `<Outlet context>` (see `useAdminContext.ts`). Because `AdminLayout` itself never
+ * remounts across sibling `/admin/*` route navigation, both fetches now happen exactly
+ * ONCE per admin session — not once per page visit, which is what five separate pages
+ * calling their own `getMe()`/`getMenu()` used to cost. The units fetch does NOT gate
+ * the auth loading state above: it defaults to `'us'` (matching every page's own prior
+ * default) and updates in place once it resolves, so first paint isn't held up waiting
+ * on a second round-trip a viewer-only page might not even need.
  */
 export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [status, setStatus] = useState<Status>('loading');
   const [me, setMe] = useState<User | null>(null);
+  const [units, setUnits] = useState<VolumeUnits>('us');
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
@@ -53,6 +69,16 @@ export function AdminLayout() {
       } else {
         setStatus('error');
       }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMenu().then((result) => {
+      if (!cancelled && result.ok) setUnits(result.data.units ?? 'us');
     });
     return () => {
       cancelled = true;
@@ -128,7 +154,7 @@ export function AdminLayout() {
           </header>
 
           <main className="admin-content">
-            <Outlet />
+            <Outlet context={{ me, units } satisfies AdminOutletContext} />
           </main>
         </div>
       </div>

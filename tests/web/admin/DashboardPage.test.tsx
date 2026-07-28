@@ -2,7 +2,7 @@ import {
   describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import { DashboardPage } from '../../../src/web/routes/admin/DashboardPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
@@ -13,6 +13,7 @@ import type { TapState } from '../../../src/server/core/state';
 import type { SourceStatus } from '../../../src/server/ingest/manager';
 import type { ActivityEvent } from '../../../src/server/db/activity';
 import type { Pour } from '../../../src/server/db/kegs';
+import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/api', () => ({ getMenu: vi.fn() }));
 vi.mock('../../../src/web/lib/useTapStates', () => ({ useTapStates: vi.fn() }));
@@ -96,7 +97,7 @@ describe('DashboardPage', () => {
       ],
       stale: false, connected: true, reconnectCount: 0,
     });
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     const pills = await screen.findAllByTestId('dashboard-tap-pill');
     expect(pills).toHaveLength(2);
     expect(pills[0]).toHaveTextContent('Citra IPA');
@@ -118,29 +119,28 @@ describe('DashboardPage', () => {
       ],
       stale: false, connected: true, reconnectCount: 0,
     });
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     const pill = await screen.findByTestId('dashboard-tap-pill');
     expect(pill).toHaveAttribute('data-kicked', 'true');
     expect(pill).toHaveTextContent('Kicked');
   });
 
   it('shows a quiet empty state when there are no taps', async () => {
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     expect(await screen.findByTestId('dashboard-card-taps')).toHaveTextContent('No taps set up yet.');
   });
 
   it("shows today's pour count and total volume in display units", async () => {
-    (getMenu as Mock).mockResolvedValue({ ok: true, data: { siteName: 'X', taps: [], units: 'metric' } });
     (getPoursSince as Mock).mockResolvedValue({
       ok: true, data: [makePour({ volumeMl: 500 }), makePour({ id: 2, volumeMl: 500 })],
     });
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />, adminContext('admin', 'metric'));
     expect(await screen.findByTestId('dashboard-pour-count')).toHaveTextContent('2');
     expect(screen.getByTestId('dashboard-pour-volume')).toHaveTextContent('1000 mL');
   });
 
   it('shows the alerts placeholder with a zero count and a quiet note', async () => {
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     expect(await screen.findByTestId('dashboard-alert-count')).toHaveTextContent('0');
     expect(screen.getByTestId('dashboard-alert-note')).toHaveTextContent('Alerts arrive in a later update');
   });
@@ -154,7 +154,7 @@ describe('DashboardPage', () => {
         makeSource({ name: 'gen1_ble', registered: false, healthy: false, detail: '' }),
       ],
     });
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     const rows = await screen.findAllByTestId('dashboard-source-row');
     expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent('Healthy');
@@ -174,7 +174,7 @@ describe('DashboardPage', () => {
         makeSource({ name: 'kegtron_udp', lastEventAt: null }),
       ],
     });
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     await flush();
     const rows = screen.getAllByTestId('dashboard-source-row');
     expect(rows[0]).toHaveTextContent('5 min ago');
@@ -193,7 +193,7 @@ describe('DashboardPage', () => {
         }),
       ],
     });
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     const rows = await screen.findAllByTestId('dashboard-activity-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('Poured 16.0 oz of Citra IPA on tap 3');
@@ -201,13 +201,13 @@ describe('DashboardPage', () => {
   });
 
   it('shows a quiet empty state when there is no activity yet', async () => {
-    render(<DashboardPage />);
+    renderAdminPage(<DashboardPage />);
     expect(await screen.findByTestId('dashboard-activity-empty')).toHaveTextContent("Nothing’s happened yet.");
   });
 
   it('polls sources, activity, and pours every 60s and clears the interval on unmount', async () => {
     vi.useFakeTimers();
-    const { unmount } = render(<DashboardPage />);
+    const { unmount } = renderAdminPage(<DashboardPage />);
 
     await flush();
     expect(getSources).toHaveBeenCalledTimes(1);

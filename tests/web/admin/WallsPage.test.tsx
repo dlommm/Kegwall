@@ -2,15 +2,14 @@ import {
   describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { WallsPage } from '../../../src/web/routes/admin/WallsPage';
-import { getMe, listWalls, deleteWall } from '../../../src/web/lib/adminApi';
+import { listWalls, deleteWall } from '../../../src/web/lib/adminApi';
 import type { Wall } from '../../../src/web/lib/adminApi';
-import type { User } from '../../../src/server/db/users';
 import { wallConfigSchema } from '../../../src/server/core/wallConfig';
+import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
-  getMe: vi.fn(),
   listWalls: vi.fn(),
   createWall: vi.fn(),
   deleteWall: vi.fn(),
@@ -38,18 +37,10 @@ function makeWall(overrides: Partial<Wall> = {}): Wall {
   };
 }
 
-function makeUser(role: User['role']): User {
-  return {
-    id: 1, username: 'u', displayName: 'U', role, isDrinker: false, avatarColor: null,
-    createdAt: '2026-07-28T00:00:00.000Z',
-  };
-}
-
 const originalLocation = window.location;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('editor') });
   (listWalls as Mock).mockResolvedValue({ ok: true, data: [] });
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -71,7 +62,7 @@ describe('WallsPage', () => {
       ok: true,
       data: [makeWall({ id: 1, slug: 'main-bar', name: 'Main bar' })],
     });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     const rows = await screen.findAllByTestId('walls-row');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent('Main bar');
@@ -80,13 +71,13 @@ describe('WallsPage', () => {
   });
 
   it('shows a quiet empty state with no walls', async () => {
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     expect(await screen.findByTestId('walls-empty')).toBeInTheDocument();
   });
 
   it('copy button writes the wall URL to the clipboard and shows brief confirmation', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ slug: 'main-bar' })] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
 
     fireEvent.click(screen.getByTestId('walls-row-copy'));
@@ -98,7 +89,7 @@ describe('WallsPage', () => {
 
   it('the open-in-new-tab link points at the wall URL and opens in a new tab', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ slug: 'main-bar' })] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     const link = screen.getByTestId('walls-row-open');
     expect(link).toHaveAttribute('href', 'https://taproom.example/wall/main-bar');
@@ -107,9 +98,8 @@ describe('WallsPage', () => {
   });
 
   it('Preview toggles an inline read-only iframe, available even to a viewer', async () => {
-    (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('viewer') });
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ slug: 'main-bar' })] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />, adminContext('viewer'));
     await screen.findAllByTestId('walls-row');
 
     expect(screen.queryByTestId('wall-preview-frame')).not.toBeInTheDocument();
@@ -118,9 +108,8 @@ describe('WallsPage', () => {
   });
 
   it('a viewer sees a read-only list: no Add wall button, no Edit/Delete controls', async () => {
-    (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('viewer') });
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall()] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />, adminContext('viewer'));
     await screen.findAllByTestId('walls-row');
     expect(screen.queryByTestId('walls-add-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('walls-row-edit')).not.toBeInTheDocument();
@@ -132,7 +121,7 @@ describe('WallsPage', () => {
   it('an editor can open the create form, and creating adds the wall then closes the form', async () => {
     const { createWall } = await import('../../../src/web/lib/adminApi');
     (createWall as Mock).mockResolvedValue({ ok: true, data: makeWall({ id: 2, slug: 'patio', name: 'Patio' }) });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await flush();
 
     fireEvent.click(screen.getByTestId('walls-add-button'));
@@ -149,7 +138,7 @@ describe('WallsPage', () => {
   });
 
   it('the create form auto-suggests a slug from the name until the slug is hand-edited', async () => {
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await flush();
     fireEvent.click(screen.getByTestId('walls-add-button'));
 
@@ -164,7 +153,7 @@ describe('WallsPage', () => {
   it('a create failure shows the server message and keeps the form open', async () => {
     const { createWall } = await import('../../../src/web/lib/adminApi');
     (createWall as Mock).mockResolvedValue({ ok: false, status: 409, message: 'slug already in use' });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await flush();
     fireEvent.click(screen.getByTestId('walls-add-button'));
     fireEvent.change(screen.getByTestId('walls-create-name'), { target: { value: 'Patio' } });
@@ -177,7 +166,7 @@ describe('WallsPage', () => {
 
   it('clicking Edit swaps the list for the (mocked) wall editor', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ name: 'Main bar' })] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-edit'));
     expect(screen.getByTestId('mock-wall-editor')).toBeInTheDocument();
@@ -187,7 +176,7 @@ describe('WallsPage', () => {
 
   it('the editor\'s Back control returns to the list and refreshes it', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall()] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-edit'));
     expect(listWalls).toHaveBeenCalledTimes(1);
@@ -200,7 +189,7 @@ describe('WallsPage', () => {
 
   it('delete shows a full consequence sentence naming the wall and its URL (never a bare "are you sure")', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ name: 'Main bar', slug: 'main-bar' })] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-delete'));
     const confirm = screen.getByTestId('walls-delete-confirm');
@@ -214,7 +203,7 @@ describe('WallsPage', () => {
   it('a successful delete closes the confirmation and reloads the list', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall()] });
     (deleteWall as Mock).mockResolvedValue({ ok: true, data: null });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-delete'));
     fireEvent.click(screen.getByTestId('walls-delete-confirm-button'));
@@ -227,7 +216,7 @@ describe('WallsPage', () => {
   it('a delete failure shows the message and keeps the dialog open', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall()] });
     (deleteWall as Mock).mockResolvedValue({ ok: false, status: 500, message: 'Something went wrong' });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-delete'));
     fireEvent.click(screen.getByTestId('walls-delete-confirm-button'));
@@ -238,7 +227,7 @@ describe('WallsPage', () => {
 
   it('canceling the delete dialog leaves the wall intact', async () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall()] });
-    render(<WallsPage />);
+    renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-delete'));
     fireEvent.click(screen.getByTestId('walls-delete-cancel-button'));

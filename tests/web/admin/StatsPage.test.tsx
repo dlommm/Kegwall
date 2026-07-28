@@ -2,16 +2,15 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { StatsPage } from '../../../src/web/routes/admin/StatsPage';
-import { getMenu } from '../../../src/web/lib/api';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
+import { renderAdminPage } from './renderAdminPage';
 
-vi.mock('../../../src/web/lib/api', () => ({ getMenu: vi.fn() }));
 vi.mock('../../../src/web/lib/adminApi', () => ({
   getPoursByDay: vi.fn(),
   getHourHistogram: vi.fn(),
@@ -39,7 +38,6 @@ async function flush() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  (getMenu as Mock).mockResolvedValue({ ok: true, data: { siteName: 'X', taps: [], units: 'us' } });
   (getPoursByDay as Mock).mockResolvedValue({ ok: true, data: [] });
   (getHourHistogram as Mock).mockResolvedValue({ ok: true, data: [] });
   (getActiveKegStats as Mock).mockResolvedValue({ ok: true, data: [] });
@@ -51,7 +49,7 @@ beforeEach(() => {
 
 describe('StatsPage', () => {
   it('loads every stats endpoint on mount and renders the page once loaded', async () => {
-    render(<StatsPage />);
+    renderAdminPage(<StatsPage />);
     await flush();
     expect(getPoursByDay).toHaveBeenCalledWith(30);
     expect(getBeersByVolume).toHaveBeenCalledWith(30);
@@ -62,12 +60,12 @@ describe('StatsPage', () => {
   });
 
   it('shows a loading state before the initial fetches settle', () => {
-    render(<StatsPage />);
+    renderAdminPage(<StatsPage />);
     expect(screen.getByTestId('stats-loading')).toBeInTheDocument();
   });
 
   it('the range switcher refetches pours and beers with the new days value for both', async () => {
-    render(<StatsPage />);
+    renderAdminPage(<StatsPage />);
     await flush();
     fireEvent.click(screen.getByTestId('stats-range-90'));
     await flush();
@@ -76,7 +74,7 @@ describe('StatsPage', () => {
   });
 
   it('the leaderboard window switcher refetches the leaderboard', async () => {
-    render(<StatsPage />);
+    renderAdminPage(<StatsPage />);
     await flush();
     fireEvent.click(screen.getByTestId('leaderboard-window-all'));
     await flush();
@@ -91,13 +89,13 @@ describe('StatsPage', () => {
         makeMonitor(2, { type: 'kegtron_pro' }),
       ],
     });
-    render(<StatsPage />);
+    renderAdminPage(<StatsPage />);
     await flush();
     expect(getStatsTemps).toHaveBeenCalledWith(2);
   });
 
   it('never calls getStatsTemps when there is no Kegtron Pro monitor', async () => {
-    render(<StatsPage />);
+    renderAdminPage(<StatsPage />);
     await flush();
     expect(getStatsTemps).not.toHaveBeenCalled();
     expect(screen.getByTestId('temp-chart-empty')).toBeInTheDocument();

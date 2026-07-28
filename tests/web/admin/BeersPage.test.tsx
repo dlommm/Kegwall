@@ -2,14 +2,13 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { BeersPage } from '../../../src/web/routes/admin/BeersPage';
-import { getMe, listBeers, deleteBeer } from '../../../src/web/lib/adminApi';
+import { listBeers, deleteBeer } from '../../../src/web/lib/adminApi';
 import type { Beer } from '../../../src/server/db/beers';
-import type { User } from '../../../src/server/db/users';
+import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
-  getMe: vi.fn(),
   listBeers: vi.fn(),
   deleteBeer: vi.fn(),
 }));
@@ -49,23 +48,15 @@ function makeBeer(overrides: Partial<Beer> = {}): Beer {
   };
 }
 
-function makeUser(role: User['role']): User {
-  return {
-    id: 1, username: 'u', displayName: 'U', role, isDrinker: false, avatarColor: null,
-    createdAt: '2026-07-28T00:00:00.000Z',
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('editor') });
   (listBeers as Mock).mockResolvedValue({ ok: true, data: [] });
 });
 
 describe('BeersPage', () => {
   it('renders one row per beer with name/brewery/style/abv/ibu/srm-chip/thumb from fixtures', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer(), makeBeer({ id: 2, name: 'Pilsner', brewery: null, abv: null, ibu: null, srm: null, labelImage: null })] });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     const rows = await screen.findAllByTestId('beers-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]!).toHaveTextContent('Citra IPA');
@@ -80,14 +71,13 @@ describe('BeersPage', () => {
   });
 
   it('shows a quiet empty state when there are no beers', async () => {
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     expect(await screen.findByTestId('beers-empty')).toHaveTextContent('No beers yet.');
   });
 
   it('a viewer sees a read-only table: no Add button, no Edit/Delete controls', async () => {
-    (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('viewer') });
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer()] });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />, adminContext('viewer'));
     await screen.findAllByTestId('beers-row');
     expect(screen.queryByTestId('beers-add-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('beers-row-edit')).not.toBeInTheDocument();
@@ -95,7 +85,7 @@ describe('BeersPage', () => {
   });
 
   it('an editor sees "Add beer", which opens the create form', async () => {
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await flush();
     fireEvent.click(screen.getByTestId('beers-add-button'));
     expect(screen.getByTestId('mock-beer-form-mode')).toHaveTextContent('create');
@@ -103,7 +93,7 @@ describe('BeersPage', () => {
 
   it('clicking Edit on a row opens the edit form for that beer', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer({ name: 'Stout' })] });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
     fireEvent.click(screen.getByTestId('beers-row-edit'));
     expect(screen.getByTestId('mock-beer-form-mode')).toHaveTextContent('edit');
@@ -111,7 +101,7 @@ describe('BeersPage', () => {
   });
 
   it('saving the form closes it and reloads the beers list', async () => {
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await flush();
     fireEvent.click(screen.getByTestId('beers-add-button'));
     expect(listBeers).toHaveBeenCalledTimes(1);
@@ -121,7 +111,7 @@ describe('BeersPage', () => {
   });
 
   it('canceling the form closes it without reloading', async () => {
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await flush();
     fireEvent.click(screen.getByTestId('beers-add-button'));
     fireEvent.click(screen.getByTestId('mock-beer-form-cancel'));
@@ -131,7 +121,7 @@ describe('BeersPage', () => {
 
   it('deleting shows a full consequence sentence (never a bare "are you sure")', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer({ name: 'Stout' })] });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     const confirm = screen.getByTestId('beers-delete-confirm');
@@ -144,7 +134,7 @@ describe('BeersPage', () => {
   it('a successful delete closes the confirmation and reloads the list', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer()] });
     (deleteBeer as Mock).mockResolvedValue({ ok: true, data: null });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-confirm-button'));
@@ -157,7 +147,7 @@ describe('BeersPage', () => {
   it('a 409 delete conflict explains the beer is in use by a keg, and keeps the dialog open', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer({ name: 'Stout' })] });
     (deleteBeer as Mock).mockResolvedValue({ ok: false, status: 409, message: 'beer 1 is referenced by 1 keg(s)' });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-confirm-button'));
@@ -169,7 +159,7 @@ describe('BeersPage', () => {
   it('a non-409 delete failure shows a generic retry message', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer()] });
     (deleteBeer as Mock).mockResolvedValue({ ok: false, status: 500, message: 'Something went wrong' });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-confirm-button'));
@@ -179,7 +169,7 @@ describe('BeersPage', () => {
 
   it('canceling the delete dialog leaves the beer intact', async () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer()] });
-    render(<BeersPage />);
+    renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-cancel-button'));

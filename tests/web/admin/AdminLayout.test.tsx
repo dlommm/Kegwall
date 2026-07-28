@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from '../../../src/web/routes/admin/AdminLayout';
+import { useAdminContext } from '../../../src/web/routes/admin/useAdminContext';
 
 // AdminLayout is tested against a REAL adminApi (mocked at the `fetch` layer, not the
 // module layer) so the unauthenticated case genuinely exercises adminApi's own 401 ->
@@ -26,6 +27,17 @@ function user(overrides: Partial<{ role: 'admin' | 'editor' | 'viewer'; displayN
   };
 }
 
+/** Reads the Outlet context via the real hook, so this test genuinely exercises what a
+ * page component would see — not a re-implementation of the context shape. */
+function ContextProbe() {
+  const { me, units } = useAdminContext();
+  return (
+    <div data-testid="context-probe" data-role={me.role} data-units={units}>
+      {me.displayName}
+    </div>
+  );
+}
+
 function renderLayout(initialEntry = '/admin') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -34,6 +46,7 @@ function renderLayout(initialEntry = '/admin') {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<div data-testid="dashboard-placeholder" />} />
           <Route path="users" element={<div data-testid="users-placeholder" />} />
+          <Route path="probe" element={<ContextProbe />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -46,6 +59,15 @@ let assignMock: Mock;
 describe('AdminLayout', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
+    // AdminLayout now ALSO fetches the public menu (for `units`, passed down via Outlet
+    // context — see useAdminContext.ts) alongside `getMe()`. Individual tests below only
+    // ever queue a response for the getMe() call via mockFetchOnce (mockResolvedValueOnce,
+    // which takes priority for the NEXT call only); this default catches every fetch
+    // AFTER that — i.e. the units fetch — so it resolves instead of leaving the mock
+    // returning `undefined` (an unhandled rejection reading `.ok` off it).
+    (globalThis.fetch as Mock).mockResolvedValue({
+      ok: true, status: 200, statusText: 'OK', json: async () => ({ siteName: 'Test', taps: [], units: 'us' }),
+    } as Response);
     assignMock = vi.fn();
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -111,6 +133,19 @@ describe('AdminLayout', () => {
     mockFetchOnce(200, user({ role: 'admin' }));
     renderLayout('/admin/users');
     expect(await screen.findByTestId('users-placeholder')).toBeInTheDocument();
+  });
+
+  it('provides {me, units} to nested pages via Outlet context', async () => {
+    mockFetchOnce(200, user({ role: 'editor', displayName: 'Context Carl' }));
+    (globalThis.fetch as Mock).mockResolvedValueOnce({
+      ok: true, status: 200, statusText: 'OK',
+      json: async () => ({ siteName: 'Test', taps: [], units: 'metric' }),
+    } as Response);
+    renderLayout('/admin/probe');
+    const probe = await screen.findByTestId('context-probe');
+    expect(probe).toHaveTextContent('Context Carl');
+    expect(probe).toHaveAttribute('data-role', 'editor');
+    await waitFor(() => expect(probe).toHaveAttribute('data-units', 'metric'));
   });
 
   it('signs out and navigates to login', async () => {

@@ -4,18 +4,17 @@ import type {
 } from '../../../server/db/stats.js';
 import type { TelemetryPoint } from '../../../server/db/telemetry.js';
 import type { Monitor } from '../../../server/db/monitors.js';
-import { getMenu } from '../../lib/api';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors,
 } from '../../lib/adminApi';
-import type { VolumeUnits } from '../../lib/units';
 import { PoursChart } from './PoursChart';
 import { HourHistogramRow } from './HourHistogramRow';
 import { KegDepletionCards } from './KegDepletionCards';
 import { BeerVolumeChart } from './BeerVolumeChart';
 import { TempChart } from './TempChart';
 import { Leaderboard, type LeaderboardWindow } from './Leaderboard';
+import { useAdminContext } from './useAdminContext';
 
 /** The pours/beers range switcher's three values — Task 9's plan specifies exactly
  * these three, both server-side (routes/stats.ts 400s on anything else) and here. */
@@ -34,7 +33,7 @@ const DEFAULT_DAYS: DayRange = 30;
  * neither of those is shared with anything else on the page.
  */
 export function StatsPage() {
-  const [units, setUnits] = useState<VolumeUnits>('us');
+  const { units } = useAdminContext();
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
@@ -51,19 +50,22 @@ export function StatsPage() {
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardEntry[]>([]);
 
   // Initial load: everything that doesn't depend on a switcher fetches once, together.
+  // `units` no longer needs its own fetch here — it comes from AdminLayout's Outlet
+  // context (useAdminContext) — dropping what used to be this page's own dedicated
+  // `getMenu()` call purely to read `.units` off an otherwise-unused response (Phase 5
+  // Task 0: this page needed no taps snapshot, so its `getMenu()` call was entirely
+  // redundant with the one AdminLayout now makes once per admin session).
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      getMenu(),
       getPoursByDay(DEFAULT_DAYS),
       getBeersByVolume(DEFAULT_DAYS),
       getHourHistogram(),
       getActiveKegStats(),
       getLeaderboard('week'),
       listMonitors(),
-    ]).then(([menu, poursRes, beersRes, hoursRes, kegsRes, leaderboardRes, monitorsRes]) => {
+    ]).then(([poursRes, beersRes, hoursRes, kegsRes, leaderboardRes, monitorsRes]) => {
       if (cancelled) return;
-      if (menu.ok) setUnits(menu.data.units ?? 'us');
       if (poursRes.ok) setPours(poursRes.data);
       if (beersRes.ok) setBeers(beersRes.data);
       if (hoursRes.ok) setHours(hoursRes.data);
@@ -74,7 +76,7 @@ export function StatsPage() {
         setProMonitors(pros);
         setSelectedMonitorId(pros[0]?.id ?? null);
       }
-      const allOk = menu.ok && poursRes.ok && beersRes.ok && hoursRes.ok
+      const allOk = poursRes.ok && beersRes.ok && hoursRes.ok
         && kegsRes.ok && leaderboardRes.ok && monitorsRes.ok;
       setStatus(allOk ? 'loaded' : 'error');
     });

@@ -1,10 +1,10 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import type { Role } from '../../../server/db/users.js';
 import {
-  getMe, listWalls, createWall, deleteWall, type Wall,
+  listWalls, createWall, deleteWall, type Wall,
 } from '../../lib/adminApi';
 import { WallEditor } from './WallEditor';
 import { WallPreview } from './WallPreview';
+import { useAdminContext } from './useAdminContext';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 interface CreateState { name: string; slug: string; slugTouched: boolean; error: string | null; submitting: boolean }
@@ -39,7 +39,7 @@ function wallUrl(slug: string): string {
  * genuinely need the room.
  */
 export function WallsPage() {
-  const [role, setRole] = useState<Role | null>(null);
+  const { me } = useAdminContext();
   const [walls, setWalls] = useState<Wall[]>([]);
   const [status, setStatus] = useState<ListStatus>('loading');
   const [createState, setCreateState] = useState<CreateState | null>(null);
@@ -48,16 +48,6 @@ export function WallsPage() {
   const [previewWallId, setPreviewWallId] = useState<number | null>(null);
   const [editingWallId, setEditingWallId] = useState<number | null>(null);
   const [copiedWallId, setCopiedWallId] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMe().then((result) => {
-      if (!cancelled && result.ok) setRole(result.data.role);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const loadWalls = useCallback(() => {
     setStatus((s) => (s === 'loaded' ? s : 'loading'));
@@ -75,7 +65,7 @@ export function WallsPage() {
     loadWalls();
   }, [loadWalls]);
 
-  const canEdit = role === 'editor' || role === 'admin';
+  const canEdit = me.role === 'editor' || me.role === 'admin';
 
   async function handleCopy(wall: Wall) {
     const url = wallUrl(wall.slug);
