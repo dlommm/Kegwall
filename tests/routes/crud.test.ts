@@ -104,4 +104,68 @@ describe('crud routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/settings', cookies: adminCookies });
     expect(res.json().kegtronApiKey).toBe('••••ikey');
   });
+
+  it('PATCHing a masked GET body back does not corrupt stored secrets', async () => {
+    await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: {
+        kegtronApiKey: 'supersecretapikey',
+        mqtt: { url: 'mqtt://host:1883', username: 'u', password: 'realmqttpass' },
+        untappd: { clientId: 'id1', clientSecret: 'realclientsecret' },
+      },
+    });
+    const getRes = await app.inject({ method: 'GET', url: '/api/settings', cookies: adminCookies });
+    const masked = getRes.json();
+    expect(masked.kegtronApiKey).toBe('••••ikey');
+    expect(masked.mqtt.password).toBe('••••');
+    expect(masked.untappd.clientSecret).toBe('••••');
+
+    // client edits an unrelated field and PATCHes the whole masked body back
+    masked.siteName = 'Renamed Taproom';
+    const roundTrip = await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies, payload: masked,
+    });
+    expect(roundTrip.statusCode).toBe(200);
+
+    const after = (await app.inject({
+      method: 'GET', url: '/api/settings', cookies: adminCookies,
+    })).json();
+    expect(after.siteName).toBe('Renamed Taproom');
+    // secrets must still be intact under the hood, not literally '••••...'
+    expect(after.kegtronApiKey).toBe('••••ikey');
+    expect(after.mqtt.password).toBe('••••');
+    expect(after.untappd.clientSecret).toBe('••••');
+  });
+
+  it('setting a real new kegtronApiKey via PATCH still works', async () => {
+    await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { kegtronApiKey: 'firstrealkey123' },
+    });
+    const patch2 = await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { kegtronApiKey: 'secondrealkey456' },
+    });
+    expect(patch2.statusCode).toBe(200);
+    expect(patch2.json().kegtronApiKey).toBe('••••y456');
+  });
+
+  it('rejects a second on_tap keg for an occupied tap with 409', async () => {
+    const beer = (await app.inject({
+      method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+    })).json();
+    const tap = (await app.inject({
+      method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+    })).json();
+    const first = await app.inject({
+      method: 'POST', url: '/api/kegs', cookies: adminCookies,
+      payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+    });
+    expect(first.statusCode).toBe(201);
+    const second = await app.inject({
+      method: 'POST', url: '/api/kegs', cookies: adminCookies,
+      payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+    });
+    expect(second.statusCode).toBe(409);
+  });
 });

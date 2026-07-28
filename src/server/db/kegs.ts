@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { NotFoundError } from '../core/errors.js';
+import { NotFoundError, ConflictError } from '../core/errors.js';
 
 export type KegStatus = 'on_tap' | 'kicked' | 'archived';
 
@@ -26,6 +26,15 @@ export function createKeg(db: Database.Database, input: {
   beerId: number; sizeMl: number; volStartMl: number;
   tapId?: number | null; dateTapped?: string;
 }): Keg {
+  // Only swapKeg (which kicks the incumbent first, inside its own transaction)
+  // is allowed to put a keg on an occupied tap; a bare create must not — the
+  // rest of the pipeline (getActiveKegForTap, ingest, wall display) assumes
+  // exactly one on_tap keg per tap. idx_kegs_tap_active also enforces this at
+  // the DB layer, but we check here first so the API returns a clean 409
+  // instead of a raw SqliteError.
+  if (input.tapId != null && getActiveKegForTap(db, input.tapId)) {
+    throw new ConflictError(`tap ${input.tapId} already has an active keg`);
+  }
   const res = db.prepare(`INSERT INTO kegs
       (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at)
       VALUES (?, ?, ?, ?, ?, ?)`)

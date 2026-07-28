@@ -205,7 +205,11 @@ export async function crudRoutes(app: FastifyInstance) {
   app.get('/api/settings', admin, async () => app.ctx.settings.masked());
   app.patch('/api/settings', admin, async (req) => {
     const body = settingsSchema.partial().parse(req.body);
-    for (const [k, v] of Object.entries(body)) {
+    // A GET body round-tripped straight back through PATCH carries masked
+    // secret placeholders ('••••...'); sanitizePatch drops/merges those so
+    // they never overwrite the real stored secrets (see settings.ts).
+    const sanitized = app.ctx.settings.sanitizePatch(body);
+    for (const [k, v] of Object.entries(sanitized)) {
       app.ctx.settings.set(k as any, v as any);
     }
     return app.ctx.settings.masked();

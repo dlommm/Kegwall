@@ -6,6 +6,7 @@ import { createTap } from '../../src/server/db/taps.js';
 import {
   createKeg, getActiveKegForTap, applyDispense, recordPourTx, swapKeg, listKegs,
 } from '../../src/server/db/kegs.js';
+import { ConflictError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -50,5 +51,29 @@ describe('kegs repo', () => {
     expect(fresh.status).toBe('on_tap');
     expect(getActiveKegForTap(db, tapId)?.beerId).toBe(newBeer);
     expect(listKegs(db, { status: 'kicked' })).toHaveLength(1);
+  });
+
+  it('createKeg refuses a second on_tap keg on an already-occupied tap', () => {
+    createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+    expect(() =>
+      createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId }),
+    ).toThrow(ConflictError);
+    // the original keg is still the sole active keg on the tap
+    expect(getActiveKegForTap(db, tapId)).not.toBeNull();
+    expect(listKegs(db, { status: 'on_tap' })).toHaveLength(1);
+  });
+
+  it('createKeg allows a new keg on a tap once the prior keg is no longer on_tap', () => {
+    const first = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(first.id);
+    const second = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+    expect(getActiveKegForTap(db, tapId)?.id).toBe(second.id);
+  });
+
+  it('createKeg without a tapId never conflicts (unassigned kegs)', () => {
+    const a = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000 });
+    const b = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000 });
+    expect(a.tapId).toBeNull();
+    expect(b.tapId).toBeNull();
   });
 });
