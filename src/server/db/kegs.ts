@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
-import { NotFoundError, ConflictError } from '../core/errors.js';
+import { NotFoundError, ConflictError, ValidationError } from '../core/errors.js';
 
-export type KegStatus = 'on_tap' | 'kicked' | 'archived';
+export type KegStatus = 'on_tap' | 'kicked' | 'archived' | 'on_deck';
 
 export interface Keg {
   id: number; beerId: number; tapId: number | null; sizeMl: number;
@@ -25,21 +25,28 @@ function rowToKeg(r: any): Keg {
 export function createKeg(db: Database.Database, input: {
   beerId: number; sizeMl: number; volStartMl: number;
   tapId?: number | null; dateTapped?: string;
+  /** Defaults to 'on_tap'. 'on_deck' queues the keg behind whatever's currently on_tap
+   * for `tapId` (a swap-wizard "queue this for next" keg, see the Task 1 brief) — it does
+   * NOT go through the active-tap conflict check below, and `idx_kegs_tap_active` (scoped
+   * to `WHERE status = 'on_tap'`) doesn't apply to it either, so any number of on_deck
+   * kegs can share a tap_id. Promote one to on_tap via `swapKeg`'s `fromKegId`. */
+  status?: 'on_tap' | 'on_deck';
 }): Keg {
+  const status = input.status ?? 'on_tap';
   // Only swapKeg (which kicks the incumbent first, inside its own transaction)
-  // is allowed to put a keg on an occupied tap; a bare create must not — the
+  // is allowed to put an on_tap keg on an occupied tap; a bare create must not — the
   // rest of the pipeline (getActiveKegForTap, ingest, wall display) assumes
   // exactly one on_tap keg per tap. idx_kegs_tap_active also enforces this at
   // the DB layer, but we check here first so the API returns a clean 409
   // instead of a raw SqliteError.
-  if (input.tapId != null && getActiveKegForTap(db, input.tapId)) {
+  if (status === 'on_tap' && input.tapId != null && getActiveKegForTap(db, input.tapId)) {
     throw new ConflictError(`tap ${input.tapId} already has an active keg`);
   }
   const res = db.prepare(`INSERT INTO kegs
-      (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)`)
+      (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .run(input.beerId, input.tapId ?? null, input.sizeMl, input.volStartMl,
-      input.dateTapped ?? new Date().toISOString(), new Date().toISOString());
+      input.dateTapped ?? new Date().toISOString(), status, new Date().toISOString());
   return getKeg(db, Number(res.lastInsertRowid))!;
 }
 
@@ -78,6 +85,29 @@ export function getLatestKickedKegForTap(db: Database.Database, tapId: number): 
   return r ? rowToKeg(r) : null;
 }
 
+/** Kegs queued behind a tap's current on_tap keg, in queue (creation) order — the swap
+ * wizard's on-deck list (Task 1 brief / Task 5 UI). */
+export function listOnDeckForTap(db: Database.Database, tapId: number): Keg[] {
+  return db.prepare(
+    `SELECT * FROM kegs WHERE tap_id = ? AND status = 'on_deck' ORDER BY id`,
+  ).all(tapId).map(rowToKeg);
+}
+
+/** Removes a queued on-deck keg from a tap's queue (the admin swap wizard's on-deck
+ * "remove" action, Task 5 brief). Deliberately scoped to `status = 'on_deck'` only — an
+ * on_tap/kicked/archived keg is real history (pours may reference it via `pours.keg_id`,
+ * which has no ON DELETE clause and would FK-violate anyway), so this throws
+ * `ValidationError` rather than deleting it. 404s for an unknown id, matching every other
+ * single-resource repo function's not-found convention. */
+export function removeOnDeckKeg(db: Database.Database, id: number): void {
+  const keg = getKeg(db, id);
+  if (!keg) throw new NotFoundError(`keg ${id}`);
+  if (keg.status !== 'on_deck') {
+    throw new ValidationError(`keg ${id} is not on-deck (status: ${keg.status}) and cannot be removed this way`);
+  }
+  db.prepare('DELETE FROM kegs WHERE id = ?').run(id);
+}
+
 export function applyDispense(db: Database.Database, kegId: number, volDispensedMl: number): Keg {
   const keg = getKeg(db, kegId);
   if (!keg) throw new NotFoundError(`keg ${kegId}`);
@@ -111,11 +141,31 @@ export function recordPourTx(db: Database.Database, input: {
 }
 
 export function swapKeg(db: Database.Database, input: {
-  tapId: number; newBeerId: number; sizeMl: number; volStartMl: number;
+  tapId: number;
+  /** Promotes an already-queued on-deck keg to on_tap instead of creating a fresh row —
+   * must belong to `tapId` and currently be status 'on_deck', or this 404s. When set,
+   * `newBeerId`/`sizeMl`/`volStartMl` are ignored (the promoted keg keeps the values it
+   * was created with). */
+  fromKegId?: number;
+  newBeerId?: number; sizeMl?: number; volStartMl?: number;
 }): Keg {
   const tx = db.transaction(() => {
     db.prepare(`UPDATE kegs SET status = 'kicked' WHERE tap_id = ? AND status = 'on_tap'`)
       .run(input.tapId);
+
+    if (input.fromKegId != null) {
+      const queued = db.prepare(
+        `SELECT id FROM kegs WHERE id = ? AND tap_id = ? AND status = 'on_deck'`,
+      ).get(input.fromKegId, input.tapId);
+      if (!queued) throw new NotFoundError(`on-deck keg ${input.fromKegId} for tap ${input.tapId}`);
+      db.prepare(`UPDATE kegs SET status = 'on_tap', date_tapped = ? WHERE id = ?`)
+        .run(new Date().toISOString(), input.fromKegId);
+      return input.fromKegId;
+    }
+
+    if (input.newBeerId == null || input.sizeMl == null || input.volStartMl == null) {
+      throw new ValidationError('newBeerId, sizeMl, and volStartMl are required unless promoting an on-deck keg via fromKegId');
+    }
     const res = db.prepare(`INSERT INTO kegs
         (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at)
         VALUES (?, ?, ?, ?, ?, ?)`)

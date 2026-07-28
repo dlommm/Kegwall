@@ -742,3 +742,2317 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * Admin shell (Phase 4 Task 2) — the /admin/* management surface. Per the plan's
+ * "Design direction (binding)": inherits the taproom theme's tokens (dark, brass
+ * accent — ThemeProvider mounted with no `theme` prop defaults to it) but reads as a
+ * quiet working tool rather than the wall's show surface — dense-but-breathable
+ * forms, no liquid/SRM motifs here (those return only on the pages that need them,
+ * Tasks 4/5/9), sentence-case copy, and a visible focus ring on every interactive
+ * element (below).
+ */
+.admin-shell__frame {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.admin-shell__loading {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: #19140f;
+  color: #a79883;
+  padding: 1rem;
+  text-align: center;
+}
+
+.admin-nav {
+  display: flex;
+  flex: none;
+  width: 15rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.25rem 1rem;
+  background: var(--surface);
+  border-right: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.admin-nav__brand {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding: 0 0.5rem 1rem;
+}
+
+.admin-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-nav__link {
+  display: block;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.admin-nav__link:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.admin-nav__link--active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  font-weight: 600;
+}
+
+.admin-shell__main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.admin-user-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.admin-user-chip__name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.admin-user-chip__role {
+  text-transform: capitalize;
+}
+
+.admin-topbar__signout {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.admin-topbar__signout:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.admin-content {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem;
+}
+
+.admin-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 2rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text-dim);
+}
+
+.admin-placeholder__title {
+  color: var(--text);
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* LoginPage / SetupPage — same quiet admin surface, no sidebar (there's no session
+   yet), centered single-column form. */
+.admin-auth__page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  padding: 1.5rem;
+}
+
+.admin-auth__form {
+  display: flex;
+  width: 100%;
+  max-width: 22rem;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 2rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.admin-auth__title {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-auth__intro {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-top: -0.4rem;
+}
+
+.admin-auth__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.admin-auth__field input {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.admin-auth__submit {
+  margin-top: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-auth__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.admin-auth__notice {
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.admin-auth__notice--error {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+}
+
+.admin-auth__notice--warning {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+}
+
+/* Visible keyboard focus everywhere, per the design direction — the admin shell has
+   no browser-default outline visible against these dark surfaces otherwise. */
+.admin-nav__link:focus-visible,
+.admin-topbar__signout:focus-visible,
+.admin-auth__submit:focus-visible,
+.admin-auth__field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Dashboard home (Phase 4 Task 3). Same quiet-working-tool surface as the rest of the
+ * admin shell — a card grid, sentence-case headings, and the ONE place liquid/SRM
+ * language reappears outside the wall/menu: the tap pill's small fill swatch, never the
+ * wall's full LiquidFill treatment.
+ */
+.dashboard__title {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.dashboard-card__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.dashboard-card__stat {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dashboard-card__quiet {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.dashboard-tap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dashboard-tap-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dashboard-tap-pill__bar {
+  position: relative;
+  width: 3.5rem;
+  height: 0.5rem;
+  flex: none;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.dashboard-tap-pill__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.dashboard-tap-pill[data-kicked='true'] .dashboard-tap-pill__bar {
+  opacity: 0.6;
+}
+
+.dashboard-tap-pill__meta {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.dashboard-tap-pill__label {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.dashboard-tap-pill__beer {
+  overflow: hidden;
+  flex: 1;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-tap-pill__level {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.dashboard-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dashboard-source-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.dashboard-source-row__name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dashboard-source-row__detail,
+.dashboard-source-row__seen {
+  grid-column: 2;
+  color: var(--text-dim);
+}
+
+.dashboard-source-badge {
+  grid-row: span 2;
+  align-self: start;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.dashboard-source-badge--healthy {
+  background: color-mix(in srgb, #4caf7d 22%, transparent);
+  color: #8fe0b8;
+}
+
+.dashboard-source-badge--unhealthy {
+  background: color-mix(in srgb, #e0793d 22%, transparent);
+  color: #f2b088;
+}
+
+.dashboard-source-badge--unconfigured {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text-dim);
+}
+
+.dashboard-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-activity-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  font-size: 0.85rem;
+}
+
+.dashboard-activity-row:last-child {
+  border-bottom: none;
+}
+
+.dashboard-activity-row__text {
+  color: var(--text);
+}
+
+.dashboard-activity-row__time {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+/*
+ * Beers page (Phase 4 Task 4) — the catalog table, the create/edit form (BeerForm), the
+ * brewery autocomplete, and the Untappd search sheet. Reuses the admin shell's quiet
+ * working-tool language; the SRM chip/swatch is the one place liquid/SRM color reappears
+ * here, per the binding design direction — a small dot, never a full LiquidFill.
+ */
+.admin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-page-header__title {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-page-header__action {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-page-quiet {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table th {
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.admin-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.beers-table__thumb {
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.35rem;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.beers-table__thumb--empty {
+  border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.beers-table__srm-chip {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.beers-table__actions {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.beers-table__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.beers-table__actions button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* The beer create/edit form. */
+.beer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.beer-form__title {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.beer-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.admin-field--full {
+  grid-column: 1 / -1;
+}
+
+.admin-field input[type='text'],
+.admin-field textarea,
+.brewery-autocomplete input {
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.admin-field textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.beer-form__srm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.beer-form__srm-swatch {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.admin-field__label-text {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* Task 7's "Pages"/"Live preview" section headings reuse this class for the same quiet
+   label look, but as real `<h2>`s (a11y landmark, not just styled text) — this resets
+   the browser's default heading margin/weight so it still reads identically. */
+h2.admin-field__label-text {
+  margin: 0 0 0.3rem;
+  font-weight: 500;
+}
+
+.beer-form__label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.beer-form__label-thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.beer-form__label-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.4rem;
+  border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  text-align: center;
+}
+
+.beer-form__upload-button,
+.beer-form__untappd-button,
+.beer-form__label-clear {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.beer-form__upload-button:hover,
+.beer-form__untappd-button:hover,
+.beer-form__label-clear:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.beer-form__notice {
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.beer-form__actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.beer-form__submit {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.beer-form__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.beer-form__cancel {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Brewery autocomplete dropdown. */
+.brewery-autocomplete {
+  position: relative;
+}
+
+.brewery-autocomplete__list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: var(--surface);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+.brewery-autocomplete__option {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.brewery-autocomplete__option:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.brewery-autocomplete__meta {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+/* Untappd search sheet. */
+.untappd-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.untappd-sheet {
+  display: flex;
+  width: 100%;
+  max-width: 28rem;
+  max-height: 80vh;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+
+.untappd-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.untappd-sheet__title {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.untappd-sheet__dismiss {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.untappd-sheet__search {
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.untappd-sheet__status {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.untappd-sheet__notice {
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.untappd-sheet__results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+}
+
+.untappd-sheet__result {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.untappd-sheet__result:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.untappd-sheet__result:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.untappd-sheet__result-meta,
+.untappd-sheet__result-stats {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.untappd-sheet__importing {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+/* Delete confirmation — always a full consequence sentence, never a bare "are you sure?"
+   per the binding design direction. */
+.admin-confirm__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.admin-confirm {
+  display: flex;
+  width: 100%;
+  max-width: 24rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
+
+.admin-confirm__actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.admin-confirm__actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.admin-confirm__actions button:first-child {
+  border: none;
+  background: #c94b3f;
+  color: #fff;
+}
+
+/* Visible keyboard focus everywhere, per the design direction. */
+.admin-page-header__action:focus-visible,
+.admin-table button:focus-visible,
+.admin-field input:focus-visible,
+.admin-field textarea:focus-visible,
+.brewery-autocomplete input:focus-visible,
+.brewery-autocomplete__option:focus-visible,
+.beer-form__upload-button:focus-within,
+.beer-form__untappd-button:focus-visible,
+.beer-form__label-clear:focus-visible,
+.beer-form__submit:focus-visible,
+.beer-form__cancel:focus-visible,
+.untappd-sheet__dismiss:focus-visible,
+.untappd-sheet__search:focus-visible,
+.untappd-sheet__result:focus-visible,
+.admin-confirm__actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Taps & kegs (Phase 4 Task 5). The list reuses the dashboard tap pill's small SRM-tinted
+ * fill bar (the one other place the liquid language reappears), not the wall's full
+ * LiquidFill treatment — same design-direction rule as DashboardPage.
+ */
+.taps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.taps-row {
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.taps-row__main {
+  display: grid;
+  grid-template-columns: 2.5rem 8rem 6rem 1fr 4rem auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.taps-row__number {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+}
+
+.taps-row__name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.taps-row__bar {
+  position: relative;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.taps-row__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.taps-row[data-kicked='true'] .taps-row__bar {
+  opacity: 0.6;
+}
+
+.taps-row__beer {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taps-row__status {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.taps-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.taps-row__actions button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.taps-row__actions button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.taps-row__details {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 1rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* Tap create/edit form — shares BeerForm's field/action/notice classes for a consistent
+   look without duplicating them (see beer-form__* below). */
+.tap-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.tap-form__title {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tap-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.9rem;
+}
+
+/* BeerPicker — the swap wizard's / on-deck queue's shared "pick a beer" widget. */
+.beer-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.beer-picker input[type='text'] {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+}
+
+.beer-picker__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.beer-picker__create,
+.beer-picker__import {
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.beer-picker__notice {
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.beer-picker__empty {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.beer-picker__list {
+  display: flex;
+  max-height: 14rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow-y: auto;
+}
+
+.beer-picker__option {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.beer-picker__option:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.beer-picker__option-brewery {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+/* Swap wizard modal — same shell language as .admin-confirm, wider to hold BeerPicker/
+   size fields. */
+.swap-wizard__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.swap-wizard {
+  display: flex;
+  width: 100%;
+  max-width: 30rem;
+  max-height: 90vh;
+  flex-direction: column;
+  gap: 0.85rem;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
+
+.swap-wizard__title {
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.swap-wizard__picked {
+  font-weight: 600;
+}
+
+.swap-wizard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.swap-wizard__actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.swap-wizard__actions button:first-child {
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.swap-wizard__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* On-deck queue + kicked history — nested inside a taps-row's expanded details. */
+.on-deck-queue,
+.kicked-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.on-deck-queue__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.on-deck-queue__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.on-deck-queue__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.on-deck-queue__beer {
+  flex: 1;
+  color: var(--text);
+}
+
+.on-deck-queue__row-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.on-deck-queue__row-actions button,
+.on-deck-queue__add-form > button,
+.on-deck-queue > button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.on-deck-queue__add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.kicked-history__toggle {
+  align-self: flex-start;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.kicked-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.kicked-history__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Visible keyboard focus for every new Task 5 interactive element. */
+.taps-row__actions button:focus-visible,
+.tap-form__grid input:focus-visible,
+.beer-picker input:focus-visible,
+.beer-picker__create:focus-visible,
+.beer-picker__import:focus-visible,
+.beer-picker__option:focus-visible,
+.swap-wizard__actions button:focus-visible,
+.on-deck-queue__row-actions button:focus-visible,
+.on-deck-queue__add-form button:focus-visible,
+.on-deck-queue > button:focus-visible,
+.kicked-history__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A `<select>` alongside `.admin-field`'s existing text input/textarea styling (Task 6's
+   bind-to-tap picker is the first admin form to need one). */
+.admin-field select {
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+/*
+ * Monitors page (Phase 4 Task 6). The table reuses `.admin-table` (BeersPage) and the
+ * bind-picker/reset-confirm dialogs reuse the `.admin-confirm` shell (BeersPage/TapsPage
+ * delete confirms) rather than inventing new modal chrome.
+ */
+.monitors-type-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.monitors-type-badge--kegtron_gen1 {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.monitors-row__quiet {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+/* The "Not bound" nudge — a visible affordance (not just quiet empty text), same warm-
+   attention tint as `.beer-picker__notice`. */
+.monitors-row__unbound {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.monitors-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.monitors-row__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.monitors-row__actions button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.monitors-row__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.monitors-table tbody tr[data-testid='monitors-row-details'] td {
+  padding: 0.75rem 1rem 1rem;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.monitors-telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.monitors-telemetry__latest {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.monitors-telemetry__sparklines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.monitors-telemetry__sparkline-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.monitors-telemetry__sparkline-label {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.monitors-sparkline-empty {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+/* Visible keyboard focus for every new Task 6 interactive element. */
+.admin-field select:focus-visible,
+.monitors-row__actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Walls page + wall editor (Phase 4 Task 7). The list reuses `.admin-table` (as beers/
+ * monitors do); the delete confirm reuses `.admin-confirm`. Everything below is new:
+ * the URL/copy/open cell, the inline create form, the pages builder, and the full
+ * editor + live-preview split.
+ */
+.walls-table__url {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.walls-table__url-text {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-family: var(--font-mono-numeric, inherit);
+  word-break: break-all;
+}
+
+.walls-table__url button,
+.walls-table__url a {
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.walls-table__url button:hover,
+.walls-table__url a:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.walls-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.walls-table__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.walls-table__actions button:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* The inline read-only preview row a click on "Preview" expands under any wall's row. */
+.walls-table__preview-frame {
+  display: block;
+  width: 100%;
+  height: 20rem;
+  margin: 0.5rem 0;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: var(--card-radius, 0.75rem);
+  background: #000;
+}
+
+.wall-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.wall-create-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.85rem;
+}
+
+.wall-create-form__notice {
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.wall-create-form__actions,
+.wall-editor__save-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.wall-create-form__actions button,
+.wall-editor__save-row button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wall-create-form__actions button:last-child {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.wall-create-form__actions button:disabled,
+.wall-editor__save-row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- Wall editor shell: form column + a preview column that stays put alongside it --- */
+.wall-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.wall-editor__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.wall-editor__back {
+  align-self: flex-start;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.wall-editor__back:hover {
+  color: var(--text);
+}
+
+.wall-editor__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.wall-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.85rem;
+}
+
+.wall-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 0.5rem;
+}
+
+.wall-editor__section legend {
+  padding: 0 0.4rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wall-editor__field-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem;
+}
+
+.wall-editor__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wall-editor__tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wall-editor__token-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wall-editor__token-label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-editor__token-row input[type='color'] {
+  width: 2.75rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  cursor: pointer;
+}
+
+.wall-editor__token-row input[type='text'] {
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.wall-editor__token-row button {
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.wall-editor__token-row button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wall-editor__css-textarea {
+  min-height: 6rem;
+  font-family: var(--font-mono-numeric, monospace);
+  font-size: 0.85rem;
+}
+
+/* The mandated inline trust warning next to custom CSS — same warm-attention tint as the
+   "Not bound" monitor nudge and the auth notices, never just quiet gray text. */
+.wall-editor__css-warning {
+  margin-top: -0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.wall-editor__errors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+  list-style: disc;
+  list-style-position: inside;
+}
+
+.wall-editor__live-note {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-editor__preview {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.wall-preview__frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: var(--card-radius, 0.75rem);
+  background: #000;
+}
+
+/* --- Wall pages builder --- */
+.wall-pages-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.wall-pages-builder__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wall-pages-builder__header button {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.wall-page-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.wall-page-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.wall-page-block__title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wall-page-block__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.wall-page-block__actions button {
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.wall-page-block__actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wall-page-block__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+.wall-page-block__label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wall-page-block__membership ul,
+.wall-page-block__order ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-page-block__membership label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wall-page-block__order li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.wall-page-block__order li span {
+  flex: 1;
+}
+
+.wall-page-block__order li button {
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wall-page-block__order li button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Visible keyboard focus for every new Task 7 interactive element. */
+.walls-table__url button:focus-visible,
+.walls-table__url a:focus-visible,
+.walls-table__actions button:focus-visible,
+.wall-create-form__actions button:focus-visible,
+.wall-editor__back:focus-visible,
+.wall-editor__save-row button:focus-visible,
+.wall-editor__token-row button:focus-visible,
+.wall-editor__token-row input:focus-visible,
+.wall-pages-builder__header button:focus-visible,
+.wall-page-block__actions button:focus-visible,
+.wall-page-block__order li button:focus-visible,
+.wall-page-block__membership input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 64rem) {
+  .wall-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .wall-editor__preview {
+    position: static;
+  }
+}
+
+/*
+ * Users page (Phase 4 Task 8). The create/edit forms share BeerForm's field/action/
+ * notice classes (see beer-form__* above); `.user-form` itself mirrors `.tap-form`'s
+ * shell exactly (own class only so this section reads independently, not because the
+ * look differs).
+ */
+.user-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.user-form__title {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.user-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.9rem;
+}
+
+.user-form input[type='color'] {
+  width: 3rem;
+  height: 2.2rem;
+  padding: 0.15rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  cursor: pointer;
+}
+
+.users-avatar-dot {
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+}
+
+.users-row__username {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.users-role-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text);
+}
+
+.users-role-badge--admin {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.users-role-badge--none {
+  color: var(--text-dim);
+  border-style: dashed;
+}
+
+.users-drinker-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+.users-table__actions {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.users-table__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.users-table__actions button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.user-form button:focus-visible,
+.users-table__actions button:focus-visible,
+.user-form input:focus-visible,
+.user-form select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Settings page + Backup panel (Phase 4 Task 8). Each group is its own quiet card
+ * (`.settings-group`, same shell language as `.user-form`/`.tap-form`/`.beer-form`) that
+ * saves independently; masked secret fields (`.masked-secret`) share one small "Replace"
+ * affordance component across Kegtron/Sources/Integrations.
+ */
+.settings-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.25rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.settings-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.85rem;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-toggle__note {
+  margin: -0.4rem 0 0 1.7rem;
+  font-size: 0.8rem;
+}
+
+.masked-secret__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.masked-secret__row input[type='password'] {
+  flex: 1;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.masked-secret__value {
+  flex: 1;
+  font-family: var(--font-mono-numeric, monospace);
+  color: var(--text-dim);
+}
+
+.masked-secret__row button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.settings-notice {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.settings-notice--restart {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+}
+
+/* Backup panel — its own quiet card, download + restore side by side as two internal
+   blocks rather than two separate top-level `.settings-group`s (they're one conceptual
+   "Backup" group per the plan). */
+.backup-panel__block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.backup-panel__block + .backup-panel__block {
+  margin-top: 0.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.backup-panel__block-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.backup-panel__download {
+  align-self: flex-start;
+  text-decoration: none;
+}
+
+/* The typed-confirm warning — the strongest confirm in the app, so it gets the same
+   warm-attention tint as the wall editor's custom-CSS trust warning, not quiet gray. */
+.backup-panel__warning {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.settings-group button:focus-visible,
+.settings-group input:focus-visible,
+.settings-group select:focus-visible,
+.masked-secret__row button:focus-visible,
+.backup-panel__block button:focus-visible,
+.backup-panel__block input:focus-visible,
+.backup-panel__download:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Stats page (Phase 4 Task 9) — Recharts-driven pours/hour/temp/volume charts, per-keg
+ * depletion cards, and the leaderboard table. Per the binding "Charts style" section:
+ * one brass primary series (var(--accent)) everywhere except the volume-by-beer chart,
+ * whose bars are SRM-tinted because each one IS a specific beer; no gradients/3D/
+ * decorative animation (every Bar/Line below sets isAnimationActive={false} in JSX);
+ * axis ticks pick up tabular numerals via the shared `.font-tabular` rules through plain
+ * CSS inheritance (XAxis/YAxis pass `className="font-tabular"` straight onto Recharts'
+ * own <g> wrapper, and SVG <text> inherits font-family/font-variant-numeric from its
+ * ancestors); a custom `<Tooltip content>` on every chart names the exact value + unit
+ * instead of Recharts' bare default.
+ */
+/* A CSS multi-column ("masonry") layout rather than CSS Grid: the six sections here are
+   very different heights (four short charts, but keg-depletion and the leaderboard both
+   grow with the number of rows they list), and a same-height-row grid would stretch
+   every row to its tallest card, stranding a lot of dead space under the shorter ones
+   next to it. Columns instead pack each card directly under the shortest column so far,
+   like a card board — `break-inside: avoid` keeps a single card from ever being split
+   across two columns. */
+.stats-grid {
+  columns: 3 22rem;
+  column-gap: 1rem;
+}
+
+.stats-chart,
+.stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  break-inside: avoid;
+}
+
+.stats-chart__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.stats-chart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.stats-chart__monitor-select {
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+/* The date-range switcher (pours + beers) and the leaderboard's week/month/all switcher
+   — same segmented-button look, `aria-pressed` carries the selected state visually AND
+   to assistive tech rather than color alone. */
+.stats-switcher {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.stats-switcher__option {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.stats-switcher__option[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+/* Custom Recharts tooltip content — exact value + unit, per the binding style, styled to
+   match the rest of the admin shell's quiet surfaces rather than Recharts' default
+   white box. */
+.stats-tooltip {
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.4rem;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  font-size: 0.8rem;
+}
+
+.stats-tooltip__label {
+  color: var(--text-dim);
+}
+
+.stats-tooltip__value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Per-keg depletion cards — not a chart, per the plan's own framing. */
+.keg-depletion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.75rem;
+}
+
+.keg-depletion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.keg-depletion-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.keg-depletion-card__beer {
+  overflow: hidden;
+  flex: 1;
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keg-depletion-card__tap {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.keg-depletion-card__bar {
+  position: relative;
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.keg-depletion-card__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.keg-depletion-card__level {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.keg-depletion-card__projection {
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+/* The SRM chip — same small-dot treatment as BeersPage's `.beers-table__srm-chip`, the
+   one place liquid/SRM color reappears here per the binding design direction. */
+.stats-srm-chip {
+  display: inline-block;
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+/* Leaderboard — same avatar-dot treatment as UsersPage's `.users-avatar-dot`. */
+.leaderboard-row__drinker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.leaderboard-avatar-dot {
+  display: block;
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+}
+
+.stats-switcher__option:focus-visible,
+.stats-chart__monitor-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

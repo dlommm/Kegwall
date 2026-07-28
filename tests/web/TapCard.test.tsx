@@ -65,6 +65,7 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
     pouring: false,
     curServMl: null,
     monitorOnline: true,
+    temp: null,
     ...overrides,
   };
 }

@@ -1,0 +1,283 @@
+import {
+  describe, it, expect, vi, beforeEach,
+} from 'vitest';
+import type { Mock } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MonitorsPage } from '../../../src/web/routes/admin/MonitorsPage';
+import { getMenu } from '../../../src/web/lib/api';
+import { useTapStates } from '../../../src/web/lib/useTapStates';
+import {
+  getMe, listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume,
+} from '../../../src/web/lib/adminApi';
+import type { TapState } from '../../../src/server/core/state';
+import type { User } from '../../../src/server/db/users';
+import type { Monitor } from '../../../src/server/db/monitors';
+
+vi.mock('../../../src/web/lib/api', () => ({ getMenu: vi.fn() }));
+vi.mock('../../../src/web/lib/useTapStates', () => ({ useTapStates: vi.fn() }));
+vi.mock('../../../src/web/lib/adminApi', () => ({
+  getMe: vi.fn(),
+  listMonitors: vi.fn(),
+  bindMonitor: vi.fn(),
+  getMonitorTelemetry: vi.fn(),
+  resetKegtronVolume: vi.fn(),
+}));
+
+async function flush() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
+  return {
+    id,
+    type: 'kegtron_pro',
+    identifier: `device-${id}`,
+    serial: `SN${id}`,
+    portIndex: 0,
+    tapId: null,
+    lastSeen: '2026-07-27T23:00:00.000Z',
+    meta: {},
+    ...overrides,
+  };
+}
+
+function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
+  return {
+    tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
+    pouring: false, curServMl: null, monitorOnline: true, temp: null, ...overrides,
+  };
+}
+
+function makeUser(role: User['role']): User {
+  return {
+    id: 1, username: 'u', displayName: 'U', role, isDrinker: false, avatarColor: null,
+    createdAt: '2026-07-28T00:00:00.000Z',
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('editor') });
+  (getMenu as Mock).mockResolvedValue({ ok: true, data: { siteName: 'X', taps: [], units: 'us' } });
+  (useTapStates as Mock).mockReturnValue({ taps: [], stale: false, connected: true, reconnectCount: 0 });
+  (listMonitors as Mock).mockResolvedValue({ ok: true, data: [] });
+  (getMonitorTelemetry as Mock).mockResolvedValue({ ok: true, data: [] });
+});
+
+describe('MonitorsPage', () => {
+  it('renders one row per monitor with a type badge, identifier/serial, port, and last-seen', async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        makeMonitor(1, { type: 'kegtron_pro', identifier: 'device-1', serial: 'SN1', portIndex: 2 }),
+        makeMonitor(2, { type: 'kegtron_gen1', identifier: 'aa:bb:cc', serial: null, portIndex: 0 }),
+      ],
+    });
+    render(<MonitorsPage />);
+    const rows = await screen.findAllByTestId('monitors-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('Kegtron Pro');
+    expect(rows[0]).toHaveTextContent('device-1');
+    expect(rows[0]).toHaveTextContent('SN1');
+    expect(rows[0]).toHaveTextContent('2');
+    expect(rows[1]).toHaveTextContent('Kegtron Gen 1');
+    expect(rows[1]).toHaveTextContent('aa:bb:cc');
+  });
+
+  it('shows a quiet empty state with no monitors', async () => {
+    render(<MonitorsPage />);
+    expect(await screen.findByTestId('monitors-empty')).toBeInTheDocument();
+  });
+
+  it('shows a visible "Not bound" nudge for an unbound monitor, and the tap name + live volume for a bound one', async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        makeMonitor(1, { tapId: null }),
+        makeMonitor(2, { tapId: 5 }),
+      ],
+    });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [
+        makeTap(5, {
+          tapName: 'Left',
+          keg: {
+            id: 1, beerId: 1, tapId: 5, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750,
+            dateTapped: null, status: 'on_tap', createdAt: '', levelPct: 75, remainingMl: 14250,
+          },
+        }),
+      ],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    render(<MonitorsPage />);
+    const rows = await screen.findAllByTestId('monitors-row');
+    expect(rows[0]).toHaveTextContent('Not bound');
+    expect(rows[1]).toHaveTextContent('Left');
+    expect(rows[1]).toHaveTextContent('481.8 oz');
+  });
+
+  it('a viewer sees a read-only table: no bind/unbind/reset controls, but can still open Pro details', async () => {
+    (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('viewer') });
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+    expect(screen.queryByTestId('monitors-row-bind')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('monitors-row-unbind')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('monitors-row-reset')).not.toBeInTheDocument();
+    expect(screen.getByTestId('monitors-row-expand')).toBeInTheDocument();
+  });
+
+  it('binding: opens the picker, submits the chosen tap, and refreshes the list', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { tapId: null })] });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(5, { tapName: 'Left' }), makeTap(6, { tapNumber: 6, tapName: null })],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    (bindMonitor as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { tapId: 5 }) });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-bind'));
+    expect(screen.getByTestId('monitors-bind-picker')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('monitors-bind-select'), { target: { value: '5' } });
+    fireEvent.click(screen.getByTestId('monitors-bind-submit'));
+    await flush();
+
+    expect(bindMonitor).toHaveBeenCalledWith(1, 5);
+    expect(screen.queryByTestId('monitors-bind-picker')).not.toBeInTheDocument();
+    expect(listMonitors).toHaveBeenCalledTimes(2); // initial load + post-bind refresh
+  });
+
+  it('unbinding a bound monitor calls bind with a null tapId, with no picker needed', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { tapId: 5 })] });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(5, { tapName: 'Left' })], stale: false, connected: true, reconnectCount: 0,
+    });
+    (bindMonitor as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { tapId: null }) });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-unbind'));
+    await flush();
+
+    expect(bindMonitor).toHaveBeenCalledWith(1, null);
+    expect(listMonitors).toHaveBeenCalledTimes(2);
+  });
+
+  it('an unbind failure opens the bind picker (prefilled) with the error, instead of failing silently', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { tapId: 5 })] });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(5, { tapName: 'Left' })], stale: false, connected: true, reconnectCount: 0,
+    });
+    (bindMonitor as Mock).mockResolvedValue({ ok: false, status: 0, message: 'Network error' });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-unbind'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-bind-picker')).toBeInTheDocument();
+    expect(screen.getByTestId('monitors-bind-error')).toHaveTextContent('Network error');
+    expect(screen.getByTestId('monitors-bind-select')).toHaveValue('5');
+  });
+
+  it('a bind failure shows the message and keeps the picker open', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { tapId: null })] });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(5, { tapName: 'Left' })], stale: false, connected: true, reconnectCount: 0,
+    });
+    (bindMonitor as Mock).mockResolvedValue({ ok: false, status: 400, message: 'Refers to a record that does not exist' });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-bind'));
+    fireEvent.click(screen.getByTestId('monitors-bind-submit'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-bind-error')).toHaveTextContent('does not exist');
+    expect(screen.getByTestId('monitors-bind-picker')).toBeInTheDocument();
+  });
+
+  it("a Gen 1 monitor has no Details/expand or reset control (no temp/humidity, not mdash-backed)", async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_gen1' })] });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+    expect(screen.queryByTestId('monitors-row-expand')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('monitors-row-reset')).not.toBeInTheDocument();
+  });
+
+  it("expanding a Pro monitor's details fetches and renders latest temp/humidity + a sparkline", async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
+    (getMonitorTelemetry as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        { ts: '2026-07-27T20:00:00.000Z', temp: 3.0, humidity: 40 },
+        { ts: '2026-07-27T21:00:00.000Z', temp: 4.0, humidity: 45 },
+      ],
+    });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    await flush();
+
+    expect(getMonitorTelemetry).toHaveBeenCalledWith(1, 24);
+    expect(screen.getByTestId('monitors-telemetry-latest')).toHaveTextContent('45%');
+    expect(screen.getByTestId('monitors-sparkline-temp')).toBeInTheDocument();
+  });
+
+  it('expanding a Pro monitor with no telemetry yet shows an empty state, not a broken chart', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
+    (getMonitorTelemetry as Mock).mockResolvedValue({ ok: true, data: [] });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-telemetry-empty')).toBeInTheDocument();
+  });
+
+  it('reset volume: the confirm names the monitor and states the consequence, then succeeds', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(7, { type: 'kegtron_pro', identifier: 'device-7' })] });
+    (resetKegtronVolume as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-reset'));
+    const confirm = screen.getByTestId('monitors-reset-confirm');
+    expect(confirm).toHaveTextContent('device-7');
+    expect(confirm).toHaveTextContent('reset');
+
+    fireEvent.click(screen.getByTestId('monitors-reset-confirm-button'));
+    await flush();
+
+    expect(resetKegtronVolume).toHaveBeenCalledWith(7);
+    expect(screen.getByTestId('monitors-reset-done')).toBeInTheDocument();
+  });
+
+  it('reset volume: a 502 shows a gentle message and keeps the retry action available', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(7, { type: 'kegtron_pro' })] });
+    (resetKegtronVolume as Mock).mockResolvedValue({ ok: false, status: 502, message: 'Failed to reset volume via mdash.net (status 503)' });
+    render(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-reset'));
+    fireEvent.click(screen.getByTestId('monitors-reset-confirm-button'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-reset-error')).toHaveTextContent(/try again/i);
+    expect(screen.getByTestId('monitors-reset-confirm-button')).not.toBeDisabled();
+
+    (resetKegtronVolume as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
+    fireEvent.click(screen.getByTestId('monitors-reset-confirm-button'));
+    await flush();
+    expect(resetKegtronVolume).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('monitors-reset-done')).toBeInTheDocument();
+  });
+});

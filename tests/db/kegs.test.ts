@@ -5,9 +5,9 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import {
   createKeg, getActiveKegForTap, applyDispense, recordPourTx, swapKeg, listKegs,
-  getLatestKickedKegForTap,
+  getLatestKickedKegForTap, listOnDeckForTap, removeOnDeckKeg,
 } from '../../src/server/db/kegs.js';
-import { ConflictError } from '../../src/server/core/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -95,5 +95,82 @@ describe('kegs repo', () => {
     const keg = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId: otherTapId });
     db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(keg.id);
     expect(getLatestKickedKegForTap(db, tapId)).toBeNull();
+  });
+
+  describe('on-deck kegs', () => {
+    it('createKeg accepts status on_deck alongside an existing on_tap keg without conflicting', () => {
+      const active = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+      const onDeck = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
+      expect(onDeck.status).toBe('on_deck');
+      expect(getActiveKegForTap(db, tapId)?.id).toBe(active.id);
+    });
+
+    it('listOnDeckForTap returns on-deck kegs for a tap in queue order, excluding other statuses/taps', () => {
+      const otherTapId = createTap(db, { number: 2 }).id;
+      const first = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId, status: 'on_deck' });
+      const second = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
+      createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId: otherTapId, status: 'on_deck' });
+      createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId }); // on_tap, excluded
+
+      expect(listOnDeckForTap(db, tapId).map((k) => k.id)).toEqual([first.id, second.id]);
+    });
+
+    it('listOnDeckForTap returns an empty array for a tap with no queued kegs', () => {
+      expect(listOnDeckForTap(db, tapId)).toEqual([]);
+    });
+
+    it('swapKeg promotes an on-deck keg via fromKegId instead of creating a fresh row', () => {
+      const current = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+      const queued = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
+
+      const promoted = swapKeg(db, { tapId, fromKegId: queued.id });
+      expect(promoted.id).toBe(queued.id);
+      expect(promoted.status).toBe('on_tap');
+      expect(getActiveKegForTap(db, tapId)?.id).toBe(queued.id);
+      expect(getLatestKickedKegForTap(db, tapId)?.id).toBe(current.id);
+      expect(listOnDeckForTap(db, tapId)).toEqual([]);
+      // no new row was created for the promotion — still just the original two
+      expect(listKegs(db)).toHaveLength(2);
+    });
+
+    it('swapKeg with fromKegId 404s for an on-deck keg that does not belong to the target tap', () => {
+      const otherTapId = createTap(db, { number: 2 }).id;
+      const queued = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId: otherTapId, status: 'on_deck' });
+      expect(() => swapKeg(db, { tapId, fromKegId: queued.id })).toThrow(NotFoundError);
+    });
+
+    it('swapKeg still requires beer/size/volume when not promoting an on-deck keg', () => {
+      expect(() => swapKeg(db, { tapId } as any)).toThrow();
+    });
+
+    it('the unique active-keg index still rejects a second on_tap keg after a promotion', () => {
+      createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+      const queued = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
+      swapKeg(db, { tapId, fromKegId: queued.id });
+      expect(() => createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId })).toThrow(ConflictError);
+    });
+
+    describe('removeOnDeckKeg', () => {
+      it('deletes a queued on-deck keg', () => {
+        const queued = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
+        removeOnDeckKeg(db, queued.id);
+        expect(listOnDeckForTap(db, tapId)).toEqual([]);
+      });
+
+      it('404s for an unknown keg id', () => {
+        expect(() => removeOnDeckKeg(db, 999999)).toThrow(NotFoundError);
+      });
+
+      it('refuses to remove a keg that is not on_deck (on_tap, kicked, or archived)', () => {
+        const onTap = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+        expect(() => removeOnDeckKeg(db, onTap.id)).toThrow(ValidationError);
+        expect(getActiveKegForTap(db, tapId)?.id).toBe(onTap.id);
+
+        const kicked = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000 });
+        db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(kicked.id);
+        expect(() => removeOnDeckKeg(db, kicked.id)).toThrow(ValidationError);
+        expect(listKegs(db, { status: 'kicked' })).toHaveLength(1);
+      });
+    });
   });
 });

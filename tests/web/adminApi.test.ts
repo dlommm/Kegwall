@@ -1,0 +1,621 @@
+import {
+  describe, it, expect, vi, beforeEach, afterEach,
+} from 'vitest';
+import type { Mock } from 'vitest';
+import {
+  needsSetup, login, logout, getMe, setup,
+  listBeers, createBeer, updateBeer, deleteBeer,
+  lookupBreweries, lookupUntappd, importUntappdLabel, uploadLabel,
+  listTaps, createTap, updateTap, deleteTap,
+  listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
+  listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
+  listWalls, createWall, updateWall, deleteWall,
+  listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
+  getSettings, patchSettings, uploadRestore,
+  getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
+  getStatsTemps, getLeaderboard,
+} from '../../src/web/lib/adminApi';
+
+function mockFetchOnce(status: number, body: unknown) {
+  const ok = status >= 200 && status < 300;
+  const response = {
+    ok,
+    status,
+    statusText: ok ? 'OK' : 'Error',
+    json: async () => body,
+  } as Response;
+  (globalThis.fetch as Mock).mockResolvedValueOnce(response);
+}
+
+const originalLocation = window.location;
+let assignMock: Mock;
+
+function setPathname(pathname: string) {
+  assignMock = vi.fn();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { ...originalLocation, pathname, assign: assignMock },
+  });
+}
+
+describe('admin api client', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+    setPathname('/admin/beers');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+  });
+
+  it('needsSetup parses a successful response', async () => {
+    mockFetchOnce(200, { needsSetup: true });
+    const result = await needsSetup();
+    expect(result).toEqual({ ok: true, data: { needsSetup: true } });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/needs-setup', expect.any(Object));
+  });
+
+  it('getMe parses the current user on success', async () => {
+    const user = {
+      id: 1, username: 'dan', displayName: 'Dan', role: 'admin',
+      isDrinker: false, avatarColor: null, createdAt: '2026-07-28T00:00:00.000Z',
+    };
+    mockFetchOnce(200, user);
+    const result = await getMe();
+    expect(result).toEqual({ ok: true, data: user });
+  });
+
+  it('login posts credentials and parses the user on success', async () => {
+    const user = {
+      id: 1, username: 'dan', displayName: 'Dan', role: 'admin',
+      isDrinker: false, avatarColor: null, createdAt: '2026-07-28T00:00:00.000Z',
+    };
+    mockFetchOnce(200, user);
+    const result = await login('dan', 'hunter22');
+    expect(result).toEqual({ ok: true, data: user });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/auth/login');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ username: 'dan', password: 'hunter22' });
+  });
+
+  it('login reports a typed 401 for bad credentials', async () => {
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Bad username or password' });
+    const result = await login('dan', 'nope');
+    expect(result).toEqual({ ok: false, status: 401, message: 'Bad username or password' });
+  });
+
+  it('login reports a typed 429 when rate-limited', async () => {
+    mockFetchOnce(429, { statusCode: 429, error: 'Too Many Requests', message: 'Rate limit exceeded' });
+    const result = await login('dan', 'hunter22');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(429);
+  });
+
+  it('logout posts and parses ok', async () => {
+    mockFetchOnce(200, { ok: true });
+    const result = await logout();
+    expect(result).toEqual({ ok: true, data: { ok: true } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/auth/logout');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('setup posts the first-admin payload and parses the created user', async () => {
+    const user = {
+      id: 1, username: 'dan', displayName: 'Dan', role: 'admin',
+      isDrinker: true, avatarColor: null, createdAt: '2026-07-28T00:00:00.000Z',
+    };
+    mockFetchOnce(201, user);
+    const result = await setup({ username: 'dan', displayName: 'Dan', password: 'hunter22' });
+    expect(result).toEqual({ ok: true, data: user });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/auth/setup');
+    expect(JSON.parse(call[1].body)).toEqual({ username: 'dan', displayName: 'Dan', password: 'hunter22' });
+  });
+
+  it('setup reports a typed 409 when setup already ran', async () => {
+    mockFetchOnce(409, { error: 'conflict', message: 'Setup already completed' });
+    const result = await setup({ username: 'dan', displayName: 'Dan', password: 'hunter22' });
+    expect(result).toEqual({ ok: false, status: 409, message: 'Setup already completed' });
+  });
+
+  it('redirects to /admin/login on a 401 when not already on an auth page', async () => {
+    setPathname('/admin/beers');
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
+    await getMe();
+    expect(assignMock).toHaveBeenCalledWith('/admin/login');
+  });
+
+  it('does not redirect on a 401 while already on /admin/login (bad login attempt)', async () => {
+    setPathname('/admin/login');
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Bad username or password' });
+    await login('dan', 'nope');
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect on a 401 while already on /admin/setup', async () => {
+    setPathname('/admin/setup');
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
+    await getMe();
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect for a non-401 error status', async () => {
+    setPathname('/admin/beers');
+    mockFetchOnce(500, { error: 'internal', message: 'Something went wrong' });
+    await getMe();
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('reports network failures as a typed result instead of throwing, without redirecting', async () => {
+    setPathname('/admin/beers');
+    (globalThis.fetch as Mock).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const result = await getMe();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(0);
+      expect(result.message).toContain('Failed to fetch');
+    }
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  // --- Task 4: beers + lookup services ---
+
+  const beer = {
+    id: 1, name: 'Citra IPA', brewery: 'Test Brewery', style: 'IPA', abv: 6.5, ibu: 60,
+    srm: 6, description: null, labelImage: null, createdAt: '2026-07-28T00:00:00.000Z',
+  };
+
+  it('listBeers GETs /api/beers', async () => {
+    mockFetchOnce(200, [beer]);
+    const result = await listBeers();
+    expect(result).toEqual({ ok: true, data: [beer] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/beers', expect.any(Object));
+  });
+
+  it('createBeer POSTs the input and parses the created beer', async () => {
+    mockFetchOnce(201, beer);
+    const result = await createBeer({ name: 'Citra IPA' });
+    expect(result).toEqual({ ok: true, data: beer });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/beers');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ name: 'Citra IPA' });
+  });
+
+  it('updateBeer PATCHes /api/beers/:id', async () => {
+    mockFetchOnce(200, beer);
+    const result = await updateBeer(1, { abv: 7 });
+    expect(result).toEqual({ ok: true, data: beer });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/beers/1');
+    expect(call[1].method).toBe('PATCH');
+  });
+
+  it('deleteBeer DELETEs /api/beers/:id and reports a 409 conflict', async () => {
+    mockFetchOnce(409, { error: 'conflict', message: 'beer 1 is referenced by 1 keg(s)' });
+    const result = await deleteBeer(1);
+    expect(result).toEqual({ ok: false, status: 409, message: 'beer 1 is referenced by 1 keg(s)' });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/beers/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('lookupBreweries GETs /api/lookup/breweries with an encoded query', async () => {
+    mockFetchOnce(200, [{ name: 'Modern Brew Co', city: 'Portland', state: 'Oregon' }]);
+    const result = await lookupBreweries('modern brew');
+    expect(result.ok).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/lookup/breweries?q=modern%20brew', expect.any(Object));
+  });
+
+  it('lookupUntappd reports a typed 501 when Untappd is not configured', async () => {
+    mockFetchOnce(501, { error: 'not_configured', message: 'Untappd is not configured' });
+    const result = await lookupUntappd('citra');
+    expect(result).toEqual({ ok: false, status: 501, message: 'Untappd is not configured' });
+  });
+
+  it('lookupUntappd parses results when configured', async () => {
+    const hit = {
+      name: 'Citra IPA', brewery: 'Test Brewery', style: 'IPA', abv: 6.5, ibu: 60, labelUrl: 'https://x/label.png',
+    };
+    mockFetchOnce(200, [hit]);
+    const result = await lookupUntappd('citra');
+    expect(result).toEqual({ ok: true, data: [hit] });
+  });
+
+  it('importUntappdLabel POSTs the labelUrl and parses the stored path', async () => {
+    mockFetchOnce(201, { path: '/labels/abc.png' });
+    const result = await importUntappdLabel('https://x/label.png');
+    expect(result).toEqual({ ok: true, data: { path: '/labels/abc.png' } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/lookup/untappd/import');
+    expect(JSON.parse(call[1].body)).toEqual({ labelUrl: 'https://x/label.png' });
+  });
+
+  it('uploadLabel sends a FormData body without forcing a JSON content-type header', async () => {
+    mockFetchOnce(201, { path: '/labels/xyz.jpg' });
+    const file = new File(['fake-bytes'], 'label.jpg', { type: 'image/jpeg' });
+    const result = await uploadLabel(file);
+    expect(result).toEqual({ ok: true, data: { path: '/labels/xyz.jpg' } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/uploads/label');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].body).toBeInstanceOf(FormData);
+    expect(call[1].body.get('file')).toBe(file);
+    expect(call[1].headers['Content-Type']).toBeUndefined();
+  });
+
+  // --- Task 5: taps & kegs ---
+
+  const tap = { id: 1, number: 1, name: 'Left' };
+  const keg = {
+    id: 5, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
+    dateTapped: null, status: 'on_tap', createdAt: '2026-07-28T00:00:00.000Z',
+  };
+
+  it('listTaps GETs /api/taps', async () => {
+    mockFetchOnce(200, [tap]);
+    const result = await listTaps();
+    expect(result).toEqual({ ok: true, data: [tap] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/taps', expect.any(Object));
+  });
+
+  it('createTap POSTs the input', async () => {
+    mockFetchOnce(201, tap);
+    const result = await createTap({ number: 1, name: 'Left' });
+    expect(result).toEqual({ ok: true, data: tap });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ number: 1, name: 'Left' });
+  });
+
+  it('updateTap PATCHes /api/taps/:id', async () => {
+    mockFetchOnce(200, tap);
+    const result = await updateTap(1, { name: 'Right' });
+    expect(result).toEqual({ ok: true, data: tap });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps/1');
+    expect(call[1].method).toBe('PATCH');
+  });
+
+  it('deleteTap DELETEs /api/taps/:id and reports a 409 conflict', async () => {
+    mockFetchOnce(409, { error: 'conflict', message: "tap 1 has keg history (2 keg(s) on record) and can't be deleted" });
+    const result = await deleteTap(1);
+    expect(result).toEqual({ ok: false, status: 409, message: "tap 1 has keg history (2 keg(s) on record) and can't be deleted" });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('listKegs GETs /api/kegs with no status filter by default', async () => {
+    mockFetchOnce(200, [keg]);
+    const result = await listKegs();
+    expect(result).toEqual({ ok: true, data: [keg] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/kegs', expect.any(Object));
+  });
+
+  it('listKegs GETs /api/kegs?status=... when a status filter is given', async () => {
+    mockFetchOnce(200, []);
+    await listKegs({ status: 'kicked' });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/kegs?status=kicked', expect.any(Object));
+  });
+
+  it('createKeg POSTs the input, including on-deck status', async () => {
+    mockFetchOnce(201, { ...keg, status: 'on_deck' });
+    const result = await createKeg({
+      beerId: 1, sizeMl: 19000, volStartMl: 19000, tapId: 1, status: 'on_deck',
+    });
+    expect(result.ok).toBe(true);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegs');
+    expect(JSON.parse(call[1].body)).toEqual({
+      beerId: 1, sizeMl: 19000, volStartMl: 19000, tapId: 1, status: 'on_deck',
+    });
+  });
+
+  it('removeOnDeckKeg DELETEs /api/kegs/:id and reports a 400 for a non-on_deck keg', async () => {
+    mockFetchOnce(400, { error: 'validation', message: 'keg 5 is not on-deck (status: on_tap) and cannot be removed this way' });
+    const result = await removeOnDeckKeg(5);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(400);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegs/5');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('listOnDeck GETs /api/taps/:id/on-deck', async () => {
+    mockFetchOnce(200, [keg]);
+    const result = await listOnDeck(1);
+    expect(result).toEqual({ ok: true, data: [keg] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/taps/1/on-deck', expect.any(Object));
+  });
+
+  it('swapTap POSTs a new-keg payload to /api/taps/:id/swap', async () => {
+    mockFetchOnce(201, keg);
+    const result = await swapTap(1, { beerId: 1, sizeMl: 19000, volStartMl: 19000 });
+    expect(result).toEqual({ ok: true, data: keg });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps/1/swap');
+    expect(JSON.parse(call[1].body)).toEqual({ beerId: 1, sizeMl: 19000, volStartMl: 19000 });
+  });
+
+  it('swapTap POSTs a fromKegId payload for the promote path', async () => {
+    mockFetchOnce(201, keg);
+    await swapTap(1, { fromKegId: 5 });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(JSON.parse(call[1].body)).toEqual({ fromKegId: 5 });
+  });
+
+  it('listMonitors GETs /api/monitors', async () => {
+    const monitor = {
+      id: 1, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
+      tapId: 1, lastSeen: null, meta: {},
+    };
+    mockFetchOnce(200, [monitor]);
+    const result = await listMonitors();
+    expect(result).toEqual({ ok: true, data: [monitor] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors', expect.any(Object));
+  });
+
+  it('importKegtronBeer POSTs /api/kegtron/import/:monitorId', async () => {
+    mockFetchOnce(201, beer);
+    const result = await importKegtronBeer(3);
+    expect(result).toEqual({ ok: true, data: beer });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegtron/import/3');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('resetKegtronVolume POSTs /api/kegtron/reset-volume/:monitorId and reports a gentle 502', async () => {
+    mockFetchOnce(502, { error: 'mdash_error', message: 'Failed to reset volume via mdash.net (status 503)' });
+    const result = await resetKegtronVolume(3);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(502);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegtron/reset-volume/3');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('bindMonitor POSTs /api/monitors/:id/bind with a numeric tapId', async () => {
+    const monitor = {
+      id: 1, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
+      tapId: 4, lastSeen: null, meta: {},
+    };
+    mockFetchOnce(200, monitor);
+    const result = await bindMonitor(1, 4);
+    expect(result).toEqual({ ok: true, data: monitor });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/monitors/1/bind');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ tapId: 4 });
+  });
+
+  it('bindMonitor POSTs a null tapId to unbind', async () => {
+    const monitor = {
+      id: 1, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
+      tapId: null, lastSeen: null, meta: {},
+    };
+    mockFetchOnce(200, monitor);
+    await bindMonitor(1, null);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(JSON.parse(call[1].body)).toEqual({ tapId: null });
+  });
+
+  it('getMonitorTelemetry GETs /api/monitors/:id/telemetry with an hours param, defaulting to 24', async () => {
+    const points = [{ ts: '2026-07-27T20:00:00.000Z', temp: 4.2, humidity: 50 }];
+    mockFetchOnce(200, points);
+    const result = await getMonitorTelemetry(1);
+    expect(result).toEqual({ ok: true, data: points });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=24', expect.any(Object));
+  });
+
+  it('getMonitorTelemetry passes a custom hours value through', async () => {
+    mockFetchOnce(200, []);
+    await getMonitorTelemetry(1, 48);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=48', expect.any(Object));
+  });
+
+  // --- Task 7: walls ---
+
+  const wall = {
+    id: 1, slug: 'main-bar', name: 'Main bar', config: { columns: 2 },
+  };
+
+  it('listWalls GETs /api/walls', async () => {
+    mockFetchOnce(200, [wall]);
+    const result = await listWalls();
+    expect(result).toEqual({ ok: true, data: [wall] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/walls', expect.any(Object));
+  });
+
+  it('createWall POSTs the input', async () => {
+    mockFetchOnce(201, wall);
+    const result = await createWall({ slug: 'main-bar', name: 'Main bar' });
+    expect(result).toEqual({ ok: true, data: wall });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/walls');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ slug: 'main-bar', name: 'Main bar' });
+  });
+
+  it('updateWall PATCHes /api/walls/:id with slug/name/config', async () => {
+    mockFetchOnce(200, wall);
+    const result = await updateWall(1, { name: 'Front bar', config: { columns: 3 } });
+    expect(result).toEqual({ ok: true, data: wall });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/walls/1');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ name: 'Front bar', config: { columns: 3 } });
+  });
+
+  it('deleteWall DELETEs /api/walls/:id', async () => {
+    mockFetchOnce(204, null);
+    const result = await deleteWall(1);
+    expect(result).toEqual({ ok: true, data: null });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/walls/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  // --- Task 8: users, settings, backup ---
+
+  const loginUser = {
+    id: 2, username: 'ed', displayName: 'Ed', role: 'editor',
+    isDrinker: false, avatarColor: '#ff8800', createdAt: '2026-07-28T00:00:00.000Z',
+  };
+  const drinker = {
+    id: 3, username: null, displayName: 'Drinker Dan', role: null,
+    isDrinker: true, avatarColor: '#00aaff', createdAt: '2026-07-28T00:00:00.000Z',
+  };
+
+  it('listUsers GETs /api/users', async () => {
+    mockFetchOnce(200, [loginUser, drinker]);
+    const result = await listUsers();
+    expect(result).toEqual({ ok: true, data: [loginUser, drinker] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/users', expect.any(Object));
+  });
+
+  it('createLoginUser POSTs username/password/role, no drinkerOnly flag', async () => {
+    mockFetchOnce(201, loginUser);
+    const result = await createLoginUser({
+      username: 'ed', displayName: 'Ed', password: 'password1', role: 'editor',
+    });
+    expect(result).toEqual({ ok: true, data: loginUser });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/users');
+    expect(call[1].method).toBe('POST');
+    const body = JSON.parse(call[1].body);
+    expect(body).toEqual({
+      username: 'ed', displayName: 'Ed', password: 'password1', role: 'editor',
+    });
+    expect(body.drinkerOnly).toBeUndefined();
+  });
+
+  it('createDrinkerProfile POSTs displayName/avatarColor with drinkerOnly: true', async () => {
+    mockFetchOnce(201, drinker);
+    const result = await createDrinkerProfile({ displayName: 'Drinker Dan', avatarColor: '#00aaff' });
+    expect(result).toEqual({ ok: true, data: drinker });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/users');
+    expect(JSON.parse(call[1].body)).toEqual({
+      displayName: 'Drinker Dan', avatarColor: '#00aaff', drinkerOnly: true,
+    });
+  });
+
+  it('updateUser PATCHes /api/users/:id', async () => {
+    mockFetchOnce(200, { ...loginUser, displayName: 'Edward' });
+    const result = await updateUser(2, { displayName: 'Edward' });
+    expect(result.ok).toBe(true);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/users/2');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ displayName: 'Edward' });
+  });
+
+  it('deleteUser DELETEs /api/users/:id and reports the last-admin 409 clearly', async () => {
+    mockFetchOnce(409, { error: 'conflict', message: 'cannot delete the last admin' });
+    const result = await deleteUser(1);
+    expect(result).toEqual({ ok: false, status: 409, message: 'cannot delete the last admin' });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/users/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  const settings = {
+    siteName: 'My Taproom', siteLogo: null, displayUnits: 'us', servingSizeMl: 473,
+    kegtronApiKey: '••••ikey', kegtronBaseUrl: 'https://mdash.net',
+    openBreweryBaseUrl: 'https://api.openbrewerydb.org', untappdBaseUrl: 'https://api.untappd.com',
+    backfillCursors: {}, udpEnabled: false, bleDirectEnabled: false, mqtt: null, untappd: null,
+    quietHours: null,
+  };
+
+  it('getSettings GETs /api/settings', async () => {
+    mockFetchOnce(200, settings);
+    const result = await getSettings();
+    expect(result).toEqual({ ok: true, data: settings });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/settings', expect.any(Object));
+  });
+
+  it('patchSettings PATCHes only the keys passed in', async () => {
+    mockFetchOnce(200, { ...settings, siteName: 'Renamed' });
+    const result = await patchSettings({ siteName: 'Renamed' });
+    expect(result.ok).toBe(true);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/settings');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ siteName: 'Renamed' });
+  });
+
+  it('uploadRestore sends a FormData body without forcing a JSON content-type header', async () => {
+    mockFetchOnce(200, { ok: true, message: 'Restore staged. Restart the server to apply it.' });
+    const file = new File(['fake-db-bytes'], 'backup.db', { type: 'application/octet-stream' });
+    const result = await uploadRestore(file);
+    expect(result).toEqual({
+      ok: true, data: { ok: true, message: 'Restore staged. Restart the server to apply it.' },
+    });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/admin/restore');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].body).toBeInstanceOf(FormData);
+    expect(call[1].body.get('file')).toBe(file);
+    expect(call[1].headers['Content-Type']).toBeUndefined();
+  });
+
+  it('uploadRestore reports a typed 400 for a bad magic header', async () => {
+    mockFetchOnce(400, { error: 'validation', message: "That file doesn't look like a SQLite database (bad header)" });
+    const file = new File(['not a db'], 'fake.db');
+    const result = await uploadRestore(file);
+    expect(result).toEqual({
+      ok: false, status: 400, message: "That file doesn't look like a SQLite database (bad header)",
+    });
+  });
+
+  // --- Task 9: stats ---
+
+  it('getPoursByDay GETs /api/stats/pours with a days param', async () => {
+    const rows = [{ date: '2026-07-27', count: 3, volumeMl: 900 }];
+    mockFetchOnce(200, rows);
+    const result = await getPoursByDay(7);
+    expect(result).toEqual({ ok: true, data: rows });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/pours?days=7', expect.any(Object));
+  });
+
+  it('getHourHistogram GETs /api/stats/hours', async () => {
+    mockFetchOnce(200, []);
+    await getHourHistogram();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/hours', expect.any(Object));
+  });
+
+  it('getActiveKegStats GETs /api/stats/kegs', async () => {
+    mockFetchOnce(200, []);
+    await getActiveKegStats();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/kegs', expect.any(Object));
+  });
+
+  it('getBeersByVolume GETs /api/stats/beers with a days param', async () => {
+    mockFetchOnce(200, []);
+    await getBeersByVolume(90);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/beers?days=90', expect.any(Object));
+  });
+
+  it('getStatsTemps GETs /api/stats/temps with monitorId and hours, defaulting hours to 48', async () => {
+    mockFetchOnce(200, []);
+    await getStatsTemps(5);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/temps?monitorId=5&hours=48', expect.any(Object));
+  });
+
+  it('getStatsTemps passes a custom hours value through', async () => {
+    mockFetchOnce(200, []);
+    await getStatsTemps(5, 72);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/temps?monitorId=5&hours=72', expect.any(Object));
+  });
+
+  it('getLeaderboard GETs /api/stats/leaderboard with a window param', async () => {
+    mockFetchOnce(200, []);
+    await getLeaderboard('month');
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/leaderboard?window=month', expect.any(Object));
+  });
+});

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { runMigrations } from '../../src/server/db/migrate.js';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +28,7 @@ describe('migrations', () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 2 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 3 });
     db2.close();
   });
 
@@ -51,12 +52,125 @@ describe('migrations', () => {
     const upgraded = openDb(dir);
     const applied = upgraded.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
       .map((r: any) => r.name);
-    expect(applied).toEqual(['001_initial.sql', '002_unique_active_keg.sql']);
+    expect(applied).toEqual(['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql']);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
     expect(idx).toContain('idx_kegs_tap_active');
     expect(idx).not.toContain('idx_kegs_tap');
     upgraded.close();
+  });
+
+  it('applies migration 003 on a seeded pre-003 (001+002) DB: preserves data, allows on_deck, '
+    + 'keeps the unique active-keg index, and leaves foreign_keys enforcement on', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const raw = new Database(join(dir, 'app.db'));
+    raw.exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
+    raw.exec(readFileSync(join(MIGRATIONS_DIR, '001_initial.sql'), 'utf8'));
+    raw.exec(readFileSync(join(MIGRATIONS_DIR, '002_unique_active_keg.sql'), 'utf8'));
+    const now = new Date().toISOString();
+    raw.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)').run('001_initial.sql', now);
+    raw.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)').run('002_unique_active_keg.sql', now);
+
+    // Seed pre-003 data, including a pour referencing a keg -- this exercises the FK-toggle
+    // path around the table-recreate (pours.keg_id REFERENCES kegs(id)).
+    raw.prepare(`INSERT INTO beers (name, created_at) VALUES ('Test Ale', ?)`).run(now);
+    raw.prepare(`INSERT INTO taps (number) VALUES (1)`).run();
+    raw.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (1, 1, 19000, 19000, 'on_tap', ?)`).run(now);
+    raw.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, source) VALUES (1, ?, 400, 'cloud')`).run(now);
+    raw.close();
+
+    const upgraded = openDb(dir);
+    const applied = upgraded.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
+      .map((r: any) => r.name);
+    expect(applied).toEqual(['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql']);
+
+    const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
+    expect(keg).toMatchObject({ status: 'on_tap', vol_start_ml: 19000, tap_id: 1, beer_id: 1 });
+    const pour = upgraded.prepare('SELECT * FROM pours WHERE id = 1').get() as any;
+    expect(pour.keg_id).toBe(1);
+
+    // status CHECK now allows 'on_deck'
+    expect(() => upgraded.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (1, NULL, 19000, 19000, 'on_deck', ?)`).run(now)).not.toThrow();
+    // and still rejects genuinely invalid statuses
+    expect(() => upgraded.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (1, NULL, 19000, 19000, 'bogus', ?)`).run(now)).toThrow();
+
+    const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
+      .all().map((r: any) => r.name);
+    expect(idx).toContain('idx_kegs_tap_active');
+    expect(idx).not.toContain('idx_kegs_tap');
+    // unique active-keg index still enforced: tap 1 already has an on_tap keg (id 1)
+    expect(() => upgraded.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (1, 1, 19000, 19000, 'on_tap', ?)`).run(now)).toThrow();
+
+    expect(upgraded.pragma('foreign_keys', { simple: true })).toBe(1);
+    upgraded.close();
+  });
+
+  it('fails closed on a corrupting migration: rolls back, does NOT mark it applied, and '
+    + 'leaves pre-existing data untouched (regression: foreign_key_check must run INSIDE '
+    + "the migration's transaction, before it commits -- checking after db.transaction() "
+    + 'has already returned would be too late, since better-sqlite3 commits as soon as the '
+    + 'callback returns normally)', () => {
+    // An isolated fixture migrations dir (runMigrations' injectable second param) so this
+    // deliberately-corrupting file never touches the real shipped migration set: 001+002
+    // copied verbatim to get a normal, valid schema. The corrupting "003" (a pour pointing
+    // at a keg that doesn't exist) is added to the SAME directory only after the first
+    // runMigrations call and after seeding real data below — writing it up front would let
+    // the very first call apply 001, 002, AND 003 together in one pass (nothing is marked
+    // applied yet at that point), corrupting the DB before there's any real data to prove
+    // survives untouched.
+    const fixturesDir = mkdtempSync(join(tmpdir(), 'ktdash-migrations-'));
+    writeFileSync(join(fixturesDir, '001_initial.sql'),
+      readFileSync(join(MIGRATIONS_DIR, '001_initial.sql'), 'utf8'));
+    writeFileSync(join(fixturesDir, '002_unique_active_keg.sql'),
+      readFileSync(join(MIGRATIONS_DIR, '002_unique_active_keg.sql'), 'utf8'));
+
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const db = new Database(join(dir, 'app.db'));
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    runMigrations(db, fixturesDir); // applies 001 + 002 cleanly, 003_corrupt.sql doesn't exist yet
+
+    // Seed real, pre-existing data that must survive the corrupting migration attempt
+    // completely untouched.
+    const now = new Date().toISOString();
+    db.prepare(`INSERT INTO beers (name, created_at) VALUES ('Original Ale', ?)`).run(now);
+    const beerId = (db.prepare(`SELECT id FROM beers WHERE name = 'Original Ale'`).get() as any).id;
+    db.prepare(`INSERT INTO taps (number) VALUES (1)`).run();
+    db.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (?, 1, 19000, 19000, 'on_tap', ?)`).run(beerId, now);
+    db.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, source) VALUES (1, ?, 400, 'cloud')`).run(now);
+
+    writeFileSync(join(fixturesDir, '003_corrupt.sql'), `
+      INSERT INTO beers (name, created_at) VALUES ('Corrupt Test Beer', '2026-01-01T00:00:00.000Z');
+      INSERT INTO pours (keg_id, ts, volume_ml, source) VALUES (999999, '2026-01-01T00:00:00.000Z', 100, 'cloud');
+    `);
+
+    expect(() => runMigrations(db, fixturesDir)).toThrow(/dangling foreign keys/i);
+
+    // (b) the corrupting migration must NOT be recorded as applied
+    const applied = db.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
+      .map((r: any) => r.name);
+    expect(applied).toEqual(['001_initial.sql', '002_unique_active_keg.sql']);
+
+    // (a) no corrupt rows committed
+    expect((db.prepare(`SELECT COUNT(*) c FROM beers WHERE name = 'Corrupt Test Beer'`)
+      .get() as any).c).toBe(0);
+    expect((db.prepare(`SELECT COUNT(*) c FROM pours WHERE keg_id = 999999`).get() as any).c).toBe(0);
+
+    // (c) original data intact
+    expect((db.prepare(`SELECT COUNT(*) c FROM beers WHERE name = 'Original Ale'`)
+      .get() as any).c).toBe(1);
+    expect((db.prepare(`SELECT COUNT(*) c FROM pours WHERE keg_id = 1`).get() as any).c).toBe(1);
+
+    // a retry (e.g. after a restart) attempts the same not-yet-applied migration again,
+    // rather than silently skipping a corrupt-but-marked-applied one
+    expect(() => runMigrations(db, fixturesDir)).toThrow(/dangling foreign keys/i);
+
+    db.close();
   });
 
   it('opens with a 5s busy_timeout pragma set explicitly by openDb', () => {

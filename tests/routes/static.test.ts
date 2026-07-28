@@ -26,6 +26,18 @@ describe('static serving', () => {
     expect((await app.inject({ method: 'GET', url: '/wall/main' })).statusCode).toBe(404);
   });
 
+  it('a missing /labels/* file 404s instead of falling back to the SPA shell '
+    + '(regression: @fastify/static calls reply.callNotFound() for a missing file, which '
+    + 'without this exclusion would be swallowed by the SPA fallback notFoundHandler below, '
+    + 'incorrectly returning 200 + index.html for a nonexistent label)', async () => {
+    const webDir = mkdtempSync(join(tmpdir(), 'ktdash-web-'));
+    writeFileSync(join(webDir, 'index.html'), '<html><body>wall</body></html>');
+    app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')), webDir });
+    const res = await app.inject({ method: 'GET', url: '/labels/does-not-exist.png' });
+    expect(res.statusCode).toBe(404);
+    expect(res.body).not.toContain('wall');
+  });
+
   it('serves index.html when webDir is a relative path', async () => {
     // Regression test: @fastify/static requires an absolute `root`. index.ts's default
     // (and any relative WEB_DIR override) must be resolved before reaching it, or the

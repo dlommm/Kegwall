@@ -5,8 +5,13 @@ import {
   createBeer, listBeers, getBeer, updateBeer, deleteBeer,
 } from '../db/beers.js';
 import { createTap, listTaps, updateTap, deleteTap, getTap } from '../db/taps.js';
-import { listKegs, getKeg, swapKeg, createKeg } from '../db/kegs.js';
-import { listMonitors, bindMonitorToTap, sanitizeMonitor } from '../db/monitors.js';
+import {
+  listKegs, getKeg, swapKeg, createKeg, listOnDeckForTap, removeOnDeckKeg,
+} from '../db/kegs.js';
+import {
+  listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
+} from '../db/monitors.js';
+import { listTelemetry } from '../db/telemetry.js';
 import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
@@ -69,35 +74,82 @@ export async function crudRoutes(app: FastifyInstance) {
   });
 
   // --- taps (same shape) ---
+  // Every mutation below emits 'state_changed' (scope 'taps') so the admin taps page's
+  // live list — sourced entirely from the /ws snapshot via useTapStates, same as the
+  // wall/menu — picks up a newly added/renamed/removed tap without a manual reload
+  // (Task 5). getTapStates() (ws.ts's snapshot) already includes every tap regardless of
+  // keg state, so no other change is needed for a bare tap CRUD op to show up live.
   const tapSchema = z.object({ number: z.number().int().min(1), name: z.string().nullish() });
   app.get('/api/taps', viewer, async () => listTaps(db));
-  app.post('/api/taps', editor, async (req, reply) =>
-    reply.code(201).send(createTap(db, tapSchema.parse(req.body))));
-  app.patch('/api/taps/:id', editor, async (req) =>
-    updateTap(db, Number((req.params as any).id), tapSchema.partial().parse(req.body)));
+  app.post('/api/taps', editor, async (req, reply) => {
+    const tap = createTap(db, tapSchema.parse(req.body));
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    return reply.code(201).send(tap);
+  });
+  app.patch('/api/taps/:id', editor, async (req) => {
+    const tap = updateTap(db, Number((req.params as any).id), tapSchema.partial().parse(req.body));
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    return tap;
+  });
   app.delete('/api/taps/:id', editor, async (req, reply) => {
     deleteTap(db, Number((req.params as any).id));
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return reply.code(204).send();
   });
 
   // --- keg swap ---
+  // `fromKegId` promotes an already-queued on-deck keg (see `listOnDeckForTap` /
+  // `swapKeg`'s doc comment in db/kegs.ts, Task 1) instead of tapping a brand-new one —
+  // in that path `beerId`/`sizeMl`/`volStartMl` are ignored (the promoted keg keeps the
+  // values it was created with), so the refine below only requires them when `fromKegId`
+  // is absent. This mirrors `swapKeg`'s own runtime check but surfaces it as a clean 400
+  // instead of a raw thrown-from-the-transaction ValidationError with a route-agnostic
+  // message.
   const swapSchema = z.object({
-    beerId: z.number().int(), sizeMl: z.number().int().positive(),
-    volStartMl: z.number().int().positive(),
-  });
+    beerId: z.number().int().optional(),
+    sizeMl: z.number().int().positive().optional(),
+    volStartMl: z.number().int().positive().optional(),
+    fromKegId: z.number().int().optional(),
+  }).refine(
+    (v) => v.fromKegId != null || (v.beerId != null && v.sizeMl != null && v.volStartMl != null),
+    { message: 'beerId, sizeMl, and volStartMl are required unless fromKegId (promoting an on-deck keg) is given' },
+  );
   app.post('/api/taps/:id/swap', editor, async (req, reply) => {
     const tapId = Number((req.params as any).id);
     if (!getTap(db, tapId)) throw new NotFoundError('tap');
     const body = swapSchema.parse(req.body);
-    const keg = swapKeg(db, { tapId, newBeerId: body.beerId, ...body });
+    const keg = swapKeg(db, {
+      tapId,
+      fromKegId: body.fromKegId,
+      newBeerId: body.beerId,
+      sizeMl: body.sizeMl,
+      volStartMl: body.volStartMl,
+    });
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return reply.code(201).send(keg);
   });
 
+  // GET /api/taps/:id/on-deck — the swap wizard's on-deck queue for a single tap
+  // (Task 5), in queue order. Registered ahead of no other tap route conflicts with it
+  // (Fastify matches the literal `/on-deck` segment before `/api/taps/:id` alone would).
+  app.get('/api/taps/:id/on-deck', viewer, async (req) => {
+    const tapId = Number((req.params as any).id);
+    if (!getTap(db, tapId)) throw new NotFoundError('tap');
+    return listOnDeckForTap(db, tapId);
+  });
+
   // --- kegs ---
+  // `status` here only ever accepts 'on_deck' — a bare create is otherwise always
+  // 'on_tap' (createKeg's own default); the on-deck queue's "add to queue" action is the
+  // one caller that needs this path (Task 5). Queuing without a `tapId` would be
+  // meaningless (there's nothing to queue behind), so it's required together with
+  // `status: 'on_deck'` even though `tapId` is otherwise optional on a bare keg create.
   const kegCreateSchema = z.object({
     beerId: z.number().int(), sizeMl: z.number().int().positive(),
     volStartMl: z.number().int().positive(), tapId: z.number().int().nullish(),
+    status: z.enum(['on_deck']).optional(),
+  }).refine((v) => v.status !== 'on_deck' || v.tapId != null, {
+    message: 'tapId is required when queuing an on_deck keg',
   });
   app.get('/api/kegs', viewer, async (req) => {
     const q = z.object({ status: z.enum(['on_tap', 'kicked', 'archived']).optional() })
@@ -113,6 +165,14 @@ export async function crudRoutes(app: FastifyInstance) {
     db.prepare('UPDATE kegs SET status = ? WHERE id = ?').run(body.status, keg.id);
     return getKeg(db, keg.id);
   });
+  // DELETE /api/kegs/:id — removes a queued on-deck keg from its tap's queue (Task 5's
+  // on-deck "remove" action). `removeOnDeckKeg` (db/kegs.ts) 404s for an unknown id and
+  // throws ValidationError (400) for any keg not currently 'on_deck' — a tapped/kicked/
+  // archived keg is real history, not a queue entry, and is never deletable this way.
+  app.delete('/api/kegs/:id', editor, async (req, reply) => {
+    removeOnDeckKeg(db, Number((req.params as any).id));
+    return reply.code(204).send();
+  });
 
   // --- monitors ---
   // Every response below is run through sanitizeMonitor() — meta.deviceKey (the mdash
@@ -125,6 +185,22 @@ export async function crudRoutes(app: FastifyInstance) {
     const mon = bindMonitorToTap(db, Number((req.params as any).id), body.tapId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return sanitizeMonitor(mon);
+  });
+
+  // GET /api/monitors/:id/telemetry?hours=24 — the Monitors page's per-Pro-device temp/
+  // humidity history (Task 6): viewer role (read-only, same as the rest of the telemetry
+  // surface), reuses listTelemetry (db/telemetry.ts) as-is rather than a bespoke query.
+  // `hours` bounds the lookback window: 1-168 (a week) — wide enough for any near-term
+  // sparkline, narrow enough that an unbounded `?hours=` can't force a full-table scan.
+  const telemetryQuerySchema = z.object({
+    hours: z.coerce.number().int().min(1).max(168).default(24),
+  });
+  app.get('/api/monitors/:id/telemetry', viewer, async (req) => {
+    const monitorId = Number((req.params as any).id);
+    if (!getMonitorById(db, monitorId)) throw new NotFoundError('monitor');
+    const { hours } = telemetryQuerySchema.parse(req.query);
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    return listTelemetry(db, monitorId, since);
   });
 
   // --- pours ---

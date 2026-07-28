@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { recordTelemetrySampled } from '../../src/server/db/telemetry.js';
 
 let app: FastifyInstance;
 let adminCookies: { session: string };
@@ -231,5 +232,299 @@ describe('crud routes', () => {
       payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
     });
     expect(second.statusCode).toBe(409);
+  });
+
+  describe('on-deck queue + promote (Task 5)', () => {
+    async function makeBeerAndTap() {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      return { beer, tap };
+    }
+
+    it('POST /api/kegs accepts status on_deck and queues it behind the tap', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      const res = await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id, status: 'on_deck',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ status: 'on_deck', tapId: tap.id });
+    });
+
+    it('POST /api/kegs 400s for status on_deck without a tapId', async () => {
+      const { beer } = await makeBeerAndTap();
+      const res = await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, status: 'on_deck' },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('GET /api/taps/:id/on-deck lists queued kegs for that tap; requires auth; 404s for an unknown tap', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id, status: 'on_deck',
+        },
+      });
+
+      const unauth = await app.inject({ method: 'GET', url: `/api/taps/${tap.id}/on-deck` });
+      expect(unauth.statusCode).toBe(401);
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/taps/${tap.id}/on-deck`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toHaveLength(1);
+
+      const missing = await app.inject({
+        method: 'GET', url: '/api/taps/999999/on-deck', cookies: adminCookies,
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+
+    it('POST /api/taps/:id/swap with fromKegId promotes the queued keg instead of creating a new row', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      const initial = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      });
+      expect(initial.statusCode).toBe(201);
+
+      const queued = (await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 20000, volStartMl: 20000, tapId: tap.id, status: 'on_deck',
+        },
+      })).json();
+
+      const promote = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { fromKegId: queued.id },
+      });
+      expect(promote.statusCode).toBe(201);
+      expect(promote.json()).toMatchObject({ id: queued.id, status: 'on_tap' });
+
+      const kegs = await app.inject({ method: 'GET', url: '/api/kegs', cookies: adminCookies });
+      expect(kegs.json()).toHaveLength(2); // no third row created by the promotion
+    });
+
+    it('POST /api/taps/:id/swap 400s when neither fromKegId nor a full beer/size/volume payload is given', async () => {
+      const { tap } = await makeBeerAndTap();
+      const res = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies, payload: {},
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('DELETE /api/kegs/:id removes an on-deck keg; requires editor; 400s for a non-on_deck keg; 404s unknown', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      const queued = (await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 20000, volStartMl: 20000, tapId: tap.id, status: 'on_deck',
+        },
+      })).json();
+
+      const unauth = await app.inject({ method: 'DELETE', url: `/api/kegs/${queued.id}` });
+      expect(unauth.statusCode).toBe(401);
+
+      const del = await app.inject({
+        method: 'DELETE', url: `/api/kegs/${queued.id}`, cookies: adminCookies,
+      });
+      expect(del.statusCode).toBe(204);
+      const onDeck = await app.inject({
+        method: 'GET', url: `/api/taps/${tap.id}/on-deck`, cookies: adminCookies,
+      });
+      expect(onDeck.json()).toEqual([]);
+
+      const onTap = (await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+      })).json();
+      const badDelete = await app.inject({
+        method: 'DELETE', url: `/api/kegs/${onTap.id}`, cookies: adminCookies,
+      });
+      expect(badDelete.statusCode).toBe(400);
+
+      const missing = await app.inject({
+        method: 'DELETE', url: '/api/kegs/999999', cookies: adminCookies,
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+  });
+
+  it('tap create/update/delete each broadcast state_changed (Task 5: keeps the admin taps '
+    + 'page live over /ws without a manual reload)', async () => {
+    const events: unknown[] = [];
+    app.ctx.bus.on('state_changed', (e) => events.push(e));
+
+    const tap = (await app.inject({
+      method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 9 },
+    })).json();
+    expect(events).toHaveLength(1);
+
+    await app.inject({
+      method: 'PATCH', url: `/api/taps/${tap.id}`, cookies: adminCookies, payload: { name: 'Renamed' },
+    });
+    expect(events).toHaveLength(2);
+
+    await app.inject({ method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies });
+    expect(events).toHaveLength(3);
+  });
+
+  describe('deleteTap conflict explanation (Task 5)', () => {
+    it('deleting a tap with kegs on record 409s with an explanation', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+      });
+      const res = await app.inject({
+        method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(409);
+      const message = res.json().message;
+      expect(message).toContain('keg');
+      // states the real, permanent constraint — no route can delete historical kegs,
+      // so "remove them first" would send an operator looking for a control that
+      // doesn't exist.
+      expect(message).toContain("can't be deleted");
+      expect(message).not.toContain('remove them first');
+    });
+
+    it('deleting an empty, unbound tap succeeds', async () => {
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const res = await app.inject({
+        method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(204);
+    });
+  });
+
+  describe('GET /api/monitors/:id/telemetry (Task 6)', () => {
+    async function makeProMonitor(identifier: string): Promise<number> {
+      app.ctx.bus.emit('device_discovered', {
+        monitor: { type: 'kegtron_pro', identifier, portIndex: 0 },
+        serial: identifier,
+        meta: {},
+      });
+      const list = await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies });
+      return (list.json() as any[]).find((m) => m.identifier === identifier).id;
+    }
+
+    it('rejects unauthenticated requests', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/monitors/1/telemetry' });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('404s for an unknown monitor id', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/monitors/999999/telemetry', cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('a viewer can read telemetry (viewer role, not editor-gated)', async () => {
+      const monitorId = await makeProMonitor('mon-viewer');
+      await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { username: 'vwtel', displayName: 'VwTel', password: 'password1', role: 'viewer' },
+      });
+      const login = await app.inject({
+        method: 'POST', url: '/api/auth/login', payload: { username: 'vwtel', password: 'password1' },
+      });
+      const viewerCookies = { session: login.cookies.find((c: any) => c.name === 'session')!.value };
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry`, cookies: viewerCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual([]);
+    });
+
+    it('reuses listTelemetry to return recorded temp/humidity rows', async () => {
+      const monitorId = await makeProMonitor('mon-data');
+      const now = new Date();
+      recordTelemetrySampled(app.ctx.db, monitorId, 4.2, 50, now.toISOString());
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject([{ temp: 4.2, humidity: 50 }]);
+    });
+
+    it('defaults to a 24h window and excludes older rows', async () => {
+      const monitorId = await makeProMonitor('mon-window');
+      const now = new Date();
+      const old = new Date(now.getTime() - 30 * 60 * 60 * 1000);
+      const recent = new Date(now.getTime() - 60 * 60 * 1000);
+      recordTelemetrySampled(app.ctx.db, monitorId, 3.0, 40, old.toISOString());
+      recordTelemetrySampled(app.ctx.db, monitorId, 4.0, 45, recent.toISOString());
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      const rows = res.json();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ temp: 4.0, humidity: 45 });
+    });
+
+    it('honors an explicit ?hours= window', async () => {
+      const monitorId = await makeProMonitor('mon-hours');
+      const now = new Date();
+      const fortyHoursAgo = new Date(now.getTime() - 40 * 60 * 60 * 1000);
+      recordTelemetrySampled(app.ctx.db, monitorId, 5.0, 55, fortyHoursAgo.toISOString());
+
+      const narrow = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=24`, cookies: adminCookies,
+      });
+      expect(narrow.json()).toEqual([]);
+
+      const wide = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=48`, cookies: adminCookies,
+      });
+      expect(wide.json()).toHaveLength(1);
+    });
+
+    it('400s when hours is above the 168 max', async () => {
+      const monitorId = await makeProMonitor('mon-toobig');
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=200`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('400s when hours is below the 1 minimum', async () => {
+      const monitorId = await makeProMonitor('mon-toosmall');
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=0`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('400s for a non-numeric hours value', async () => {
+      const monitorId = await makeProMonitor('mon-nan');
+      const res = await app.inject({
+        method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=abc`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(400);
+    });
   });
 });

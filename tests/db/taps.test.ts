@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
 import { createTap, listTaps, updateTap, deleteTap } from '../../src/server/db/taps.js';
+import { createBeer } from '../../src/server/db/beers.js';
+import { createKeg } from '../../src/server/db/kegs.js';
+import { ConflictError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -28,5 +31,35 @@ describe('taps repo', () => {
     expect(updateTap(db, tap.id, { name: 'Right' }).name).toBe('Right');
     deleteTap(db, tap.id);
     expect(listTaps(db)).toHaveLength(0);
+  });
+
+  it('refuses to delete a tap with kegs on record, stating the real (permanent) '
+    + 'constraint rather than a "remove them first" instruction that has no UI to follow', () => {
+    const tap = createTap(db, { number: 4 });
+    const beerId = createBeer(db, { name: 'Test Ale' }).id;
+    createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+    expect(() => deleteTap(db, tap.id)).toThrow(ConflictError);
+    try {
+      deleteTap(db, tap.id);
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('keg');
+      expect(message).toContain("can't be deleted");
+      expect(message).not.toContain('remove them first');
+    }
+    expect(listTaps(db)).toHaveLength(1);
+  });
+
+  it('refuses to delete a tap with a bound monitor, with a message naming what blocks it', () => {
+    const tap = createTap(db, { number: 5 });
+    db.prepare(`INSERT INTO monitors (type, identifier, port_index, tap_id, meta) VALUES (?, ?, ?, ?, '{}')`)
+      .run('kegtron_pro', 'device1', 0, tap.id);
+    expect(() => deleteTap(db, tap.id)).toThrow(ConflictError);
+    try {
+      deleteTap(db, tap.id);
+    } catch (err) {
+      expect((err as Error).message).toContain('monitor');
+    }
+    expect(listTaps(db)).toHaveLength(1);
   });
 });
