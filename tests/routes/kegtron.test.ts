@@ -240,7 +240,7 @@ describe('POST /api/kegtron/reset-volume/:monitorId', () => {
     const id = await createMonitor('kegtron_pro', 'device2', 2, { deviceKey: DEVICE_KEY });
     const res = await app.inject({
       method: 'POST', url: `/api/kegtron/reset-volume/${id}`, cookies: editorCookies,
-      payload: { volStartMl: 19000 },
+      payload: {},
     });
     expect(res.statusCode).toBe(200);
     expect(seenRpcPath).toBe('/api/v2/m/device/rpc/Kegtron.ResetVolume');
@@ -259,6 +259,22 @@ describe('POST /api/kegtron/reset-volume/:monitorId', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(seenRpcBody).toEqual({ port: 0 });
+  });
+
+  it('400s (does not silently drop) when volStartMl is provided — the RPC cannot honor it', async () => {
+    const id = await createMonitor('kegtron_pro', 'device2', 0, { deviceKey: DEVICE_KEY });
+    const res = await app.inject({
+      method: 'POST', url: `/api/kegtron/reset-volume/${id}`, cookies: editorCookies,
+      payload: { volStartMl: 19000 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'validation',
+      message: 'volStartMl is not supported by Kegtron.ResetVolume; the device resets to its configured keg size',
+    });
+    // The RPC must never actually be called when the request is rejected.
+    expect(seenRpcToken).toBeUndefined();
+    expect(seenRpcBody).toBeUndefined();
   });
 
   it('400s for a non-pro (Gen 1) monitor', async () => {

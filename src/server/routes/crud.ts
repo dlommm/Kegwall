@@ -6,7 +6,7 @@ import {
 } from '../db/beers.js';
 import { createTap, listTaps, updateTap, deleteTap, getTap } from '../db/taps.js';
 import { listKegs, getKeg, swapKeg, createKeg } from '../db/kegs.js';
-import { listMonitors, bindMonitorToTap } from '../db/monitors.js';
+import { listMonitors, bindMonitorToTap, sanitizeMonitor } from '../db/monitors.js';
 import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
@@ -115,12 +115,16 @@ export async function crudRoutes(app: FastifyInstance) {
   });
 
   // --- monitors ---
-  app.get('/api/monitors', viewer, async () => listMonitors(db));
+  // Every response below is run through sanitizeMonitor() — meta.deviceKey (the mdash
+  // DEVICE_PUBLIC_KEY) must never leave the server; see that function's doc comment in
+  // db/monitors.ts for why (a viewer holding it could call mdash.net directly with full
+  // device RPC control, bypassing the editor-role gate on routes/kegtron.ts).
+  app.get('/api/monitors', viewer, async () => listMonitors(db).map(sanitizeMonitor));
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);
     const mon = bindMonitorToTap(db, Number((req.params as any).id), body.tapId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
-    return mon;
+    return sanitizeMonitor(mon);
   });
 
   // --- pours ---

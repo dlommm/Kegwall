@@ -44,6 +44,25 @@ export function getMonitorById(db: Database.Database, id: number): Monitor | nul
   return r ? rowToMonitor(r) : null;
 }
 
+/**
+ * Strips `meta.deviceKey` — the mdash.net DEVICE_PUBLIC_KEY stamped onto a monitor at
+ * cloud discovery (see cloudSource.ts's `emitShadowEvents`) — before a `Monitor` is
+ * serialized into any API response. That key is a live credential: anyone holding it
+ * can call mdash.net directly with full device RPC control (Kegtron.ResetVolume, etc),
+ * bypassing this app's editor-role gate on `routes/kegtron.ts` entirely. It must never
+ * leave the server process. EVERY route that returns a `Monitor` (or a list of them) —
+ * currently `GET /api/monitors` and `POST /api/monitors/:id/bind` in `routes/crud.ts` —
+ * MUST pass each monitor through this first. `routes/kegtron.ts` is exempt: it reads
+ * monitors straight from the DB via `getMonitorById()` for INTERNAL use (resolving the
+ * key to call mdash itself) and never re-serializes the raw `Monitor` back to a client.
+ */
+export function sanitizeMonitor(m: Monitor): Monitor {
+  if (!('deviceKey' in m.meta)) return m;
+  const meta = { ...m.meta };
+  delete meta.deviceKey;
+  return { ...m, meta };
+}
+
 export function listMonitors(db: Database.Database): Monitor[] {
   return db.prepare('SELECT * FROM monitors ORDER BY type, identifier, port_index')
     .all().map(rowToMonitor);

@@ -22,9 +22,12 @@ import { parseDeviceShadow } from '../ingest/kegtron/shadow.js';
 // handlers below reply with a fixed, key-free message on any MdashError.
 // ---------------------------------------------------------------------------
 
+// `volStartMl` is parsed (so a well-typed client sending it gets a clean 400, not a
+// crash) but is REJECTED, not silently dropped — see the 400 check at the call site
+// below for why silently accepting-and-ignoring it would be a correctness bug (the
+// caller would believe a custom starting volume was set when the device actually reset
+// to its configured keg size instead).
 const resetVolumeSchema = z.object({
-  // Accepted per this route's documented request shape, but deliberately NOT forwarded
-  // to the RPC call below — see the comment at the call site.
   volStartMl: z.number().nonnegative().optional(),
 });
 
@@ -96,7 +99,7 @@ export async function kegtronRoutes(app: FastifyInstance) {
 
   app.post('/api/kegtron/reset-volume/:monitorId', editor, async (req, reply) => {
     const { monitor, deviceKey } = requireProMonitor(db, Number((req.params as any).monitorId));
-    resetVolumeSchema.parse(req.body ?? {});
+    const body = resetVolumeSchema.parse(req.body ?? {});
 
     // The YAML's Kegtron.ResetVolume RPC schema (docs/kegtron/kegtron-pro.v2.yaml, the
     // `/api/v2/m/device/rpc/Kegtron.ResetVolume` operation) takes ONLY `{port: 0..3}` —
@@ -104,7 +107,15 @@ export async function kegtronRoutes(app: FastifyInstance) {
     // volStart to the port's *configured* config.volSize on-device; there is no field on
     // this RPC for an arbitrary starting volume. Setting an explicit custom volStart is
     // a different RPC entirely (Kegtron.UserOverride's
-    // state.config_readonly.porti.volStart), out of scope for this endpoint.
+    // state.config_readonly.porti.volStart), out of scope for this endpoint. Silently
+    // dropping a caller-provided volStartMl would be a correctness bug (200 OK while the
+    // device actually did something else than what was asked), so it's rejected instead.
+    if (body.volStartMl !== undefined) {
+      throw new ValidationError(
+        'volStartMl is not supported by Kegtron.ResetVolume; the device resets to its configured keg size',
+      );
+    }
+
     try {
       await buildMdashClient(app).callRpc(deviceKey, 'Kegtron.ResetVolume', { port: monitor.portIndex });
     } catch (err) {

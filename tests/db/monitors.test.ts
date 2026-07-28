@@ -4,7 +4,7 @@ import { openDb } from '../../src/server/db/db.js';
 import { createTap } from '../../src/server/db/taps.js';
 import {
   upsertMonitor, bindMonitorToTap, getMonitorByRef, resolveTapForRef, listMonitors,
-  reconcileProMonitor,
+  reconcileProMonitor, sanitizeMonitor,
 } from '../../src/server/db/monitors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -58,6 +58,23 @@ describe('monitors repo', () => {
         { serial: 'SN2001011234' });
 
       expect(reconcileProMonitor(db, 'SN2001011234', 0)).toBeNull();
+    });
+  });
+
+  describe('sanitizeMonitor', () => {
+    it('strips meta.deviceKey but keeps the rest of meta intact', () => {
+      const mon = upsertMonitor(db, ref, {
+        meta: { deviceKey: 'device-secret-shhh', maker: 'Acme', style: 'Lager' },
+      });
+      const sanitized = sanitizeMonitor(mon);
+      expect(sanitized.meta).not.toHaveProperty('deviceKey');
+      expect(sanitized.meta).toEqual({ maker: 'Acme', style: 'Lager' });
+      expect(JSON.stringify(sanitized)).not.toContain('device-secret-shhh');
+    });
+
+    it('is a no-op when meta has no deviceKey', () => {
+      const mon = upsertMonitor(db, ref, { meta: { maker: 'Acme' } });
+      expect(sanitizeMonitor(mon)).toEqual(mon);
     });
   });
 });
