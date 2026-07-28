@@ -12,6 +12,8 @@ import {
   listWalls, createWall, updateWall, deleteWall,
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
   getSettings, patchSettings, uploadRestore,
+  getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
+  getStatsTemps, getLeaderboard,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -569,5 +571,51 @@ describe('admin api client', () => {
     expect(result).toEqual({
       ok: false, status: 400, message: "That file doesn't look like a SQLite database (bad header)",
     });
+  });
+
+  // --- Task 9: stats ---
+
+  it('getPoursByDay GETs /api/stats/pours with a days param', async () => {
+    const rows = [{ date: '2026-07-27', count: 3, volumeMl: 900 }];
+    mockFetchOnce(200, rows);
+    const result = await getPoursByDay(7);
+    expect(result).toEqual({ ok: true, data: rows });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/pours?days=7', expect.any(Object));
+  });
+
+  it('getHourHistogram GETs /api/stats/hours', async () => {
+    mockFetchOnce(200, []);
+    await getHourHistogram();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/hours', expect.any(Object));
+  });
+
+  it('getActiveKegStats GETs /api/stats/kegs', async () => {
+    mockFetchOnce(200, []);
+    await getActiveKegStats();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/kegs', expect.any(Object));
+  });
+
+  it('getBeersByVolume GETs /api/stats/beers with a days param', async () => {
+    mockFetchOnce(200, []);
+    await getBeersByVolume(90);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/beers?days=90', expect.any(Object));
+  });
+
+  it('getStatsTemps GETs /api/stats/temps with monitorId and hours, defaulting hours to 48', async () => {
+    mockFetchOnce(200, []);
+    await getStatsTemps(5);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/temps?monitorId=5&hours=48', expect.any(Object));
+  });
+
+  it('getStatsTemps passes a custom hours value through', async () => {
+    mockFetchOnce(200, []);
+    await getStatsTemps(5, 72);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/temps?monitorId=5&hours=72', expect.any(Object));
+  });
+
+  it('getLeaderboard GETs /api/stats/leaderboard with a window param', async () => {
+    mockFetchOnce(200, []);
+    await getLeaderboard('month');
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/leaderboard?window=month', expect.any(Object));
   });
 });

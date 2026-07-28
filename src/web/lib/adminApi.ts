@@ -12,6 +12,9 @@ import type { ActivityEvent } from '../../server/db/activity.js';
 import type { SourceStatus } from '../../server/ingest/manager.js';
 import type { Beer, BeerInput } from '../../server/db/beers.js';
 import type { TelemetryPoint } from '../../server/db/telemetry.js';
+import type {
+  PoursByDay, HourHistogram, KegBurnStat, BeerVolumeStat, LeaderboardEntry,
+} from '../../server/db/stats.js';
 // From core/wallConfig.ts, NOT routes/crud.ts — same "type-only import of a routes file
 // drags in its Fastify-augmenting value imports" issue documented above for
 // core/lookupTypes.ts. wallConfig.ts has no imports beyond zod, so it's a safe
@@ -403,4 +406,47 @@ export function uploadRestore(file: File): Promise<ApiResult<{ ok: boolean; mess
   const form = new FormData();
   form.append('file', file);
   return request('/api/admin/restore', { method: 'POST', body: form });
+}
+
+// --- Task 9: stats ---
+
+/** GET /api/stats/pours?days= — pour count + volume per day, zero-filled, feeding the
+ * Stats page's pours/day bar chart. `days` is one of the range switcher's three values
+ * (server 400s on anything else — see routes/stats.ts). */
+export function getPoursByDay(days: 7 | 30 | 90): Promise<ApiResult<PoursByDay[]>> {
+  return request(`/api/stats/pours?days=${days}`);
+}
+
+/** GET /api/stats/hours — pour count by UTC hour-of-day over the trailing 30 days,
+ * always all 24 hours. Feeds the Stats page's hour-of-day bar row. */
+export function getHourHistogram(): Promise<ApiResult<HourHistogram[]>> {
+  return request('/api/stats/hours');
+}
+
+/** GET /api/stats/kegs — every currently-on_tap keg's level, remaining volume, trailing-
+ * 7-day burn rate, and projected kick date. Feeds the Stats page's per-keg depletion
+ * cards. */
+export function getActiveKegStats(): Promise<ApiResult<KegBurnStat[]>> {
+  return request('/api/stats/kegs');
+}
+
+/** GET /api/stats/beers?days= — total volume + pour count per beer over the trailing
+ * `days` days, descending by volume. Feeds the Stats page's volume-by-beer bars. */
+export function getBeersByVolume(days: 7 | 30 | 90): Promise<ApiResult<BeerVolumeStat[]>> {
+  return request(`/api/stats/beers?days=${days}`);
+}
+
+/** GET /api/stats/temps?monitorId=&hours= — a Kegtron Pro monitor's recent temp/humidity
+ * readings for the Stats page's temp line chart; `hours` defaults to 48 server-side when
+ * omitted (a wider window than the Monitors page's own 24h detail panel — see
+ * `getMonitorTelemetry` above — since the Stats page's chart is meant to show a real
+ * multi-day trend, not just "what's it doing right now"). */
+export function getStatsTemps(monitorId: number, hours = 48): Promise<ApiResult<TelemetryPoint[]>> {
+  return request(`/api/stats/temps?monitorId=${monitorId}&hours=${hours}`);
+}
+
+/** GET /api/stats/leaderboard?window= — pour count + volume per drinker, claimed pours
+ * only, descending by volume. Feeds the Stats page's leaderboard table. */
+export function getLeaderboard(window: 'week' | 'month' | 'all'): Promise<ApiResult<LeaderboardEntry[]>> {
+  return request(`/api/stats/leaderboard?window=${window}`);
 }

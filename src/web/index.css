@@ -2856,3 +2856,203 @@ h2.admin-field__label-text {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * Stats page (Phase 4 Task 9) — Recharts-driven pours/hour/temp/volume charts, per-keg
+ * depletion cards, and the leaderboard table. Per the binding "Charts style" section:
+ * one brass primary series (var(--accent)) everywhere except the volume-by-beer chart,
+ * whose bars are SRM-tinted because each one IS a specific beer; no gradients/3D/
+ * decorative animation (every Bar/Line below sets isAnimationActive={false} in JSX);
+ * axis ticks pick up tabular numerals via the shared `.font-tabular` rules through plain
+ * CSS inheritance (XAxis/YAxis pass `className="font-tabular"` straight onto Recharts'
+ * own <g> wrapper, and SVG <text> inherits font-family/font-variant-numeric from its
+ * ancestors); a custom `<Tooltip content>` on every chart names the exact value + unit
+ * instead of Recharts' bare default.
+ */
+/* A CSS multi-column ("masonry") layout rather than CSS Grid: the six sections here are
+   very different heights (four short charts, but keg-depletion and the leaderboard both
+   grow with the number of rows they list), and a same-height-row grid would stretch
+   every row to its tallest card, stranding a lot of dead space under the shorter ones
+   next to it. Columns instead pack each card directly under the shortest column so far,
+   like a card board — `break-inside: avoid` keeps a single card from ever being split
+   across two columns. */
+.stats-grid {
+  columns: 3 22rem;
+  column-gap: 1rem;
+}
+
+.stats-chart,
+.stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  break-inside: avoid;
+}
+
+.stats-chart__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.stats-chart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.stats-chart__monitor-select {
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+/* The date-range switcher (pours + beers) and the leaderboard's week/month/all switcher
+   — same segmented-button look, `aria-pressed` carries the selected state visually AND
+   to assistive tech rather than color alone. */
+.stats-switcher {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.stats-switcher__option {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.stats-switcher__option[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+/* Custom Recharts tooltip content — exact value + unit, per the binding style, styled to
+   match the rest of the admin shell's quiet surfaces rather than Recharts' default
+   white box. */
+.stats-tooltip {
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.4rem;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  font-size: 0.8rem;
+}
+
+.stats-tooltip__label {
+  color: var(--text-dim);
+}
+
+.stats-tooltip__value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Per-keg depletion cards — not a chart, per the plan's own framing. */
+.keg-depletion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.75rem;
+}
+
+.keg-depletion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.keg-depletion-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.keg-depletion-card__beer {
+  overflow: hidden;
+  flex: 1;
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keg-depletion-card__tap {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.keg-depletion-card__bar {
+  position: relative;
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.keg-depletion-card__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.keg-depletion-card__level {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.keg-depletion-card__projection {
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+/* The SRM chip — same small-dot treatment as BeersPage's `.beers-table__srm-chip`, the
+   one place liquid/SRM color reappears here per the binding design direction. */
+.stats-srm-chip {
+  display: inline-block;
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+/* Leaderboard — same avatar-dot treatment as UsersPage's `.users-avatar-dot`. */
+.leaderboard-row__drinker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.leaderboard-avatar-dot {
+  display: block;
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+}
+
+.stats-switcher__option:focus-visible,
+.stats-chart__monitor-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
