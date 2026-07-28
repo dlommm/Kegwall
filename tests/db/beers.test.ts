@@ -4,7 +4,7 @@ import { openDb } from '../../src/server/db/db.js';
 import { createBeer, getBeer, listBeers, updateBeer, deleteBeer } from '../../src/server/db/beers.js';
 import { ConflictError } from '../../src/server/core/errors.js';
 import { createTap } from '../../src/server/db/taps.js';
-// import { createKeg } from '../../src/server/db/kegs.js'; // exists after Task 6; until then comment the delete-conflict test's keg line — see Step 4 note
+import { createKeg } from '../../src/server/db/kegs.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,10 +31,9 @@ describe('beers repo', () => {
     expect(listBeers(db)).toHaveLength(2);
   });
 
-  // TODO Task 6: un-skip
-  it.skip('deletes, but refuses when a keg references it', () => {
+  it('deletes, but refuses when a keg references it', () => {
     const beer = createBeer(db, { name: 'Refd' });
-    // createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 });
+    createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 });
     expect(() => deleteBeer(db, beer.id)).toThrow(ConflictError);
   });
 });
