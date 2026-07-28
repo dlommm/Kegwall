@@ -137,6 +137,27 @@ describe('crud routes', () => {
     expect(after.untappd.clientSecret).toBe('••••');
   });
 
+  it('a later PATCH of an unrelated field does not wipe an already-configured secret '
+    + '(regression: zod .partial() fills omitted keys with schema defaults, so a naive '
+    + 'write loop over the fully-defaulted parsed body would silently reset kegtronApiKey '
+    + 'back to null)', async () => {
+    await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { kegtronApiKey: 'realapikey789' },
+    });
+
+    const unrelated = await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { siteName: 'Renamed Taproom' },
+    });
+    expect(unrelated.statusCode).toBe(200);
+
+    const res = await app.inject({ method: 'GET', url: '/api/settings', cookies: adminCookies });
+    const body = res.json();
+    expect(body.siteName).toBe('Renamed Taproom');
+    expect(body.kegtronApiKey).toBe('••••y789');
+  });
+
   it('setting a real new kegtronApiKey via PATCH still works', async () => {
     await app.inject({
       method: 'PATCH', url: '/api/settings', cookies: adminCookies,
