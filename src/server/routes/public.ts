@@ -56,6 +56,11 @@ export async function publicRoutes(app: FastifyInstance) {
     if (existing.drinker_id !== null) {
       return reply.code(409).send({ error: 'conflict', message: 'Pour already claimed' });
     }
+    const drinker = db.prepare('SELECT id FROM users WHERE id = ? AND is_drinker = 1')
+      .get(body.drinkerId);
+    if (!drinker) {
+      return reply.code(400).send({ error: 'validation', message: 'No such drinker' });
+    }
     const pour = setPourDrinker(db, body.pourId, body.drinkerId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return pour;

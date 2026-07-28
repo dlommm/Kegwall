@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
-import { createDrinker } from '../../src/server/db/users.js';
+import { createDrinker, createUser } from '../../src/server/db/users.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,5 +52,33 @@ describe('public routes', () => {
       method: 'POST', url: '/api/public/claim', payload: { pourId, drinkerId },
     });
     expect(again.statusCode).toBe(409);
+  });
+
+  it('rejects claiming as a non-drinker user id', async () => {
+    const db = app.ctx.db;
+    const loginUser = createUser(db, {
+      username: 'admin', displayName: 'Admin', password: 'hunter22', role: 'admin', isDrinker: false,
+    });
+    const res = await app.inject({
+      method: 'POST', url: '/api/public/claim',
+      payload: { pourId, drinkerId: loginUser.id },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects claiming with a nonexistent drinkerId', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/public/claim',
+      payload: { pourId, drinkerId: 999999 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('404s claiming an unknown pourId', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/public/claim',
+      payload: { pourId: 999999, drinkerId },
+    });
+    expect(res.statusCode).toBe(404);
   });
 });
