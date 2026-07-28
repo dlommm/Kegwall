@@ -1,0 +1,27 @@
+# Source: docs/kegtron/UDPStreaming.pdf ("UDP Streaming", Kegtron, April 2026).
+# Data Definitions section (page 3) defines the payload JSON shape used on every line
+# below: num/fwRev/portCount/serialNum/temp at the top level, plus exactly one
+# "port<i>" object per packet carrying abv/cleanActive/curServ/drinkSize/ibu/maker/
+# lastServing/state/style/tapLabel/userDesc/userName/volDisp/volSize/volStart (curServ
+# is UDP-only -- accumulated mL of the CURRENT serving; it clears to 0 once a serving
+# ends and stays 0 until the next one starts).
+# Behavior section (page 4) cadence modeled here: idle round-robin 1 packet/sec across
+# ports (num 1-2), then 200ms samples while port0 pours (num 3-8, curServ rising
+# 48->355), then curServ clears to 0 the instant flow stops while volDisp/lastServing
+# jump to reflect the completed serving, continuing to stream at 200ms for the ~2s
+# tail after flow stopped (num 9-10), then back to idle round-robin (num 11, port1).
+# Group/port for production per page 5: multicast 239.50.50.50:50505 (this fixture
+# carries only the payload; transport framing is exercised by the test itself).
+# serialNum 2001011234 matches tests/fixtures/kegtron/device-shadow.json's serial, for
+# cross-source continuity (Task 8 reconciles cloud <-> UDP by serial).
+{"num":1,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.5,"port0":{"abv":6,"cleanActive":0,"curServ":0,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":2,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.5,"port1":{"abv":5,"cleanActive":0,"curServ":0,"drinkSize":355,"ibu":30,"maker":"Boston Beer Co","lastServing":400,"state":1,"style":"Lager","tapLabel":"Tap 2","userDesc":"","userName":"Boston Lager","volDisp":1200,"volSize":19700,"volStart":5000}}
+{"num":3,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.5,"port0":{"abv":6,"cleanActive":0,"curServ":48,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":4,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.5,"port0":{"abv":6,"cleanActive":0,"curServ":112,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":5,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.5,"port0":{"abv":6,"cleanActive":0,"curServ":180,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":6,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.6,"port0":{"abv":6,"cleanActive":0,"curServ":249,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":7,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.6,"port0":{"abv":6,"cleanActive":0,"curServ":310,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":8,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.6,"port0":{"abv":6,"cleanActive":0,"curServ":355,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":262,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":6934,"volSize":58670,"volStart":10376}}
+{"num":9,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.6,"port0":{"abv":6,"cleanActive":0,"curServ":0,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":355,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":7289,"volSize":58670,"volStart":10376}}
+{"num":10,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.6,"port0":{"abv":6,"cleanActive":0,"curServ":0,"drinkSize":473,"ibu":11,"maker":"Anheuser-Busch","lastServing":355,"state":1,"style":"Malt Liquor","tapLabel":"Tap 1","userDesc":"","userName":"King Cobra","volDisp":7289,"volSize":58670,"volStart":10376}}
+{"num":11,"fwRev":"20200507","portCount":2,"serialNum":"2001011234","temp":20.6,"port1":{"abv":5,"cleanActive":0,"curServ":0,"drinkSize":355,"ibu":30,"maker":"Boston Beer Co","lastServing":400,"state":1,"style":"Lager","tapLabel":"Tap 2","userDesc":"","userName":"Boston Lager","volDisp":1200,"volSize":19700,"volStart":5000}}
