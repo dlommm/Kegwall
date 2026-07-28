@@ -6,6 +6,9 @@ import {
   needsSetup, login, logout, getMe, setup,
   listBeers, createBeer, updateBeer, deleteBeer,
   lookupBreweries, lookupUntappd, importUntappdLabel, uploadLabel,
+  listTaps, createTap, updateTap, deleteTap,
+  listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
+  listMonitors, importKegtronBeer, resetKegtronVolume,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -237,5 +240,137 @@ describe('admin api client', () => {
     expect(call[1].body).toBeInstanceOf(FormData);
     expect(call[1].body.get('file')).toBe(file);
     expect(call[1].headers['Content-Type']).toBeUndefined();
+  });
+
+  // --- Task 5: taps & kegs ---
+
+  const tap = { id: 1, number: 1, name: 'Left' };
+  const keg = {
+    id: 5, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
+    dateTapped: null, status: 'on_tap', createdAt: '2026-07-28T00:00:00.000Z',
+  };
+
+  it('listTaps GETs /api/taps', async () => {
+    mockFetchOnce(200, [tap]);
+    const result = await listTaps();
+    expect(result).toEqual({ ok: true, data: [tap] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/taps', expect.any(Object));
+  });
+
+  it('createTap POSTs the input', async () => {
+    mockFetchOnce(201, tap);
+    const result = await createTap({ number: 1, name: 'Left' });
+    expect(result).toEqual({ ok: true, data: tap });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ number: 1, name: 'Left' });
+  });
+
+  it('updateTap PATCHes /api/taps/:id', async () => {
+    mockFetchOnce(200, tap);
+    const result = await updateTap(1, { name: 'Right' });
+    expect(result).toEqual({ ok: true, data: tap });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps/1');
+    expect(call[1].method).toBe('PATCH');
+  });
+
+  it('deleteTap DELETEs /api/taps/:id and reports a 409 conflict', async () => {
+    mockFetchOnce(409, { error: 'conflict', message: 'tap 1 has 2 keg(s) on record (including history) — remove them first' });
+    const result = await deleteTap(1);
+    expect(result).toEqual({ ok: false, status: 409, message: 'tap 1 has 2 keg(s) on record (including history) — remove them first' });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('listKegs GETs /api/kegs with no status filter by default', async () => {
+    mockFetchOnce(200, [keg]);
+    const result = await listKegs();
+    expect(result).toEqual({ ok: true, data: [keg] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/kegs', expect.any(Object));
+  });
+
+  it('listKegs GETs /api/kegs?status=... when a status filter is given', async () => {
+    mockFetchOnce(200, []);
+    await listKegs({ status: 'kicked' });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/kegs?status=kicked', expect.any(Object));
+  });
+
+  it('createKeg POSTs the input, including on-deck status', async () => {
+    mockFetchOnce(201, { ...keg, status: 'on_deck' });
+    const result = await createKeg({
+      beerId: 1, sizeMl: 19000, volStartMl: 19000, tapId: 1, status: 'on_deck',
+    });
+    expect(result.ok).toBe(true);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegs');
+    expect(JSON.parse(call[1].body)).toEqual({
+      beerId: 1, sizeMl: 19000, volStartMl: 19000, tapId: 1, status: 'on_deck',
+    });
+  });
+
+  it('removeOnDeckKeg DELETEs /api/kegs/:id and reports a 400 for a non-on_deck keg', async () => {
+    mockFetchOnce(400, { error: 'validation', message: 'keg 5 is not on-deck (status: on_tap) and cannot be removed this way' });
+    const result = await removeOnDeckKeg(5);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(400);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegs/5');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('listOnDeck GETs /api/taps/:id/on-deck', async () => {
+    mockFetchOnce(200, [keg]);
+    const result = await listOnDeck(1);
+    expect(result).toEqual({ ok: true, data: [keg] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/taps/1/on-deck', expect.any(Object));
+  });
+
+  it('swapTap POSTs a new-keg payload to /api/taps/:id/swap', async () => {
+    mockFetchOnce(201, keg);
+    const result = await swapTap(1, { beerId: 1, sizeMl: 19000, volStartMl: 19000 });
+    expect(result).toEqual({ ok: true, data: keg });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/taps/1/swap');
+    expect(JSON.parse(call[1].body)).toEqual({ beerId: 1, sizeMl: 19000, volStartMl: 19000 });
+  });
+
+  it('swapTap POSTs a fromKegId payload for the promote path', async () => {
+    mockFetchOnce(201, keg);
+    await swapTap(1, { fromKegId: 5 });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(JSON.parse(call[1].body)).toEqual({ fromKegId: 5 });
+  });
+
+  it('listMonitors GETs /api/monitors', async () => {
+    const monitor = {
+      id: 1, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
+      tapId: 1, lastSeen: null, meta: {},
+    };
+    mockFetchOnce(200, [monitor]);
+    const result = await listMonitors();
+    expect(result).toEqual({ ok: true, data: [monitor] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors', expect.any(Object));
+  });
+
+  it('importKegtronBeer POSTs /api/kegtron/import/:monitorId', async () => {
+    mockFetchOnce(201, beer);
+    const result = await importKegtronBeer(3);
+    expect(result).toEqual({ ok: true, data: beer });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegtron/import/3');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('resetKegtronVolume POSTs /api/kegtron/reset-volume/:monitorId and reports a gentle 502', async () => {
+    mockFetchOnce(502, { error: 'mdash_error', message: 'Failed to reset volume via mdash.net (status 503)' });
+    const result = await resetKegtronVolume(3);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(502);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegtron/reset-volume/3');
+    expect(call[1].method).toBe('POST');
   });
 });

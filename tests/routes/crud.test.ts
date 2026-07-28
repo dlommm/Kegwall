@@ -232,4 +232,180 @@ describe('crud routes', () => {
     });
     expect(second.statusCode).toBe(409);
   });
+
+  describe('on-deck queue + promote (Task 5)', () => {
+    async function makeBeerAndTap() {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      return { beer, tap };
+    }
+
+    it('POST /api/kegs accepts status on_deck and queues it behind the tap', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      const res = await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id, status: 'on_deck',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ status: 'on_deck', tapId: tap.id });
+    });
+
+    it('POST /api/kegs 400s for status on_deck without a tapId', async () => {
+      const { beer } = await makeBeerAndTap();
+      const res = await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, status: 'on_deck' },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('GET /api/taps/:id/on-deck lists queued kegs for that tap; requires auth; 404s for an unknown tap', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id, status: 'on_deck',
+        },
+      });
+
+      const unauth = await app.inject({ method: 'GET', url: `/api/taps/${tap.id}/on-deck` });
+      expect(unauth.statusCode).toBe(401);
+
+      const res = await app.inject({
+        method: 'GET', url: `/api/taps/${tap.id}/on-deck`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toHaveLength(1);
+
+      const missing = await app.inject({
+        method: 'GET', url: '/api/taps/999999/on-deck', cookies: adminCookies,
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+
+    it('POST /api/taps/:id/swap with fromKegId promotes the queued keg instead of creating a new row', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      const initial = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      });
+      expect(initial.statusCode).toBe(201);
+
+      const queued = (await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 20000, volStartMl: 20000, tapId: tap.id, status: 'on_deck',
+        },
+      })).json();
+
+      const promote = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { fromKegId: queued.id },
+      });
+      expect(promote.statusCode).toBe(201);
+      expect(promote.json()).toMatchObject({ id: queued.id, status: 'on_tap' });
+
+      const kegs = await app.inject({ method: 'GET', url: '/api/kegs', cookies: adminCookies });
+      expect(kegs.json()).toHaveLength(2); // no third row created by the promotion
+    });
+
+    it('POST /api/taps/:id/swap 400s when neither fromKegId nor a full beer/size/volume payload is given', async () => {
+      const { tap } = await makeBeerAndTap();
+      const res = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies, payload: {},
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('DELETE /api/kegs/:id removes an on-deck keg; requires editor; 400s for a non-on_deck keg; 404s unknown', async () => {
+      const { beer, tap } = await makeBeerAndTap();
+      const queued = (await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 20000, volStartMl: 20000, tapId: tap.id, status: 'on_deck',
+        },
+      })).json();
+
+      const unauth = await app.inject({ method: 'DELETE', url: `/api/kegs/${queued.id}` });
+      expect(unauth.statusCode).toBe(401);
+
+      const del = await app.inject({
+        method: 'DELETE', url: `/api/kegs/${queued.id}`, cookies: adminCookies,
+      });
+      expect(del.statusCode).toBe(204);
+      const onDeck = await app.inject({
+        method: 'GET', url: `/api/taps/${tap.id}/on-deck`, cookies: adminCookies,
+      });
+      expect(onDeck.json()).toEqual([]);
+
+      const onTap = (await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+      })).json();
+      const badDelete = await app.inject({
+        method: 'DELETE', url: `/api/kegs/${onTap.id}`, cookies: adminCookies,
+      });
+      expect(badDelete.statusCode).toBe(400);
+
+      const missing = await app.inject({
+        method: 'DELETE', url: '/api/kegs/999999', cookies: adminCookies,
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+  });
+
+  it('tap create/update/delete each broadcast state_changed (Task 5: keeps the admin taps '
+    + 'page live over /ws without a manual reload)', async () => {
+    const events: unknown[] = [];
+    app.ctx.bus.on('state_changed', (e) => events.push(e));
+
+    const tap = (await app.inject({
+      method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 9 },
+    })).json();
+    expect(events).toHaveLength(1);
+
+    await app.inject({
+      method: 'PATCH', url: `/api/taps/${tap.id}`, cookies: adminCookies, payload: { name: 'Renamed' },
+    });
+    expect(events).toHaveLength(2);
+
+    await app.inject({ method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies });
+    expect(events).toHaveLength(3);
+  });
+
+  describe('deleteTap conflict explanation (Task 5)', () => {
+    it('deleting a tap with kegs on record 409s with an explanation', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id },
+      });
+      const res = await app.inject({
+        method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().message).toContain('keg');
+    });
+
+    it('deleting an empty, unbound tap succeeds', async () => {
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const res = await app.inject({
+        method: 'DELETE', url: `/api/taps/${tap.id}`, cookies: adminCookies,
+      });
+      expect(res.statusCode).toBe(204);
+    });
+  });
 });

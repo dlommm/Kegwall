@@ -1,0 +1,88 @@
+import {
+  describe, it, expect, vi, beforeEach,
+} from 'vitest';
+import type { Mock } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { TapForm } from '../../../src/web/routes/admin/TapForm';
+import { createTap, updateTap } from '../../../src/web/lib/adminApi';
+import type { Tap } from '../../../src/server/db/taps';
+
+vi.mock('../../../src/web/lib/adminApi', () => ({
+  createTap: vi.fn(),
+  updateTap: vi.fn(),
+}));
+
+async function flush() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+describe('TapForm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('requires a tap number before submitting', async () => {
+    render(<TapForm mode="create" tap={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(screen.getByTestId('tap-form-validation-error')).toHaveTextContent('Tap number is required.');
+    expect(createTap).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-integer or zero/negative tap number', async () => {
+    render(<TapForm mode="create" tap={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('tap-form-number'), { target: { value: '0' } });
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(screen.getByTestId('tap-form-validation-error')).toHaveTextContent('whole number of 1 or more');
+    expect(createTap).not.toHaveBeenCalled();
+  });
+
+  it('submits a valid create form with a null name when blank', async () => {
+    const created: Tap = { id: 1, number: 3, name: null };
+    (createTap as Mock).mockResolvedValue({ ok: true, data: created });
+    const onSaved = vi.fn();
+    render(<TapForm mode="create" tap={null} onSaved={onSaved} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('tap-form-number'), { target: { value: '3' } });
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(createTap).toHaveBeenCalledWith({ number: 3, name: null });
+    expect(onSaved).toHaveBeenCalledWith(created);
+  });
+
+  it('pre-fills from the given tap in edit mode and PATCHes on submit', async () => {
+    const tap: Tap = { id: 5, number: 2, name: 'Left' };
+    (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
+    const onSaved = vi.fn();
+    render(<TapForm mode="edit" tap={tap} onSaved={onSaved} onCancel={vi.fn()} />);
+    expect(screen.getByTestId('tap-form-number')).toHaveValue('2');
+    expect(screen.getByTestId('tap-form-name')).toHaveValue('Left');
+    fireEvent.change(screen.getByTestId('tap-form-name'), { target: { value: 'Right' } });
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Right' });
+    expect(onSaved).toHaveBeenCalledWith(tap);
+  });
+
+  it('surfaces a server error (e.g. a duplicate tap number) without calling onSaved', async () => {
+    (createTap as Mock).mockResolvedValue({ ok: false, status: 409, message: 'taps.number already exists' });
+    const onSaved = vi.fn();
+    render(<TapForm mode="create" tap={null} onSaved={onSaved} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('tap-form-number'), { target: { value: '1' } });
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(screen.getByTestId('tap-form-server-error')).toHaveTextContent('taps.number already exists');
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('calls onCancel without saving anything', () => {
+    const onCancel = vi.fn();
+    render(<TapForm mode="create" tap={null} onSaved={vi.fn()} onCancel={onCancel} />);
+    fireEvent.click(screen.getByTestId('tap-form-cancel'));
+    expect(onCancel).toHaveBeenCalled();
+    expect(createTap).not.toHaveBeenCalled();
+  });
+});

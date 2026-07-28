@@ -1,5 +1,7 @@
 import type { User } from '../../server/db/users.js';
-import type { Pour } from '../../server/db/kegs.js';
+import type { Pour, Keg, KegStatus } from '../../server/db/kegs.js';
+import type { Tap } from '../../server/db/taps.js';
+import type { Monitor } from '../../server/db/monitors.js';
 import type { ActivityEvent } from '../../server/db/activity.js';
 import type { SourceStatus } from '../../server/ingest/manager.js';
 import type { Beer, BeerInput } from '../../server/db/beers.js';
@@ -190,4 +192,86 @@ export function uploadLabel(file: File): Promise<ApiResult<{ path: string }>> {
   const form = new FormData();
   form.append('file', file);
   return request('/api/uploads/label', { method: 'POST', body: form });
+}
+
+// --- Task 5: taps & kegs (tap CRUD, swap wizard, on-deck queue) ---
+
+export function listTaps(): Promise<ApiResult<Tap[]>> {
+  return request('/api/taps');
+}
+
+export function createTap(input: { number: number; name?: string | null }): Promise<ApiResult<Tap>> {
+  return request('/api/taps', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateTap(
+  id: number, input: { number?: number; name?: string | null },
+): Promise<ApiResult<Tap>> {
+  return request(`/api/taps/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** DELETE /api/taps/:id — 204 on success; 409 (`ApiFailure`) when the tap still has kegs
+ * on record or a bound monitor (see db/taps.ts's `deleteTap`). */
+export function deleteTap(id: number): Promise<ApiResult<null>> {
+  return request(`/api/taps/${id}`, { method: 'DELETE' });
+}
+
+/** GET /api/kegs, optionally filtered by status. Used both for the swap wizard's
+ * "defaults from the beer's last keg" lookup (no filter — any status) and the taps
+ * page's kicked-history panel (`status: 'kicked'`, filtered down to one tap client-side
+ * — see TapsPage/KickedHistory's doc comment for why that reuses this endpoint rather
+ * than a new per-tap one). */
+export function listKegs(params: { status?: KegStatus } = {}): Promise<ApiResult<Keg[]>> {
+  const qs = params.status ? `?status=${encodeURIComponent(params.status)}` : '';
+  return request(`/api/kegs${qs}`);
+}
+
+/** POST /api/kegs — a bare create (`status` omitted) makes an `on_tap` keg directly on a
+ * free tap; `status: 'on_deck'` (with `tapId` required) queues it behind the tap's
+ * current keg instead — the on-deck queue's "add to queue" action. */
+export function createKeg(input: {
+  beerId: number; sizeMl: number; volStartMl: number;
+  tapId?: number | null; status?: 'on_deck';
+}): Promise<ApiResult<Keg>> {
+  return request('/api/kegs', { method: 'POST', body: JSON.stringify(input) });
+}
+
+/** DELETE /api/kegs/:id — removes a queued on-deck keg from its tap's queue; 400 for any
+ * keg that isn't currently on_deck (see db/kegs.ts's `removeOnDeckKeg`). */
+export function removeOnDeckKeg(id: number): Promise<ApiResult<null>> {
+  return request(`/api/kegs/${id}`, { method: 'DELETE' });
+}
+
+/** GET /api/taps/:id/on-deck — the swap wizard's on-deck queue for one tap, in queue order. */
+export function listOnDeck(tapId: number): Promise<ApiResult<Keg[]>> {
+  return request(`/api/taps/${tapId}/on-deck`);
+}
+
+/** POST /api/taps/:id/swap — either taps a brand-new keg (`beerId`/`sizeMl`/`volStartMl`)
+ * or promotes an already-queued on-deck keg (`fromKegId`); either way, any currently
+ * on_tap keg for this tap is kicked first (see db/kegs.ts's `swapKeg`). */
+export function swapTap(
+  tapId: number,
+  input: { beerId: number; sizeMl: number; volStartMl: number } | { fromKegId: number },
+): Promise<ApiResult<Keg>> {
+  return request(`/api/taps/${tapId}/swap`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+/** GET /api/monitors — sanitized (no device key) monitor list; the swap wizard uses this
+ * to find a Kegtron Pro monitor bound to the tap being swapped (unlocks the "Import from
+ * Kegtron" beer-pick option and the step 4 "Reset volume on device" action). */
+export function listMonitors(): Promise<ApiResult<Monitor[]>> {
+  return request('/api/monitors');
+}
+
+/** POST /api/kegtron/import/:monitorId — creates a beer from a bound Pro monitor's
+ * current device config (Kegtron import, swap wizard step 2). */
+export function importKegtronBeer(monitorId: number): Promise<ApiResult<Beer>> {
+  return request(`/api/kegtron/import/${monitorId}`, { method: 'POST' });
+}
+
+/** POST /api/kegtron/reset-volume/:monitorId — zeroes the physical device's dispensed-
+ * volume counter for a bound Pro monitor's port (swap wizard step 4, optional). */
+export function resetKegtronVolume(monitorId: number): Promise<ApiResult<{ ok: boolean }>> {
+  return request(`/api/kegtron/reset-volume/${monitorId}`, { method: 'POST', body: JSON.stringify({}) });
 }

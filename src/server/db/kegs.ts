@@ -93,6 +93,21 @@ export function listOnDeckForTap(db: Database.Database, tapId: number): Keg[] {
   ).all(tapId).map(rowToKeg);
 }
 
+/** Removes a queued on-deck keg from a tap's queue (the admin swap wizard's on-deck
+ * "remove" action, Task 5 brief). Deliberately scoped to `status = 'on_deck'` only — an
+ * on_tap/kicked/archived keg is real history (pours may reference it via `pours.keg_id`,
+ * which has no ON DELETE clause and would FK-violate anyway), so this throws
+ * `ValidationError` rather than deleting it. 404s for an unknown id, matching every other
+ * single-resource repo function's not-found convention. */
+export function removeOnDeckKeg(db: Database.Database, id: number): void {
+  const keg = getKeg(db, id);
+  if (!keg) throw new NotFoundError(`keg ${id}`);
+  if (keg.status !== 'on_deck') {
+    throw new ValidationError(`keg ${id} is not on-deck (status: ${keg.status}) and cannot be removed this way`);
+  }
+  db.prepare('DELETE FROM kegs WHERE id = ?').run(id);
+}
+
 export function applyDispense(db: Database.Database, kegId: number, volDispensedMl: number): Keg {
   const keg = getKeg(db, kegId);
   if (!keg) throw new NotFoundError(`keg ${kegId}`);

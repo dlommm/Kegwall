@@ -5,9 +5,9 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import {
   createKeg, getActiveKegForTap, applyDispense, recordPourTx, swapKeg, listKegs,
-  getLatestKickedKegForTap, listOnDeckForTap,
+  getLatestKickedKegForTap, listOnDeckForTap, removeOnDeckKeg,
 } from '../../src/server/db/kegs.js';
-import { ConflictError, NotFoundError } from '../../src/server/core/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,6 +148,29 @@ describe('kegs repo', () => {
       const queued = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
       swapKeg(db, { tapId, fromKegId: queued.id });
       expect(() => createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId })).toThrow(ConflictError);
+    });
+
+    describe('removeOnDeckKeg', () => {
+      it('deletes a queued on-deck keg', () => {
+        const queued = createKeg(db, { beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck' });
+        removeOnDeckKeg(db, queued.id);
+        expect(listOnDeckForTap(db, tapId)).toEqual([]);
+      });
+
+      it('404s for an unknown keg id', () => {
+        expect(() => removeOnDeckKeg(db, 999999)).toThrow(NotFoundError);
+      });
+
+      it('refuses to remove a keg that is not on_deck (on_tap, kicked, or archived)', () => {
+        const onTap = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+        expect(() => removeOnDeckKeg(db, onTap.id)).toThrow(ValidationError);
+        expect(getActiveKegForTap(db, tapId)?.id).toBe(onTap.id);
+
+        const kicked = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000 });
+        db.prepare(`UPDATE kegs SET status = 'kicked' WHERE id = ?`).run(kicked.id);
+        expect(() => removeOnDeckKeg(db, kicked.id)).toThrow(ValidationError);
+        expect(listKegs(db, { status: 'kicked' })).toHaveLength(1);
+      });
     });
   });
 });
