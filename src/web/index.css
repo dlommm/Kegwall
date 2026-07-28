@@ -460,3 +460,245 @@
   from { opacity: 0; transform: translateX(2.5%); }
   to { opacity: 1; transform: translateX(0); }
 }
+
+/*
+ * MenuPage (Task 6) — mobile-first tap list + claim flow at /menu. Uses the same
+ * ThemeProvider CSS-variable tokens as the wall (default taproom theme, since the menu
+ * isn't tied to a specific wall's config) so TapCard/ClaimSheet read consistent colors.
+ */
+.menu-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.menu-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+.menu-page__header {
+  padding-top: 0.5rem;
+}
+
+.menu-page__site-name {
+  font-size: 1.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.menu-page__tap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * ClaimSheet — the "Claim your pour" section plus its drinker-picker overlay. Interactive
+ * elements (`__pour-button`, `__drinker-button`, `__dismiss`, `__done`) all keep a 44px
+ * minimum touch target per the Task 6 accessibility requirement, and get a visible
+ * `:focus-visible` ring since they sit on a dark background where the browser default can
+ * be hard to see.
+ */
+.claim-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.claim-sheet__heading {
+  font-size: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.claim-sheet__empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.claim-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.claim-sheet__pour-button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.claim-sheet__pour-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.claim-sheet__pour-beer {
+  font-weight: 600;
+}
+
+.claim-sheet__pour-meta {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.claim-sheet__pour-cta {
+  flex: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.claim-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.claim-sheet__sheet {
+  width: 100%;
+  max-width: 28rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 1rem 1rem 0 0;
+  padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -0.5rem 2rem rgba(0, 0, 0, 0.4);
+}
+
+.claim-sheet__sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.claim-sheet__sheet-title {
+  font-size: 1.4rem;
+}
+
+.claim-sheet__dismiss {
+  min-width: 44px;
+  min-height: 44px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.claim-sheet__prompt {
+  color: var(--text-dim);
+  margin-top: 0.5rem;
+}
+
+.claim-sheet__status {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.claim-sheet__notice {
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.claim-sheet__notice--success {
+  background: color-mix(in srgb, #4caf6f 20%, transparent);
+}
+
+.claim-sheet__notice--conflict {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.claim-sheet__notice--rate-limited {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+}
+
+.claim-sheet__notice--error {
+  background: color-mix(in srgb, #e0793d 18%, transparent);
+}
+
+.claim-sheet__done {
+  min-height: 44px;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.claim-sheet__drinker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.claim-sheet__drinker-button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.claim-sheet__drinker-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.claim-sheet__avatar {
+  display: flex;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.claim-sheet__pour-button:focus-visible,
+.claim-sheet__drinker-button:focus-visible,
+.claim-sheet__dismiss:focus-visible,
+.claim-sheet__done:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
