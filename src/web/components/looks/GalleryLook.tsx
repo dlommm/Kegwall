@@ -13,7 +13,7 @@ import {
  * Layout per design option 1b; colors via theme tokens (`.gallery-*`).
  */
 export function GalleryLook({
-  taps, config, units, title, menuUrl, tempC, logoUrl, spotlightTapId,
+  taps, config, units, title, menuUrl, tempC, logoUrl, spotlightTapId, sensors,
 }: WallLookProps) {
   const clock = useLookClock();
   const showNotes = config.fields.description !== false;
@@ -29,7 +29,7 @@ export function GalleryLook({
           )}
         </div>
         <div className="gallery-look__spacer" />
-        {config.header.showTemp && <SensorChips tempC={tempC} units={units} />}
+        {config.header.showTemp && <SensorChips tempC={tempC} units={units} sensors={sensors} />}
         {config.header.showClock && (
           <span className="gallery-look__clock font-display font-tabular" data-testid="look-clock">{clock}</span>
         )}
@@ -64,7 +64,14 @@ export function GalleryLook({
                     <LookBadges model={m} />
                   </div>
                   <span className="gallery-card__name font-display" data-testid="gallery-card-name">{m.name}</span>
-                  {m.style && <span className="gallery-card__style">{m.style}</span>}
+                  {m.style && (
+                    <span className="gallery-card__style">
+                      {m.style}
+                      {m.avgRating != null && (
+                        <span className="font-tabular" data-testid="look-rating">{` · ★ ${m.avgRating.toFixed(1)}`}</span>
+                      )}
+                    </span>
+                  )}
                   <div className="gallery-card__chips">
                     {m.abv != null && <span className="gallery-card__chip font-tabular">{`${m.abv.toFixed(1)}% ABV`}</span>}
                     {m.ibu != null && <span className="gallery-card__chip font-tabular">{`${m.ibu} IBU`}</span>}

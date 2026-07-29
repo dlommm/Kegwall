@@ -3,7 +3,10 @@ import {
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useWallData } from '../lib/useWallData';
-import { getDisplayView, getLeaderboard, type DisplayView, type LeaderboardResponse } from '../lib/api';
+import {
+  getDisplayView, getLeaderboard, getSensors,
+  type AmbientSensorReading, type DisplayView, type LeaderboardResponse,
+} from '../lib/api';
 import { useViewRotation } from '../lib/useViewRotation';
 import { PlaylistBar } from '../components/PlaylistBar';
 import { LeaderboardBoard } from '../components/LeaderboardBoard';
@@ -207,6 +210,25 @@ export function WallPage() {
   const rotationIndex = useViewRotation(rotationViews, anyPouring);
   const currentViewKind = rotationViews[rotationIndex]?.kind ?? 'wall';
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
+  // Govee ambient sensors (Phase 6): the header sensor strip's chips, polled
+  // on the handoff's ~60s cadence when the header temp strip is on.
+  const [ambientSensors, setAmbientSensors] = useState<AmbientSensorReading[]>([]);
+  const showTemp = config?.header.showTemp ?? false;
+  useEffect(() => {
+    if (!showTemp) return undefined;
+    let cancelled = false;
+    const load = () => {
+      getSensors().then((result) => {
+        if (!cancelled && result.ok && Array.isArray(result.data)) setAmbientSensors(result.data);
+      });
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [showTemp]);
   useEffect(() => {
     if (!rotationViews.some((v) => v.kind === 'leaderboard')) return undefined;
     let cancelled = false;
@@ -344,6 +366,7 @@ export function WallPage() {
                 pageCount={pages.length}
                 rotationSeconds={config.rotationSeconds}
                 spotlightTapId={spotlightTapId}
+                sensors={ambientSensors}
               />
             </div>
           )}

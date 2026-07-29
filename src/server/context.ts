@@ -5,6 +5,10 @@ import { SettingsStore } from './db/settings.js';
 import { StateManager } from './core/state.js';
 import { TabletArmRegistry } from './core/tabletArm.js';
 import { LogService } from './core/logService.js';
+import { SensorRegistry } from './core/sensorRegistry.js';
+import { attachBeerAutoImport } from './core/beerAutoImport.js';
+import { attachMilestones } from './core/milestones.js';
+import { SessionRegistry } from './core/sessionMode.js';
 import { SourceManager } from './ingest/manager.js';
 import { registerConfiguredSources } from './ingest/bootstrap.js';
 import { AutomationEngine } from './automation/engine.js';
@@ -23,6 +27,10 @@ export interface AppContext {
   tabletArm: TabletArmRegistry;
   /** The unified log stream's writer (Pour Wall overhaul Phase 4, design 5d). */
   log: LogService;
+  /** Latest Govee ambient-sensor readings (Phase 6) — see core/sensorRegistry.ts. */
+  sensors: SensorRegistry;
+  /** The tablet's group-tab session (Phase 6, design 6c) — see core/sessionMode.ts. */
+  session: SessionRegistry;
 }
 
 /**
@@ -57,6 +65,10 @@ export function createContext(dataDir: string): AppContext {
   const log = new LogService(db, bus);
   log.attach();
   pruneLogs(db, settings.get('logRetentionDays'));
+  const sensors = new SensorRegistry(bus, log);
+  sensors.attach();
+  attachBeerAutoImport(db, bus, settings, log);
+  attachMilestones(db, bus);
   const sources = new SourceManager(bus);
   // Constructed here (cheap: no I/O) but NOT started — `engine.start()` can dispatch
   // real actions (an `app_startup` rule's webhook/mqtt/SMTP/etc), so it's called
@@ -64,7 +76,7 @@ export function createContext(dataDir: string): AppContext {
   // option, not unconditionally like `state.start()` above. See automation/engine.ts's
   // top doc comment, point 6.
   const engine = new AutomationEngine({ db, bus, settings, state });
-  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log };
+  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry() };
   // Registers whatever the current settings call for (Task 8's bootstrap.ts) — does NOT
   // start them; that's gated behind `buildApp()`'s `startSources` option (see app.ts /
   // index.ts) so tests never accidentally spin up real network/BLE/MQTT connections.

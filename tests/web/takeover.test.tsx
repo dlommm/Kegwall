@@ -37,7 +37,7 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
       dateTapped: null,
       status: 'on_tap',
       createdAt: '',
-      kegType: 'half-barrel',
+      kegType: 'half-barrel', costCents: null,
       levelPct: 41,
       remainingMl: 58670 * 0.41,
     },
@@ -47,6 +47,8 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: 1.1,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }

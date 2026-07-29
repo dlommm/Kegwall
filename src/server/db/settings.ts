@@ -44,6 +44,18 @@ export const settingsSchema = z.object({
   // local fake server instead. Not a secret (no credential lives in the URL) and not
   // surfaced in any settings form.
   catalogBeerBaseUrl: z.string().default('https://catalog.beer'),
+  // Pour Wall overhaul Phase 6 (design 6g): auto-cache beers the Kegtron device
+  // reports that the local library doesn't know — see core/beerAutoImport.ts.
+  autoImportBeers: z.boolean().default(true),
+  // Govee ambient sensors (Phase 6): cloud API key + free-text per-sensor names
+  // (deviceId -> "FRONT"/"MIDDLE"/"BACK"...). Same nullable-object + masked-apiKey
+  // idiom as `catalogBeer` above.
+  govee: z.object({
+    apiKey: z.string().min(1),
+    names: z.record(z.string(), z.string()).default({}),
+  }).nullable().default(null),
+  // Hidden, test-injectable base URL — same pattern as catalogBeerBaseUrl.
+  goveeBaseUrl: z.string().default('https://openapi.api.govee.com'),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
@@ -155,6 +167,9 @@ function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[
   if (key === 'catalogBeer' && value && typeof value === 'object' && isMaskedString((value as any).apiKey)) {
     throw new ValidationError('catalogBeer.apiKey looks like a masked display value; refusing to store it');
   }
+  if (key === 'govee' && value && typeof value === 'object' && isMaskedString((value as any).apiKey)) {
+    throw new ValidationError('govee.apiKey looks like a masked display value; refusing to store it');
+  }
   if (key === 'alertChannels' && value && typeof value === 'object') {
     const ac = value as Record<string, any>;
     if (ac.pushover && isMaskedString(ac.pushover.token)) {
@@ -216,6 +231,9 @@ export class SettingsStore {
     if (out.catalogBeer && isMaskedString(out.catalogBeer.apiKey)) {
       out.catalogBeer = { ...out.catalogBeer, apiKey: this.get('catalogBeer')?.apiKey ?? '' };
     }
+    if (out.govee && isMaskedString(out.govee.apiKey)) {
+      out.govee = { ...out.govee, apiKey: this.get('govee')?.apiKey ?? '' };
+    }
     if (out.alertChannels) {
       const stored = this.get('alertChannels');
       const ac = { ...out.alertChannels };
@@ -253,6 +271,9 @@ export class SettingsStore {
     if (s.mqtt?.password) s.mqtt.password = '••••';
     if (s.catalogBeer?.apiKey) {
       s.catalogBeer.apiKey = '••••' + s.catalogBeer.apiKey.slice(-4);
+    }
+    if (s.govee?.apiKey) {
+      s.govee.apiKey = '••••' + s.govee.apiKey.slice(-4);
     }
     if (s.alertChannels.pushover?.token) {
       s.alertChannels.pushover.token = '••••' + s.alertChannels.pushover.token.slice(-4);

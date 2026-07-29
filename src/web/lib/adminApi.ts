@@ -691,3 +691,45 @@ export function updateDisplay(id: number, input: {
 export function deleteDisplay(id: number): Promise<ApiResult<null>> {
   return request(`/api/displays/${id}`, { method: 'DELETE' });
 }
+
+// --- Pour Wall overhaul Phase 6: analytics + cleaning + doctor ---------------
+
+export type { AnalyticsKpis } from '../../server/db/stats.js';
+export type { CleaningStatus, LineCleaning } from '../../server/db/cleanings.js';
+
+/** GET /api/stats/kpis — the Analytics KPI row (design 10a). */
+export function getAnalyticsKpis(days: 30 | 90 | 365 = 30): Promise<ApiResult<import('../../server/db/stats.js').AnalyticsKpis>> {
+  return request(`/api/stats/kpis?days=${days}`);
+}
+
+/** GET /api/stats/heatmap — day-of-week × hour pour counts (design 10a). */
+export function getHourHeatmap(days: 30 | 90 | 365 = 30): Promise<ApiResult<{ grid: number[][] }>> {
+  return request(`/api/stats/heatmap?days=${days}`);
+}
+
+export function getCleaningStatuses(): Promise<ApiResult<import('../../server/db/cleanings.js').CleaningStatus[]>> {
+  return request('/api/cleanings/status');
+}
+
+export function logTapCleaning(tapId: number, note?: string): Promise<ApiResult<import('../../server/db/cleanings.js').LineCleaning>> {
+  return request(`/api/taps/${tapId}/cleanings`, {
+    method: 'POST',
+    body: JSON.stringify(note ? { note } : {}),
+  });
+}
+
+export function doctorCloud(): Promise<ApiResult<{ ok: boolean; detail: string; deviceCount?: number; latencyMs?: number }>> {
+  return request('/api/doctor/cloud', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function doctorListen(seconds = 10): Promise<ApiResult<{ seconds: number; total: number; perMonitor: { monitor: string; events: number }[] }>> {
+  return request('/api/doctor/listen', { method: 'POST', body: JSON.stringify({ seconds }) });
+}
+
+export function doctorEnv(): Promise<ApiResult<{ inDocker: boolean; hint: string }>> {
+  return request('/api/doctor/env');
+}
+
+export function doctorGovee(): Promise<ApiResult<{ ok: boolean; detail: string; sensorCount?: number }>> {
+  return request('/api/doctor/govee', { method: 'POST', body: JSON.stringify({}) });
+}

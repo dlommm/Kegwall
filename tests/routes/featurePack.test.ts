@@ -1,0 +1,186 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { buildApp } from '../../src/server/app.js';
+import type { FastifyInstance } from 'fastify';
+import { createBeer } from '../../src/server/db/beers.js';
+import { createTap } from '../../src/server/db/taps.js';
+import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
+import { createDrinker, createUser } from '../../src/server/db/users.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+let app: FastifyInstance;
+let cookies: Record<string, string>;
+let kegId: number;
+let tapId: number;
+
+beforeEach(async () => {
+  app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
+  const db = app.ctx.db;
+  createUser(db, {
+    username: 'admin', displayName: 'Admin', password: 'hunter22', role: 'admin',
+  });
+  const login = await app.inject({
+    method: 'POST', url: '/api/auth/login', payload: { username: 'admin', password: 'hunter22' },
+  });
+  const sessionCookie = login.cookies.find((c) => c.name === 'session')!;
+  cookies = { [sessionCookie.name]: sessionCookie.value };
+  const beer = createBeer(db, { name: 'Citra IPA' });
+  const tap = createTap(db, { number: 1 });
+  tapId = tap.id;
+  kegId = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id }).id;
+});
+afterEach(async () => { await app.close(); });
+
+describe('rate-after-claim (design 6a)', () => {
+  it('rates a claimed pour and rejects unclaimed/late/invalid ones', async () => {
+    const db = app.ctx.db;
+    const sam = createDrinker(db, { displayName: 'Sam' });
+    const claimed = recordPourTx(db, {
+      kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp', drinkerId: sam.id,
+    }).pour;
+    const unclaimed = recordPourTx(db, {
+      kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp',
+    }).pour;
+    const stale = recordPourTx(db, {
+      kegId, ts: new Date(Date.now() - 25 * 3600 * 1000).toISOString(), volumeMl: 400, source: 'udp', drinkerId: sam.id,
+    }).pour;
+
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/api/public/pours/${claimed.id}/rate`,
+      payload: { rating: 5, tags: ['Crisp', 'Perfect temp'] },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().rating).toBe(5);
+    expect(ok.json().ratingTags).toEqual(['Crisp', 'Perfect temp']);
+
+    expect((await app.inject({
+      method: 'POST', url: `/api/public/pours/${unclaimed.id}/rate`, payload: { rating: 4 },
+    })).statusCode).toBe(400);
+    expect((await app.inject({
+      method: 'POST', url: `/api/public/pours/${stale.id}/rate`, payload: { rating: 4 },
+    })).statusCode).toBe(400);
+    expect((await app.inject({
+      method: 'POST', url: `/api/public/pours/${claimed.id}/rate`, payload: { rating: 9 },
+    })).statusCode).toBe(400);
+
+    // The rated pour now feeds the wall's per-beer average.
+    const wallTaps = (await app.inject({ method: 'GET', url: '/api/public/menu' })).json().taps;
+    expect(wallTaps[0].avgRating).toBe(5);
+  });
+});
+
+describe('passport (design 6a)', () => {
+  it('returns stats, badges and recent pours for a pourer', async () => {
+    const db = app.ctx.db;
+    const sam = createDrinker(db, { displayName: 'Sam' });
+    recordPourTx(db, {
+      kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp', drinkerId: sam.id, quality: 95,
+    });
+    const res = await app.inject({ method: 'GET', url: `/api/public/passport/${sam.id}` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.pourCount).toBe(1);
+    expect(body.volumeMl).toBe(400);
+    expect(body.badges).toContain('First pour');
+    expect(body.badges).toContain('Smooth operator');
+    expect(body.recent[0].beerName).toBe('Citra IPA');
+
+    expect((await app.inject({ method: 'GET', url: '/api/public/passport/999' })).statusCode).toBe(404);
+  });
+});
+
+describe('session endpoints (design 6c)', () => {
+  it('start → join → snapshot → end', async () => {
+    const db = app.ctx.db;
+    const sam = createDrinker(db, { displayName: 'Sam' });
+
+    const started = await app.inject({
+      method: 'POST', url: '/api/public/session/start', payload: { name: 'Game night' },
+    });
+    expect(started.statusCode).toBe(200);
+
+    const joined = await app.inject({
+      method: 'POST', url: '/api/public/session/join', payload: { drinkerId: sam.id },
+    });
+    expect(joined.json().members).toHaveLength(1);
+
+    recordPourTx(db, {
+      kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp', drinkerId: sam.id,
+    });
+    const current = (await app.inject({ method: 'GET', url: '/api/public/session' })).json();
+    expect(current.totals[0]).toMatchObject({ name: 'Sam', pourCount: 1, volumeMl: 400 });
+
+    const ended = await app.inject({ method: 'POST', url: '/api/public/session/end' });
+    expect(ended.statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/public/session' })).json()).toEqual({ active: false });
+    expect((await app.inject({ method: 'POST', url: '/api/public/session/end' })).statusCode).toBe(409);
+  });
+});
+
+describe('line cleaning endpoints (design 6e)', () => {
+  it('logs a cleaning and reports per-tap status', async () => {
+    const db = app.ctx.db;
+    recordPourTx(db, { kegId, ts: new Date().toISOString(), volumeMl: 500, source: 'udp' });
+
+    let statuses = (await app.inject({ method: 'GET', url: '/api/cleanings/status', cookies })).json();
+    expect(statuses[0]).toMatchObject({ tapId, due: true });
+
+    const logged = await app.inject({
+      method: 'POST', url: `/api/taps/${tapId}/cleanings`, payload: { note: 'BLC' }, cookies,
+    });
+    expect(logged.statusCode).toBe(201);
+
+    statuses = (await app.inject({ method: 'GET', url: '/api/cleanings/status', cookies })).json();
+    expect(statuses[0].due).toBe(false);
+    const detail = (await app.inject({ method: 'GET', url: `/api/taps/${tapId}/cleanings`, cookies })).json();
+    expect(detail.cleanings[0].note).toBe('BLC');
+  });
+});
+
+describe('analytics endpoints (design 10a)', () => {
+  it('serves KPIs and the heatmap grid', async () => {
+    recordPourTx(app.ctx.db, { kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp' });
+    const kpis = (await app.inject({ method: 'GET', url: '/api/stats/kpis?days=30', cookies })).json();
+    expect(kpis.pours).toBe(1);
+    const heatmap = (await app.inject({ method: 'GET', url: '/api/stats/heatmap', cookies })).json();
+    expect(heatmap.grid).toHaveLength(7);
+  });
+});
+
+describe('connection doctor (design 11e)', () => {
+  it('cloud check reports the missing key cleanly', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/doctor/cloud', payload: {}, cookies });
+    expect(res.json()).toMatchObject({ ok: false, detail: 'No Kegtron cloud API key configured' });
+  });
+
+  it('the live-path listen counts bus events during its window', async () => {
+    const promise = app.inject({
+      method: 'POST', url: '/api/doctor/listen', payload: { seconds: 3 }, cookies,
+    });
+    // Give the route a beat to subscribe, then emit two live events.
+    await new Promise((resolve) => { setTimeout(resolve, 300); });
+    app.ctx.bus.emit('pour_progress', {
+      monitor: { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 }, curServMl: 100, ts: 'x',
+    });
+    app.ctx.bus.emit('volume_update', {
+      monitor: { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 },
+      volStartMl: 19000, volDispensedMl: 100, sizeMl: 19000, ts: 'x',
+    });
+    const res = await promise;
+    expect(res.json().total).toBe(2);
+    expect(res.json().perMonitor[0]).toMatchObject({ monitor: 'dev1:0', events: 2 });
+  }, 10_000);
+
+  it('env check reports Docker state with a hint', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/doctor/env', cookies });
+    expect(typeof res.json().inDocker).toBe('boolean');
+    expect(res.json().hint.length).toBeGreaterThan(0);
+  });
+
+  it('govee check reports the missing key', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/doctor/govee', payload: {}, cookies });
+    expect(res.json()).toMatchObject({ ok: false });
+  });
+});

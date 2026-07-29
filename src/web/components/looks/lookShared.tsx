@@ -48,6 +48,7 @@ export interface LookBadgesProps {
 export function LookBadges({ model, newLabel = 'NEW', lowLabel = 'ALMOST GONE' }: LookBadgesProps) {
   const reducedMotion = usePrefersReducedMotion();
   if (!model.isNew && !model.isLow && !model.pouring) return null;
+  // (the NEXT UP chip below only renders alongside the low badge)
   return (
     <>
       {model.isNew && (
@@ -60,6 +61,11 @@ export function LookBadges({ model, newLabel = 'NEW', lowLabel = 'ALMOST GONE' }
         <span className="look-badge look-badge--pouring" data-testid="look-badge-pouring">
           <span className={reducedMotion ? 'look-pour-dot' : 'look-pour-dot look-pour-dot--pulse'} />
           {model.pourLabel ? `POURING · ${model.pourLabel}` : 'POURING'}
+        </span>
+      )}
+      {model.isLow && model.nextUpName && (
+        <span className="look-badge look-badge--next-up" data-testid="look-badge-next-up">
+          {`NEXT UP: ${model.nextUpName.toUpperCase()}`}
         </span>
       )}
     </>
@@ -144,25 +150,47 @@ export function LookPageDots({ pageIndex, pageCount }: LookPageDotsProps) {
   );
 }
 
+export interface AmbientSensor {
+  sensorId: string;
+  name: string;
+  tempC: number | null;
+  humidity: number | null;
+}
+
 export interface SensorChipsProps {
   /** Max Kegtron temp across the wall's taps (Celsius), or null to hide. */
   tempC: number | null;
   units: VolumeUnits;
+  /** Named Govee ambient sensors (Phase 6) — one chip each after KEGTRON. */
+  sensors?: AmbientSensor[];
 }
 
-/** The header sensor strip. Today it carries the one real reading we have —
- * the Kegtron monitors' own temperature (labeled KEGTRON, per the handoff:
- * Kegtron's temp keeps its own label even once Govee sensors land). Govee
- * chips slot in beside it in Phase 6. */
-export function SensorChips({ tempC, units }: SensorChipsProps) {
-  if (tempC == null) return null;
+/** The header sensor strip: the Kegtron monitors' own temperature first
+ * (always labeled KEGTRON, per the handoff), then one chip per named Govee
+ * sensor with temp + humidity. */
+export function SensorChips({ tempC, units, sensors = [] }: SensorChipsProps) {
+  if (tempC == null && sensors.length === 0) return null;
   return (
     <div className="look-sensors" data-testid="look-sensors">
-      <span className="look-sensor-chip">
-        <span className="look-sensor-chip__dot" />
-        <span className="look-sensor-chip__name">KEGTRON</span>
-        <span className="look-sensor-chip__value">{formatTempC(tempC, units)}</span>
-      </span>
+      {tempC != null && (
+        <span className="look-sensor-chip">
+          <span className="look-sensor-chip__dot" />
+          <span className="look-sensor-chip__name">KEGTRON</span>
+          <span className="look-sensor-chip__value">{formatTempC(tempC, units)}</span>
+        </span>
+      )}
+      {sensors.map((sensor) => (
+        <span key={sensor.sensorId} className="look-sensor-chip look-sensor-chip--ambient" data-testid="look-sensor-chip">
+          <span className="look-sensor-chip__dot look-sensor-chip__dot--ambient" />
+          <span className="look-sensor-chip__name">{sensor.name.toUpperCase()}</span>
+          {sensor.tempC != null && (
+            <span className="look-sensor-chip__value">{formatTempC(sensor.tempC, units)}</span>
+          )}
+          {sensor.humidity != null && (
+            <span className="look-sensor-chip__hum">{`${Math.round(sensor.humidity)}%`}</span>
+          )}
+        </span>
+      ))}
     </div>
   );
 }

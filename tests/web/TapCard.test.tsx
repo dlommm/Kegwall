@@ -48,7 +48,7 @@ function makeKeg(overrides: Partial<WallKeg> = {}): WallKeg {
     dateTapped: '2026-07-01T00:00:00.000Z',
     status: 'on_tap',
     createdAt: '2026-07-01T00:00:00.000Z',
-    kegType: null,
+    kegType: null, costCents: null,
     levelPct: 50,
     remainingMl: 9_750,
     ...overrides,
@@ -68,6 +68,8 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }

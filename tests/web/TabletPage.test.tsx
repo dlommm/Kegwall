@@ -32,7 +32,7 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
       id: tapId, name: 'Morning Line', brewery: null, style: 'Pilsner', abv: 4.9, ibu: 32, srm: 3, description: null, labelImage: null, createdAt: '',
     },
     keg: {
-      id: tapId, beerId: tapId, tapId, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+      id: tapId, beerId: tapId, tapId, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000,
     },
     lastPour: null,
     pouring: false,
@@ -40,6 +40,8 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }

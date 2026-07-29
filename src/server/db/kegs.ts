@@ -15,6 +15,8 @@ export interface Keg {
   id: number; beerId: number; tapId: number | null; sizeMl: number;
   volStartMl: number; volDispensedMl: number; dateTapped: string | null;
   status: KegStatus; createdAt: string; kegType: KegType | null;
+  /** What the keg cost, in cents (design 6d cost tracking); null = untracked. */
+  costCents: number | null;
 }
 
 export interface Pour {
@@ -23,6 +25,10 @@ export interface Pour {
   /** Flow-rate-consistency score 0-100 (see core/pourQuality.ts), or null when the
    * pour had too few live samples to score. */
   quality: number | null;
+  /** Rate-after-claim (design 6a): 1-5 stars, null = unrated. */
+  rating: number | null;
+  /** Quick tags picked with the rating (JSON array, e.g. ["Crisp"]). */
+  ratingTags: string[] | null;
 }
 
 /** `keg.levelPct`'s formula, extracted (Phase 5 Task 3) so the automation engine's
@@ -50,6 +56,7 @@ function rowToKeg(r: any): Keg {
     volStartMl: r.vol_start_ml, volDispensedMl: r.vol_dispensed_ml,
     dateTapped: r.date_tapped, status: r.status, createdAt: r.created_at,
     kegType: r.keg_type ?? null,
+    costCents: r.cost_cents ?? null,
   };
 }
 
@@ -171,6 +178,8 @@ export function recordPourTx(db: Database.Database, input: {
       id: r.id, kegId: r.keg_id, ts: r.ts, volumeMl: r.volume_ml,
       durationMs: r.duration_ms, source: r.source, drinkerId: r.drinker_id,
       quality: r.quality ?? null,
+      rating: r.rating ?? null,
+      ratingTags: r.rating_tags ? JSON.parse(r.rating_tags) : null,
     },
     keg: getKeg(db, input.kegId)!,
   };

@@ -32,6 +32,12 @@ export interface TapState {
   /** The tap's location (Pour Wall overhaul Phase 5, design 11a) — lets admin
    * surfaces scope tap lists by the sidebar's location switcher. Null = unscoped. */
   locationId: number | null;
+  /** Mean rate-after-claim star rating (design 6a) across every rated pour of
+   * this beer (all kegs), 1 decimal; null when unrated. */
+  avgRating: number | null;
+  /** The next on-deck keg's beer name for this tap (design 6e "Next up: X"),
+   * or null when nothing is queued. */
+  nextUpBeerName: string | null;
 }
 
 export class StateManager {
@@ -150,6 +156,19 @@ export class StateManager {
       const live = key ? this.live.get(key) : undefined;
       const lastPourRow = keg ? listPours(this.db, { kegId: keg.id, limit: 1 })[0] : undefined;
       const temp = mon ? latestTelemetryForMonitor(this.db, mon.id)?.temp ?? null : null;
+      // Rate-after-claim average (6a): over every rated pour of this BEER, any keg.
+      const avgRatingRow = beer
+        ? this.db.prepare(`
+            SELECT AVG(p.rating) avg FROM pours p
+            JOIN kegs k ON k.id = p.keg_id
+            WHERE k.beer_id = ? AND p.rating IS NOT NULL
+          `).get(beer.id) as { avg: number | null }
+        : null;
+      // "Next up" (6e): first queued on-deck keg's beer for this tap.
+      const nextUpRow = this.db.prepare(`
+        SELECT b.name FROM kegs k JOIN beers b ON b.id = k.beer_id
+        WHERE k.tap_id = ? AND k.status = 'on_deck' ORDER BY k.id LIMIT 1
+      `).get(tap.id) as { name: string } | undefined;
       return {
         tapId: tap.id,
         tapNumber: tap.number,
@@ -168,6 +187,8 @@ export class StateManager {
         monitorOnline: key ? this.online.get(key) ?? true : false,
         temp,
         locationId: tap.locationId,
+        avgRating: avgRatingRow?.avg != null ? Math.round(avgRatingRow.avg * 10) / 10 : null,
+        nextUpBeerName: nextUpRow?.name ?? null,
       };
     });
   }

@@ -14,7 +14,7 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
       id: tapId, name: `Beer ${tapId}`, brewery: null, style: 'IPA', abv: 6, ibu: 50, srm: 8, description: null, labelImage: null, createdAt: '',
     },
     keg: {
-      id: tapId, beerId: tapId, tapId, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 79, remainingMl: 15000,
+      id: tapId, beerId: tapId, tapId, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 79, remainingMl: 15000,
     },
     lastPour: null,
     pouring: false,
@@ -22,6 +22,8 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }

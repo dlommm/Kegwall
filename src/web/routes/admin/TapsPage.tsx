@@ -5,9 +5,10 @@ import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
 import type { Monitor } from '../../../server/db/monitors.js';
 import type { KegBurnStat } from '../../../server/db/stats.js';
+import type { CleaningStatus } from '../../../server/db/cleanings.js';
 import {
   listBeers, listKegs, listMonitors, listTaps, deleteTap as deleteTapApi,
-  getActiveKegStats,
+  getActiveKegStats, getCleaningStatuses, logTapCleaning,
 } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
@@ -79,6 +80,7 @@ export function TapsPage() {
   const [deleting, setDeleting] = useState(false);
   const [wizardState, setWizardState] = useState<WizardState | null>(null);
   const [kegStats, setKegStats] = useState<KegBurnStat[]>([]);
+  const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -113,6 +115,8 @@ export function TapsPage() {
     listTaps().then((result) => { if (result.ok) setTapRows(result.data); });
     // Depletion forecast for the "Kicks in ~N days" line (design 5b).
     getActiveKegStats().then((result) => { if (result.ok) setKegStats(result.data); });
+    // Line-cleaning due state (Phase 6, design 6e).
+    getCleaningStatuses().then((result) => { if (result.ok) setCleanings(result.data); });
   }, []);
 
   useEffect(() => {
@@ -200,6 +204,9 @@ export function TapsPage() {
                       {tap.tapName && <span className="taps-row__name">{tap.tapName}</span>}
                       {isLow && <span className="look-badge look-badge--low">ALMOST GONE</span>}
                       {isKicked && <span className="look-badge look-badge--kicked">KICKED</span>}
+                      {cleanings.find((c) => c.tapId === tap.tapId)?.due && (
+                        <span className="look-badge look-badge--low" data-testid="taps-row-cleaning-due">CLEANING DUE</span>
+                      )}
                     </span>
                     <span className="taps-row__beer font-display">
                       {tap.beer ? tap.beer.name : 'Empty'}
@@ -264,6 +271,27 @@ export function TapsPage() {
 
                 {expanded && (
                   <div className="taps-row__details" data-testid="taps-row-details">
+                    {(() => {
+                      const cleaning = cleanings.find((c) => c.tapId === tap.tapId);
+                      return (
+                        <div className="taps-cleaning" data-testid="taps-cleaning">
+                          <span className="taps-cleaning__status font-tabular">
+                            {cleaning?.lastCleanedAt
+                              ? `Line cleaned ${cleaning.daysSince} day(s) ago · ${cleaning.gallonsSince} gal since`
+                              : 'Line cleaning never logged'}
+                          </span>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              data-testid="taps-cleaning-log"
+                              onClick={() => logTapCleaning(tap.tapId).then(refresh)}
+                            >
+                              Log cleaning
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <OnDeckQueue
                       tapId={tap.tapId}
                       beers={beers}

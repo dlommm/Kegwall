@@ -42,6 +42,7 @@ export function pageTitleFor(pathname: string): string {
   const specials: Record<string, string> = {
     '/admin/pours': 'Pours',
     '/admin/notifications': 'Notifications',
+    '/admin/doctor': 'Connection doctor',
   };
   for (const [path, title] of Object.entries(specials)) {
     if (pathname === path || pathname.startsWith(`${path}/`)) return title;

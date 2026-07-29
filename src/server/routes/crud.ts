@@ -196,6 +196,8 @@ export async function crudRoutes(app: FastifyInstance) {
     volStartMl: z.number().int().positive(), tapId: z.number().int().nullish(),
     status: z.enum(['on_deck']).optional(),
     kegType: kegTypeSchema,
+    // Cost tracking (Phase 6, design 6d): what the keg cost, in cents.
+    costCents: z.number().int().min(0).nullish(),
   }).refine((v) => v.status !== 'on_deck' || v.tapId != null, {
     message: 'tapId is required when queuing an on_deck keg',
   });
@@ -204,12 +206,28 @@ export async function crudRoutes(app: FastifyInstance) {
       .parse(req.query);
     return listKegs(db, q);
   });
-  app.post('/api/kegs', editor, async (req, reply) =>
-    reply.code(201).send(createKeg(db, kegCreateSchema.parse(req.body))));
+  app.post('/api/kegs', editor, async (req, reply) => {
+    const body = kegCreateSchema.parse(req.body);
+    const keg = createKeg(db, body);
+    if (body.costCents != null) {
+      db.prepare('UPDATE kegs SET cost_cents = ? WHERE id = ?').run(body.costCents, keg.id);
+    }
+    return reply.code(201).send(getKeg(db, keg.id));
+  });
   app.patch('/api/kegs/:id', editor, async (req) => {
-    const body = z.object({ status: z.enum(['on_tap', 'kicked', 'archived']) }).parse(req.body);
+    const body = z.object({
+      status: z.enum(['on_tap', 'kicked', 'archived']).optional(),
+      // Cost tracking (Phase 6, design 6d) — settable/clearable independently of status.
+      costCents: z.number().int().min(0).nullable().optional(),
+    }).refine((v) => v.status !== undefined || v.costCents !== undefined, {
+      message: 'nothing to update',
+    }).parse(req.body);
     const keg = getKeg(db, Number((req.params as any).id));
     if (!keg) throw new NotFoundError('keg');
+    if (body.costCents !== undefined) {
+      db.prepare('UPDATE kegs SET cost_cents = ? WHERE id = ?').run(body.costCents, keg.id);
+    }
+    if (body.status === undefined) return getKeg(db, keg.id);
     db.prepare('UPDATE kegs SET status = ? WHERE id = ?').run(body.status, keg.id);
     // Phase 5 Task 3: a manual status flip is the OTHER "swap/status path" the automation
     // engine's keg_tapped/keg_kicked triggers hook (the swap wizard above is the other).

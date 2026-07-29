@@ -22,6 +22,8 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   listTaps: vi.fn(),
   deleteTap: vi.fn(),
   getActiveKegStats: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getCleaningStatuses: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  logTapCleaning: vi.fn().mockResolvedValue({ ok: true, data: {} }),
 }));
 
 vi.mock('../../../src/web/routes/admin/TapForm', () => ({
@@ -89,7 +91,7 @@ async function flush() {
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
     tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, avgRating: null, nextUpBeerName: null, ...overrides,
   };
 }
 
@@ -113,7 +115,7 @@ describe('TapsPage', () => {
             id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: 6, description: null, labelImage: null, createdAt: '',
           },
           keg: {
-            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 75, remainingMl: 14250,
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 75, remainingMl: 14250,
           },
         }),
         makeTap(2),
@@ -137,7 +139,7 @@ describe('TapsPage', () => {
           id: 1, name: 'Stout', brewery: null, style: null, abv: null, ibu: null, srm: 35, description: null, labelImage: null, createdAt: '',
         },
         keg: {
-          id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000, dateTapped: null, status: 'kicked', createdAt: '', kegType: null, levelPct: 0, remainingMl: 0,
+          id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000, dateTapped: null, status: 'kicked', createdAt: '', kegType: null, costCents: null, levelPct: 0, remainingMl: 0,
         },
       })],
       stale: false, connected: true, reconnectCount: 0,

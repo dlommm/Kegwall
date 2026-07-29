@@ -50,7 +50,7 @@ function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
     tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, avgRating: null, nextUpBeerName: null, ...overrides,
   };
 }
 
@@ -102,7 +102,7 @@ describe('MonitorsPage', () => {
           tapName: 'Left',
           keg: {
             id: 1, beerId: 1, tapId: 5, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750,
-            dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 75, remainingMl: 14250,
+            dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 75, remainingMl: 14250,
           },
         }),
       ],

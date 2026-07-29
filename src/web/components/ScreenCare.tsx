@@ -11,6 +11,20 @@ const DRIFT_OFFSETS: readonly [number, number][] = [
   [0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1],
 ];
 
+/** The screensaver's big dim clock (design 6f) — refreshed every 30s. */
+function SaverClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <p className="screen-care__saver-clock font-display font-tabular" data-testid="screensaver-clock">
+      {now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+    </p>
+  );
+}
+
 export interface ScreenCareProps {
   screensaver: WallConfig['screensaver'];
   taps: TapState[];
@@ -66,6 +80,7 @@ export function ScreenCare({
       {children}
       {active && (
         <div className="screen-care__saver" data-testid="screensaver-overlay">
+          <SaverClock />
           <p className="screen-care__saver-title font-display">{title}</p>
           {highlightTap && (
             <p className="screen-care__saver-highlight font-body" data-testid="screensaver-highlight">

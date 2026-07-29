@@ -8,7 +8,8 @@ import { ThemeProvider } from '../themes/ThemeProvider';
 import { useLookClock } from '../components/looks/lookShared';
 import { formatVolumeMl } from '../lib/units';
 import {
-  armTablet, createPourer, disarmTablet, getPourers, type PublicPourer,
+  armTablet, createPourer, disarmTablet, getPourers, getSession, startSession,
+  joinSession, endSession, type PublicPourer, type SessionSnapshotResponse,
 } from '../lib/api';
 
 /** The signup screen's preset avatar palette (design 3a). */
@@ -73,6 +74,9 @@ export function TabletPage() {
   const [signupError, setSignupError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [countdown, setCountdown] = useState(DONE_SIGNOUT_SECONDS);
+  // Session mode (design 6c): the active group tab, polled while on screen.
+  const [session, setSession] = useState<SessionSnapshotResponse | null>(null);
+  const [recap, setRecap] = useState<SessionSnapshotResponse | null>(null);
 
   // The armed pourer, readable from the WS callback without re-subscribing.
   const screenRef = useRef<Screen>(screen);
@@ -114,6 +118,23 @@ export function TabletPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on each return to the grid
   }, [screen.kind]);
 
+  // Session poll (5s): keeps the per-member bars live while a group tab runs.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      getSession().then((result) => {
+        if (cancelled || !result.ok) return;
+        setSession('totals' in result.data ? result.data : null);
+      });
+    };
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   // Done screen: 5s auto sign-out countdown ("tap to stay" re-arms instead).
   useEffect(() => {
     if (screen.kind !== 'done') return undefined;
@@ -133,9 +154,28 @@ export function TabletPage() {
 
   async function selectPourer(pourer: ActivePourer) {
     setBusy(true);
+    // With a session running, picking yourself also joins the group tab (6c).
+    if (session) {
+      const joined = await joinSession(pourer.id);
+      if (joined.ok) setSession(joined.data);
+    }
     const result = await armTablet(pourer.id);
     setBusy(false);
     if (result.ok) setScreen({ kind: 'armed', pourer });
+  }
+
+  async function handleStartSession() {
+    const result = await startSession();
+    if (result.ok) setSession(result.data);
+  }
+
+  async function handleEndSession() {
+    const result = await endSession();
+    if (result.ok) {
+      setSession(null);
+      setRecap(result.data);
+      setTimeout(() => setRecap(null), 12_000);
+    }
   }
 
   async function submitSignup() {
@@ -230,6 +270,34 @@ export function TabletPage() {
                 </button>
               ))}
             </div>
+            {session && (
+              <div className="tablet-session" data-testid="tablet-session">
+                <div className="tablet-session__head">
+                  <span className="tablet-session__name font-display">{`${session.name.toUpperCase()} · GROUP TAB`}</span>
+                  <button type="button" data-testid="tablet-session-end" className="tablet-secondary" onClick={handleEndSession}>
+                    End session
+                  </button>
+                </div>
+                {session.totals.length === 0 ? (
+                  <span className="tablet-screen__quiet">Tap your avatar to join the session.</span>
+                ) : (
+                  session.totals.map((member) => {
+                    const max = Math.max(1, ...session.totals.map((t) => t.volumeMl));
+                    return (
+                      <div key={member.drinkerId} className="tablet-session__row" data-testid="tablet-session-row">
+                        <span className="tablet-session__member">{member.name}</span>
+                        <span className="tablet-session__bar">
+                          <span className="tablet-session__bar-fill" style={{ width: `${Math.round((member.volumeMl / max) * 100)}%` }} />
+                        </span>
+                        <span className="tablet-session__count font-tabular">
+                          {`${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
             <div className="tablet-grid__footer">
               <button
                 type="button"
@@ -239,6 +307,16 @@ export function TabletPage() {
               >
                 I’M NEW — SIGN ME UP
               </button>
+              {!session && (
+                <button
+                  type="button"
+                  className="tablet-secondary"
+                  data-testid="tablet-session-start"
+                  onClick={handleStartSession}
+                >
+                  Start session
+                </button>
+              )}
               <span className="tablet-grid__hint">or scan the QR on the wall with your phone</span>
             </div>
           </div>
@@ -340,6 +418,22 @@ export function TabletPage() {
             <span className="tablet-done__countdown font-tabular" data-testid="tablet-countdown">
               {`Signing out in ${countdown}s — tap to stay`}
             </span>
+          </button>
+        )}
+        {recap && (
+          <button
+            type="button"
+            className="tablet-recap"
+            data-testid="tablet-recap"
+            onClick={() => setRecap(null)}
+          >
+            <span className="tablet-done__title font-display">{`${recap.name.toUpperCase()} — RECAP`}</span>
+            {recap.totals.map((member) => (
+              <span key={member.drinkerId} className="tablet-recap__row font-tabular">
+                {`${member.name}: ${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
+              </span>
+            ))}
+            <span className="tablet-screen__quiet">Tap to dismiss</span>
           </button>
         )}
       </div>

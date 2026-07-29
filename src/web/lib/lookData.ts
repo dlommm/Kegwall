@@ -59,6 +59,10 @@ export interface TapLookModel {
   /** Live pour readout ("12.4 oz") while pouring. */
   pourLabel: string | null;
   hasBeer: boolean;
+  /** Mean rate-after-claim star rating for this beer (design 6a), or null. */
+  avgRating: number | null;
+  /** Queued next keg's beer name (design 6e) — looks surface it when low. */
+  nextUpName: string | null;
 }
 
 /** Level % → status bucket (≤15 danger, ≤35 warn, else ok — design thresholds). */
@@ -129,5 +133,7 @@ export function tapLookModel(tap: TapState, units: VolumeUnits, now: Date = new 
       ? formatVolumeMl(tap.curServMl, units)
       : null,
     hasBeer: !!beer && !!keg,
+    avgRating: tap.avgRating ?? null,
+    nextUpName: tap.nextUpBeerName ?? null,
   };
 }

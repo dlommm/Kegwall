@@ -7299,3 +7299,347 @@ h2.admin-field__label-text {
   color: var(--text-dim);
   text-align: right;
 }
+
+/*
+ * ============================================================================
+ * Phase 6 feature pack: rate-after-claim, passport, session mode, cleaning,
+ * analytics KPIs + heatmap, connection doctor, ambient sensor chips.
+ * ============================================================================
+ */
+
+.look-badge--next-up {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.look-sensor-chip__dot--ambient {
+  background: var(--accent-2, #5FD9BC);
+}
+
+.look-sensor-chip__hum {
+  color: var(--text-dim);
+}
+
+.ledger-row__rating {
+  color: var(--accent);
+}
+
+.screen-care__saver-clock {
+  font-size: 6rem;
+  line-height: 1;
+  opacity: 0.5;
+  font-weight: 600;
+}
+
+/* --- Rate-after-claim (6a) ------------------------------------------------- */
+
+.claim-sheet__rate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.claim-sheet__rate-prompt {
+  font-size: 0.85rem;
+  color: var(--text-dim, #93A0AC);
+}
+
+.claim-sheet__stars {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.claim-sheet__star {
+  font-size: 1.8rem;
+  line-height: 1;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--text, #fff) 25%, transparent);
+}
+
+.claim-sheet__star--on {
+  color: var(--accent, #D08C4C);
+}
+
+.claim-sheet__rate-tags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.claim-sheet__rate-tag {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text, #fff) 20%, transparent);
+  color: var(--text-dim, #93A0AC);
+  font-size: 0.75rem;
+  background: none;
+  cursor: pointer;
+}
+
+.claim-sheet__rate-tag--on {
+  border-color: var(--accent, #D08C4C);
+  color: var(--accent, #D08C4C);
+  background: color-mix(in srgb, var(--accent, #D08C4C) 10%, transparent);
+}
+
+.claim-sheet__rate-thanks {
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.claim-sheet__rate-error {
+  font-size: 0.8rem;
+  color: var(--danger, #E05B4B);
+}
+
+/* --- Passport (6a) --------------------------------------------------------- */
+
+.passport {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.passport__heading {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.passport__stats {
+  display: flex;
+  gap: 1rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.passport__badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.passport__badge {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.passport__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.passport__recent-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.passport__recent-meta {
+  color: var(--text-dim);
+}
+
+/* --- Session mode (6c) ----------------------------------------------------- */
+
+.tablet-session {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.tablet-session__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.tablet-session__name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.tablet-session__row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.tablet-session__member {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tablet-session__bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  overflow: hidden;
+}
+
+.tablet-session__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.tablet-session__count {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.tablet-recap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg) 94%, black);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+.tablet-recap__row {
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+/* --- Cleaning (6e) --------------------------------------------------------- */
+
+.taps-cleaning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.taps-cleaning__status {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.taps-cleaning button {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 12px;
+  background: none;
+  cursor: pointer;
+}
+
+/* --- Analytics (10a) ------------------------------------------------------- */
+
+.analytics-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 0;
+}
+
+.heatmap__row {
+  display: grid;
+  grid-template-columns: 42px repeat(24, 1fr);
+  gap: 3px;
+  align-items: center;
+}
+
+.heatmap__day {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.heatmap__cell {
+  aspect-ratio: 1.6;
+  border-radius: 3px;
+  background: var(--accent);
+  min-width: 0;
+}
+
+/* --- Connection doctor (11e) ---------------------------------------------- */
+
+.doctor-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.doctor-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.doctor-row__title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.doctor-row__hint {
+  font-size: 12.5px;
+  color: var(--text-faint, var(--text-dim));
+}
+
+.doctor-row__result {
+  font-size: 13px;
+}
+
+.doctor-row__result--ok { color: var(--ok); }
+.doctor-row__result--bad { color: var(--danger); }
+
+.doctor-row button {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  background: none;
+  cursor: pointer;
+}

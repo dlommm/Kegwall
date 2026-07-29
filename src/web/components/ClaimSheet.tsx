@@ -2,7 +2,8 @@ import {
   useCallback, useEffect, useRef, useState,
 } from 'react';
 import {
-  getRecentPours, getDrinkers, claimPour, createPourer, type RecentPour, type PublicDrinker,
+  getRecentPours, getDrinkers, claimPour, createPourer, ratePourPublic,
+  type RecentPour, type PublicDrinker,
 } from '../lib/api';
 import { formatRelativeTime } from '../lib/useRelativeTime';
 import { getRememberedPourer, rememberPourer, type RememberedPourer } from '../lib/pourerIdentity';
@@ -25,6 +26,70 @@ function getInitials(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
   return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
+}
+
+/** Rate-after-claim quick tags (design 6a) — mirrors the server's RATING_TAGS. */
+const RATE_TAGS = ['Crisp', 'Perfect temp', 'Foamy', 'Flat', 'Off flavor'] as const;
+
+/** Design 6a's rate-after-claim: 5 stars + quick tags, shown right on the
+ * claim-success panel. The tap's average shows on the wall/menu once rated. */
+function RateAfterClaim({ pourId }: { pourId: number }) {
+  const [rating, setRating] = useState(0);
+  const [tags, setTags] = useState<string[]>([]);
+  const [state, setState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
+
+  async function submit(stars: number, chosenTags: string[]) {
+    setState('saving');
+    const result = await ratePourPublic(pourId, stars, chosenTags);
+    setState(result.ok ? 'done' : 'error');
+  }
+
+  if (state === 'done') {
+    return <p className="claim-sheet__rate-thanks" data-testid="claim-sheet-rate-thanks">Thanks — rating saved 🍻</p>;
+  }
+
+  return (
+    <div className="claim-sheet__rate" data-testid="claim-sheet-rate">
+      <p className="claim-sheet__rate-prompt">How was it?</p>
+      <div className="claim-sheet__stars" role="group" aria-label="Rate this pour">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            className={star <= rating ? 'claim-sheet__star claim-sheet__star--on' : 'claim-sheet__star'}
+            data-testid="claim-sheet-star"
+            aria-label={`${star} star${star === 1 ? '' : 's'}`}
+            disabled={state === 'saving'}
+            onClick={() => {
+              setRating(star);
+              submit(star, tags);
+            }}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      <div className="claim-sheet__rate-tags">
+        {RATE_TAGS.map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            className={tags.includes(tag) ? 'claim-sheet__rate-tag claim-sheet__rate-tag--on' : 'claim-sheet__rate-tag'}
+            data-testid="claim-sheet-rate-tag"
+            disabled={state === 'saving'}
+            onClick={() => {
+              const next = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
+              setTags(next);
+              if (rating > 0) submit(rating, next);
+            }}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+      {state === 'error' && <p className="claim-sheet__rate-error" role="alert">Couldn&rsquo;t save the rating.</p>}
+    </div>
+  );
 }
 
 interface DrinkerPickerSheetProps {
@@ -95,6 +160,7 @@ function DrinkerPickerSheet({
         {status === 'success' && (
           <div className="claim-sheet__notice claim-sheet__notice--success" data-testid="claim-sheet-success" role="status">
             <p>{`Claimed for ${claimedDrinker?.displayName ?? 'you'}.`}</p>
+            <RateAfterClaim pourId={pour.id} />
             <button type="button" className="claim-sheet__done" onClick={onClose}>
               Done
             </button>

@@ -16,6 +16,8 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }
@@ -35,7 +37,7 @@ describe('WallGrid', () => {
   it('passes template/fields/units through to each TapCard', () => {
     render(
       <WallGrid
-        taps={[makeTap(1, { beer: { id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: null, description: null, labelImage: null, createdAt: '' }, keg: { id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000 } })]}
+        taps={[makeTap(1, { beer: { id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: null, description: null, labelImage: null, createdAt: '' }, keg: { id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000 } })]}
         columns={2}
         template="compact"
         units="metric"
@@ -57,7 +59,7 @@ describe('WallGrid', () => {
             id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: null, description: null, labelImage: null, createdAt: '',
           },
           keg: {
-            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000,
           },
         })]}
         columns={2}

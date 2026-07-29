@@ -1,0 +1,256 @@
+import type { FastifyInstance } from 'fastify';
+import { existsSync, readFileSync } from 'node:fs';
+import { z } from 'zod';
+import { requireRole } from './auth.js';
+import { ratePour } from '../db/pours.js';
+import { getUser } from '../db/users.js';
+import { getBeer } from '../db/beers.js';
+import { getKeg } from '../db/kegs.js';
+import { logCleaning, listCleanings, cleaningStatus } from '../db/cleanings.js';
+import { listTaps } from '../db/taps.js';
+import { analyticsKpis, hourHeatmap } from '../db/stats.js';
+import { MdashClient } from '../ingest/kegtron/mdashClient.js';
+import { NotFoundError } from '../core/errors.js';
+
+/** Rate-after-claim quick tags (design 6a). */
+export const RATING_TAGS = ['Crisp', 'Perfect temp', 'Foamy', 'Flat', 'Off flavor'] as const;
+
+/** How long after a pour a rating is still accepted. */
+const RATE_WINDOW_HOURS = 24;
+
+/**
+ * Pour Wall overhaul Phase 6 feature routes: ambient sensors, rate-after-claim
+ * + passport (6a), session mode (6c), line cleaning (6e), Analytics KPI/heatmap
+ * data (10a), and the Connection doctor's server-side checks (11e).
+ */
+export async function featurePackRoutes(app: FastifyInstance) {
+  const db = app.ctx.db;
+  const viewer = { preHandler: requireRole('viewer') };
+  const editor = { preHandler: requireRole('editor') };
+
+  // --- Ambient sensors (Govee) ---------------------------------------------
+
+  app.get('/api/public/sensors', async () => app.ctx.sensors.list());
+
+  // --- Rate-after-claim (6a) -----------------------------------------------
+
+  app.post('/api/public/pours/:id/rate', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    const pourId = z.coerce.number().int().parse((req.params as any).id);
+    const body = z.object({
+      rating: z.number().int().min(1).max(5),
+      tags: z.array(z.enum(RATING_TAGS)).max(RATING_TAGS.length).default([]),
+    }).parse(req.body);
+    const row = db.prepare('SELECT ts, drinker_id FROM pours WHERE id = ?').get(pourId) as
+      { ts: string; drinker_id: number | null } | undefined;
+    if (!row) return reply.code(404).send({ error: 'not_found', message: 'No such pour' });
+    if (row.drinker_id === null) {
+      return reply.code(400).send({ error: 'validation', message: 'Claim the pour before rating it' });
+    }
+    if (Date.now() - new Date(row.ts).getTime() > RATE_WINDOW_HOURS * 3600 * 1000) {
+      return reply.code(400).send({ error: 'validation', message: 'Rating window closed' });
+    }
+    return ratePour(db, pourId, body.rating, body.tags);
+  });
+
+  // --- Passport (6a): a pourer's own stats/badges --------------------------
+
+  app.get('/api/public/passport/:drinkerId', async (req, reply) => {
+    const drinkerId = z.coerce.number().int().parse((req.params as any).drinkerId);
+    const drinker = getUser(db, drinkerId);
+    if (!drinker || !drinker.isDrinker) {
+      return reply.code(404).send({ error: 'not_found', message: 'No such pourer' });
+    }
+    const totals = db.prepare(
+      'SELECT COUNT(*) c, COALESCE(SUM(volume_ml), 0) v, AVG(quality) q FROM pours WHERE drinker_id = ?',
+    ).get(drinkerId) as { c: number; v: number; q: number | null };
+    const styles = db.prepare(`
+      SELECT COUNT(DISTINCT b.style) c
+      FROM pours p JOIN kegs k ON k.id = p.keg_id JOIN beers b ON b.id = k.beer_id
+      WHERE p.drinker_id = ? AND b.style IS NOT NULL
+    `).get(drinkerId) as { c: number };
+    const recent = db.prepare(`
+      SELECT p.id, p.ts, p.volume_ml, p.rating, b.name AS beer_name
+      FROM pours p JOIN kegs k ON k.id = p.keg_id JOIN beers b ON b.id = k.beer_id
+      WHERE p.drinker_id = ? ORDER BY p.ts DESC LIMIT 8
+    `).all(drinkerId) as { id: number; ts: string; volume_ml: number; rating: number | null; beer_name: string }[];
+    // First to try: beers where this pourer's claimed pour is the earliest claimed pour.
+    const firsts = db.prepare(`
+      SELECT COUNT(*) c FROM (
+        SELECT k.beer_id, MIN(p.ts) AS first_ts,
+               (SELECT p2.drinker_id FROM pours p2 JOIN kegs k2 ON k2.id = p2.keg_id
+                WHERE k2.beer_id = k.beer_id AND p2.drinker_id IS NOT NULL
+                ORDER BY p2.ts LIMIT 1) AS first_drinker
+        FROM pours p JOIN kegs k ON k.id = p.keg_id
+        WHERE p.drinker_id IS NOT NULL GROUP BY k.beer_id
+      ) WHERE first_drinker = ?
+    `).get(drinkerId) as { c: number };
+
+    const badges: string[] = [];
+    if (totals.c >= 1) badges.push('First pour');
+    if (totals.c >= 100) badges.push('Century Club');
+    if (firsts.c >= 1) badges.push(`First to try ×${firsts.c}`);
+    if (styles.c >= 5) badges.push('Style explorer');
+    if (totals.q != null && totals.q >= 90) badges.push('Smooth operator');
+
+    return {
+      drinker: { id: drinker.id, displayName: drinker.displayName, avatarColor: drinker.avatarColor },
+      pourCount: totals.c,
+      volumeMl: totals.v,
+      stylesTried: styles.c,
+      avgQuality: totals.q != null ? Math.round(totals.q) : null,
+      badges,
+      recent: recent.map((r) => ({
+        id: r.id, ts: r.ts, volumeMl: r.volume_ml, rating: r.rating, beerName: r.beer_name,
+      })),
+    };
+  });
+
+  // --- Session mode (6c) ----------------------------------------------------
+
+  app.post('/api/public/session/start', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (req) => {
+    const body = z.object({ name: z.string().trim().max(60).optional() }).parse(req.body ?? {});
+    const session = app.ctx.session.start(body.name);
+    app.ctx.log.info('tablet', `Session started — "${session.name}"`);
+    return app.ctx.session.snapshot(db);
+  });
+
+  app.post('/api/public/session/join', async (req, reply) => {
+    const body = z.object({ drinkerId: z.number().int() }).parse(req.body);
+    const drinker = getUser(db, body.drinkerId);
+    if (!drinker || !drinker.isDrinker) {
+      return reply.code(400).send({ error: 'validation', message: 'No such pourer' });
+    }
+    const session = app.ctx.session.join({
+      drinkerId: drinker.id, name: drinker.displayName, color: drinker.avatarColor,
+    });
+    if (!session) return reply.code(409).send({ error: 'conflict', message: 'No active session' });
+    return app.ctx.session.snapshot(db);
+  });
+
+  app.get('/api/public/session', async () => app.ctx.session.snapshot(db) ?? { active: false });
+
+  app.post('/api/public/session/end', async (req, reply) => {
+    const recap = app.ctx.session.end(db);
+    if (!recap) return reply.code(409).send({ error: 'conflict', message: 'No active session' });
+    app.ctx.log.info('tablet', `Session ended — "${recap.name}", ${recap.totals.reduce((s, t) => s + t.pourCount, 0)} pours`);
+    return recap;
+  });
+
+  // --- Line cleaning (6e) ---------------------------------------------------
+
+  app.get('/api/taps/:id/cleanings', viewer, async (req) => {
+    const tapId = z.coerce.number().int().parse((req.params as any).id);
+    return {
+      status: cleaningStatus(db, tapId),
+      cleanings: listCleanings(db, tapId),
+    };
+  });
+
+  app.get('/api/cleanings/status', viewer, async () => listTaps(db)
+    .map((tap) => cleaningStatus(db, tap.id)));
+
+  app.post('/api/taps/:id/cleanings', editor, async (req, reply) => {
+    const tapId = z.coerce.number().int().parse((req.params as any).id);
+    const body = z.object({ note: z.string().max(200).optional() }).parse(req.body ?? {});
+    const taps = listTaps(db);
+    if (!taps.some((t) => t.id === tapId)) throw new NotFoundError(`tap ${tapId}`);
+    const cleaning = logCleaning(db, tapId, body.note);
+    app.ctx.log.info('app', `Line cleaned — tap #${tapId}${body.note ? ` (${body.note})` : ''}`);
+    reply.code(201);
+    return cleaning;
+  });
+
+  // --- Analytics data (10a) -------------------------------------------------
+
+  const rangeSchema = z.object({
+    days: z.enum(['30', '90', '365']).default('30').transform(Number),
+  });
+
+  app.get('/api/stats/kpis', viewer, async (req) => analyticsKpis(db, rangeSchema.parse(req.query).days));
+
+  app.get('/api/stats/heatmap', viewer, async (req) => ({
+    grid: hourHeatmap(db, rangeSchema.parse(req.query).days),
+  }));
+
+  // --- Connection doctor (11e) ---------------------------------------------
+
+  // Cloud check: auth + device count + latency, straight against mdash.
+  app.post('/api/doctor/cloud', editor, async () => {
+    const apiKey = app.ctx.settings.get('kegtronApiKey');
+    if (!apiKey) {
+      return { ok: false, detail: 'No Kegtron cloud API key configured' };
+    }
+    const client = new MdashClient({ apiKey, baseUrl: app.ctx.settings.get('kegtronBaseUrl') });
+    const started = Date.now();
+    try {
+      const customer = await client.getCustomer();
+      const latencyMs = Date.now() - started;
+      const detail = `Auth OK — ${customer.devicePubkeys.length} device(s), ${latencyMs}ms`;
+      app.ctx.log.info('kegtron', `Doctor: cloud check — ${detail}`);
+      return { ok: true, deviceCount: customer.devicePubkeys.length, latencyMs, detail };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Cloud request failed';
+      app.ctx.log.error('kegtron', `Doctor: cloud check failed — ${detail}`);
+      return { ok: false, detail };
+    }
+  });
+
+  // UDP/live-path check (design: "30s listen … pour now to prove the live path"):
+  // counts live bus events per monitor over a short window. Works for every
+  // source, and a pour during the window proves the whole ingest path.
+  app.post('/api/doctor/listen', editor, async (req) => {
+    const body = z.object({ seconds: z.number().int().min(3).max(30).default(10) }).parse(req.body ?? {});
+    const counts = new Map<string, number>();
+    const bump = (key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
+    const offs = [
+      app.ctx.bus.on('volume_update', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
+      app.ctx.bus.on('pour_started', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
+      app.ctx.bus.on('pour_progress', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
+      app.ctx.bus.on('pour_completed', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
+    ];
+    await new Promise((resolve) => { setTimeout(resolve, body.seconds * 1000); });
+    offs.forEach((off) => off());
+    const perMonitor = [...counts.entries()].map(([monitor, events]) => ({ monitor, events }));
+    const total = perMonitor.reduce((sum, m) => sum + m.events, 0);
+    app.ctx.log.info('kegtron', `Doctor: ${body.seconds}s live listen — ${total} event(s) across ${perMonitor.length} monitor(s)`);
+    return { seconds: body.seconds, total, perMonitor };
+  });
+
+  // Network-mode check (design: "detects Docker bridge and links the host-network fix").
+  app.get('/api/doctor/env', editor, async () => {
+    let inDocker = existsSync('/.dockerenv');
+    if (!inDocker) {
+      try {
+        inDocker = readFileSync('/proc/1/cgroup', 'utf8').includes('docker');
+      } catch {
+        // not linux / not readable — fine
+      }
+    }
+    return {
+      inDocker,
+      hint: inDocker
+        ? 'Running in Docker. Kegtron UDP broadcasts do not cross the default bridge network — run the container with --network host (Linux) so port 20200 broadcasts reach it.'
+        : 'Not containerized — UDP broadcasts reach this process directly.',
+    };
+  });
+
+  // Govee freshness check.
+  app.post('/api/doctor/govee', editor, async () => {
+    const config = app.ctx.settings.get('govee');
+    if (!config?.apiKey) return { ok: false, detail: 'No Govee API key configured' };
+    const readings = app.ctx.sensors.list();
+    if (readings.length === 0) return { ok: false, detail: 'No sensor readings yet — check the key and wait one poll (~60s)' };
+    const newest = Math.max(...readings.map((r) => new Date(r.ts).getTime()));
+    const ageS = Math.round((Date.now() - newest) / 1000);
+    return {
+      ok: ageS < 180,
+      sensorCount: readings.length,
+      newestAgeSeconds: ageS,
+      detail: `${readings.length} sensor(s), newest reading ${ageS}s ago`,
+    };
+  });
+}

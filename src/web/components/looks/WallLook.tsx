@@ -1,6 +1,7 @@
 import type { TapState } from '../../../server/core/state.js';
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import type { VolumeUnits } from '../../lib/units';
+import type { AmbientSensor } from './lookShared';
 import { LedgerLook } from './LedgerLook';
 import { GalleryLook } from './GalleryLook';
 import { ColumnsLook } from './ColumnsLook';
@@ -29,6 +30,8 @@ export interface WallLookProps {
   /** Spotlight takeover (2b): the currently pouring tap's id — its row/card
    * highlights and every other one dims. Null/undefined = no spotlight. */
   spotlightTapId?: number | null;
+  /** Named Govee ambient sensors (Phase 6) for the header sensor strip. */
+  sensors?: AmbientSensor[];
 }
 
 /** Non-classic look id → component. `classic` never reaches here (WallPage

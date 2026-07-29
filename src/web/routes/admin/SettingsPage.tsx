@@ -566,6 +566,89 @@ function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
   );
 }
 
+/** Govee ambient sensors (Pour Wall Phase 6): API key (masked like catalog.beer)
+ * + the beer auto-import toggle (design 6g) in one compact block. Sensor names
+ * come from the Govee app's own device names; per-sensor renames live in the
+ * `govee.names` map (free text) via the same PATCH. Saving the key restarts
+ * sources (`govee` is a SOURCE_RESTART_KEY) so polling starts immediately. */
+function GoveeBlock({ settings, onSaved }: GroupProps) {
+  const cfg = settings.govee;
+  const [replacing, setReplacing] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [autoImport, setAutoImport] = useState(settings.autoImportBeers);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = (replacing && newKey.trim() !== '') || autoImport !== settings.autoImportBeers;
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!dirty) return;
+    setError(null);
+    setSubmitting(true);
+    const patch: Partial<Settings> = {};
+    if (replacing && newKey.trim() !== '') {
+      patch.govee = { apiKey: newKey.trim(), names: cfg?.names ?? {} };
+    }
+    if (autoImport !== settings.autoImportBeers) patch.autoImportBeers = autoImport;
+    const result = await patchSettings(patch);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setReplacing(false);
+    setNewKey('');
+    onSaved(result.data, patch);
+  }
+
+  return (
+    <form
+      className="channels-group__block"
+      data-testid="settings-integrations-govee"
+      onSubmit={handleSubmit}
+    >
+      <h3 className="channels-group__block-title">Govee sensors &amp; auto-import</h3>
+      <p className="admin-page-quiet">
+        Govee cloud API key for ambient temp/humidity sensors (polled ~60s; chips show on the
+        wall header + dashboard). Sensor names come from the Govee app.
+      </p>
+      <MaskedSecretField
+        label="Govee API key"
+        testId="settings-integrations-govee-apikey"
+        maskedValue={cfg?.apiKey}
+        replacing={replacing}
+        value={newKey}
+        onStartReplace={() => { setReplacing(true); setNewKey(''); }}
+        onCancelReplace={() => { setReplacing(false); setNewKey(''); }}
+        onChangeValue={setNewKey}
+      />
+      <label className="wall-editor__checkbox">
+        <input
+          type="checkbox"
+          data-testid="settings-integrations-auto-import"
+          checked={autoImport}
+          onChange={(e) => setAutoImport(e.target.checked)}
+        />
+        Auto-import beers the Kegtron device reports (Kegtron-first library)
+      </label>
+      {error && (
+        <p className="beer-form__notice" role="alert" data-testid="settings-integrations-govee-error">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        className="beer-form__submit"
+        disabled={!dirty || submitting}
+        data-testid="settings-integrations-govee-save"
+      >
+        {submitting ? 'Saving…' : 'Save changes'}
+      </button>
+    </form>
+  );
+}
+
 interface IntegrationsGroupProps {
   settings: Settings;
   /** For the HA block only — routes to the SHARED `mqtt` version counter (same as
@@ -591,6 +674,7 @@ function IntegrationsGroup({ settings, onSaved, onCatalogBeerSaved }: Integratio
       <h2 id="settings-integrations-title" className="admin-field__label-text">Integrations</h2>
       <HomeAssistantBlock settings={settings} onSaved={onSaved} />
       <CatalogBeerBlock settings={settings} onSaved={onCatalogBeerSaved} />
+      <GoveeBlock settings={settings} onSaved={onCatalogBeerSaved} />
     </section>
   );
 }
@@ -1070,6 +1154,9 @@ export function SettingsPage() {
     <section data-testid="admin-settings-page">
       <header className="admin-page-header">
         <h1 className="admin-page-header__title font-display">Settings</h1>
+        <a className="admin-page-quiet" href="/admin/doctor" data-testid="settings-doctor-link">
+          Connection doctor →
+        </a>
       </header>
 
       {notice === 'restarted' && (

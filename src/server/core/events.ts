@@ -32,10 +32,24 @@ export interface EventMap {
   device_online: { monitor: MonitorRef; ts: string };
   device_offline: { monitor: MonitorRef; ts: string };
   source_status: {
-    source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'mqtt_publisher';
+    source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'mqtt_publisher' | 'govee';
     healthy: boolean; detail: string; ts: string;
   };
   state_changed: { scope: 'taps' | 'notifications' | 'sources'; ts: string };
+  /** Pour Wall overhaul Phase 6 (design 6g, Kegtron-first beers): emitted by the cloud
+   * shadow differ whenever a port's configured beer NAME first appears or changes —
+   * carries whatever beer facts the device shadow holds. core/beerAutoImport.ts
+   * subscribes and caches unseen beers into the local library. */
+  beer_seen: {
+    monitor: MonitorRef; name: string; maker: string | null; style: string | null;
+    abv: number | null; ibu: number | null; srm: number | null; ts: string;
+  };
+  /** Pour Wall overhaul Phase 6 (Govee sensors): a named ambient sensor reading from the
+   * Govee cloud poller (ingest/govee/goveeSource.ts). Distinct from `telemetry` (which is
+   * a KEGTRON monitor's own reading bound to a monitor ref). */
+  sensor_reading: {
+    sensorId: string; name: string; tempC: number | null; humidity: number | null; ts: string;
+  };
   /** Pour Wall overhaul Phase 3 (tablet flow, design 3a): emitted by StateManager when a
    * recorded pour is attributed to the tablet's ARMED pourer (see core/tabletArm.ts) —
    * NOT for default-drinker or claim-flow attributions. The WS layer relays it as

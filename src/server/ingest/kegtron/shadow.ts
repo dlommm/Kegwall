@@ -339,6 +339,25 @@ export function diffToEvents(
       });
     }
 
+    // Kegtron-first beers (design 6g): surface a port's configured beer whenever its
+    // NAME first appears or changes — the auto-import subscriber decides whether the
+    // local library already knows it.
+    if (port.name && (prevPort === null || prevPort.name !== port.name)) {
+      events.push({
+        event: 'beer_seen',
+        payload: {
+          monitor: monitor(port.portIndex),
+          name: port.name,
+          maker: port.maker,
+          style: port.style,
+          abv: port.abv,
+          ibu: port.ibu,
+          srm: port.srm,
+          ts,
+        },
+      });
+    }
+
     if (prevPort === null || prevPort.volDispensedMl !== port.volDispensedMl) {
       events.push({
         event: 'volume_update',

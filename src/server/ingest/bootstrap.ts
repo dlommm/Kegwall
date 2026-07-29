@@ -2,6 +2,7 @@ import type { AppContext } from '../context.js';
 import { reconcileProMonitor } from '../db/monitors.js';
 import { KegtronCloudSource } from './kegtron/cloudSource.js';
 import { KegtronUdpSource } from './kegtron/udpSource.js';
+import { GoveeSource } from './govee/goveeSource.js';
 import { Gen1MqttSource } from './gen1/mqttSource.js';
 import { Gen1BleSource } from './gen1/bleSource.js';
 import { PourSynthesizer } from './gen1/pourSynth.js';
@@ -34,6 +35,9 @@ export function registerConfiguredSources(ctx: AppContext): void {
   // all) when `kegtronApiKey` isn't set, per its own "no API key configured" branch, so
   // registering it unconditionally is safe even for a totally unconfigured install.
   ctx.sources.register(new KegtronCloudSource({ bus: ctx.bus, settings: ctx.settings }));
+
+  // Govee ambient sensors (Phase 6) — same always-register/self-skip idiom as cloud.
+  ctx.sources.register(new GoveeSource({ bus: ctx.bus, settings: ctx.settings }));
 
   const isCloudHealthy = (): boolean =>
     ctx.sources.status().find((s) => s.name === 'kegtron_cloud')?.healthy ?? false;

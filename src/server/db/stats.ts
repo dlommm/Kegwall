@@ -285,3 +285,75 @@ export function biggestClaimedPour(
     drinkerId: r.drinker_id, displayName: r.display_name, volumeMl: r.volume_ml, ts: r.ts,
   } : null;
 }
+
+// --- Pour Wall overhaul Phase 6: Analytics KPIs + busiest-hours heatmap ------
+
+export interface AnalyticsKpis {
+  pours: number;
+  volumeMl: number;
+  /** Kicked kegs that were poured from inside the window (kegs carry no
+   * kicked_at timestamp — "kicked and active in the window" is the best
+   * available proxy). */
+  kegsKicked: number;
+  avgQuality: number | null;
+  /** Mean cost of a pint over the window's pours, from keg cost tracking
+   * (design 6d) — null when no poured-from keg in the window has a cost. */
+  costPerPintCents: number | null;
+  /** Remaining-beer value across every on-tap keg with a cost. */
+  valueOnTapCents: number;
+}
+
+/** The Analytics page's KPI row (design 10a), over the trailing `days` window. */
+export function analyticsKpis(db: Database.Database, days: number, now = new Date()): AnalyticsKpis {
+  const cutoff = new Date(now.getTime() - days * MS_PER_DAY).toISOString();
+  const totals = db.prepare(
+    'SELECT COUNT(*) c, COALESCE(SUM(volume_ml), 0) v, AVG(quality) q FROM pours WHERE ts >= ?',
+  ).get(cutoff) as { c: number; v: number; q: number | null };
+  const kicked = (db.prepare(`
+    SELECT COUNT(DISTINCT k.id) c
+    FROM kegs k JOIN pours p ON p.keg_id = k.id
+    WHERE k.status = 'kicked' AND p.ts >= ?
+  `).get(cutoff) as any).c as number;
+  const cost = db.prepare(`
+    SELECT SUM(p.volume_ml * 1.0 / k.vol_start_ml * k.cost_cents) AS spent_cents,
+           SUM(p.volume_ml) AS costed_ml
+    FROM pours p JOIN kegs k ON k.id = p.keg_id
+    WHERE p.ts >= ? AND k.cost_cents IS NOT NULL AND k.vol_start_ml > 0
+  `).get(cutoff) as { spent_cents: number | null; costed_ml: number | null };
+  const ML_PER_PINT_LOCAL = 473.176;
+  const costPerPintCents = cost.spent_cents != null && cost.costed_ml && cost.costed_ml > 0
+    ? Math.round(cost.spent_cents / (cost.costed_ml / ML_PER_PINT_LOCAL))
+    : null;
+  const valueOnTap = db.prepare(`
+    SELECT COALESCE(SUM(MAX(0, (vol_start_ml - vol_dispensed_ml)) * 1.0 / vol_start_ml * cost_cents), 0) v
+    FROM kegs WHERE status = 'on_tap' AND cost_cents IS NOT NULL AND vol_start_ml > 0
+  `).get() as { v: number };
+  return {
+    pours: totals.c,
+    volumeMl: totals.v,
+    kegsKicked: kicked,
+    avgQuality: totals.q != null ? Math.round(totals.q) : null,
+    costPerPintCents,
+    valueOnTapCents: Math.round(valueOnTap.v),
+  };
+}
+
+/** Busiest-hours heatmap (design 10a): day-of-week (0=Sun) × hour counts over
+ * the trailing `days` window, local time — same localtime convention as
+ * `hourHistogram` above. */
+export function hourHeatmap(db: Database.Database, days: number, now = new Date()): number[][] {
+  const cutoff = new Date(now.getTime() - days * MS_PER_DAY).toISOString();
+  const rows = db.prepare(`
+    SELECT CAST(strftime('%w', ts, 'localtime') AS INTEGER) AS dow,
+           CAST(strftime('%H', ts, 'localtime') AS INTEGER) AS hour,
+           COUNT(*) AS count
+    FROM pours WHERE ts >= ? GROUP BY dow, hour
+  `).all(cutoff) as { dow: number; hour: number; count: number }[];
+  const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0) as number[]);
+  for (const row of rows) {
+    if (row.dow >= 0 && row.dow < 7 && row.hour >= 0 && row.hour < 24) {
+      grid[row.dow]![row.hour] = row.count;
+    }
+  }
+  return grid;
+}

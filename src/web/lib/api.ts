@@ -197,6 +197,72 @@ export function getDisplayView(id: number): Promise<ApiResult<DisplayView>> {
   return request<DisplayView>(`/api/public/display/${id}`);
 }
 
+export interface AmbientSensorReading {
+  sensorId: string;
+  name: string;
+  tempC: number | null;
+  humidity: number | null;
+  ts: string;
+}
+
+export function getSensors(): Promise<ApiResult<AmbientSensorReading[]>> {
+  return request<AmbientSensorReading[]>('/api/public/sensors');
+}
+
+export function ratePourPublic(
+  pourId: number,
+  rating: number,
+  tags: string[],
+): Promise<ApiResult<Pour>> {
+  return request<Pour>(`/api/public/pours/${pourId}/rate`, {
+    method: 'POST',
+    body: JSON.stringify({ rating, tags }),
+  });
+}
+
+export interface PassportResponse {
+  drinker: { id: number; displayName: string; avatarColor: string | null };
+  pourCount: number;
+  volumeMl: number;
+  stylesTried: number;
+  avgQuality: number | null;
+  badges: string[];
+  recent: { id: number; ts: string; volumeMl: number; rating: number | null; beerName: string }[];
+}
+
+export function getPassport(drinkerId: number): Promise<ApiResult<PassportResponse>> {
+  return request<PassportResponse>(`/api/public/passport/${drinkerId}`);
+}
+
+export interface SessionSnapshotResponse {
+  name: string;
+  startedAt: string;
+  members: { drinkerId: number; name: string; color: string | null }[];
+  totals: { drinkerId: number; name: string; color: string | null; pourCount: number; volumeMl: number }[];
+}
+
+export function startSession(name?: string): Promise<ApiResult<SessionSnapshotResponse>> {
+  return request<SessionSnapshotResponse>('/api/public/session/start', {
+    method: 'POST',
+    body: JSON.stringify(name ? { name } : {}),
+  });
+}
+
+export function joinSession(drinkerId: number): Promise<ApiResult<SessionSnapshotResponse>> {
+  return request<SessionSnapshotResponse>('/api/public/session/join', {
+    method: 'POST',
+    body: JSON.stringify({ drinkerId }),
+  });
+}
+
+export function getSession(): Promise<ApiResult<SessionSnapshotResponse | { active: false }>> {
+  return request('/api/public/session');
+}
+
+export function endSession(): Promise<ApiResult<SessionSnapshotResponse>> {
+  return request<SessionSnapshotResponse>('/api/public/session/end', { method: 'POST' });
+}
+
 export function getLeaderboard(
   window: 'week' | 'month' | 'all' = 'month',
 ): Promise<ApiResult<LeaderboardResponse>> {

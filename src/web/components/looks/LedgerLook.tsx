@@ -18,7 +18,7 @@ import {
  * theme tokens (see index.css `.ledger-*`).
  */
 export function LedgerLook({
-  taps, config, units, title, menuUrl, tempC, logoUrl, spotlightTapId,
+  taps, config, units, title, menuUrl, tempC, logoUrl, spotlightTapId, sensors,
 }: WallLookProps) {
   const clock = useLookClock();
   const showNotes = config.fields.description !== false;
@@ -36,7 +36,7 @@ export function LedgerLook({
         </div>
         <div className="ledger-look__spacer" />
         <div className="ledger-look__meta">
-          {config.header.showTemp && <SensorChips tempC={tempC} units={units} />}
+          {config.header.showTemp && <SensorChips tempC={tempC} units={units} sensors={sensors} />}
           {config.header.showClock && (
             <span className="ledger-look__clock font-display font-tabular" data-testid="look-clock">{clock}</span>
           )}
@@ -82,6 +82,11 @@ export function LedgerLook({
                 </div>
                 <span className="ledger-row__style">
                   {[m.style, m.brewery].filter(Boolean).join(' · ')}
+                  {m.avgRating != null && (
+                    <span className="ledger-row__rating font-tabular" data-testid="look-rating">
+                      {` · ★ ${m.avgRating.toFixed(1)}`}
+                    </span>
+                  )}
                 </span>
                 {showNotes && m.notes && <span className="ledger-row__notes">{m.notes}</span>}
               </div>

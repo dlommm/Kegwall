@@ -36,6 +36,8 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }
@@ -56,7 +58,7 @@ function makeEvent(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
 function makePour(overrides: Partial<Pour> = {}): Pour {
   return {
     id: 1, kegId: 1, ts: '2026-07-28T11:00:00.000Z', volumeMl: 500,
-    durationMs: null, source: 'udp', drinkerId: null, quality: null, ...overrides,
+    durationMs: null, source: 'udp', drinkerId: null, quality: null, rating: null, ratingTags: null, ...overrides,
   };
 }
 
@@ -91,7 +93,7 @@ describe('DashboardPage', () => {
             id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: 6, description: null, labelImage: null, createdAt: '',
           },
           keg: {
-            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 80, remainingMl: 15000,
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 80, remainingMl: 15000,
           },
         }),
         makeTap(2),
@@ -114,7 +116,7 @@ describe('DashboardPage', () => {
             id: 1, name: 'Stout', brewery: null, style: null, abv: null, ibu: null, srm: 35, description: null, labelImage: null, createdAt: '',
           },
           keg: {
-            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000, dateTapped: null, status: 'kicked', createdAt: '', kegType: null, levelPct: 0, remainingMl: 0,
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000, dateTapped: null, status: 'kicked', createdAt: '', kegType: null, costCents: null, levelPct: 0, remainingMl: 0,
           },
         }),
       ],

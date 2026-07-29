@@ -5,6 +5,7 @@ import { useTapStates } from '../lib/useTapStates';
 import type { VolumeUnits } from '../lib/units';
 import { TapCard } from '../components/TapCard';
 import { ClaimSheet } from '../components/ClaimSheet';
+import { PassportCard } from '../components/PassportCard';
 import { ThemeProvider } from '../themes/ThemeProvider';
 
 const unthemedFullScreen = 'flex min-h-screen flex-col items-center justify-center gap-2 bg-neutral-950 text-center text-neutral-100 px-4';
@@ -79,7 +80,10 @@ export function MenuPage() {
             ))}
           </ul>
 
-          <ClaimSheet />
+          <>
+            <PassportCard />
+            <ClaimSheet />
+          </>
         </main>
       )}
     </ThemeProvider>

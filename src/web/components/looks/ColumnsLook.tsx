@@ -17,7 +17,7 @@ import {
  * theme tokens (`.columns-*`).
  */
 export function ColumnsLook({
-  taps, config, units, title, tempC, pageIndex, pageCount, rotationSeconds, spotlightTapId,
+  taps, config, units, title, tempC, pageIndex, pageCount, rotationSeconds, spotlightTapId, sensors,
 }: WallLookProps) {
   const clock = useLookClock();
   const style = { '--look-cols': Math.max(1, taps.length) } as CSSProperties;
@@ -31,7 +31,7 @@ export function ColumnsLook({
         <div className="columns-look__spacer" />
         <span className="columns-look__title font-display">{title}</span>
         <div className="columns-look__spacer" />
-        {config.header.showTemp && <SensorChips tempC={tempC} units={units} />}
+        {config.header.showTemp && <SensorChips tempC={tempC} units={units} sensors={sensors} />}
         {config.header.showClock && (
           <span className="columns-look__clock font-display font-tabular" data-testid="look-clock">{clock}</span>
         )}

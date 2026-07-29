@@ -83,6 +83,32 @@
   Every look shows % remaining, renders badges/pour-spotlight state in its own voice,
   and supports page-cycle dots; colors read through theme tokens so all 10 looks pair
   with any theme. Caveat + Playfair Display added via Fontsource.
+- **Added:** Pour Wall overhaul Phase 6 (part 2) — the data & feature pack.
+  **Govee sensors:** cloud API poller (~60 s) as a real ingest source with an API key in
+  Settings → Integrations, named chips on the wall header strip and a >2.5 °F
+  cross-sensor spread warning into Logs; a Govee freshness check in the doctor.
+  **Kegtron-first beers (6g):** the shadow differ now emits `beer_seen` and unseen device
+  beers auto-import into the library (name/brewery/style/ABV/IBU/SRM straight from the
+  device) with a "saved to library" wall banner; toggleable in Settings. (The handoff's
+  Untappd metadata pull is N/A — Untappd was removed; catalog.beer remains the manual
+  enrichment path.) **Rate-after-claim + passport (6a):** 5-star + quick-tag rating on
+  the claim-success sheet (10-min claim, 24 h rating window), per-beer ★ average on the
+  Ledger/Gallery looks, and a passport card on the menu for a remembered phone — pours /
+  gallons / styles / quality, badges (First pour, Century Club, First to try, Style
+  explorer, Smooth operator) and recent pours with ratings. **Session mode (6c):** a
+  group tab started on the tablet — members join by tapping their avatar, live
+  per-member bars poll every 5 s, End session shows a recap. **Cost tracking + KPIs
+  (6d/10a):** kegs take a cost; the Stats page is now Analytics with a KPI row (pours,
+  volume, kegs kicked, cost/pint, value-on-tap, avg quality), a day×hour busiest-hours
+  heatmap, and Export all (JSON). **Line cleaning + next-up (6e):** per-tap cleaning log
+  (due after 15 gal or 4 weeks) with a CLEANING DUE badge + Log cleaning button on Taps
+  & kegs, and a NEXT UP chip on the wall when a low tap has an on-deck keg queued.
+  **Milestones + screensaver (6f):** every 100th pour and every keg kick celebrate via a
+  wall banner; the screensaver gains a big dim clock. **Connection doctor (11e):**
+  /admin/doctor — Kegtron cloud auth/device-count/latency test, a 10 s live-path listen
+  with per-monitor event counts ("pour now to prove the live path"), Govee freshness,
+  and a Docker network-mode check that explains the host-network fix for UDP; results
+  land in Logs, linked from Settings.
 
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new

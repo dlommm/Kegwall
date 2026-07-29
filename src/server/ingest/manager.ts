@@ -13,7 +13,7 @@ export interface SourceStatus {
 // or removing a SourceName in source.ts / events.ts without updating this set is a type
 // error. status() always reports one row per known source, even ones never registered.
 const SOURCE_NAME_SET = {
-  kegtron_cloud: true, kegtron_udp: true, gen1_mqtt: true, gen1_ble: true, mqtt_publisher: true,
+  kegtron_cloud: true, kegtron_udp: true, gen1_mqtt: true, gen1_ble: true, mqtt_publisher: true, govee: true,
 } satisfies Record<SourceName, true>;
 const ALL_SOURCE_NAMES = Object.keys(SOURCE_NAME_SET) as SourceName[];
 

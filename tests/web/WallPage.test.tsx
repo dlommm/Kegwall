@@ -26,6 +26,8 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }
@@ -151,7 +153,7 @@ describe('WallPage', () => {
         id: 1, name: 'Morning Line', brewery: null, style: 'Pilsner', abv: 4.9, ibu: 32, srm: 3, description: null, labelImage: null, createdAt: '',
       },
       keg: {
-        id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+        id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000,
       },
     });
     (useWallData as Mock).mockReturnValue(baseResult({
@@ -167,7 +169,7 @@ describe('WallPage', () => {
       id: 1, name: 'Morning Line', brewery: null, style: 'Pilsner', abv: 4.9, ibu: 32, srm: 3, description: null, labelImage: null, createdAt: '',
     };
     const keg = {
-      id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap' as const, createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+      id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap' as const, createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000,
     };
     (useWallData as Mock).mockReturnValue(baseResult({
       wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'spotlight', minMl: 60 } }) },
@@ -314,7 +316,7 @@ describe('WallPage', () => {
         },
         keg: {
           id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
-          dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+          dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000,
         },
       })],
       units: 'metric',

@@ -7,6 +7,8 @@ function rowToPour(r: any): Pour {
     id: r.id, kegId: r.keg_id, ts: r.ts, volumeMl: r.volume_ml,
     durationMs: r.duration_ms, source: r.source, drinkerId: r.drinker_id,
     quality: r.quality ?? null,
+    rating: r.rating ?? null,
+    ratingTags: r.rating_tags ? JSON.parse(r.rating_tags) : null,
   };
 }
 
@@ -35,6 +37,14 @@ export function recentUnclaimedPours(db: Database.Database, windowMinutes: numbe
 export function countPoursForDrinker(db: Database.Database, drinkerId: number): number {
   return (db.prepare('SELECT COUNT(*) c FROM pours WHERE drinker_id = ?')
     .get(drinkerId) as any).c;
+}
+
+/** Rate-after-claim (design 6a): stamps 1-5 stars + quick tags on a pour. */
+export function ratePour(db: Database.Database, pourId: number, rating: number, tags: string[]): Pour {
+  const res = db.prepare('UPDATE pours SET rating = ?, rating_tags = ? WHERE id = ?')
+    .run(rating, JSON.stringify(tags), pourId);
+  if (res.changes === 0) throw new NotFoundError(`pour ${pourId}`);
+  return rowToPour(db.prepare('SELECT * FROM pours WHERE id = ?').get(pourId));
 }
 
 export function setPourDrinker(db: Database.Database, pourId: number, drinkerId: number | null): Pour {

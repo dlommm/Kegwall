@@ -33,7 +33,7 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
       dateTapped: '2026-07-01T00:00:00Z',
       status: 'on_tap',
       createdAt: '',
-      kegType: null,
+      kegType: null, costCents: null,
       levelPct: 78,
       remainingMl: 19000 * 0.78,
     },
@@ -43,6 +43,8 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true,
     temp: null,
     locationId: null,
+    avgRating: null,
+    nextUpBeerName: null,
     ...overrides,
   };
 }

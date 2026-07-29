@@ -11,6 +11,8 @@ import { EventBus } from '../../src/server/core/events.js';
 import { StateManager } from '../../src/server/core/state.js';
 import { TabletArmRegistry } from '../../src/server/core/tabletArm.js';
 import { LogService } from '../../src/server/core/logService.js';
+import { SensorRegistry } from '../../src/server/core/sensorRegistry.js';
+import { SessionRegistry } from '../../src/server/core/sessionMode.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
 import { registerConfiguredSources } from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
@@ -34,9 +36,11 @@ function makeCtx(): AppContext {
   state.start();
   const sources = new SourceManager(bus);
   const engine = new AutomationEngine({ db, bus, settings, state });
+  const log = new LogService(db, bus);
   return {
     db, bus, settings, state, sources, engine,
-    tabletArm: new TabletArmRegistry(), log: new LogService(db, bus),
+    tabletArm: new TabletArmRegistry(), log,
+    sensors: new SensorRegistry(bus, log), session: new SessionRegistry(),
   };
 }
 
@@ -47,7 +51,7 @@ describe('registerConfiguredSources', () => {
     registerConfiguredSources(ctx);
 
     const registered = ctx.sources.status().filter((s) => s.registered).map((s) => s.name);
-    expect(registered).toEqual(['kegtron_cloud']);
+    expect(registered).toEqual(['kegtron_cloud', 'govee']);
 
     await ctx.sources.startAll();
     const cloud = ctx.sources.status().find((s) => s.name === 'kegtron_cloud')!;
@@ -75,7 +79,7 @@ describe('registerConfiguredSources', () => {
     // Never started -- this test only proves registration, not live connections; no
     // real network/MQTT-broker/BLE-adapter dependency is exercised here.
     const registered = ctx.sources.status().filter((s) => s.registered).map((s) => s.name).sort();
-    expect(registered).toEqual(['gen1_ble', 'gen1_mqtt', 'kegtron_cloud', 'kegtron_udp']);
+    expect(registered).toEqual(['gen1_ble', 'gen1_mqtt', 'govee', 'kegtron_cloud', 'kegtron_udp']);
   });
 
   // Phase 5 Task 5: `mqtt_publisher` (the HA discovery publisher) is gated on
@@ -96,7 +100,7 @@ describe('registerConfiguredSources', () => {
     registerConfiguredSources(ctx);
 
     const registered = ctx.sources.status().filter((s) => s.registered).map((s) => s.name).sort();
-    expect(registered).toEqual(['gen1_mqtt', 'kegtron_cloud', 'mqtt_publisher']);
+    expect(registered).toEqual(['gen1_mqtt', 'govee', 'kegtron_cloud', 'mqtt_publisher']);
   });
 
   it('drops mqtt_publisher on a rebuild once haPublishEnabled flips back to false', () => {
