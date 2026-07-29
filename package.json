@@ -38,6 +38,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.1",
     "recharts": "^3.10.1",
+    "tsx": "^4.23.1",
     "ws": "^8.21.1",
     "zod": "^4.4.3"
   },
@@ -60,7 +61,6 @@
     "jsdom": "^29.1.1",
     "smtp-server": "^3.19.2",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "vite": "^6.4.3",
     "vitest": "^4.1.10"
