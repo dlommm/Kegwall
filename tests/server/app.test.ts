@@ -4,6 +4,10 @@ import type { FastifyInstance } from 'fastify';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { openDb } from '../../src/server/db/db.js';
+import { insertNotification, listNotifications } from '../../src/server/db/notificationsRepo.js';
+import { upsertMonitor } from '../../src/server/db/monitors.js';
+import { recordTelemetrySampled, listTelemetry } from '../../src/server/db/telemetry.js';
 
 let app: FastifyInstance;
 afterEach(async () => { await app?.close(); });
@@ -74,5 +78,41 @@ describe('SqliteError mapping in the global error handler', () => {
     const body = res.json();
     expect(body.error).toBe('validation');
     expect(body.message).not.toMatch(/INSERT INTO|FOREIGN KEY constraint failed/i);
+  });
+});
+
+// Final-review fix wave (I2): the plan-promised `pruneNotifications` (>90d) and the
+// pre-existing, also-never-called `pruneTelemetry` (spec: "rows older than 90 days pruned
+// at startup") were both built and tested in isolation but never actually invoked from
+// anywhere -- both tables grew forever. Wired into `createContext()` (see context.ts),
+// which every `buildApp()` call goes through (test or production, `startSources` or not)
+// -- migrations already run there via `openDb()`, so pruning rides the same "every boot"
+// path. Seeds via a throwaway connection closed BEFORE `buildApp()` opens its own (same
+// close-then-reopen idiom as db.test.ts's pending-restore tests) so the prune runs against
+// data already on disk when `createContext` calls `openDb()`.
+describe('startup pruning (final-review I2: notifications + telemetry >90d)', () => {
+  it('prunes notifications and telemetry rows older than 90 days when the app starts', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+
+    const seedDb = openDb(dataDir);
+    insertNotification(seedDb, { title: 'ancient', ts: '2020-01-01T00:00:00.000Z' });
+    const fresh = insertNotification(seedDb, { title: 'fresh', ts: new Date().toISOString() });
+    const monitorId = upsertMonitor(seedDb, { type: 'kegtron_pro', identifier: 'd', portIndex: 0 }).id;
+    recordTelemetrySampled(seedDb, monitorId, 4, 50, '2020-01-01T00:00:00.000Z');
+    recordTelemetrySampled(seedDb, monitorId, 4.5, 55, new Date().toISOString());
+    seedDb.close();
+
+    app = await buildApp({ dataDir });
+
+    const remainingNotifications = listNotifications(app.ctx.db);
+    expect(remainingNotifications.map((n) => n.id)).toEqual([fresh.id]);
+
+    const remainingTelemetry = listTelemetry(app.ctx.db, monitorId, '1970-01-01T00:00:00.000Z');
+    expect(remainingTelemetry).toHaveLength(1);
+  });
+
+  it('a fresh install with no rows at all prunes cleanly (0 removed, no error)', async () => {
+    app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
+    expect(listNotifications(app.ctx.db)).toEqual([]);
   });
 });

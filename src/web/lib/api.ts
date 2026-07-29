@@ -58,7 +58,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
   try {
     res = await fetch(path, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      // Phase 5 final-review fix wave (I1): mirrors adminApi.ts's request() fix (commit
+      // 90d6871) -- 'Content-Type: application/json' must only be set when a real JSON
+      // body is actually being sent. Stamping it on a BODYLESS request (or a FormData one)
+      // makes Fastify's default JSON body parser reject the empty body outright
+      // (`FST_ERR_CTP_EMPTY_JSON_BODY`, 400), which this app's generic error handler
+      // doesn't recognize and maps to an opaque 500 -- invisible to every test here since
+      // they all mock `fetch` itself rather than exercising a real server's body parsing.
+      // Latent today (every GET call below has no body; the one POST, claimPour, always
+      // sends one), but the identical landmine, so it gets the identical fix.
+      headers: {
+        ...(init?.body !== undefined && !(init.body instanceof FormData)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
+        ...(init?.headers ?? {}),
+      },
     });
   } catch (err) {
     return {

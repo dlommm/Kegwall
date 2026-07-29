@@ -457,9 +457,28 @@ export class HaPublisherSource implements Source {
     this.client.publish(`${this.cfg.appTopicPrefix}/event/pour`, JSON.stringify(payload));
   }
 
+  /**
+   * Final-review fix wave (I3b): the spec promises `(JSON: rule, severity, message, tap,
+   * beer)` for this topic -- the original payload dropped `beer` entirely, dropped the
+   * rendered `body`, and used `tapId` where `relayPour` (just above) uses the tap
+   * NUMBER as `tap`, an unexplained inconsistency between the app's two event topics.
+   * Resolves `tap`/`beer` from the SAME `state.getTapStates()` lookup `relayPour` uses,
+   * keyed off `alert_fired`'s `tapId` field directly (there's no `MonitorRef` on an
+   * alert -- unlike a pour, an alert can originate from a tap-scoped trigger with no
+   * monitor at all, e.g. `keg_level_crosses`). `tapId` itself is KEPT alongside the new
+   * `tap` field -- some rules (`app_startup`, `schedule`) fire with no tap context at
+   * all, and a consumer may still want the raw id even when `tap`/`beer` do resolve.
+   */
   private relayAlert(e: EventMap['alert_fired']): void {
     if (!this.cfg || !this.client?.connected) return;
-    const payload = { rule: e.ruleName, severity: e.severity, title: e.title, tapId: e.tapId ?? null, ts: e.ts };
+    const tapState = e.tapId !== undefined
+      ? this.state.getTapStates().find((t) => t.tapId === e.tapId) ?? null
+      : null;
+    const payload = {
+      rule: e.ruleName, severity: e.severity, title: e.title, body: e.body,
+      tap: tapState?.tapNumber ?? null, beer: tapState?.beer?.name ?? null,
+      tapId: e.tapId ?? null, ts: e.ts,
+    };
     this.client.publish(`${this.cfg.appTopicPrefix}/event/alert`, JSON.stringify(payload));
   }
 

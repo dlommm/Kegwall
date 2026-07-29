@@ -832,6 +832,56 @@ describe('alert_fired bus event (Phase 5 Task 5: HA publisher hand-off point)', 
 
     expect(events).toHaveLength(1); // only the fire, not the resolve
   });
+
+  // Final-review fix wave (I3a): the spec lists "Home Assistant notify" (the
+  // `alert_fired` -> `<prefix>/event/alert` MQTT relay) as one of the delivery channels
+  // quiet hours suppress, matching every other external channel's behavior. Before this
+  // fix, `alert_fired` was emitted unconditionally in `considerFire`, entirely bypassing
+  // `sendToChannels`'s quiet-hours check (that check only ever ran for the `notify`
+  // action's OWN channel list) -- so HA could relay alerts to phones/TTS during quiet
+  // hours no matter what. Fixed engine-side (not in haPublisher) so the EVENT itself is
+  // suppressed, the same shape as "quiet hours suppress the channel", not merely "HA
+  // chooses to ignore it". In-app is unaffected: it's driven entirely by the rule's
+  // `notify` action through `dispatchActions`/`sendToChannels` (which has its own,
+  // unchanged "inApp always records" carve-out), never by the `alert_fired` bus event.
+  it('is NOT emitted during quiet hours (I3a) -- but the in-app notify action still records', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 0, 1, 23, 0, 0)); // well inside 22:00-08:00 quiet hours
+    settings.set('quietHours', { start: '22:00', end: '08:00' });
+    seed();
+    createAutomation(db, {
+      name: 'Device Offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [notifyInAppAction('Offline', 'x')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' },
+    });
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() });
+    await engine!.flush();
+
+    expect(events).toHaveLength(0);
+    expect(listNotifications(db)).toHaveLength(1);
+  });
+
+  it('IS emitted just outside quiet hours (21:59, one minute before 22:00 start)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 0, 1, 21, 59, 0));
+    settings.set('quietHours', { start: '22:00', end: '08:00' });
+    seed();
+    createAutomation(db, {
+      name: 'Device Offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [notifyInAppAction('Offline', 'x')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' },
+    });
+    const { events } = alertsCollector();
+    makeEngine().start();
+
+    bus.emit('device_offline', { monitor: REF, ts: new Date().toISOString() });
+    await engine!.flush();
+
+    expect(events).toHaveLength(1);
+  });
 });
 
 describe('action dispatch', () => {

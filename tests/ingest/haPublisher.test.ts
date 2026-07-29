@@ -515,7 +515,17 @@ describe('HaPublisherSource against a real broker', () => {
       expect(late).toHaveLength(0);
     });
 
-    it('relays alert_fired to <appTopicPrefix>/event/alert, non-retained', async () => {
+    // Final-review fix wave (I3b): the spec promises `(JSON: rule, severity, message, tap,
+    // beer)` for this topic; the shipped payload was `{rule, severity, title, tapId, ts}`
+    // -- `beer` was missing entirely, the rendered `body` was dropped, and it used
+    // `tapId` where `/event/pour` (see the pour relay test above) uses tap NUMBER as
+    // `tap` -- inconsistent between the two event topics for no reason. Fixed to resolve
+    // `tap`/`beer` from the SAME `state.getTapStates()` lookup `relayPour` already does
+    // (via `alert_fired`'s `tapId`, not a `MonitorRef` -- there's no monitor context on an
+    // alert), while ALSO keeping `tapId` (some rules, e.g. `app_startup`, have none, and a
+    // consumer may still want the raw id even when it has the tap number).
+    it('relays alert_fired to <appTopicPrefix>/event/alert with tap/beer resolved, non-retained', async () => {
+      const { tapId } = seedTap(4, 'Citra Pale Ale');
       await subscribeAll();
       source = await makeSource();
       await vi.waitFor(() => expect(statusEvents.some((s) => s.healthy)).toBe(true));
@@ -523,18 +533,21 @@ describe('HaPublisherSource against a real broker', () => {
 
       const ts = new Date().toISOString();
       bus.emit('alert_fired', {
-        ruleId: 1, ruleName: 'Keg Low', severity: 'warning', title: 'Keg low', body: 'Below 15%', tapId: 7, ts,
+        ruleId: 1, ruleName: 'Keg Low', severity: 'warning', title: 'Keg low', body: 'Below 15%', tapId, ts,
       });
 
       await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/alert')).toHaveLength(1));
       const msg = byTopic('kegtron-dashboard/event/alert')[0]!;
-      expect(json(msg)).toEqual({ rule: 'Keg Low', severity: 'warning', title: 'Keg low', tapId: 7, ts });
+      expect(json(msg)).toEqual({
+        rule: 'Keg Low', severity: 'warning', title: 'Keg low', body: 'Below 15%',
+        tap: 4, beer: 'Citra Pale Ale', tapId, ts,
+      });
 
       const late = await lateSubscribeCollect('kegtron-dashboard/event/alert', 100);
       expect(late).toHaveLength(0);
     });
 
-    it('alert_fired with no tapId relays tapId: null', async () => {
+    it('alert_fired with no tapId relays tap/beer/tapId: null (e.g. an app_startup rule)', async () => {
       await subscribeAll();
       source = await makeSource();
       await vi.waitFor(() => expect(statusEvents.some((s) => s.healthy)).toBe(true));
@@ -544,7 +557,24 @@ describe('HaPublisherSource against a real broker', () => {
       bus.emit('alert_fired', { ruleId: 2, ruleName: 'App started', severity: 'info', title: 'x', body: '', ts });
 
       await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/alert')).toHaveLength(1));
-      expect(json(byTopic('kegtron-dashboard/event/alert')[0]!).tapId).toBeNull();
+      const payload = json(byTopic('kegtron-dashboard/event/alert')[0]!);
+      expect(payload).toMatchObject({ tap: null, beer: null, tapId: null });
+    });
+
+    it('alert_fired for a tap the state manager has no entry for relays tap/beer: null but keeps tapId', async () => {
+      await subscribeAll();
+      source = await makeSource();
+      await vi.waitFor(() => expect(statusEvents.some((s) => s.healthy)).toBe(true));
+      received = [];
+
+      const ts = new Date().toISOString();
+      bus.emit('alert_fired', {
+        ruleId: 3, ruleName: 'Ghost Tap', severity: 'warning', title: 'x', body: 'y', tapId: 999999, ts,
+      });
+
+      await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/alert')).toHaveLength(1));
+      const payload = json(byTopic('kegtron-dashboard/event/alert')[0]!);
+      expect(payload).toMatchObject({ tap: null, beer: null, tapId: 999999 });
     });
   });
 

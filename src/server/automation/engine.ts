@@ -117,6 +117,14 @@ import {
 //     `buildSyntheticEvalCtx()` (no real triggering event exists for a manual run), but
 //     still genuinely DISPATCHES each action (a real dry-run, not a preview) and reports
 //     per-action `{type, ok, error?}` results instead of "log and continue".
+//
+// FINAL-REVIEW FIX WAVE (I3) additions:
+//
+// 11. `alert_fired` (HA's only delivery path, via `haPublisher.relayAlert`) is now
+//     suppressed by quiet hours, same as every other external channel -- checked in
+//     `considerFire` (engine-side) rather than in the publisher, so the bus event itself
+//     never fires, not merely "HA chooses to drop it". In-app is unaffected -- it
+//     consumes the rule's `notify` action via `sendToChannels`, never this event.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
@@ -693,10 +701,22 @@ export class AutomationEngine {
     };
     if (rule.isAlert && rule.alertConfig) {
       const { title, body } = alertTitleBodyOf(rule, templateCtx);
-      this.bus.emit('alert_fired', {
-        ruleId: rule.id, ruleName: rule.name, severity: rule.alertConfig.severity,
-        title, body, tapId: ctx.tapId ?? undefined, ts: ctx.ts,
-      });
+      // Final-review fix wave (I3a): `alert_fired` is HA's ONLY delivery path (see
+      // haPublisher.ts's `relayAlert`) -- the spec lists "Home Assistant notify" as a
+      // channel quiet hours suppress, same as every other external channel. Checked here
+      // (engine-side), not in the publisher, so the EVENT ITSELF is suppressed -- matching
+      // "quiet hours suppress the channel", not "the channel happens to ignore it". `now`
+      // (already computed above) is reused rather than re-reading `new Date()` so this and
+      // `sendToChannels`'s own quiet-hours check below (via `dispatchActions`) agree on the
+      // instant being evaluated. In-app is unaffected: it never consumes this event -- it's
+      // driven entirely by the rule's own `notify` action through `dispatchActions` /
+      // `sendToChannels`, which keeps its unchanged "inApp always records" carve-out.
+      if (!this.isQuietHours(now)) {
+        this.bus.emit('alert_fired', {
+          ruleId: rule.id, ruleName: rule.name, severity: rule.alertConfig.severity,
+          title, body, tapId: ctx.tapId ?? undefined, ts: ctx.ts,
+        });
+      }
     }
     await this.dispatchActions(rule, templateCtx, ctx);
   }
