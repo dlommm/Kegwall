@@ -59,6 +59,19 @@ function baseResult(overrides: Partial<UseWallDataResult> = {}): UseWallDataResu
   };
 }
 
+/** Captures the `onMessage` callback WallPage hands to (mocked) `useWallData`, so a test
+ * can simulate a WS message arriving without a real socket -- see useWallData.test.tsx /
+ * useTapStates.test.tsx for the corresponding lower-level coverage of the socket plumbing
+ * itself; this file only tests WHAT WallPage does with a message once it arrives. */
+function mockWallData(overrides: Partial<UseWallDataResult> = {}): { onMessage?: (msg: unknown) => void } {
+  const captured: { onMessage?: (msg: unknown) => void } = {};
+  (useWallData as Mock).mockImplementation((_slug: string, options?: { onMessage?: (msg: unknown) => void }) => {
+    captured.onMessage = options?.onMessage;
+    return baseResult(overrides);
+  });
+  return captured;
+}
+
 function renderWall(slug = 'main') {
   return render(
     <MemoryRouter initialEntries={[`/wall/${slug}`]}>
@@ -288,6 +301,113 @@ describe('WallPage', () => {
     renderWall();
     // page 1 only shows tap 1, but the header temp is the wall-wide max (tap 2's 9.6°C).
     expect(screen.getByTestId('wall-header-temp')).toHaveTextContent('10°C');
+  });
+
+  // Phase 5 Task 4: the automation engine's wall_banner/party_mode actions relay over WS
+  // (routes/ws.ts) as {type:'banner',...}/{type:'theme_override',...} -- WallPage
+  // subscribes via the SAME socket useWallData/useTapStates already own (onMessage
+  // option), not a second connection.
+  describe('server-driven banners and party mode (WS messages)', () => {
+    it('renders a banner pushed via a WS {type:"banner"} message, mapping kind "celebrate" to the success style', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall();
+
+      act(() => { captured.onMessage?.({ type: 'banner', text: 'Free pours at 6pm', kind: 'celebrate' }); });
+
+      const banner = screen.getByTestId('banner-lane-banner');
+      expect(banner).toHaveTextContent('Free pours at 6pm');
+      expect(banner).toHaveAttribute('data-kind', 'success');
+    });
+
+    it('maps WS banner kind "warning"/"info" straight through', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall();
+
+      act(() => { captured.onMessage?.({ type: 'banner', text: 'Kicked', kind: 'warning' }); });
+      expect(screen.getByTestId('banner-lane-banner')).toHaveAttribute('data-kind', 'warning');
+    });
+
+    it('a WS banner message’s durationMs overrides the default hold duration', () => {
+      vi.useFakeTimers();
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall();
+
+      act(() => { captured.onMessage?.({
+        type: 'banner', text: 'Quick', kind: 'info', durationMs: 1000,
+      }); });
+      expect(screen.getByTestId('banner-lane-banner')).toBeInTheDocument();
+
+      act(() => { vi.advanceTimersByTime(999); });
+      expect(screen.getByTestId('banner-lane-banner')).toBeInTheDocument();
+
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(screen.queryByTestId('banner-lane-banner')).not.toBeInTheDocument();
+    });
+
+    it('applies a temporary theme override on a WS {type:"theme_override"} message, then reverts after the countdown', () => {
+      vi.useFakeTimers();
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig({ theme: { id: 'taproom' } }) }, taps: [],
+      });
+      const { container } = renderWall();
+      const scope = container.querySelector('.kegtron-theme-scope') as HTMLElement;
+      const baseAccent = getComputedStyle(scope).getPropertyValue('--accent').trim();
+      expect(baseAccent).toBeTruthy();
+
+      act(() => { captured.onMessage?.({ type: 'theme_override', minutes: 10 }); });
+      expect(getComputedStyle(scope).getPropertyValue('--accent').trim()).not.toBe(baseAccent);
+
+      act(() => { vi.advanceTimersByTime(10 * 60_000 - 1); });
+      expect(getComputedStyle(scope).getPropertyValue('--accent').trim()).not.toBe(baseAccent);
+
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(getComputedStyle(scope).getPropertyValue('--accent').trim()).toBe(baseAccent);
+    });
+
+    it('a second theme_override message restarts the countdown instead of stacking', () => {
+      vi.useFakeTimers();
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig({ theme: { id: 'taproom' } }) }, taps: [],
+      });
+      const { container } = renderWall();
+      const scope = container.querySelector('.kegtron-theme-scope') as HTMLElement;
+      const baseAccent = getComputedStyle(scope).getPropertyValue('--accent').trim();
+
+      act(() => { captured.onMessage?.({ type: 'theme_override', minutes: 10 }); });
+      act(() => { vi.advanceTimersByTime(9 * 60_000); }); // 9 of 10 minutes elapsed
+      act(() => { captured.onMessage?.({ type: 'theme_override', minutes: 10 }); }); // restarts
+
+      act(() => { vi.advanceTimersByTime(9 * 60_000); }); // would have expired the FIRST message
+      expect(getComputedStyle(scope).getPropertyValue('--accent').trim()).not.toBe(baseAccent);
+
+      act(() => { vi.advanceTimersByTime(60_000 + 1); }); // completes the SECOND message's 10 min
+      expect(getComputedStyle(scope).getPropertyValue('--accent').trim()).toBe(baseAccent);
+    });
+
+    it('cleans up the theme-override timer on unmount without throwing', () => {
+      vi.useFakeTimers();
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      const { unmount } = renderWall();
+      act(() => { captured.onMessage?.({ type: 'theme_override', minutes: 5 }); });
+      expect(() => unmount()).not.toThrow();
+    });
+
+    it('ignores WS messages of an unrecognized type (no crash, no banner)', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall();
+      expect(() => act(() => { captured.onMessage?.({ type: 'ping', ts: 'x' }); })).not.toThrow();
+      expect(screen.queryByTestId('banner-lane-banner')).not.toBeInTheDocument();
+    });
   });
 });
 

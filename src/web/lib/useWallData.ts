@@ -5,6 +5,13 @@ import { getWall } from './api';
 import { useTapStates } from './useTapStates';
 import type { VolumeUnits } from './units';
 
+export interface UseWallDataOptions {
+  /** Phase 5 Task 4: threaded straight through to `useTapStates` -- see that hook's doc
+   * comment. Lets WallPage subscribe to WS banner/theme_override messages over the SAME
+   * socket useWallData already owns, instead of opening a second one. */
+  onMessage?: (msg: unknown) => void;
+}
+
 export interface UseWallDataResult {
   wall: { slug: string; name: string; config: WallConfig } | null;
   taps: TapState[];
@@ -26,7 +33,10 @@ export interface UseWallDataResult {
  * to `useTapStates`. Config doesn't ride the WS snapshot (only taps do), so we re-fetch it
  * whenever the socket reconnects — a cheap way to pick up wall edits made while disconnected.
  */
-export function useWallData(slug: string | undefined): UseWallDataResult {
+export function useWallData(
+  slug: string | undefined,
+  options: UseWallDataOptions = {},
+): UseWallDataResult {
   const [wall, setWall] = useState<UseWallDataResult['wall']>(null);
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [units, setUnits] = useState<VolumeUnits>('us');
@@ -70,7 +80,7 @@ export function useWallData(slug: string | undefined): UseWallDataResult {
 
   const {
     taps, stale, connected, reconnectCount,
-  } = useTapStates(initialTaps);
+  } = useTapStates(initialTaps, { onMessage: options.onMessage });
 
   useEffect(() => {
     // reconnectCount is 0 on the initial mount (useTapStates only increments it after a

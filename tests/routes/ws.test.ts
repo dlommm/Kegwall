@@ -78,6 +78,70 @@ describe('/ws', () => {
     wsB.close();
   });
 
+  // Phase 5 Task 4: wall_banner/wall_theme_override bus events (emitted by the automation
+  // engine's wall_banner/party_mode actions -- see automation/engine.ts) relay over WS to
+  // ALL connected clients, unconditionally (unlike state_changed's scope check).
+  it('relays a wall_banner bus event as {type:"banner", ...} to all clients', async () => {
+    const wsA = new WebSocket(url);
+    const wsB = new WebSocket(url);
+    await nextMessage(wsA);
+    await nextMessage(wsB);
+
+    const [msgA, msgB] = await Promise.all([
+      nextMessage(wsA), nextMessage(wsB),
+      (async () => {
+        app.ctx.bus.emit('wall_banner', { text: 'Free pours at 6pm', kind: 'celebrate', durationMs: 5000 });
+      })(),
+    ]);
+    expect(msgA).toEqual({
+      type: 'banner', text: 'Free pours at 6pm', kind: 'celebrate', durationMs: 5000,
+    });
+    expect(msgB).toEqual(msgA);
+    wsA.close();
+    wsB.close();
+  });
+
+  it('relays a wall_banner event with no durationMs (omitted, not null)', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws);
+    const next = nextMessage(ws);
+    app.ctx.bus.emit('wall_banner', { text: 'Hello', kind: 'info' });
+    const msg = await next;
+    expect(msg).toEqual({ type: 'banner', text: 'Hello', kind: 'info' });
+    ws.close();
+  });
+
+  it('relays a wall_theme_override bus event as {type:"theme_override", minutes}', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws);
+    const next = nextMessage(ws);
+    app.ctx.bus.emit('wall_theme_override', { minutes: 10 });
+    const msg = await next;
+    expect(msg).toEqual({ type: 'theme_override', minutes: 10 });
+    ws.close();
+  });
+
+  it('relays a state_changed(scope:"notifications") event as {type:"notifications", unackedCount}', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws);
+    const next = nextMessage(ws);
+    app.ctx.bus.emit('state_changed', { scope: 'notifications', ts: new Date().toISOString() });
+    const msg = await next;
+    expect(msg).toEqual({ type: 'notifications', unackedCount: 0 });
+    ws.close();
+  });
+
+  it('a state_changed(scope:"sources") event does not broadcast anything (ignored, same as before)', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws);
+    let gotExtra = false;
+    ws.on('message', () => { gotExtra = true; });
+    app.ctx.bus.emit('state_changed', { scope: 'sources', ts: new Date().toISOString() });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(gotExtra).toBe(false);
+    ws.close();
+  });
+
   it('stops the ping interval when the app closes (no dangling timer)', async () => {
     app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')), wsPingIntervalMs: 20 });
     await app.listen({ port: 0 });

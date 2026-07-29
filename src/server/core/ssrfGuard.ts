@@ -2,12 +2,20 @@ import { isIP } from 'node:net';
 import { lookup as dnsLookup } from 'node:dns/promises';
 
 // ---------------------------------------------------------------------------
-// SSRF guard for `routes/lookup.ts`'s `POST /api/lookup/untappd/import` — the only place
-// in this codebase where a user-supplied HOST reaches an outbound server-side `fetch()`
-// (every other outbound call, e.g. MdashClient, Open Brewery DB, Untappd search, targets
-// a fixed/settings-configured base URL, never a caller-supplied one). Without this, an
-// editor could point `labelUrl` at an internal service or a cloud metadata endpoint
-// (169.254.169.254) and have the SERVER fetch it on their behalf.
+// SSRF guard for every place in this codebase where a user-supplied HOST reaches an
+// outbound server-side `fetch()` (every OTHER outbound call, e.g. MdashClient, Open
+// Brewery DB, Untappd search, targets a fixed/settings-configured base URL, never a
+// caller-supplied one):
+//   - `routes/lookup.ts`'s `POST /api/lookup/untappd/import` (`downloadAndStoreLabel`,
+//     also reused by `routes/kegtron.ts`'s Pro import's labelUrl decode) — an editor
+//     could otherwise point `labelUrl` at an internal service or a cloud metadata
+//     endpoint (169.254.169.254) and have the SERVER fetch it on their behalf.
+//   - Phase 5 Task 3: `automation/engine.ts`'s `webhook` action — its `url` is
+//     EDITOR-authored (set when a rule is created/edited, per `core/automationSchema.ts`'s
+//     `ActionSchema`), exactly the same "a human with editor role, not the server itself,
+//     chooses this host" trust boundary as `labelUrl` above, and exactly the same risk: an
+//     automation rule's webhook URL could otherwise be pointed at an internal service or
+//     cloud metadata endpoint and have the SERVER hit it on every rule firing.
 //
 // Kept dependency-free and framework-free (no Fastify/zod imports) so it's directly
 // unit-testable without a network or an HTTP server — see tests/core/ssrfGuard.test.ts.

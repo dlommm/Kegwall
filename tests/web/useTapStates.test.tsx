@@ -311,6 +311,60 @@ describe('useTapStates (fake WebSocket + fake timers)', () => {
     expect(FakeWebSocket.instances).toHaveLength(3);
   });
 
+  // Phase 5 Task 4: wall_banner/theme_override/notifications messages ride the SAME
+  // socket useTapStates already owns (one socket per client, per the plan's explicit
+  // "keep ONE socket" instruction) -- `onMessage` is a generic escape hatch invoked for
+  // EVERY parsed message (snapshot/ping included; consumers filter by their own `type`),
+  // rather than typed fields per message kind, so a new server message type never needs
+  // a new hook option.
+  describe('onMessage (Phase 5 Task 4: banner/theme_override/notifications relay)', () => {
+    it('invokes onMessage for every parsed message, including non-snapshot ones', () => {
+      const onMessage = vi.fn();
+      renderHook(() => useTapStates([], { onMessage }));
+      const socket = FakeWebSocket.instances[0]!;
+      act(() => socket.triggerOpen());
+
+      act(() => socket.triggerMessage({ type: 'banner', text: 'Free pours', kind: 'celebrate' }));
+      expect(onMessage).toHaveBeenCalledWith({ type: 'banner', text: 'Free pours', kind: 'celebrate' });
+
+      act(() => socket.triggerMessage({ type: 'theme_override', minutes: 10 }));
+      expect(onMessage).toHaveBeenCalledWith({ type: 'theme_override', minutes: 10 });
+
+      act(() => socket.triggerMessage({ type: 'snapshot', taps: [] }));
+      expect(onMessage).toHaveBeenCalledWith({ type: 'snapshot', taps: [] });
+
+      expect(onMessage).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not throw or break snapshot handling when onMessage is omitted', () => {
+      const { result } = renderHook(() => useTapStates([]));
+      const socket = FakeWebSocket.instances[0]!;
+      act(() => socket.triggerOpen());
+      expect(() => act(() => socket.triggerMessage({ type: 'banner', text: 'x', kind: 'info' }))).not.toThrow();
+      act(() => socket.triggerMessage({ type: 'snapshot', taps: [] }));
+      expect(result.current.taps).toEqual([]);
+    });
+
+    it('picking up a new onMessage callback across re-renders does not tear down/reopen the socket', () => {
+      const first = vi.fn();
+      const { rerender } = renderHook(
+        ({ onMessage }) => useTapStates([], { onMessage }),
+        { initialProps: { onMessage: first } },
+      );
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      const socket = FakeWebSocket.instances[0]!;
+      act(() => socket.triggerOpen());
+
+      const second = vi.fn();
+      rerender({ onMessage: second });
+      expect(FakeWebSocket.instances).toHaveLength(1); // same socket, no reconnect
+
+      act(() => socket.triggerMessage({ type: 'theme_override', minutes: 5 }));
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledWith({ type: 'theme_override', minutes: 5 });
+    });
+  });
+
   it('clears the reconnect timer and closes the socket on unmount without reconnecting again', () => {
     const { unmount } = renderHook(() => useTapStates([]));
     const first = FakeWebSocket.instances[0]!;

@@ -14,6 +14,25 @@ export interface Pour {
   durationMs: number | null; source: 'cloud' | 'udp' | 'ble'; drinkerId: number | null;
 }
 
+/** `keg.levelPct`'s formula, extracted (Phase 5 Task 3) so the automation engine's
+ * `keg_level_crosses` trigger (`automation/engine.ts`) computes the EXACT same number
+ * `StateManager.getTapStates()` does, rather than risking the two formulas drifting
+ * apart — the engine detects a threshold crossing by comparing this value across
+ * consecutive `volume_update` events, so it must match the presentation layer's own
+ * number precisely. Clamped to [0,100]; `volStartMl <= 0` (shouldn't happen — kegs are
+ * always created with a positive size — but defensive) reads as fully empty rather than
+ * dividing by zero. */
+export function computeLevelPct(volStartMl: number, volDispensedMl: number): number {
+  return volStartMl > 0
+    ? Math.max(0, Math.min(100, Math.round(((volStartMl - volDispensedMl) / volStartMl) * 1000) / 10))
+    : 0;
+}
+
+/** `keg.remainingMl`'s formula — same extraction rationale as `computeLevelPct` above. */
+export function computeRemainingMl(volStartMl: number, volDispensedMl: number): number {
+  return Math.max(0, volStartMl - volDispensedMl);
+}
+
 function rowToKeg(r: any): Keg {
   return {
     id: r.id, beerId: r.beer_id, tapId: r.tap_id, sizeMl: r.size_ml,

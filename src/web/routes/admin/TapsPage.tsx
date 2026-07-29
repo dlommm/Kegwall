@@ -4,25 +4,34 @@ import type { Tap } from '../../../server/db/taps.js';
 import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
 import type { Monitor } from '../../../server/db/monitors.js';
-import type { Role } from '../../../server/db/users.js';
 import {
-  getMe, listBeers, listKegs, listMonitors, deleteTap as deleteTapApi,
+  listBeers, listKegs, listMonitors, listTaps, deleteTap as deleteTapApi,
 } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
-import type { VolumeUnits } from '../../lib/units';
 import { srmToColor } from '../../lib/srm';
 import { TapForm } from './TapForm';
 import { SwapWizard } from './SwapWizard';
 import { OnDeckQueue } from './OnDeckQueue';
 import { KickedHistory } from './KickedHistory';
+import { useAdminContext } from './useAdminContext';
 
 type TapFormState = { mode: 'create' } | { mode: 'edit'; tap: Tap } | null;
 interface DeleteTapState { tap: Tap; error: string | null }
 interface WizardState { tap: TapState; promoteKeg: Keg | null }
 
-function tapToPlainTap(tap: TapState): Tap {
-  return { id: tap.tapId, number: tap.tapNumber, name: tap.tapName };
+/** `TapState` (the `/ws`-live snapshot every tap row is rendered from) has no
+ * `defaultDrinkerId` — that's admin configuration, not live device state (see
+ * db/taps.ts's doc comment), so it's not part of the public-facing `TapState` shape. The
+ * edit form still needs the tap's REAL current value, so this resolves it against
+ * `tapRows` — the plain `GET /api/taps` listing this page also loads (Phase 5 Task 0) —
+ * falling back to `null` for the brief window before that load resolves. */
+function tapToPlainTap(tap: TapState, tapRows: Tap[]): Tap {
+  const row = tapRows.find((r) => r.id === tap.tapId);
+  return {
+    id: tap.tapId, number: tap.tapNumber, name: tap.tapName,
+    defaultDrinkerId: row?.defaultDrinkerId ?? null,
+  };
 }
 
 /** A tap's level pill fill color: the beer's real SRM tint, or a muted neutral once
@@ -41,12 +50,12 @@ function pillColor(isKicked: boolean, srm: number | null): string {
  * queue's add/remove/promote controls are hidden the same way `canEdit` gates BeersPage.
  */
 export function TapsPage() {
-  const [role, setRole] = useState<Role | null>(null);
-  const [units, setUnits] = useState<VolumeUnits>('us');
+  const { me, units } = useAdminContext();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [beers, setBeers] = useState<Beer[]>([]);
   const [kegs, setKegs] = useState<Keg[]>([]);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [tapRows, setTapRows] = useState<Tap[]>([]);
   const [tapsStatus, setTapsStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [expandedTapId, setExpandedTapId] = useState<number | null>(null);
   const [tapFormState, setTapFormState] = useState<TapFormState>(null);
@@ -57,21 +66,10 @@ export function TapsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getMe().then((result) => {
-      if (!cancelled && result.ok) setRole(result.data.role);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
     getMenu().then((result) => {
       if (cancelled) return;
       if (result.ok) {
         setInitialTaps(result.data.taps);
-        setUnits(result.data.units ?? 'us');
         setTapsStatus('loaded');
       } else {
         setTapsStatus('error');
@@ -84,13 +82,16 @@ export function TapsPage() {
 
   const { taps } = useTapStates(initialTaps);
 
-  // Beers/kegs/monitors don't ride the /ws snapshot (only tap-level state does) — this
-  // reloads all three whenever `dataRefreshKey` is bumped (after a swap, a tap edit, or
-  // any other action that could have changed what the swap wizard/on-deck queue need).
+  // Beers/kegs/monitors/tapRows don't ride the /ws snapshot (only tap-level live state
+  // does) — this reloads all four whenever `dataRefreshKey` is bumped (after a swap, a
+  // tap edit, or any other action that could have changed what the swap wizard/on-deck
+  // queue/edit form need). `tapRows` (Phase 5 Task 0) is the plain `Tap` listing —
+  // `defaultDrinkerId` isn't part of the live `TapState` shape (see `tapToPlainTap`).
   const loadCatalogData = useCallback(() => {
     listBeers().then((result) => { if (result.ok) setBeers(result.data); });
     listKegs().then((result) => { if (result.ok) setKegs(result.data); });
     listMonitors().then((result) => { if (result.ok) setMonitors(result.data); });
+    listTaps().then((result) => { if (result.ok) setTapRows(result.data); });
   }, []);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export function TapsPage() {
 
   const refresh = useCallback(() => setDataRefreshKey((k) => k + 1), []);
 
-  const canEdit = role === 'editor' || role === 'admin';
+  const canEdit = me.role === 'editor' || me.role === 'admin';
 
   function handleTapSaved() {
     setTapFormState(null);
@@ -203,7 +204,7 @@ export function TapsPage() {
                       <button
                         type="button"
                         data-testid="taps-row-edit"
-                        onClick={() => setTapFormState({ mode: 'edit', tap: tapToPlainTap(tap) })}
+                        onClick={() => setTapFormState({ mode: 'edit', tap: tapToPlainTap(tap, tapRows) })}
                       >
                         Edit
                       </button>
@@ -212,7 +213,7 @@ export function TapsPage() {
                       <button
                         type="button"
                         data-testid="taps-row-delete"
-                        onClick={() => setDeleteState({ tap: tapToPlainTap(tap), error: null })}
+                        onClick={() => setDeleteState({ tap: tapToPlainTap(tap, tapRows), error: null })}
                       >
                         Delete
                       </button>

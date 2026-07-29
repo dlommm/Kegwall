@@ -94,4 +94,142 @@ describe('SettingsStore', () => {
     expect(sanitized.untappd).toMatchObject({ clientId: 'id2' });
     expect(sanitized.untappd?.clientSecret).toBe('realclientsecret');
   });
+
+  // Phase 5 Task 2: alertChannels config (ntfy/pushover/smtp/discord/slack), each
+  // optional/nullable. Secrets: pushover.token, smtp.password, discord.webhookUrl,
+  // slack.webhookUrl (masked to origin + '/…' so an admin can still recognize which
+  // webhook is configured) -- same set()/sanitizePatch()/masked() precedent as
+  // kegtronApiKey/mqtt.password/untappd.clientSecret above.
+  describe('alertChannels', () => {
+    it('defaults to an empty object', () => {
+      expect(store.get('alertChannels')).toEqual({});
+    });
+
+    it('round-trips a full alertChannels config', () => {
+      const cfg = {
+        ntfy: { serverUrl: 'https://ntfy.sh', topic: 'taproom-alerts' },
+        pushover: { token: 'app-token-123456', user: 'user-key-123456' },
+        smtp: {
+          host: 'smtp.example.com', port: 587, secure: false,
+          user: 'smtp-user', password: 'smtp-pass-123456',
+          from: 'kegtron@example.com', to: 'admin@example.com',
+        },
+        discord: { webhookUrl: 'https://discord.com/api/webhooks/123/abcSecretToken' },
+        slack: { webhookUrl: 'https://hooks.slack.com/services/T00/B00/abcSecretToken' },
+      };
+      store.set('alertChannels', cfg);
+      expect(store.get('alertChannels')).toEqual(cfg);
+    });
+
+    it('allows each channel independently, omitting the rest', () => {
+      store.set('alertChannels', { ntfy: { serverUrl: 'https://ntfy.sh', topic: 'x' } });
+      const stored = store.get('alertChannels');
+      expect(stored.ntfy).toEqual({ serverUrl: 'https://ntfy.sh', topic: 'x' });
+      expect(stored.pushover).toBeUndefined();
+    });
+
+    it('allows explicitly clearing a channel with null', () => {
+      store.set('alertChannels', { discord: { webhookUrl: 'https://discord.com/api/webhooks/1/tok' } });
+      store.set('alertChannels', { discord: null });
+      expect(store.get('alertChannels').discord).toBeNull();
+    });
+
+    it('masks pushover.token to a last-4 suffix, like kegtronApiKey', () => {
+      store.set('alertChannels', { pushover: { token: 'app-token-abcdwxyz', user: 'user-key-1' } });
+      const m = store.masked();
+      expect(m.alertChannels.pushover?.token).toBe('••••wxyz');
+      expect(m.alertChannels.pushover?.user).toBe('user-key-1'); // not a secret
+    });
+
+    it('masks smtp.password to a bare "••••", like mqtt.password', () => {
+      store.set('alertChannels', {
+        smtp: {
+          host: 'smtp.example.com', port: 587, secure: false, password: 'smtp-secret',
+          from: 'a@example.com', to: 'b@example.com',
+        },
+      });
+      const m = store.masked();
+      expect(m.alertChannels.smtp?.password).toBe('••••');
+      expect(m.alertChannels.smtp?.host).toBe('smtp.example.com'); // not a secret
+    });
+
+    it('masks discord.webhookUrl to origin + "/…"', () => {
+      store.set('alertChannels', { discord: { webhookUrl: 'https://discord.com/api/webhooks/123/secretTokenHere' } });
+      const m = store.masked();
+      expect(m.alertChannels.discord?.webhookUrl).toBe('https://discord.com/…');
+    });
+
+    it('masks slack.webhookUrl to origin + "/…"', () => {
+      store.set('alertChannels', { slack: { webhookUrl: 'https://hooks.slack.com/services/T00/B00/secretTokenHere' } });
+      const m = store.masked();
+      expect(m.alertChannels.slack?.webhookUrl).toBe('https://hooks.slack.com/…');
+    });
+
+    it('set() throws ValidationError when given a masked pushover.token', () => {
+      store.set('alertChannels', { pushover: { token: 'realtoken12345678', user: 'u' } });
+      expect(() =>
+        store.set('alertChannels', { pushover: { token: '••••5678', user: 'u' } }),
+      ).toThrow(ValidationError);
+      expect(store.get('alertChannels').pushover?.token).toBe('realtoken12345678');
+    });
+
+    it('set() throws ValidationError when given a masked smtp.password', () => {
+      store.set('alertChannels', {
+        smtp: { host: 'h', port: 587, secure: false, password: 'realsmtppass', from: 'a@x.com', to: 'b@x.com' },
+      });
+      expect(() =>
+        store.set('alertChannels', {
+          smtp: { host: 'h', port: 587, secure: false, password: '••••', from: 'a@x.com', to: 'b@x.com' },
+        }),
+      ).toThrow(ValidationError);
+      expect(store.get('alertChannels').smtp?.password).toBe('realsmtppass');
+    });
+
+    it('set() throws ValidationError when given a masked discord.webhookUrl', () => {
+      store.set('alertChannels', { discord: { webhookUrl: 'https://discord.com/api/webhooks/1/realtoken' } });
+      expect(() =>
+        store.set('alertChannels', { discord: { webhookUrl: 'https://discord.com/…' } }),
+      ).toThrow(ValidationError);
+      expect(store.get('alertChannels').discord?.webhookUrl).toBe('https://discord.com/api/webhooks/1/realtoken');
+    });
+
+    it('set() throws ValidationError when given a masked slack.webhookUrl', () => {
+      store.set('alertChannels', { slack: { webhookUrl: 'https://hooks.slack.com/services/1/realtoken' } });
+      expect(() =>
+        store.set('alertChannels', { slack: { webhookUrl: 'https://hooks.slack.com/…' } }),
+      ).toThrow(ValidationError);
+      expect(store.get('alertChannels').slack?.webhookUrl).toBe('https://hooks.slack.com/services/1/realtoken');
+    });
+
+    it('sanitizePatch merges masked secrets back in, independently per channel', () => {
+      store.set('alertChannels', {
+        pushover: { token: 'realtoken12345678', user: 'user-old' },
+        smtp: { host: 'h', port: 587, secure: false, password: 'realsmtppass', from: 'a@x.com', to: 'b@x.com' },
+        discord: { webhookUrl: 'https://discord.com/api/webhooks/1/realtoken' },
+        slack: { webhookUrl: 'https://hooks.slack.com/services/1/realtoken' },
+      });
+
+      const patch = {
+        alertChannels: {
+          pushover: { token: '••••5678', user: 'user-new' }, // user edited, token untouched (still masked)
+          smtp: { host: 'h2', port: 587, secure: false, password: '••••', from: 'a@x.com', to: 'b@x.com' },
+          discord: { webhookUrl: 'https://discord.com/…' },
+          slack: { webhookUrl: 'https://hooks.slack.com/…' },
+        },
+      };
+      const sanitized = store.sanitizePatch(patch);
+
+      expect(sanitized.alertChannels?.pushover).toEqual({ token: 'realtoken12345678', user: 'user-new' });
+      expect(sanitized.alertChannels?.smtp?.password).toBe('realsmtppass');
+      expect(sanitized.alertChannels?.smtp?.host).toBe('h2');
+      expect(sanitized.alertChannels?.discord?.webhookUrl).toBe('https://discord.com/api/webhooks/1/realtoken');
+      expect(sanitized.alertChannels?.slack?.webhookUrl).toBe('https://hooks.slack.com/services/1/realtoken');
+    });
+
+    it('sanitizePatch leaves an explicitly-nulled channel alone (not "masked")', () => {
+      store.set('alertChannels', { discord: { webhookUrl: 'https://discord.com/api/webhooks/1/realtoken' } });
+      const sanitized = store.sanitizePatch({ alertChannels: { discord: null } });
+      expect(sanitized.alertChannels?.discord).toBeNull();
+    });
+  });
 });

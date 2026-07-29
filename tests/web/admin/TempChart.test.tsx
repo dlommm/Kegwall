@@ -19,14 +19,37 @@ function makeData(): TelemetryPoint[] {
 }
 
 describe('TempChart', () => {
-  it('renders a temperature line from fixture data', () => {
+  it('renders a temperature line + a humidity line from fixture data', () => {
     const { container } = render(
       <TempChart
         data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
-    expect(container.querySelectorAll('.recharts-line-curve')).toHaveLength(1);
+    expect(container.querySelectorAll('.recharts-line-curve')).toHaveLength(2);
+  });
+
+  it("gives the humidity series its own (second) Y axis — different scale/unit than temperature", () => {
+    const { container } = render(
+      <TempChart
+        data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        selectedMonitorId={1} onSelectMonitor={vi.fn()}
+      />,
+    );
+    expect(container.querySelectorAll('.recharts-yAxis')).toHaveLength(2);
+  });
+
+  it('labels temperature and humidity in a legend', () => {
+    render(
+      <TempChart
+        data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        selectedMonitorId={1} onSelectMonitor={vi.fn()}
+      />,
+    );
+    // "Temperature" also appears as the chart's own header title, so the legend adds a
+    // SECOND occurrence rather than being the only one.
+    expect(screen.getAllByText('Temperature').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Humidity')).toBeInTheDocument();
   });
 
   it('shows a "no monitor" empty state when there are no Pro monitors at all', () => {

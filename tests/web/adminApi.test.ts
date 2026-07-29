@@ -9,11 +9,16 @@ import {
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
+  getMonitorWifiRssi,
   listWalls, createWall, updateWall, deleteWall,
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
   getSettings, patchSettings, uploadRestore,
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard,
+  listRecentPours, setPourDrinker,
+  listAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
+  runAutomation, listAutomationTemplates, createFromTemplate, listAutomationChannels,
+  listNotifications, getUnackedCount, ackNotification, ackAllNotifications, testChannel,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -100,6 +105,25 @@ describe('admin api client', () => {
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(call[0]).toBe('/api/auth/logout');
     expect(call[1].method).toBe('POST');
+  });
+
+  // Phase 5 Task 7: a real bug an actual browser round trip (Playwright's real Chromium
+  // `fetch`, not this mocked one) caught — every bodyless POST/DELETE (logout, ack, run,
+  // delete-*, etc.) unconditionally got `Content-Type: application/json` stamped on it
+  // with NO body, which Fastify's default JSON parser rejects
+  // (`FST_ERR_CTP_EMPTY_JSON_BODY`, statusCode 400 — mapped to an opaque 500 by this app's
+  // generic error handler, since it isn't one of the recognized error classes). No prior
+  // test caught this: every other `adminApi.test.ts` case here mocks `fetch` itself, so
+  // none of them ever exercised a real server's body-parsing behavior. Fixed in
+  // `request()`: the JSON content-type header is only set when a JSON body is actually
+  // being sent — a request with no body has no content type to declare in the first
+  // place, matching the FormData carve-out's own reasoning just above.
+  it('a bodyless POST (e.g. logout) sends no Content-Type header at all', async () => {
+    mockFetchOnce(200, { ok: true });
+    await logout();
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[1].body).toBeUndefined();
+    expect(call[1].headers['Content-Type']).toBeUndefined();
   });
 
   it('setup posts the first-admin payload and parses the created user', async () => {
@@ -249,7 +273,7 @@ describe('admin api client', () => {
 
   // --- Task 5: taps & kegs ---
 
-  const tap = { id: 1, number: 1, name: 'Left' };
+  const tap = { id: 1, number: 1, name: 'Left', defaultDrinkerId: null };
   const keg = {
     id: 5, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
     dateTapped: null, status: 'on_tap', createdAt: '2026-07-28T00:00:00.000Z',
@@ -279,6 +303,16 @@ describe('admin api client', () => {
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(call[0]).toBe('/api/taps/1');
     expect(call[1].method).toBe('PATCH');
+  });
+
+  it('createTap/updateTap forward defaultDrinkerId (Phase 5 Task 0)', async () => {
+    mockFetchOnce(201, { ...tap, defaultDrinkerId: 9 });
+    await createTap({ number: 1, defaultDrinkerId: 9 });
+    expect(JSON.parse((globalThis.fetch as Mock).mock.calls[0]![1].body)).toEqual({ number: 1, defaultDrinkerId: 9 });
+
+    mockFetchOnce(200, { ...tap, defaultDrinkerId: null });
+    await updateTap(1, { defaultDrinkerId: null });
+    expect(JSON.parse((globalThis.fetch as Mock).mock.calls[1]![1].body)).toEqual({ defaultDrinkerId: null });
   });
 
   it('deleteTap DELETEs /api/taps/:id and reports a 409 conflict', async () => {
@@ -416,6 +450,15 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getMonitorTelemetry(1, 48);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/monitors/1/telemetry?hours=48', expect.any(Object));
+  });
+
+  it('getMonitorWifiRssi POSTs /api/kegtron/wifi-rssi/:monitorId (Phase 5 Task 0)', async () => {
+    mockFetchOnce(200, { rssi: -52 });
+    const result = await getMonitorWifiRssi(1);
+    expect(result).toEqual({ ok: true, data: { rssi: -52 } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/kegtron/wifi-rssi/1');
+    expect(call[1].method).toBe('POST');
   });
 
   // --- Task 7: walls ---
@@ -617,5 +660,182 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getLeaderboard('month');
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/leaderboard?window=month', expect.any(Object));
+  });
+
+  // --- Phase 5 Task 0: pours admin (reassign/unclaim) ---
+
+  it('listRecentPours GETs /api/pours?limit=100', async () => {
+    const pour = {
+      id: 1, kegId: 1, ts: '2026-07-28T00:00:00.000Z', volumeMl: 400,
+      durationMs: null, source: 'cloud', drinkerId: null,
+    };
+    mockFetchOnce(200, [pour]);
+    const result = await listRecentPours();
+    expect(result).toEqual({ ok: true, data: [pour] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/pours?limit=100', expect.any(Object));
+  });
+
+  it('setPourDrinker PATCHes /api/pours/:id/drinker', async () => {
+    const pour = {
+      id: 1, kegId: 1, ts: '2026-07-28T00:00:00.000Z', volumeMl: 400,
+      durationMs: null, source: 'cloud', drinkerId: 9,
+    };
+    mockFetchOnce(200, pour);
+    const result = await setPourDrinker(1, 9);
+    expect(result).toEqual({ ok: true, data: pour });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/pours/1/drinker');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ drinkerId: 9 });
+  });
+
+  it('setPourDrinker(id, null) unclaims', async () => {
+    const pour = {
+      id: 1, kegId: 1, ts: '2026-07-28T00:00:00.000Z', volumeMl: 400,
+      durationMs: null, source: 'cloud', drinkerId: null,
+    };
+    mockFetchOnce(200, pour);
+    await setPourDrinker(1, null);
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(JSON.parse(call[1].body)).toEqual({ drinkerId: null });
+  });
+
+  // --- Task 6: automations + notification center + channel send-test ---
+
+  const rule = {
+    id: 1, name: 'Keg low', enabled: true, isAlert: true,
+    trigger: { type: 'keg_level_crosses', thresholdPct: 15, direction: 'below' },
+    conditions: [], actions: [], alertConfig: {
+      cooldownMinutes: 60, autoResolve: true, notifyOnResolve: false, severity: 'warning',
+    },
+    lastFiredAt: null,
+  };
+
+  it('listAutomations GETs /api/automations', async () => {
+    mockFetchOnce(200, [rule]);
+    const result = await listAutomations();
+    expect(result).toEqual({ ok: true, data: [rule] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations', expect.any(Object));
+  });
+
+  it('getAutomation GETs /api/automations/:id', async () => {
+    mockFetchOnce(200, rule);
+    const result = await getAutomation(1);
+    expect(result).toEqual({ ok: true, data: rule });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations/1', expect.any(Object));
+  });
+
+  it('createAutomation POSTs the rule input', async () => {
+    mockFetchOnce(201, rule);
+    const input = { name: 'Keg low', trigger: { type: 'keg_level_crosses', thresholdPct: 15, direction: 'below' } };
+    const result = await createAutomation(input as any);
+    expect(result).toEqual({ ok: true, data: rule });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual(input);
+  });
+
+  it('updateAutomation PATCHes /api/automations/:id', async () => {
+    mockFetchOnce(200, rule);
+    const result = await updateAutomation(1, { enabled: false });
+    expect(result).toEqual({ ok: true, data: rule });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/1');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ enabled: false });
+  });
+
+  it('deleteAutomation DELETEs /api/automations/:id', async () => {
+    mockFetchOnce(204, null);
+    const result = await deleteAutomation(1);
+    expect(result).toEqual({ ok: true, data: null });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('runAutomation POSTs /api/automations/:id/run', async () => {
+    mockFetchOnce(200, { results: [{ type: 'wall_banner', ok: true }] });
+    const result = await runAutomation(1);
+    expect(result).toEqual({ ok: true, data: { results: [{ type: 'wall_banner', ok: true }] } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/1/run');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('listAutomationTemplates GETs /api/automations/templates', async () => {
+    mockFetchOnce(200, [{ id: 'keg_low', label: 'Keg low', description: 'x', params: [] }]);
+    const result = await listAutomationTemplates();
+    expect(result.ok).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations/templates', expect.any(Object));
+  });
+
+  it('createFromTemplate POSTs /api/automations/from-template', async () => {
+    mockFetchOnce(201, { automations: [rule] });
+    const result = await createFromTemplate('keg_low', { thresholdPct: 25 });
+    expect(result).toEqual({ ok: true, data: { automations: [rule] } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/from-template');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ template: 'keg_low', params: { thresholdPct: 25 } });
+  });
+
+  it('listAutomationChannels GETs /api/automations/channels', async () => {
+    mockFetchOnce(200, [{ name: 'inApp', label: 'In-app' }]);
+    const result = await listAutomationChannels();
+    expect(result).toEqual({ ok: true, data: [{ name: 'inApp', label: 'In-app' }] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations/channels', expect.any(Object));
+  });
+
+  const notification = {
+    id: 1, automationId: null, ts: '2026-07-28T00:00:00.000Z', severity: 'info', title: 'X', body: null, acked: false,
+  };
+
+  it('listNotifications GETs /api/notifications with no params by default', async () => {
+    mockFetchOnce(200, [notification]);
+    const result = await listNotifications();
+    expect(result).toEqual({ ok: true, data: [notification] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/notifications', expect.any(Object));
+  });
+
+  it('listNotifications forwards limit/before as query params', async () => {
+    mockFetchOnce(200, [notification]);
+    await listNotifications({ limit: 10, before: 5 });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/notifications?limit=10&before=5', expect.any(Object));
+  });
+
+  it('getUnackedCount GETs /api/notifications/unacked-count', async () => {
+    mockFetchOnce(200, { count: 3 });
+    const result = await getUnackedCount();
+    expect(result).toEqual({ ok: true, data: { count: 3 } });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/notifications/unacked-count', expect.any(Object));
+  });
+
+  it('ackNotification POSTs /api/notifications/:id/ack', async () => {
+    mockFetchOnce(200, { ...notification, acked: true });
+    const result = await ackNotification(1);
+    expect(result).toEqual({ ok: true, data: { ...notification, acked: true } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/notifications/1/ack');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('ackAllNotifications POSTs /api/notifications/ack-all', async () => {
+    mockFetchOnce(200, { count: 2 });
+    const result = await ackAllNotifications();
+    expect(result).toEqual({ ok: true, data: { count: 2 } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/notifications/ack-all');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('testChannel POSTs /api/channels/:name/test', async () => {
+    mockFetchOnce(200, { ok: true });
+    const result = await testChannel('ntfy');
+    expect(result).toEqual({ ok: true, data: { ok: true } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/channels/ntfy/test');
+    expect(call[1].method).toBe('POST');
   });
 });

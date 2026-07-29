@@ -2,14 +2,14 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Monitor } from '../../../server/db/monitors.js';
 import type { TelemetryPoint } from '../../../server/db/telemetry.js';
-import type { Role } from '../../../server/db/users.js';
 import {
-  getMe, listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume,
+  listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume, getMonitorWifiRssi,
 } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
-import { formatVolumeMl, formatTempC, type VolumeUnits } from '../../lib/units';
+import { formatVolumeMl, formatTempC } from '../../lib/units';
+import { useAdminContext } from './useAdminContext';
 
 /** How far back the Pro-device detail panel's temp/humidity sparkline looks — matches
  * `GET /api/monitors/:id/telemetry`'s own default window (Task 6). A time-range switcher
@@ -24,6 +24,7 @@ const TYPE_LABELS: Record<Monitor['type'], string> = {
 type BindState = { monitor: Monitor; tapId: string; error: string | null };
 type ResetState = { monitor: Monitor; result: 'idle' | 'done' | 'error'; error: string | null };
 interface TelemetryEntry { status: 'loading' | 'loaded' | 'error'; points: TelemetryPoint[] }
+interface RssiEntry { status: 'loading' | 'loaded' | 'error'; rssi: number | null; error: string | null }
 
 function monitorLabel(monitor: Monitor): string {
   return monitor.identifier;
@@ -31,6 +32,21 @@ function monitorLabel(monitor: Monitor): string {
 
 function tapLabel(tap: TapState): string {
   return tap.tapName ?? `Tap ${tap.tapNumber}`;
+}
+
+/** `monitor.meta.fw`/`.online` — stamped at cloud discovery (see shadow.ts's
+ * `diffToEvents`, Phase 5 Task 0). `meta` is a plain `Record<string, unknown>` (it's
+ * JSON under the hood — `db/monitors.ts` never narrows its shape), so these read it
+ * defensively rather than trusting the field is present/well-typed (an older monitor row,
+ * discovered before this field existed, or a Gen 1 monitor, simply has neither key). */
+function monitorFirmware(monitor: Monitor): string | null {
+  const fw = monitor.meta.fw;
+  return typeof fw === 'string' && fw.length > 0 ? fw : null;
+}
+
+function monitorOnlineFromMeta(monitor: Monitor): boolean | null {
+  const online = monitor.meta.online;
+  return typeof online === 'boolean' ? online : null;
 }
 
 /** A tiny inline `<svg><polyline>` sparkline — no chart lib yet (Recharts arrives Task
@@ -82,10 +98,16 @@ function Sparkline({ values, testId, label }: { values: (number | null)[]; testI
  * readable, same role as the rest of this page). A viewer sees everything read-only: no
  * bind/unbind/reset controls, but the detail expand still works (its own endpoint is
  * viewer role too).
+ *
+ * Phase 5 Task 0 spec-parity additions to that detail panel: firmware + online state
+ * (read straight off `monitor.meta.fw`/`.online`, stamped at cloud discovery — see
+ * shadow.ts's `diffToEvents` — so no extra request; a snapshot as of last discovery, not
+ * continuously live) and a "Check WiFi signal" button (editor-gated, like reset —
+ * `Kegtron.GetWiFiRssi` is a live device round-trip, not a cheap read) that reports the
+ * current RSSI in dBm, 502-gently on failure.
  */
 export function MonitorsPage() {
-  const [role, setRole] = useState<Role | null>(null);
-  const [units, setUnits] = useState<VolumeUnits>('us');
+  const { me, units } = useAdminContext();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
@@ -96,23 +118,13 @@ export function MonitorsPage() {
   const [unbindingId, setUnbindingId] = useState<number | null>(null);
   const [resetState, setResetState] = useState<ResetState | null>(null);
   const [resetting, setResetting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMe().then((result) => {
-      if (!cancelled && result.ok) setRole(result.data.role);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [rssiByMonitor, setRssiByMonitor] = useState<Record<number, RssiEntry>>({});
 
   useEffect(() => {
     let cancelled = false;
     getMenu().then((result) => {
       if (cancelled || !result.ok) return;
       setInitialTaps(result.data.taps);
-      setUnits(result.data.units ?? 'us');
     });
     return () => {
       cancelled = true;
@@ -137,7 +149,7 @@ export function MonitorsPage() {
     loadMonitors();
   }, [loadMonitors]);
 
-  const canEdit = role === 'editor' || role === 'admin';
+  const canEdit = me.role === 'editor' || me.role === 'admin';
 
   function loadTelemetry(monitorId: number) {
     setTelemetryByMonitor((prev) => ({ ...prev, [monitorId]: { status: 'loading', points: [] } }));
@@ -157,6 +169,27 @@ export function MonitorsPage() {
     if (next != null && !telemetryByMonitor[next]) {
       loadTelemetry(next);
     }
+  }
+
+  /** WiFi RSSI is a live, on-demand device round-trip (unlike temp/humidity, which is
+   * DB-backed telemetry history) — checked on click, not automatically on expand, so
+   * opening a Pro monitor's details doesn't silently wake every device on the network. */
+  function checkRssi(monitorId: number) {
+    setRssiByMonitor((prev) => ({ ...prev, [monitorId]: { status: 'loading', rssi: null, error: null } }));
+    getMonitorWifiRssi(monitorId).then((result) => {
+      setRssiByMonitor((prev) => ({
+        ...prev,
+        [monitorId]: result.ok
+          ? { status: 'loaded', rssi: result.data.rssi, error: null }
+          : {
+              status: 'error',
+              rssi: null,
+              error: result.status === 502
+                ? "Couldn't reach the Kegtron device. You can try again."
+                : result.message,
+            },
+      }));
+    });
   }
 
   function openBindPicker(monitor: Monitor) {
@@ -249,6 +282,7 @@ export function MonitorsPage() {
               const hasLiveKeg = tap?.keg != null && tap.keg.status === 'on_tap';
               const expanded = expandedMonitorId === monitor.id;
               const telemetry = telemetryByMonitor[monitor.id];
+              const rssi = rssiByMonitor[monitor.id];
               return (
                 <Fragment key={monitor.id}>
                   <tr data-testid="monitors-row" data-monitor-type={monitor.type}>
@@ -328,6 +362,37 @@ export function MonitorsPage() {
                   {expanded && isPro && (
                     <tr data-testid="monitors-row-details">
                       <td colSpan={7}>
+                        <div className="monitors-device-info" data-testid="monitors-device-info">
+                          <span className="monitors-device-info__item" data-testid="monitors-device-firmware">
+                            Firmware: {monitorFirmware(monitor) ?? 'Unknown'}
+                          </span>
+                          <span
+                            className="monitors-device-info__item"
+                            data-testid="monitors-device-online"
+                            data-online={monitorOnlineFromMeta(monitor) ?? undefined}
+                          >
+                            {(() => {
+                              const online = monitorOnlineFromMeta(monitor);
+                              return online === null ? 'Online: Unknown' : online ? 'Online' : 'Offline';
+                            })()}
+                          </span>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              data-testid="monitors-rssi-check"
+                              disabled={rssi?.status === 'loading'}
+                              onClick={() => checkRssi(monitor.id)}
+                            >
+                              {rssi?.status === 'loading' ? 'Checking…' : 'Check WiFi signal'}
+                            </button>
+                          )}
+                          {rssi?.status === 'loaded' && (
+                            <span data-testid="monitors-rssi-value">{rssi.rssi} dBm</span>
+                          )}
+                          {rssi?.status === 'error' && (
+                            <span role="alert" data-testid="monitors-rssi-error">{rssi.error}</span>
+                          )}
+                        </div>
                         {(!telemetry || telemetry.status === 'loading') && (
                           <p data-testid="monitors-telemetry-loading">Loading readings…</p>
                         )}

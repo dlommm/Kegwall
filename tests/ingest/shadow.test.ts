@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { parseDeviceShadow, diffToEvents } from '../../src/server/ingest/kegtron/shadow.js';
+import { parseDeviceShadow, diffToEvents, decodeUntappdLabelUrl } from '../../src/server/ingest/kegtron/shadow.js';
 
 // Fixture nesting mirrors docs/kegtron/kegtron-pro.v2.yaml's GetDeviceShadow response
 // schema exactly — it's a JSON transcription of the spec's own "Example KT-420" sample
@@ -44,7 +44,9 @@ describe('parseDeviceShadow', () => {
       volDispensedMl: 6934,
       lastServingMl: 262,
       dateTapped: '2020/03/28',
+      dateCleaned: '2020/03/01',
       enabled: true,
+      labelUrl: 0,
     });
 
     const port3 = d.ports[3]!;
@@ -98,7 +100,9 @@ describe('parseDeviceShadow', () => {
       volDispensedMl: 0,
       lastServingMl: null,
       dateTapped: null,
+      dateCleaned: null,
       enabled: true,
+      labelUrl: null,
     });
   });
 
@@ -134,7 +138,17 @@ describe('diffToEvents', () => {
       monitor: { type: 'kegtron_pro', identifier: 'device2', portIndex: 0 },
       serial: '2001011234',
       portName: 'King Cobra',
-      meta: { maker: 'Anheuser-Busch', style: 'Malt Liquor', abv: 6 },
+      meta: {
+        maker: 'Anheuser-Busch', style: 'Malt Liquor', abv: 6,
+        // Phase 5 Task 0: firmware + online state stamped into monitor meta at
+        // discovery, so the Monitors admin page can display them without a live RPC
+        // round-trip (see MonitorsPage.tsx / the doc comment on this branch below).
+        fw: '20200507', online: true,
+        // Phase 5 Task 4 (cleaning-due alert template ledger note): dateCleaned stamped
+        // the same way -- see the doc comment on this branch below for the "snapshot at
+        // discovery, not continuously live" caveat this inherits from fw/online.
+        dateCleaned: '2020/03/01',
+      },
     });
   });
 
@@ -187,5 +201,43 @@ describe('diffToEvents', () => {
       temp: 9.5,
       humidity: parsedFixture.humidity,
     });
+  });
+});
+
+describe('decodeUntappdLabelUrl', () => {
+  // 0x74b90 (hex portion) << 32 | 1937040 (decimal portion) — a synthetic value (no real
+  // device sample was available; every fixture's labelUrl is 0, i.e. "no label set" — see
+  // decodeUntappdLabelUrl's doc comment in shadow.ts).
+  const PACKED = 2053406686285456;
+  const EXPECTED_URL = 'https://untappd.akamaized.net/site/beer_logos/beer-1937040_74b90.jpeg';
+
+  it('decodes a packed 64-bit number into an Untappd beer-logo URL', () => {
+    expect(decodeUntappdLabelUrl(PACKED)).toBe(EXPECTED_URL);
+  });
+
+  it('accepts the same value as a string (avoids float-precision loss for larger values)', () => {
+    expect(decodeUntappdLabelUrl(String(PACKED))).toBe(EXPECTED_URL);
+  });
+
+  it('returns null for 0 ("no label set" per the spec)', () => {
+    expect(decodeUntappdLabelUrl(0)).toBeNull();
+    expect(decodeUntappdLabelUrl('0')).toBeNull();
+  });
+
+  it('returns null for null/undefined', () => {
+    expect(decodeUntappdLabelUrl(null)).toBeNull();
+    expect(decodeUntappdLabelUrl(undefined)).toBeNull();
+  });
+
+  it('returns null (never throws) for a negative or malformed value', () => {
+    expect(() => decodeUntappdLabelUrl(-5)).not.toThrow();
+    expect(decodeUntappdLabelUrl(-5)).toBeNull();
+    expect(decodeUntappdLabelUrl('not-a-number')).toBeNull();
+  });
+
+  it('accepts a baseUrl override (test-injectable, same pattern as kegtronBaseUrl)', () => {
+    expect(decodeUntappdLabelUrl(PACKED, 'http://127.0.0.1:9999')).toBe(
+      'http://127.0.0.1:9999/site/beer_logos/beer-1937040_74b90.jpeg',
+    );
   });
 });

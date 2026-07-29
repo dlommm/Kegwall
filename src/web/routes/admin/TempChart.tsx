@@ -43,16 +43,32 @@ function TempTooltip({ active, payload, units }: {
       <p className="stats-tooltip__value font-tabular">
         {point.temp != null ? formatTempC(point.temp, units) : 'No reading'}
       </p>
+      <p className="stats-tooltip__value font-tabular">
+        {point.humidity != null ? `${Math.round(point.humidity)}% humidity` : 'No humidity reading'}
+      </p>
     </div>
   );
 }
 
 /**
- * `/admin/stats`'s temperature line chart (Task 9) — one Kegtron Pro monitor's recent
- * readings. Brass primary line (same accent as every other chart on this page — a single
- * monitor's temp trend isn't a "comparison series" that would call for the binding
- * style's muted-gray treatment). Two empty states: no Pro monitor bound at all (nothing
- * to chart, ever) vs. a real monitor with no readings yet (transient, will fill in).
+ * `/admin/stats`'s temperature line chart (Task 9; Phase 5 Task 0 spec-parity item adds
+ * humidity) — one Kegtron Pro monitor's recent readings. Brass primary line for
+ * temperature (same accent as every other chart on this page); humidity is the muted-gray
+ * `var(--text-dim)` treatment the binding style reserves for a secondary/comparison
+ * series — it's real telemetry from the exact same device, not the chart's main subject.
+ *
+ * Humidity gets its OWN (right-side) Y axis rather than sharing temperature's, fixed to a
+ * 0-100% domain: temp (°C or °F) and humidity (%) are different units with unrelated
+ * numeric ranges, so forcing them onto one axis would either flatten humidity's real
+ * variation (if scaled to temp's typically-narrow range) or stretch temp's trend into
+ * near-invisibility (if scaled to humidity's fixed 0-100 range) — neither reads honestly.
+ * Two independently-scaled axes keep both trends visible on their own terms; the legend
+ * + differently-colored lines is what lets a viewer tell which axis is which. This is the
+ * project's only two-Y-axis chart, so this justification lives here rather than in a
+ * shared charts-style doc.
+ *
+ * Two empty states: no Pro monitor bound at all (nothing to chart, ever) vs. a real
+ * monitor with no readings yet (transient, will fill in).
  */
 export function TempChart({
   data, units, monitors, selectedMonitorId, onSelectMonitor,
@@ -61,6 +77,22 @@ export function TempChart({
     <div className="stats-chart" data-testid="temp-chart">
       <div className="stats-chart__header">
         <h3 className="stats-chart__title">Temperature</h3>
+        {/* A plain HTML legend (not Recharts' own <Legend>) — Recharts' Legend measures
+            its own rendered height via getBoundingClientRect to reserve chart space for
+            itself, which this project's jsdom test shim (see tests/web/setup.ts) stubs
+            uniformly for every element, "eating" the whole chart height in tests. A
+            static two-item key next to the title needs no such measurement and is
+            simpler for a chart that only ever has exactly two fixed series anyway. */}
+        <div className="stats-chart__legend" data-testid="temp-chart-legend">
+          <span className="stats-chart__legend-item">
+            <span className="stats-chart__legend-swatch" style={{ backgroundColor: 'var(--accent)' }} aria-hidden="true" />
+            Temperature
+          </span>
+          <span className="stats-chart__legend-item">
+            <span className="stats-chart__legend-swatch" style={{ backgroundColor: 'var(--text-dim)' }} aria-hidden="true" />
+            Humidity
+          </span>
+        </div>
         {monitors.length > 1 && (
           <select
             className="stats-chart__monitor-select"
@@ -92,13 +124,25 @@ export function TempChart({
               interval="preserveStartEnd"
             />
             <YAxis
-              className="font-tabular" width={40}
+              yAxisId="temp" className="font-tabular" width={40}
               tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
               tickFormatter={(v: number) => Math.round(v).toString()}
             />
+            <YAxis
+              yAxisId="humidity" orientation="right" className="font-tabular" width={36}
+              domain={[0, 100]}
+              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tickFormatter={(v: number) => `${v}%`}
+            />
             <Tooltip content={<TempTooltip units={units} />} />
             <Line
+              yAxisId="temp"
               type="monotone" dataKey="temp" name="Temperature" stroke="var(--accent)"
+              strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
+            />
+            <Line
+              yAxisId="humidity"
+              type="monotone" dataKey="humidity" name="Humidity" stroke="var(--text-dim)"
               strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
             />
           </LineChart>

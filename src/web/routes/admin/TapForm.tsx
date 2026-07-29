@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { Tap } from '../../../server/db/taps.js';
+import { getDrinkers, type PublicDrinker } from '../../lib/api';
 import { createTap, updateTap } from '../../lib/adminApi';
 
 interface TapFormProps {
@@ -9,15 +10,33 @@ interface TapFormProps {
   onCancel: () => void;
 }
 
-/** Create/edit form for a single tap (Task 5) — just `number` (a required positive
- * integer, unique per `taps.number`'s DB constraint — a duplicate 409s and is surfaced
- * as the server error below) and an optional display `name`. */
+/** Create/edit form for a single tap (Task 5; Phase 5 Task 0 adds the default-drinker
+ * picker) — `number` (a required positive integer, unique per `taps.number`'s DB
+ * constraint — a duplicate 409s and is surfaced as the server error below), an optional
+ * display `name`, and an optional default drinker (see db/taps.ts's `defaultDrinkerId`
+ * doc comment / core/state.ts's stamping logic). The drinker list reuses the same public
+ * `getDrinkers()` endpoint the wall's claim sheet uses — non-sensitive, viewer-safe data,
+ * and no admin-only listing endpoint exists for it. */
 export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
   const [number, setNumber] = useState(tap?.number != null ? String(tap.number) : '');
   const [name, setName] = useState(tap?.name ?? '');
+  const [defaultDrinkerId, setDefaultDrinkerId] = useState(
+    tap?.defaultDrinkerId != null ? String(tap.defaultDrinkerId) : '',
+  );
+  const [drinkers, setDrinkers] = useState<PublicDrinker[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDrinkers().then((result) => {
+      if (!cancelled && result.ok) setDrinkers(result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function validate(): string | null {
     const trimmed = number.trim();
@@ -37,7 +56,11 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
     }
     setValidationError(null);
 
-    const input = { number: Number(number.trim()), name: name.trim() || null };
+    const input = {
+      number: Number(number.trim()),
+      name: name.trim() || null,
+      defaultDrinkerId: defaultDrinkerId === '' ? null : Number(defaultDrinkerId),
+    };
     setSubmitting(true);
     const result = mode === 'edit' && tap
       ? await updateTap(tap.id, input)
@@ -82,6 +105,20 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
             onChange={(e) => setName(e.target.value)}
             placeholder="Optional"
           />
+        </label>
+
+        <label className="admin-field">
+          <span>Default drinker</span>
+          <select
+            data-testid="tap-form-default-drinker"
+            value={defaultDrinkerId}
+            onChange={(e) => setDefaultDrinkerId(e.target.value)}
+          >
+            <option value="">No default</option>
+            {drinkers.map((d) => (
+              <option key={d.id} value={d.id}>{d.displayName}</option>
+            ))}
+          </select>
         </label>
       </div>
 

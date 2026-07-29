@@ -16,6 +16,9 @@ import { statsRoutes } from './routes/stats.js';
 import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
 import { backupRoutes } from './routes/backup.js';
+import { channelsRoutes } from './routes/channels.js';
+import { automationsRoutes } from './routes/automations.js';
+import { notificationsRoutes } from './routes/notifications.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 import type { HostResolver } from './core/ssrfGuard.js';
@@ -85,10 +88,17 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   // no-op for every source's stop() (see e.g. cloudSource.ts's stop()), so this hook
   // is harmless for the many tests that build an app without starting sources.
   app.addHook('onClose', async () => {
+    // Engine first: no point stopping sources (which would otherwise trigger a wave of
+    // device_offline/state_changed events) while the engine could still be reacting to
+    // them. stop() is synchronous and safe even if start() was never called.
+    app.ctx.engine.stop();
     await app.ctx.sources.stopAll();
   });
   if (opts.startSources) {
     await app.ctx.sources.startAll();
+    // Started alongside sources, behind the same flag — see automation/engine.ts's top
+    // doc comment, point 6, for why this isn't unconditional like state.start().
+    app.ctx.engine.start();
   }
 
   await app.register(cookie);
@@ -119,10 +129,18 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                            // root instance, same reasoning as above
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
-  await kegtronRoutes(app); // direct call — see encapsulation note above
+  const dataDir = resolve(opts.dataDir ?? './data');
+  // kegtronRoutes' Pro import handler downloads a decoded labelUrl through the same
+  // SSRF-guarded path lookupRoutes uses (Phase 5 Task 0) — needs `dataDir` (for the
+  // labels directory) and the same test-injectable SSRF options, so it's registered
+  // here, after `dataDir` is resolved, rather than at its old spot above.
+  await kegtronRoutes(app, dataDir, {
+    timeoutMs: opts.lookupTimeoutMs,
+    resolveHost: opts.lookupResolveHost,
+    allowInsecureHosts: opts.lookupAllowInsecureHosts,
+  }); // direct call — see encapsulation note above
   await activityRoutes(app); // direct call — see encapsulation note above
   await statsRoutes(app);    // direct call — see encapsulation note above
-  const dataDir = resolve(opts.dataDir ?? './data');
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering
   await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above
@@ -137,6 +155,18 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                                            // restore handler relies on the @fastify/
                                            // multipart decorators uploadsRoutes registers
                                            // (see backup.ts's doc comment on MAX_RESTORE_BYTES)
+  await channelsRoutes(app);              // direct call — see encapsulation note above;
+                                           // Phase 5 Task 2's send-test endpoint, reads
+                                           // settings.alertChannels (already registered by
+                                           // the time app.ctx exists, no dataDir/ordering
+                                           // dependency on anything above)
+  await automationsRoutes(app);           // direct call — see encapsulation note above;
+                                           // Phase 5 Task 4's templates/CRUD/run-now
+                                           // routes, reads app.ctx.engine (already
+                                           // constructed by createContext by this point)
+  await notificationsRoutes(app);         // direct call — see encapsulation note above;
+                                           // Phase 5 Task 6's notification-center REST
+                                           // surface (list/ack/ack-all/unacked-count)
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

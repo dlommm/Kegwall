@@ -135,6 +135,109 @@ async function fetchJsonOrFail(url: string, timeoutMs: number): Promise<unknown 
 
 const importSchema = z.object({ labelUrl: z.string() });
 
+export interface LabelDownloadOptions {
+  timeoutMs: number;
+  /** Overrides the SSRF guard's DNS resolver — tests only; see `core/ssrfGuard.ts`. */
+  resolveHost?: HostResolver;
+  /** Test-only escape hatch for the SSRF guard — never set outside a test build; see
+   * `LookupRoutesOptions.allowInsecureHosts` below, which is where production/tests
+   * actually source this. */
+  allowInsecureHosts?: boolean;
+}
+
+export type LabelDownloadResult =
+  | { ok: true; path: string }
+  | { ok: false; status: number; error: string; message: string };
+
+/**
+ * Downloads `rawUrl` through the SSRF-guarded path (http(s)-scheme allowlist ->
+ * `assertPublicHost` -> `redirect: 'error'` -> size-capped streamed read -> magic-byte
+ * validation) and, on success, writes it into `labelsDir` via `writeLabelFile` — the
+ * exact same pipeline `POST /api/lookup/untappd/import` below has always used, extracted
+ * so `routes/kegtron.ts`'s Pro import handler (Phase 5 Task 0: decode a port's `labelUrl`
+ * into label art) can reuse it instead of re-implementing the guard. Every failure mode
+ * is returned as a typed result rather than thrown/replied-to directly, so callers can
+ * decide their own response shape (the untappd/import route below replies with it
+ * verbatim; the kegtron import route treats any failure as "just skip the label, still
+ * create the beer" — see that file).
+ */
+export async function downloadAndStoreLabel(
+  labelsDir: string,
+  rawUrl: string,
+  opts: LabelDownloadOptions,
+): Promise<LabelDownloadResult> {
+  let target: URL;
+  try {
+    target = new URL(rawUrl);
+  } catch {
+    return { ok: false, status: 400, error: 'validation', message: 'labelUrl must be a valid URL' };
+  }
+  // http(s) only — blocks file://, data:, and other schemes a raw fetch() would
+  // otherwise happily follow. The HOST-based SSRF guard (loopback/private/link-local/
+  // etc.) is the next check below, in core/ssrfGuard.ts.
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+    return { ok: false, status: 400, error: 'validation', message: 'labelUrl must be an http(s) URL' };
+  }
+
+  // SSRF guard: reject a literal loopback/private/link-local/unspecified/unique-local
+  // host outright, and reject a hostname that resolves to ANY such address — this is
+  // the only place in the app where a user-supplied host reaches a server-side fetch.
+  // See core/ssrfGuard.ts for the full range list and the documented DNS-rebinding
+  // caveat this check does NOT close (the fetch call below closes off the OTHER
+  // bypass this check alone doesn't — a validated public host 302ing to a private
+  // one — via `redirect: 'error'`, not by re-validating each hop).
+  if (!opts.allowInsecureHosts) {
+    try {
+      await assertPublicHost(target, { resolve: opts.resolveHost });
+    } catch (err) {
+      if (err instanceof ForbiddenHostError) {
+        return { ok: false, status: 400, error: 'validation', message: err.message };
+      }
+      throw err;
+    }
+  }
+
+  let res: Response;
+  try {
+    // redirect: 'error' — a validated PUBLIC host could still 302 to a private/
+    // loopback address (or to cloud metadata), and following it would silently bypass
+    // the assertPublicHost() check above entirely (that check never re-runs against
+    // the redirect target). Refusing every redirect outright closes this off
+    // completely, rather than trying to re-validate each hop.
+    res = await fetch(target, { signal: AbortSignal.timeout(opts.timeoutMs), redirect: 'error' });
+  } catch (err) {
+    if (isRedirectRejection(err)) {
+      return {
+        ok: false, status: 400, error: 'validation',
+        message: 'That image URL redirects somewhere else. Use the direct image URL.',
+      };
+    }
+    return { ok: false, status: 502, error: 'upstream_error', message: 'Could not download the label image' };
+  }
+  if (!res.ok) {
+    return { ok: false, status: 502, error: 'upstream_error', message: 'Could not download the label image' };
+  }
+
+  let buf: Buffer;
+  try {
+    buf = await readCapped(res, MAX_BYTES);
+  } catch (err) {
+    if (err instanceof PayloadTooLargeError) {
+      return { ok: false, status: 413, error: 'payload_too_large', message: 'Label image exceeds the 5MB limit' };
+    }
+    throw err;
+  }
+
+  const path = writeLabelFile(labelsDir, buf);
+  if (!path) {
+    return {
+      ok: false, status: 400, error: 'validation',
+      message: 'Downloaded file is not a supported image type — labels must be PNG, JPEG, or WebP',
+    };
+  }
+  return { ok: true, path };
+}
+
 /** True when `err` is the `TypeError` Node's fetch (undici) throws for `redirect:
  * 'error'` hitting a 3xx response — its `cause` is an `Error` whose message is exactly
  * "unexpected redirect" (verified directly against this Node/undici version; matched
@@ -228,75 +331,12 @@ export async function lookupRoutes(
     }
 
     const body = importSchema.parse(req.body ?? {});
-    let target: URL;
-    try {
-      target = new URL(body.labelUrl);
-    } catch {
-      return reply.code(400).send({ error: 'validation', message: 'labelUrl must be a valid URL' });
+    const result = await downloadAndStoreLabel(labelsDir, body.labelUrl, {
+      timeoutMs, resolveHost: opts.resolveHost, allowInsecureHosts: opts.allowInsecureHosts,
+    });
+    if (!result.ok) {
+      return reply.code(result.status).send({ error: result.error, message: result.message });
     }
-    // http(s) only — blocks file://, data:, and other schemes a raw fetch() would
-    // otherwise happily follow. The HOST-based SSRF guard (loopback/private/link-local/
-    // etc.) is the next check below, in core/ssrfGuard.ts.
-    if (target.protocol !== 'http:' && target.protocol !== 'https:') {
-      return reply.code(400).send({ error: 'validation', message: 'labelUrl must be an http(s) URL' });
-    }
-
-    // SSRF guard: reject a literal loopback/private/link-local/unspecified/unique-local
-    // host outright, and reject a hostname that resolves to ANY such address — this is
-    // the only place in the app where a user-supplied host reaches a server-side fetch.
-    // See core/ssrfGuard.ts for the full range list and the documented DNS-rebinding
-    // caveat this check does NOT close (the fetch call below closes off the OTHER
-    // bypass this check alone doesn't — a validated public host 302ing to a private
-    // one — via `redirect: 'error'`, not by re-validating each hop).
-    if (!opts.allowInsecureHosts) {
-      try {
-        await assertPublicHost(target, { resolve: opts.resolveHost });
-      } catch (err) {
-        if (err instanceof ForbiddenHostError) {
-          return reply.code(400).send({ error: 'validation', message: err.message });
-        }
-        throw err;
-      }
-    }
-
-    let res: Response;
-    try {
-      // redirect: 'error' — a validated PUBLIC host could still 302 to a private/
-      // loopback address (or to cloud metadata), and following it would silently bypass
-      // the assertPublicHost() check above entirely (that check never re-runs against
-      // the redirect target). Refusing every redirect outright closes this off
-      // completely, rather than trying to re-validate each hop.
-      res = await fetch(target, { signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
-    } catch (err) {
-      if (isRedirectRejection(err)) {
-        return reply.code(400).send({
-          error: 'validation',
-          message: 'That image URL redirects somewhere else. Use the direct image URL.',
-        });
-      }
-      return reply.code(502).send({ error: 'upstream_error', message: 'Could not download the label image' });
-    }
-    if (!res.ok) {
-      return reply.code(502).send({ error: 'upstream_error', message: 'Could not download the label image' });
-    }
-
-    let buf: Buffer;
-    try {
-      buf = await readCapped(res, MAX_BYTES);
-    } catch (err) {
-      if (err instanceof PayloadTooLargeError) {
-        return reply.code(413).send({ error: 'payload_too_large', message: 'Label image exceeds the 5MB limit' });
-      }
-      throw err;
-    }
-
-    const path = writeLabelFile(labelsDir, buf);
-    if (!path) {
-      return reply.code(400).send({
-        error: 'validation',
-        message: 'Downloaded file is not a supported image type — labels must be PNG, JPEG, or WebP',
-      });
-    }
-    return reply.code(201).send({ path });
+    return reply.code(201).send({ path: result.path });
   });
 }

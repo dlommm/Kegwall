@@ -1,9 +1,10 @@
 import type Database from 'better-sqlite3';
 import { monitorRefKey, type EventBus, type MonitorRef } from './events.js';
-import { listTaps } from '../db/taps.js';
+import { listTaps, getTap } from '../db/taps.js';
 import { getBeer, type Beer } from '../db/beers.js';
 import {
-  getActiveKegForTap, getLatestKickedKegForTap, applyDispense, recordPourTx, type Keg,
+  getActiveKegForTap, getLatestKickedKegForTap, applyDispense, recordPourTx,
+  computeLevelPct, computeRemainingMl, type Keg,
 } from '../db/kegs.js';
 import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
@@ -73,9 +74,17 @@ export class StateManager {
         if (tapId !== null) {
           const keg = getActiveKegForTap(this.db, tapId);
           if (keg) {
+            // Phase 5 Task 0 (admin pours management): a device-reported pour is always
+            // born unclaimed (no ingest path carries drinker attribution) — if this tap
+            // has a configured default drinker, stamp it at creation time instead of
+            // leaving the pour to sit unclaimed until someone claims it via the public
+            // wall/menu claim flow (or an admin reassigns it later, see
+            // routes/crud.ts's PATCH /api/pours/:id/drinker).
+            const tap = getTap(this.db, tapId);
             recordPourTx(this.db, {
               kegId: keg.id, ts: e.ts, volumeMl: e.volumeMl,
               durationMs: e.durationMs, source: e.source,
+              drinkerId: tap?.defaultDrinkerId ?? null,
             });
           }
         }
@@ -117,11 +126,8 @@ export class StateManager {
         keg: keg
           ? {
               ...keg,
-              levelPct: keg.volStartMl > 0
-                ? Math.max(0, Math.min(100,
-                    Math.round(((keg.volStartMl - keg.volDispensedMl) / keg.volStartMl) * 1000) / 10))
-                : 0,
-              remainingMl: Math.max(0, keg.volStartMl - keg.volDispensedMl),
+              levelPct: computeLevelPct(keg.volStartMl, keg.volDispensedMl),
+              remainingMl: computeRemainingMl(keg.volStartMl, keg.volDispensedMl),
             }
           : null,
         lastPour: lastPourRow ? { ts: lastPourRow.ts, volumeMl: lastPourRow.volumeMl } : null,

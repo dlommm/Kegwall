@@ -6,9 +6,10 @@ import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import { getActivity, getSources, getPoursSince } from '../../lib/adminApi';
 import { formatActivityText } from '../../lib/activityText';
-import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
+import { formatVolumeMl } from '../../lib/units';
 import { srmToColor } from '../../lib/srm';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
+import { useAdminContext } from './useAdminContext';
 
 /** How often source health + the activity feed + today's pour totals re-poll — there's
  * no push channel for any of these (unlike taps, which ride the existing `/ws` snapshot
@@ -45,22 +46,22 @@ function tapPillColor(isKicked: boolean, srm: number | null): string {
  * tap pill's fill color), not the wall's full `LiquidFill` treatment.
  */
 export function DashboardPage() {
+  const { units } = useAdminContext();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
-  const [units, setUnits] = useState<VolumeUnits>('us');
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [pourCount, setPourCount] = useState(0);
   const [pourVolumeMl, setPourVolumeMl] = useState(0);
 
-  // Initial taps snapshot + display units come from the same public menu payload
-  // MenuPage/WallPage use; live updates then ride useTapStates' own /ws subscription
-  // below — one live-data story for every surface that shows taps.
+  // Initial taps snapshot comes from the same public menu payload MenuPage/WallPage use
+  // (live updates then ride useTapStates' own /ws subscription below — one live-data
+  // story for every surface that shows taps); display units come from AdminLayout's
+  // Outlet context instead (useAdminContext) — see that hook's doc comment.
   useEffect(() => {
     let cancelled = false;
     getMenu().then((result) => {
       if (cancelled || !result.ok) return;
       setInitialTaps(result.data.taps);
-      setUnits(result.data.units ?? 'us');
     });
     return () => {
       cancelled = true;

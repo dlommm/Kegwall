@@ -36,6 +36,47 @@ export interface EventMap {
     healthy: boolean; detail: string; ts: string;
   };
   state_changed: { scope: 'taps' | 'notifications' | 'sources'; ts: string };
+  /** Phase 5 Task 3: emitted by `routes/crud.ts` whenever a keg's status transitions to
+   * `on_tap` — from `POST /api/taps/:id/swap` (both the "kick the incumbent, tap a new
+   * or promoted-on-deck keg" swap wizard path) and `PATCH /api/kegs/:id` (a manual status
+   * flip to `on_tap`). Feeds the automation engine's `keg_tapped` trigger — see
+   * `automation/engine.ts`. Not emitted by `POST /api/kegs`'s bare create path (a direct
+   * on_tap creation with no incumbent to kick); see that engine's doc comment for why. */
+  keg_tapped: { tapId: number; kegId: number; beerId: number; ts: string };
+  /** The `keg_kicked` counterpart to `keg_tapped` above — emitted for the OUTGOING keg
+   * whenever a swap kicks an incumbent on_tap keg, and from `PATCH /api/kegs/:id` on a
+   * manual status flip to `kicked`. */
+  keg_kicked: { tapId: number; kegId: number; beerId: number; ts: string };
+  /** Phase 5 Task 3: emitted by the automation engine's `wall_banner` action. Task 4's WS
+   * layer relays this to wall clients as `{type:'banner', ...}` — this event is the bus
+   * hand-off point only; nothing in this task subscribes to it yet. */
+  wall_banner: { text: string; kind: 'info' | 'celebrate' | 'warning'; durationMs?: number };
+  /** Phase 5 Task 3: emitted by the automation engine's `party_mode` action. Task 4's WS
+   * layer relays this to wall clients as `{type:'theme_override', ...}` with a
+   * client-side countdown revert. */
+  wall_theme_override: { minutes: number };
+  /** Phase 5 Task 3: reload hook for the automation engine's in-memory rule cache — the
+   * engine subscribes to this and calls `reloadRules()`. Nothing emits it yet (Task 6's
+   * automations CRUD routes don't exist yet); `engine.reloadRules()` remains directly
+   * callable in the meantime. See `automation/engine.ts`'s doc comment for the full
+   * "why this exists before anything emits it" reasoning. */
+  automations_changed: { ts: string };
+  /** Phase 5 Task 5: emitted by the automation engine (`considerFire`, see
+   * `automation/engine.ts`) whenever an ALERT rule (`isAlert: true`) actually fires (not
+   * merely matches -- suppressed-by-cooldown/runaway fires never reach this). This is a
+   * separate hand-off point from the `notify` action's channel dispatch (`sendToChannels`)
+   * so a consumer that only cares "an alert just fired" doesn't need to masquerade as a
+   * notification channel. Currently consumed by `ingest/haPublisher.ts` (Task 5), which
+   * relays it to `<appTopicPrefix>/event/alert`. `title`/`body` are the rule's first
+   * `notify` action's rendered title/body when it has one, else `{title: rule.name, body:
+   * ''}` -- see engine.ts's `alertTitleBodyOf`. `tapId` is the triggering event's resolved
+   * tap (undefined when the trigger has no tap context, e.g. `app_startup`/`schedule`).
+   * NOT emitted on resolve (`handleResolve`) -- HA's event topic mirrors "an alert fired",
+   * not "an alert resolved"; there was no plan requirement for the latter. */
+  alert_fired: {
+    ruleId: number; ruleName: string; severity: 'info' | 'warning' | 'critical';
+    title: string; body: string; tapId?: number; ts: string;
+  };
 }
 
 type Handler<E> = (payload: E) => void;

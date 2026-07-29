@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
+import { unackedCount } from '../db/notificationsRepo.js';
 
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
@@ -20,12 +21,44 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
   const snapshot = () =>
     JSON.stringify({ type: 'snapshot', taps: app.ctx.state.getTapStates() });
 
-  app.ctx.bus.on('state_changed', (e) => {
-    if (e.scope !== 'taps') return;
-    const msg = snapshot();
+  /** Sends `msg` to every currently-connected client (skipping any not `OPEN` -- a socket
+   * mid-close/error shouldn't throw the broadcast off for the rest). Shared by every
+   * broadcast below (snapshot, ping, banner, theme_override, notifications) so "loop over
+   * `clients`" has exactly one implementation. */
+  const broadcast = (msg: string): void => {
     for (const socket of clients) {
       if (socket.readyState === socket.OPEN) socket.send(msg);
     }
+  };
+
+  app.ctx.bus.on('state_changed', (e) => {
+    if (e.scope === 'taps') {
+      broadcast(snapshot());
+    } else if (e.scope === 'notifications') {
+      // Phase 5 Task 4: admin bell-badge nudge (Task 6's notification center) -- the
+      // wall/menu clients simply ignore an unrecognized `type` (see useTapStates.ts),
+      // so broadcasting this to every socket (not just admin-page ones -- there's no
+      // per-connection routing here) is harmless for non-admin listeners.
+      broadcast(JSON.stringify({ type: 'notifications', unackedCount: unackedCount(app.ctx.db) }));
+    }
+    // scope 'sources' is intentionally not relayed over this feed (unchanged from before
+    // wall_banner/wall_theme_override/notifications existed).
+  });
+
+  // Phase 5 Task 4: the automation engine's `wall_banner`/`party_mode` actions emit these
+  // bus events (automation/engine.ts); this is the relay hand-off to wall clients. Both
+  // broadcast to EVERY connected client unconditionally (no per-wall scoping exists on
+  // this feed today -- same as the snapshot/ping broadcasts above).
+  app.ctx.bus.on('wall_banner', (e) => {
+    const msg: { type: 'banner'; text: string; kind: string; durationMs?: number } = {
+      type: 'banner', text: e.text, kind: e.kind,
+    };
+    if (e.durationMs !== undefined) msg.durationMs = e.durationMs;
+    broadcast(JSON.stringify(msg));
+  });
+
+  app.ctx.bus.on('wall_theme_override', (e) => {
+    broadcast(JSON.stringify({ type: 'theme_override', minutes: e.minutes }));
   });
 
   // Heartbeat (Phase 3 final review, finding I1): ingest sources only trigger
@@ -38,10 +71,7 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
   // that build a fresh app per case).
   const pingIntervalMs = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
   const pingInterval = setInterval(() => {
-    const msg = JSON.stringify({ type: 'ping', ts: new Date().toISOString() });
-    for (const socket of clients) {
-      if (socket.readyState === socket.OPEN) socket.send(msg);
-    }
+    broadcast(JSON.stringify({ type: 'ping', ts: new Date().toISOString() }));
   }, pingIntervalMs);
   app.addHook('onClose', () => {
     clearInterval(pingInterval);

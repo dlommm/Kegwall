@@ -18,6 +18,13 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { label: 'Taps & kegs', path: '/admin/taps' },
   { label: 'Monitors', path: '/admin/monitors' },
   { label: 'Walls', path: '/admin/walls' },
+  // Phase 5 Task 6: viewer-visible (read-only builder; see AutomationsPage's own role
+  // gate), NOT adminOnly — matches the plan's "editor manages automations" Global
+  // Constraint (editor, not admin, is the mutation-gate role; a viewer can still see the
+  // page). Notifications has no nav entry of its own — reached via the header bell's
+  // "View all" link (see NotificationBell.tsx) or /admin/notifications directly, the same
+  // "not every route needs a permanent sidebar slot" precedent as /admin/pours.
+  { label: 'Automations', path: '/admin/automations' },
   { label: 'Users', path: '/admin/users', adminOnly: true },
   { label: 'Settings', path: '/admin/settings', adminOnly: true },
   { label: 'Stats', path: '/admin/stats' },

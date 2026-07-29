@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import {
+  describe, expect, it, vi, afterEach,
+} from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../../src/web/App';
@@ -39,5 +41,29 @@ describe('App', () => {
     );
 
     expect(screen.getByText(/menu/i)).toBeInTheDocument();
+  });
+
+  // Phase 5 Task 0: /admin/* is lazy-loaded (React.lazy + Suspense — see App.tsx) so a
+  // wall/menu client never fetches the admin chunk. Proves the boundary actually resolves
+  // to a real admin page, not just that it doesn't crash — the async import must settle
+  // before LoginPage (which itself does its own async needs-setup probe) appears.
+  describe('/admin/* (lazy)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('lazily resolves to the real admin route tree, e.g. rendering LoginPage at /admin/login', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true, status: 200, json: async () => ({ needsSetup: false }),
+      } as Response));
+
+      render(
+        <MemoryRouter initialEntries={['/admin/login']}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByTestId('login-page')).toBeInTheDocument();
+    });
   });
 });

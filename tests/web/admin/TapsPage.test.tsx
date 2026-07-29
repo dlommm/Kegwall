@@ -2,24 +2,24 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { TapsPage } from '../../../src/web/routes/admin/TapsPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
-  getMe, listBeers, listKegs, listMonitors, deleteTap,
+  listBeers, listKegs, listMonitors, deleteTap, listTaps,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
-import type { User } from '../../../src/server/db/users';
 import type { Tap } from '../../../src/server/db/taps';
+import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/api', () => ({ getMenu: vi.fn() }));
 vi.mock('../../../src/web/lib/useTapStates', () => ({ useTapStates: vi.fn() }));
 vi.mock('../../../src/web/lib/adminApi', () => ({
-  getMe: vi.fn(),
   listBeers: vi.fn(),
   listKegs: vi.fn(),
   listMonitors: vi.fn(),
+  listTaps: vi.fn(),
   deleteTap: vi.fn(),
 }));
 
@@ -27,11 +27,15 @@ vi.mock('../../../src/web/routes/admin/TapForm', () => ({
   TapForm: (props: { mode: string; tap: Tap | null; onSaved: (t: Tap) => void; onCancel: () => void }) => (
     <div data-testid="mock-tap-form">
       <span data-testid="mock-tap-form-mode">{props.mode}</span>
-      <span data-testid="mock-tap-form-target">{props.tap ? `${props.tap.id}:${props.tap.number}:${props.tap.name}` : ''}</span>
+      <span data-testid="mock-tap-form-target">
+        {props.tap ? `${props.tap.id}:${props.tap.number}:${props.tap.name}:${props.tap.defaultDrinkerId}` : ''}
+      </span>
       <button
         type="button"
         data-testid="mock-tap-form-save"
-        onClick={() => props.onSaved({ id: 1, number: 1, name: 'Saved' })}
+        onClick={() => props.onSaved({
+          id: 1, number: 1, name: 'Saved', defaultDrinkerId: null,
+        })}
       >
         Save
       </button>
@@ -88,21 +92,14 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   };
 }
 
-function makeUser(role: User['role']): User {
-  return {
-    id: 1, username: 'u', displayName: 'U', role, isDrinker: false, avatarColor: null,
-    createdAt: '2026-07-28T00:00:00.000Z',
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('editor') });
   (getMenu as Mock).mockResolvedValue({ ok: true, data: { siteName: 'X', taps: [], units: 'us' } });
   (useTapStates as Mock).mockReturnValue({ taps: [], stale: false, connected: true, reconnectCount: 0 });
   (listBeers as Mock).mockResolvedValue({ ok: true, data: [] });
   (listKegs as Mock).mockResolvedValue({ ok: true, data: [] });
   (listMonitors as Mock).mockResolvedValue({ ok: true, data: [] });
+  (listTaps as Mock).mockResolvedValue({ ok: true, data: [] });
 });
 
 describe('TapsPage', () => {
@@ -122,7 +119,7 @@ describe('TapsPage', () => {
       ],
       stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     const rows = await screen.findAllByTestId('taps-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('1');
@@ -144,21 +141,20 @@ describe('TapsPage', () => {
       })],
       stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     const row = await screen.findByTestId('taps-row');
     expect(row).toHaveAttribute('data-kicked', 'true');
     expect(row).toHaveTextContent('Kicked');
   });
 
   it('shows a quiet empty state with no taps', async () => {
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     expect(await screen.findByTestId('taps-empty')).toHaveTextContent('No taps yet.');
   });
 
   it('a viewer sees a read-only list: no Add/Swap/Edit/Delete controls, but can still expand details', async () => {
-    (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('viewer') });
     (useTapStates as Mock).mockReturnValue({ taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0 });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />, adminContext('viewer'));
     await screen.findAllByTestId('taps-row');
     expect(screen.queryByTestId('taps-add-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('taps-row-swap')).not.toBeInTheDocument();
@@ -172,7 +168,7 @@ describe('TapsPage', () => {
   });
 
   it('an editor sees "Add tap", which opens the create form', async () => {
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await flush();
     fireEvent.click(screen.getByTestId('taps-add-button'));
     expect(screen.getByTestId('mock-tap-form-mode')).toHaveTextContent('create');
@@ -182,15 +178,30 @@ describe('TapsPage', () => {
     (useTapStates as Mock).mockReturnValue({
       taps: [makeTap(3, { tapNumber: 3, tapName: 'Right' })], stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-edit'));
     expect(screen.getByTestId('mock-tap-form-mode')).toHaveTextContent('edit');
-    expect(screen.getByTestId('mock-tap-form-target')).toHaveTextContent('3:3:Right');
+    expect(screen.getByTestId('mock-tap-form-target')).toHaveTextContent('3:3:Right:null');
+  });
+
+  it("resolves the tap's real defaultDrinkerId (from listTaps, not the live /ws tap state, "
+    + "which doesn't carry it) into the edit form target", async () => {
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(3, { tapNumber: 3, tapName: 'Right' })], stale: false, connected: true, reconnectCount: 0,
+    });
+    (listTaps as Mock).mockResolvedValue({
+      ok: true, data: [{ id: 3, number: 3, name: 'Right', defaultDrinkerId: 42 }],
+    });
+    renderAdminPage(<TapsPage />);
+    await screen.findAllByTestId('taps-row');
+    await flush();
+    fireEvent.click(screen.getByTestId('taps-row-edit'));
+    expect(screen.getByTestId('mock-tap-form-target')).toHaveTextContent('3:3:Right:42');
   });
 
   it('saving the tap form closes it and reloads catalog data', async () => {
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await flush();
     fireEvent.click(screen.getByTestId('taps-add-button'));
     expect(listBeers).toHaveBeenCalledTimes(1);
@@ -205,7 +216,7 @@ describe('TapsPage', () => {
       taps: [makeTap(2, { tapNumber: 2, tapName: 'Right' })], stale: false, connected: true, reconnectCount: 0,
     });
     (deleteTap as Mock).mockResolvedValue({ ok: true, data: null });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-delete'));
     const confirm = screen.getByTestId('taps-delete-confirm');
@@ -225,7 +236,7 @@ describe('TapsPage', () => {
     (deleteTap as Mock).mockResolvedValue({
       ok: false, status: 409, message: "tap 2 has keg history (3 keg(s) on record) and can't be deleted",
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-delete'));
     fireEvent.click(screen.getByTestId('taps-delete-confirm-button'));
@@ -238,7 +249,7 @@ describe('TapsPage', () => {
     (useTapStates as Mock).mockReturnValue({
       taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-swap'));
     expect(screen.getByTestId('mock-swap-wizard-tap')).toHaveTextContent('1');
@@ -249,7 +260,7 @@ describe('TapsPage', () => {
     (useTapStates as Mock).mockReturnValue({
       taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-expand'));
     fireEvent.click(screen.getByTestId('mock-on-deck-promote'));
@@ -260,7 +271,7 @@ describe('TapsPage', () => {
     (useTapStates as Mock).mockReturnValue({
       taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-expand'));
     expect(screen.getByTestId('mock-on-deck-refresh-key')).toHaveTextContent('0');
@@ -276,7 +287,7 @@ describe('TapsPage', () => {
     (useTapStates as Mock).mockReturnValue({
       taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0,
     });
-    render(<TapsPage />);
+    renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     fireEvent.click(screen.getByTestId('taps-row-swap'));
     fireEvent.click(screen.getByTestId('mock-swap-wizard-close'));

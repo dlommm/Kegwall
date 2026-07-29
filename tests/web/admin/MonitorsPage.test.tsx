@@ -2,25 +2,25 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { MonitorsPage } from '../../../src/web/routes/admin/MonitorsPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
-  getMe, listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume,
+  listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume, getMonitorWifiRssi,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
-import type { User } from '../../../src/server/db/users';
 import type { Monitor } from '../../../src/server/db/monitors';
+import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/api', () => ({ getMenu: vi.fn() }));
 vi.mock('../../../src/web/lib/useTapStates', () => ({ useTapStates: vi.fn() }));
 vi.mock('../../../src/web/lib/adminApi', () => ({
-  getMe: vi.fn(),
   listMonitors: vi.fn(),
   bindMonitor: vi.fn(),
   getMonitorTelemetry: vi.fn(),
   resetKegtronVolume: vi.fn(),
+  getMonitorWifiRssi: vi.fn(),
 }));
 
 async function flush() {
@@ -52,20 +52,13 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   };
 }
 
-function makeUser(role: User['role']): User {
-  return {
-    id: 1, username: 'u', displayName: 'U', role, isDrinker: false, avatarColor: null,
-    createdAt: '2026-07-28T00:00:00.000Z',
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('editor') });
   (getMenu as Mock).mockResolvedValue({ ok: true, data: { siteName: 'X', taps: [], units: 'us' } });
   (useTapStates as Mock).mockReturnValue({ taps: [], stale: false, connected: true, reconnectCount: 0 });
   (listMonitors as Mock).mockResolvedValue({ ok: true, data: [] });
   (getMonitorTelemetry as Mock).mockResolvedValue({ ok: true, data: [] });
+  (getMonitorWifiRssi as Mock).mockResolvedValue({ ok: true, data: { rssi: -47 } });
 });
 
 describe('MonitorsPage', () => {
@@ -77,7 +70,7 @@ describe('MonitorsPage', () => {
         makeMonitor(2, { type: 'kegtron_gen1', identifier: 'aa:bb:cc', serial: null, portIndex: 0 }),
       ],
     });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     const rows = await screen.findAllByTestId('monitors-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('Kegtron Pro');
@@ -89,7 +82,7 @@ describe('MonitorsPage', () => {
   });
 
   it('shows a quiet empty state with no monitors', async () => {
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     expect(await screen.findByTestId('monitors-empty')).toBeInTheDocument();
   });
 
@@ -113,7 +106,7 @@ describe('MonitorsPage', () => {
       ],
       stale: false, connected: true, reconnectCount: 0,
     });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     const rows = await screen.findAllByTestId('monitors-row');
     expect(rows[0]).toHaveTextContent('Not bound');
     expect(rows[1]).toHaveTextContent('Left');
@@ -121,9 +114,8 @@ describe('MonitorsPage', () => {
   });
 
   it('a viewer sees a read-only table: no bind/unbind/reset controls, but can still open Pro details', async () => {
-    (getMe as Mock).mockResolvedValue({ ok: true, data: makeUser('viewer') });
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />, adminContext('viewer'));
     await screen.findAllByTestId('monitors-row');
     expect(screen.queryByTestId('monitors-row-bind')).not.toBeInTheDocument();
     expect(screen.queryByTestId('monitors-row-unbind')).not.toBeInTheDocument();
@@ -138,7 +130,7 @@ describe('MonitorsPage', () => {
       stale: false, connected: true, reconnectCount: 0,
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { tapId: 5 }) });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-bind'));
@@ -159,7 +151,7 @@ describe('MonitorsPage', () => {
       taps: [makeTap(5, { tapName: 'Left' })], stale: false, connected: true, reconnectCount: 0,
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { tapId: null }) });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-unbind'));
@@ -175,7 +167,7 @@ describe('MonitorsPage', () => {
       taps: [makeTap(5, { tapName: 'Left' })], stale: false, connected: true, reconnectCount: 0,
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: false, status: 0, message: 'Network error' });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-unbind'));
@@ -192,7 +184,7 @@ describe('MonitorsPage', () => {
       taps: [makeTap(5, { tapName: 'Left' })], stale: false, connected: true, reconnectCount: 0,
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: false, status: 400, message: 'Refers to a record that does not exist' });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-bind'));
@@ -205,7 +197,7 @@ describe('MonitorsPage', () => {
 
   it("a Gen 1 monitor has no Details/expand or reset control (no temp/humidity, not mdash-backed)", async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_gen1' })] });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
     expect(screen.queryByTestId('monitors-row-expand')).not.toBeInTheDocument();
     expect(screen.queryByTestId('monitors-row-reset')).not.toBeInTheDocument();
@@ -220,7 +212,7 @@ describe('MonitorsPage', () => {
         { ts: '2026-07-27T21:00:00.000Z', temp: 4.0, humidity: 45 },
       ],
     });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-expand'));
@@ -234,7 +226,7 @@ describe('MonitorsPage', () => {
   it('expanding a Pro monitor with no telemetry yet shows an empty state, not a broken chart', async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
     (getMonitorTelemetry as Mock).mockResolvedValue({ ok: true, data: [] });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-expand'));
@@ -246,7 +238,7 @@ describe('MonitorsPage', () => {
   it('reset volume: the confirm names the monitor and states the consequence, then succeeds', async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(7, { type: 'kegtron_pro', identifier: 'device-7' })] });
     (resetKegtronVolume as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-reset'));
@@ -264,7 +256,7 @@ describe('MonitorsPage', () => {
   it('reset volume: a 502 shows a gentle message and keeps the retry action available', async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(7, { type: 'kegtron_pro' })] });
     (resetKegtronVolume as Mock).mockResolvedValue({ ok: false, status: 502, message: 'Failed to reset volume via mdash.net (status 503)' });
-    render(<MonitorsPage />);
+    renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-row');
 
     fireEvent.click(screen.getByTestId('monitors-row-reset'));
@@ -279,5 +271,72 @@ describe('MonitorsPage', () => {
     await flush();
     expect(resetKegtronVolume).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('monitors-reset-done')).toBeInTheDocument();
+  });
+
+  it("a Pro monitor's details show firmware + online state from monitor meta", async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true,
+      data: [makeMonitor(1, { type: 'kegtron_pro', meta: { fw: '20200507', online: true } })],
+    });
+    renderAdminPage(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-device-firmware')).toHaveTextContent('20200507');
+    expect(screen.getByTestId('monitors-device-online')).toHaveTextContent('Online');
+  });
+
+  it('shows "Unknown" firmware/online for a Pro monitor with no such meta yet', async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true, data: [makeMonitor(1, { type: 'kegtron_pro', meta: {} })],
+    });
+    renderAdminPage(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-device-firmware')).toHaveTextContent('Unknown');
+    expect(screen.getByTestId('monitors-device-online')).toHaveTextContent('Unknown');
+  });
+
+  it('Check WiFi signal fetches and shows the RSSI in dBm', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
+    (getMonitorWifiRssi as Mock).mockResolvedValue({ ok: true, data: { rssi: -52 } });
+    renderAdminPage(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-rssi-check'));
+    await flush();
+
+    expect(getMonitorWifiRssi).toHaveBeenCalledWith(1);
+    expect(screen.getByTestId('monitors-rssi-value')).toHaveTextContent('-52 dBm');
+  });
+
+  it('Check WiFi signal shows a gentle message on a 502', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
+    (getMonitorWifiRssi as Mock).mockResolvedValue({ ok: false, status: 502, message: 'boom' });
+    renderAdminPage(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-rssi-check'));
+    await flush();
+
+    expect(screen.getByTestId('monitors-rssi-error')).toHaveTextContent(/couldn.t reach/i);
+  });
+
+  it('a viewer sees no "Check WiFi signal" control', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
+    renderAdminPage(<MonitorsPage />, adminContext('viewer'));
+    await screen.findAllByTestId('monitors-row');
+
+    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    await flush();
+
+    expect(screen.queryByTestId('monitors-rssi-check')).not.toBeInTheDocument();
   });
 });

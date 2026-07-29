@@ -5,11 +5,16 @@ import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { TapForm } from '../../../src/web/routes/admin/TapForm';
 import { createTap, updateTap } from '../../../src/web/lib/adminApi';
+import { getDrinkers } from '../../../src/web/lib/api';
 import type { Tap } from '../../../src/server/db/taps';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   createTap: vi.fn(),
   updateTap: vi.fn(),
+}));
+
+vi.mock('../../../src/web/lib/api', () => ({
+  getDrinkers: vi.fn(),
 }));
 
 async function flush() {
@@ -22,6 +27,13 @@ async function flush() {
 describe('TapForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (getDrinkers as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        { id: 1, displayName: 'Bob', avatarColor: null },
+        { id: 2, displayName: 'Sam', avatarColor: null },
+      ],
+    });
   });
 
   it('requires a tap number before submitting', async () => {
@@ -41,20 +53,24 @@ describe('TapForm', () => {
     expect(createTap).not.toHaveBeenCalled();
   });
 
-  it('submits a valid create form with a null name when blank', async () => {
-    const created: Tap = { id: 1, number: 3, name: null };
+  it('submits a valid create form with a null name and no default drinker when blank', async () => {
+    const created: Tap = {
+      id: 1, number: 3, name: null, defaultDrinkerId: null,
+    };
     (createTap as Mock).mockResolvedValue({ ok: true, data: created });
     const onSaved = vi.fn();
     render(<TapForm mode="create" tap={null} onSaved={onSaved} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByTestId('tap-form-number'), { target: { value: '3' } });
     fireEvent.click(screen.getByTestId('tap-form-submit'));
     await flush();
-    expect(createTap).toHaveBeenCalledWith({ number: 3, name: null });
+    expect(createTap).toHaveBeenCalledWith({ number: 3, name: null, defaultDrinkerId: null });
     expect(onSaved).toHaveBeenCalledWith(created);
   });
 
   it('pre-fills from the given tap in edit mode and PATCHes on submit', async () => {
-    const tap: Tap = { id: 5, number: 2, name: 'Left' };
+    const tap: Tap = {
+      id: 5, number: 2, name: 'Left', defaultDrinkerId: null,
+    };
     (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
     const onSaved = vi.fn();
     render(<TapForm mode="edit" tap={tap} onSaved={onSaved} onCancel={vi.fn()} />);
@@ -63,8 +79,31 @@ describe('TapForm', () => {
     fireEvent.change(screen.getByTestId('tap-form-name'), { target: { value: 'Right' } });
     fireEvent.click(screen.getByTestId('tap-form-submit'));
     await flush();
-    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Right' });
+    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Right', defaultDrinkerId: null });
     expect(onSaved).toHaveBeenCalledWith(tap);
+  });
+
+  it('pre-fills the default-drinker picker from the given tap in edit mode, and submits a changed selection', async () => {
+    const tap: Tap = {
+      id: 5, number: 2, name: 'Left', defaultDrinkerId: 1,
+    };
+    (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
+    render(<TapForm mode="edit" tap={tap} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    await flush();
+    expect(screen.getByTestId('tap-form-default-drinker')).toHaveValue('1');
+
+    fireEvent.change(screen.getByTestId('tap-form-default-drinker'), { target: { value: '2' } });
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Left', defaultDrinkerId: 2 });
+  });
+
+  it('the default-drinker picker offers "No default" plus every drinker', async () => {
+    render(<TapForm mode="create" tap={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    await flush();
+    const select = screen.getByTestId('tap-form-default-drinker');
+    const options = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
+    expect(options).toEqual(['No default', 'Bob', 'Sam']);
   });
 
   it('surfaces a server error (e.g. a duplicate tap number) without calling onSaved', async () => {

@@ -24,6 +24,11 @@ export const settingsSchema = z.object({
   // credential lives in either URL) and neither is surfaced in any settings form.
   openBreweryBaseUrl: z.string().default('https://api.openbrewerydb.org'),
   untappdBaseUrl: z.string().default('https://api.untappd.com'),
+  // Same hidden, test-injectable pattern as the two above — the CDN host
+  // `decodeUntappdLabelUrl` (ingest/kegtron/shadow.ts) reconstructs a Pro import's label
+  // image URL against (Phase 5 Task 0's labelUrl-decode spec-parity item). Not a secret;
+  // no admin UI form.
+  untappdImageBaseUrl: z.string().default('https://untappd.akamaized.net'),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
@@ -57,6 +62,36 @@ export const settingsSchema = z.object({
     .object({ start: z.string(), end: z.string() }) // "22:00" / "08:00"
     .nullable()
     .default(null),
+  // Phase 5 Task 2: per-channel config for the automation engine's notify action
+  // (`notify/channels/*.ts`). Each channel is independently optional (a site might only
+  // configure ntfy, or nothing at all) AND independently nullable (explicit `null` clears
+  // a previously-configured channel, same "explicit null clears, omitted key preserves"
+  // idiom as `taps.defaultDrinkerId` / `automations.ts`'s `alertConfig`). Secrets:
+  // `pushover.token`, `smtp.password`, `discord.webhookUrl`, `slack.webhookUrl` (a
+  // Discord/Slack webhook URL IS the credential — an unguessable token lives in its
+  // path) — see `SECRET_KEYS`/`assertNoMaskedSecret`/`sanitizePatch`/`masked()` below for
+  // how each is masked, following the existing `mqtt.password`/`untappd.clientSecret`
+  // precedent one level deeper (a secret nested inside a nested object).
+  alertChannels: z
+    .object({
+      ntfy: z.object({ serverUrl: z.string().url(), topic: z.string().min(1) }).nullable().optional(),
+      pushover: z.object({ token: z.string().min(1), user: z.string().min(1) }).nullable().optional(),
+      smtp: z
+        .object({
+          host: z.string().min(1),
+          port: z.number().int().positive(),
+          secure: z.boolean(),
+          user: z.string().optional(),
+          password: z.string().optional(),
+          from: z.string().min(1),
+          to: z.string().min(1),
+        })
+        .nullable()
+        .optional(),
+      discord: z.object({ webhookUrl: z.string().url() }).nullable().optional(),
+      slack: z.object({ webhookUrl: z.string().url() }).nullable().optional(),
+    })
+    .default({}),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
@@ -67,6 +102,28 @@ const MASK_PREFIX = '••••';
 
 function isMaskedString(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith(MASK_PREFIX);
+}
+
+/** A webhook URL's masked display form is `origin + '/…'` (see `maskWebhookUrl` below) —
+ * NOT `MASK_PREFIX`-prefixed like every other secret here, since the masked value must
+ * still look like a URL for the admin UI's "which webhook is this?" affordance. Detected
+ * by shape instead: origin, then a literal single-segment `/…` and nothing else. A real
+ * Discord/Slack webhook URL always has multiple path segments (an id + a long token), so
+ * this can't collide with a genuine stored value in practice. */
+function isMaskedWebhookUrl(v: unknown): v is string {
+  return typeof v === 'string' && /^https?:\/\/[^/]+\/…$/.test(v);
+}
+
+/** Masks a webhook URL down to its origin — enough for an admin to recognize "yes, this
+ * is the Discord webhook" without exposing the secret token embedded in the URL's path.
+ * Falls back to a fixed placeholder for a value that (despite passing schema validation)
+ * doesn't parse as a URL, which should not be reachable in practice. */
+function maskWebhookUrl(url: string): string {
+  try {
+    return `${new URL(url).origin}/…`;
+  } catch {
+    return MASK_PREFIX;
+  }
 }
 
 /**
@@ -86,6 +143,21 @@ function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[
   }
   if (key === 'untappd' && value && typeof value === 'object' && isMaskedString((value as any).clientSecret)) {
     throw new ValidationError('untappd.clientSecret looks like a masked display value; refusing to store it');
+  }
+  if (key === 'alertChannels' && value && typeof value === 'object') {
+    const ac = value as Record<string, any>;
+    if (ac.pushover && isMaskedString(ac.pushover.token)) {
+      throw new ValidationError('alertChannels.pushover.token looks like a masked display value; refusing to store it');
+    }
+    if (ac.smtp && isMaskedString(ac.smtp.password)) {
+      throw new ValidationError('alertChannels.smtp.password looks like a masked display value; refusing to store it');
+    }
+    if (ac.discord && isMaskedWebhookUrl(ac.discord.webhookUrl)) {
+      throw new ValidationError('alertChannels.discord.webhookUrl looks like a masked display value; refusing to store it');
+    }
+    if (ac.slack && isMaskedWebhookUrl(ac.slack.webhookUrl)) {
+      throw new ValidationError('alertChannels.slack.webhookUrl looks like a masked display value; refusing to store it');
+    }
   }
 }
 
@@ -138,10 +210,32 @@ export class SettingsStore {
       // only to satisfy the type when the stored settings lack untappd.
       out.untappd = { ...out.untappd, clientSecret: this.get('untappd')?.clientSecret ?? '' };
     }
+    if (out.alertChannels) {
+      const stored = this.get('alertChannels');
+      const ac = { ...out.alertChannels };
+      // Each channel's secret is swapped back in independently — a PATCH round-trips the
+      // WHOLE alertChannels object (same "client sends the full object back" idiom as
+      // mqtt/untappd above), so any subset of channels can be mid-edit (still masked)
+      // while others carry a fresh, already-real value in the same request.
+      if (ac.pushover && isMaskedString(ac.pushover.token)) {
+        ac.pushover = { ...ac.pushover, token: stored?.pushover?.token ?? '' };
+      }
+      if (ac.smtp && isMaskedString(ac.smtp.password)) {
+        ac.smtp = { ...ac.smtp, password: stored?.smtp?.password };
+      }
+      if (ac.discord && isMaskedWebhookUrl(ac.discord.webhookUrl)) {
+        ac.discord = { ...ac.discord, webhookUrl: stored?.discord?.webhookUrl ?? '' };
+      }
+      if (ac.slack && isMaskedWebhookUrl(ac.slack.webhookUrl)) {
+        ac.slack = { ...ac.slack, webhookUrl: stored?.slack?.webhookUrl ?? '' };
+      }
+      out.alertChannels = ac;
+    }
     return out;
   }
 
-  /** Settings safe to send to the frontend: secrets replaced by last-4 masks. */
+  /** Settings safe to send to the frontend: secrets replaced by last-4 masks (or, for
+   * webhook URLs, origin + '/…' — see `maskWebhookUrl`). */
   masked(): Settings {
     const s = this.all();
     for (const k of SECRET_KEYS) {
@@ -152,6 +246,18 @@ export class SettingsStore {
     }
     if (s.mqtt?.password) s.mqtt.password = '••••';
     if (s.untappd?.clientSecret) s.untappd.clientSecret = '••••';
+    if (s.alertChannels.pushover?.token) {
+      s.alertChannels.pushover.token = '••••' + s.alertChannels.pushover.token.slice(-4);
+    }
+    if (s.alertChannels.smtp?.password) {
+      s.alertChannels.smtp.password = '••••';
+    }
+    if (s.alertChannels.discord?.webhookUrl) {
+      s.alertChannels.discord.webhookUrl = maskWebhookUrl(s.alertChannels.discord.webhookUrl);
+    }
+    if (s.alertChannels.slack?.webhookUrl) {
+      s.alertChannels.slack.webhookUrl = maskWebhookUrl(s.alertChannels.slack.webhookUrl);
+    }
     return s;
   }
 }
