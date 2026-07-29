@@ -17,6 +17,18 @@
   % remaining everywhere, header announcement line (`header.subtitle`), KEGTRON sensor
   chip, footer marquee ticker, in-chrome menu QR, and page-cycle dots. Wall editor gains
   Look, Glyph style and Announcement fields with the live preview.
+- **Added:** Pour Wall overhaul Phase 2 — pour takeover. A per-wall `takeover` setting
+  (Off default / Full screen / Spotlight row / Split panel / Bottom dock / Screen fill,
+  designs 2a·2b·9a·9b·9c) with a configurable trigger volume (default 60 mL ≈ 2 oz) so
+  foam blips don't flash the TV. Driven by the live UDP pour counter over the existing
+  `/ws` snapshot feed: enters when a pour passes the threshold, live-counts every packet,
+  and exits ~2.5 s after the pour ends with a "pour complete" splash showing the final
+  volume. Full shows the beer identity, giant accent counter, keg-remaining readout and a
+  pour stream filling a style-matched glass; Spotlight dims the other rows/cards (works
+  on classic and all looks); Split squeezes the wall left under a 640 px inverted panel
+  with a progress hairline; Dock is a 110 px bottom bar; Fill floods the screen with the
+  beer's real SRM liquid + foam band under a 220 px counter. All theme-token driven, all
+  motion gated by prefers-reduced-motion.
 
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new

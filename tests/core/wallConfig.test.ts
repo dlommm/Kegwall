@@ -53,6 +53,24 @@ describe('wallConfigSchema look/glyphMode (Pour Wall overhaul)', () => {
   });
 });
 
+describe('wallConfigSchema takeover (pour takeover)', () => {
+  it("defaults to off with a ~2 oz (60 mL) trigger so stored configs don't change behavior", () => {
+    const config = wallConfigSchema.parse({});
+    expect(config.takeover).toEqual({ style: 'off', minMl: 60 });
+  });
+
+  it('accepts each takeover style', () => {
+    for (const style of ['off', 'full', 'spotlight', 'split', 'dock', 'fill'] as const) {
+      expect(wallConfigSchema.parse({ takeover: { style } }).takeover.style).toBe(style);
+    }
+  });
+
+  it('rejects unknown styles and negative thresholds', () => {
+    expect(() => wallConfigSchema.parse({ takeover: { style: 'confetti' } })).toThrow();
+    expect(() => wallConfigSchema.parse({ takeover: { style: 'full', minMl: -1 } })).toThrow();
+  });
+});
+
 describe('wallConfigSchema fillStyle (keg-asset fill indicator feature)', () => {
   it("defaults to 'liquid' (the existing SRM LiquidFill) when omitted", () => {
     const config = wallConfigSchema.parse({});

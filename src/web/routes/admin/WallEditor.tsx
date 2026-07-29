@@ -45,6 +45,17 @@ const GLYPH_MODES: { value: WallConfig['glyphMode']; label: string }[] = [
   { value: 'duotone', label: 'Duotone' },
 ];
 
+// Pour takeover styles (design 2a/2b/9a/9b/9c) — how the wall reacts to a live
+// pour. Off preserves the pre-overhaul behavior (glow + badge only).
+const TAKEOVER_STYLES: { value: WallConfig['takeover']['style']; label: string }[] = [
+  { value: 'off', label: 'Off' },
+  { value: 'full', label: 'Full screen' },
+  { value: 'spotlight', label: 'Spotlight row' },
+  { value: 'split', label: 'Split panel' },
+  { value: 'dock', label: 'Bottom dock' },
+  { value: 'fill', label: 'Screen fill' },
+];
+
 // Keg-asset fill indicator feature: doesn't apply to `compact` (its liquid swatch is too
 // small for the keg cutaway art — see TapCard.tsx), but the setting itself is still a
 // single per-wall toggle rather than per-template, so it's offered here unconditionally;
@@ -240,6 +251,28 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
                   <option key={g.value} value={g.value}>{g.label}</option>
                 ))}
               </select>
+            </label>
+            <label className="admin-field">
+              <span>Pour takeover</span>
+              <select
+                data-testid="wall-editor-takeover-style"
+                value={form.takeoverStyle}
+                onChange={(e) => updateField('takeoverStyle', e.target.value as WallConfig['takeover']['style'])}
+              >
+                {TAKEOVER_STYLES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>Takeover trigger (mL)</span>
+              <input
+                type="number"
+                min={0}
+                data-testid="wall-editor-takeover-min"
+                value={form.takeoverMinMl}
+                onChange={(e) => updateField('takeoverMinMl', Number(e.target.value))}
+              />
             </label>
             <label className="admin-field">
               <span>Columns</span>

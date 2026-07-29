@@ -142,6 +142,47 @@ describe('WallPage', () => {
     expect(screen.getByTestId('look-qr')).toBeInTheDocument();
   });
 
+  it('renders a takeover overlay while a qualifying pour is live, and none when off', () => {
+    const pouringTap = makeTap(1, {
+      pouring: true,
+      curServMl: 250,
+      beer: {
+        id: 1, name: 'Morning Line', brewery: null, style: 'Pilsner', abv: 4.9, ibu: 32, srm: 3, description: null, labelImage: null, createdAt: '',
+      },
+      keg: {
+        id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+      },
+    });
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'dock', minMl: 60 } }) },
+      taps: [pouringTap],
+    }));
+    renderWall();
+    expect(screen.getByTestId('takeover-dock')).toBeInTheDocument();
+  });
+
+  it('spotlight takeover dims the other cards instead of overlaying', () => {
+    const beer = {
+      id: 1, name: 'Morning Line', brewery: null, style: 'Pilsner', abv: 4.9, ibu: 32, srm: 3, description: null, labelImage: null, createdAt: '',
+    };
+    const keg = {
+      id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap' as const, createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+    };
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'spotlight', minMl: 60 } }) },
+      taps: [
+        makeTap(1, { pouring: true, curServMl: 250, beer, keg }),
+        makeTap(2, { beer: { ...beer, id: 2 }, keg: { ...keg, id: 2, beerId: 2, tapId: 2 } }),
+      ],
+    }));
+    renderWall();
+    const cards = screen.getAllByTestId('tap-card');
+    expect(cards[0]!.className).toContain('tap-card--spotlit');
+    expect(cards[1]!.className).toContain('tap-card--spotlight-dimmed');
+    expect(screen.queryByTestId('takeover-dock')).toBeNull();
+    expect(screen.queryByTestId('takeover-full')).toBeNull();
+  });
+
   it('a config.header.title overrides the wall name', () => {
     (useWallData as Mock).mockReturnValue(baseResult({
       wall: { slug: 'main', name: 'The Keg Cave', config: makeConfig({ header: { title: 'Taproom Live', showClock: false, showTemp: false } }) },

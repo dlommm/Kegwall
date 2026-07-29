@@ -4616,3 +4616,484 @@ h2.admin-field__label-text {
   letter-spacing: 0.08em;
   margin-left: 8px;
 }
+
+/*
+ * ============================================================================
+ * Pour takeover (design turns 2 + 9): five per-wall styles — full (2a),
+ * spotlight (2b, no overlay: row treatment below), split (9a), dock (9b),
+ * fill (9c). All theme-token driven so every style works on every look/theme.
+ * Motion (transitions/pulses) gated behind prefers-reduced-motion.
+ * ============================================================================
+ */
+
+/* --- Spotlight (2b): row/card treatment, applied by the looks + WallGrid --- */
+
+.ledger-row--dimmed,
+.gallery-card--dimmed,
+.columns-col--dimmed,
+.tap-card--spotlight-dimmed {
+  opacity: 0.42;
+}
+
+.ledger-row--spotlit,
+.gallery-card--spotlit,
+.columns-col--spotlit,
+.tap-card--spotlit {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: var(--card-radius);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ledger-row,
+  .gallery-card,
+  .columns-col,
+  .tap-card {
+    transition: opacity 300ms ease;
+  }
+}
+
+/* --- Shared overlay bits --- */
+
+.takeover-full,
+.takeover-fill {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Full (2a) --- */
+
+.takeover-full__header {
+  height: 94px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+.takeover-full__now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+}
+
+.takeover-full__now .look-pour-dot {
+  width: 11px;
+  height: 11px;
+}
+
+.takeover-full__clock {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.takeover-full__body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 0 90px;
+  gap: 60px;
+  min-height: 0;
+}
+
+.takeover-full__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.takeover-full__name {
+  font-size: clamp(48px, 5vw, 96px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.takeover-full__style {
+  font-size: 26px;
+  color: var(--text-dim);
+}
+
+.takeover-full__chips {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.takeover-full__chip {
+  padding: 9px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 19px;
+}
+
+.takeover-full__chip--dim {
+  color: var(--text-dim);
+}
+
+.takeover-full__counter {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.takeover-full__counter-value {
+  font-size: clamp(96px, 10vw, 190px);
+  line-height: 1;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.takeover-full__counter-unit {
+  font-size: 46px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.takeover-full__keg {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.takeover-full__keg-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.takeover-full__keg-left {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.takeover-full__keg-dim {
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.takeover-full__glass {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 60px;
+}
+
+.takeover-full__stream {
+  position: absolute;
+  left: 50%;
+  top: -40px;
+  transform: translateX(-50%);
+  width: 7px;
+  height: 130px;
+  background: var(--accent);
+  opacity: 0.85;
+  border-radius: 4px;
+}
+
+.takeover-full__complete {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.takeover-full__complete-label {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  color: var(--ok);
+}
+
+.takeover-full__complete-volume {
+  font-size: 120px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.takeover-full__complete-note {
+  font-size: 22px;
+  color: var(--text-dim);
+}
+
+/* --- Split (9a) --- */
+
+/* The wall content squeezes left + dims while the panel holds the right edge.
+   (WallPage adds .takeover-squeeze to the content wrapper.) */
+.takeover-squeeze {
+  margin-right: 640px;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wall-grid-transition {
+    transition: margin-right 400ms ease, opacity 400ms ease;
+  }
+}
+
+.takeover-split {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 640px;
+  z-index: 45;
+  /* Inverted: the theme's ink becomes the panel, the theme's paper the type. */
+  background: var(--text);
+  color: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px;
+  box-sizing: border-box;
+  text-align: center;
+  font-family: var(--font-body);
+}
+
+.takeover-split__now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  letter-spacing: 0.32em;
+  opacity: 0.75;
+}
+
+.takeover-split__name {
+  font-size: 58px;
+  line-height: 1.1;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+
+.takeover-split__style {
+  font-size: 17px;
+  opacity: 0.7;
+}
+
+.takeover-split__counter {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 18px 0 6px;
+}
+
+.takeover-split__counter-value {
+  font-size: 150px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.takeover-split__counter-unit {
+  font-size: 30px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.takeover-split__progress {
+  width: 320px;
+  height: 3px;
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+}
+
+.takeover-split__progress-fill {
+  height: 100%;
+  background: var(--bg);
+}
+
+.takeover-split__note {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+/* --- Dock (9b) --- */
+
+.takeover-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 110px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 0 40px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  border-top: 2px solid var(--accent);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.takeover-dock__dot {
+  width: 14px;
+  height: 14px;
+}
+
+.takeover-dock__label {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.takeover-dock__progress {
+  flex: 1;
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.takeover-dock__progress-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: var(--accent);
+}
+
+.takeover-dock__counter {
+  font-size: 54px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.takeover-dock__complete {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--ok);
+  color: var(--ok);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+/* --- Fill (9c) --- */
+
+.takeover-fill {
+  overflow: hidden;
+  /* Fixed light ink + dark shadows (design): the "background" here is the
+     beer's own SRM liquid, which can be anything from pale straw to black —
+     theme text tokens can't guarantee contrast over it, this pairing can. */
+  color: #F3EAD9;
+}
+
+.takeover-fill__liquid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.92;
+}
+
+.takeover-fill__foam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+  opacity: 0.95;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .takeover-fill__liquid { transition: height 150ms linear; }
+  .takeover-fill__foam { transition: bottom 150ms linear; }
+  .takeover-full__stream { transition: height 200ms ease; }
+}
+
+.takeover-fill__content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.takeover-fill__now {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.65);
+}
+
+.takeover-fill__name {
+  font-size: clamp(64px, 7vw, 130px);
+  line-height: 1;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.6);
+  text-wrap: balance;
+}
+
+.takeover-fill__style {
+  font-size: 24px;
+  opacity: 0.85;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.takeover-fill__counter {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.takeover-fill__counter-value {
+  font-size: clamp(110px, 12vw, 220px);
+  line-height: 1;
+  font-weight: 700;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.65);
+}
+
+.takeover-fill__counter-unit {
+  font-size: 52px;
+  font-weight: 600;
+  opacity: 0.8;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+}
+
+.takeover-fill__complete {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+}

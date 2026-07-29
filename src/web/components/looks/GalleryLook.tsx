@@ -2,7 +2,7 @@ import type { WallLookProps } from './WallLook';
 import { tapLookModel } from '../../lib/lookData';
 import { SrmGlass } from '../glyphs/SrmGlass';
 import {
-  LookBadges, LookQr, SensorChips, useLookClock,
+  LookBadges, LookQr, SensorChips, useLookClock, withSpotlight,
 } from './lookShared';
 
 /**
@@ -13,7 +13,7 @@ import {
  * Layout per design option 1b; colors via theme tokens (`.gallery-*`).
  */
 export function GalleryLook({
-  taps, config, units, title, menuUrl, tempC, logoUrl,
+  taps, config, units, title, menuUrl, tempC, logoUrl, spotlightTapId,
 }: WallLookProps) {
   const clock = useLookClock();
   const showNotes = config.fields.description !== false;
@@ -47,7 +47,11 @@ export function GalleryLook({
             );
           }
           return (
-            <div key={tap.tapId} className={`gallery-card${m.isKicked ? ' gallery-card--kicked' : ''}`} data-testid="gallery-card">
+            <div
+              key={tap.tapId}
+              className={`${withSpotlight('gallery-card', tap.tapId, spotlightTapId)}${m.isKicked ? ' gallery-card--kicked' : ''}`}
+              data-testid="gallery-card"
+            >
               <div className="gallery-card__body">
                 <div className="gallery-card__glass">
                   <SrmGlass srm={m.srm} style={m.style} width={80} mode={config.glyphMode} />

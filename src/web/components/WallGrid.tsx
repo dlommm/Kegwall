@@ -14,6 +14,9 @@ export interface WallGridProps {
    * comment for the `compact`-always-liquid exception). */
   fillStyle?: WallConfig['fillStyle'];
   units: VolumeUnits;
+  /** Spotlight takeover (2b): the pouring tap's id — its card highlights, all
+   * others dim (see index.css `.tap-card--spotlit`/`--spotlight-dimmed`). */
+  spotlightTapId?: number | null;
 }
 
 /**
@@ -25,7 +28,7 @@ export interface WallGridProps {
  * job, this component just renders whichever tap list it's handed.
  */
 export function WallGrid({
-  taps, columns, template, fields, fillStyle, units,
+  taps, columns, template, fields, fillStyle, units, spotlightTapId,
 }: WallGridProps) {
   const style = { '--wall-columns': columns } as CSSProperties;
 
@@ -39,6 +42,8 @@ export function WallGrid({
           fields={fields}
           fillStyle={fillStyle}
           units={units}
+          className={spotlightTapId == null ? undefined
+            : (tap.tapId === spotlightTapId ? 'tap-card--spotlit' : 'tap-card--spotlight-dimmed')}
         />
       ))}
     </div>

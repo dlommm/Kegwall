@@ -10,6 +10,8 @@ import { ThemeProvider } from '../themes/ThemeProvider';
 import { WallHeader } from '../components/WallHeader';
 import { WallGrid } from '../components/WallGrid';
 import { WallLook } from '../components/looks/WallLook';
+import { PourTakeover } from '../components/takeover/PourTakeover';
+import { useTakeover } from '../lib/useTakeover';
 import { BannerLane } from '../components/BannerLane';
 import { QrOverlay } from '../components/QrOverlay';
 import { ScreenCare } from '../components/ScreenCare';
@@ -135,6 +137,17 @@ export function WallPage() {
   const currentTaps = pages[pageIndex] ?? [];
   const transition = reducedMotion ? 'none' : (config?.transition ?? 'crossfade');
 
+  // Pour takeover (design turns 2 + 9): watches ALL of the wall's taps (not just the
+  // current rotating page) so a pour on another page still takes the screen over.
+  const takeoverState = useTakeover(taps, config?.takeover);
+  const takeoverStyle = config?.takeover?.style ?? 'off';
+  const takeoverVisible = takeoverState.phase !== 'idle';
+  // Spotlight (2b) isn't an overlay: the wall itself highlights the pouring row.
+  const spotlightTapId = takeoverStyle === 'spotlight' && takeoverVisible
+    ? takeoverState.tap.tapId
+    : null;
+  const overlayActive = takeoverVisible && takeoverStyle !== 'spotlight' && takeoverStyle !== 'off';
+
   // Dev-only manual banner hook (`window.__wall.banner('text')`) — `import.meta.env.DEV`
   // is false in a real `vite build` output, so this never ships to the production wall.
   useEffect(() => {
@@ -201,7 +214,7 @@ export function WallPage() {
               />
               <div
                 key={pageIndex}
-                className={`wall-grid-transition wall-grid-transition--${transition}`}
+                className={`wall-grid-transition wall-grid-transition--${transition}${takeoverStyle === 'split' && overlayActive ? ' takeover-squeeze' : ''}`}
                 data-testid="wall-page-content"
                 data-transition={transition}
               >
@@ -212,6 +225,7 @@ export function WallPage() {
                   fields={config.fields}
                   fillStyle={config.fillStyle}
                   units={units}
+                  spotlightTapId={spotlightTapId}
                 />
               </div>
             </>
@@ -221,7 +235,7 @@ export function WallPage() {
             // WallHeader/QrOverlay chrome stays out of their way entirely.
             <div
               key={pageIndex}
-              className={`wall-grid-transition wall-grid-transition--${transition} look-frame`}
+              className={`wall-grid-transition wall-grid-transition--${transition} look-frame${takeoverStyle === 'split' && overlayActive ? ' takeover-squeeze' : ''}`}
               data-testid="wall-page-content"
               data-transition={transition}
             >
@@ -235,8 +249,19 @@ export function WallPage() {
                 pageIndex={pageIndex}
                 pageCount={pages.length}
                 rotationSeconds={config.rotationSeconds}
+                spotlightTapId={spotlightTapId}
               />
             </div>
+          )}
+          {/* `overlayActive` implies a non-idle takeover (TS narrows through the
+              aliased condition, so `state` types as active|complete here). */}
+          {overlayActive && (
+            <PourTakeover
+              style={takeoverStyle}
+              state={takeoverState}
+              units={units}
+              tempC={maxTempC}
+            />
           )}
           <BannerLane queue={queue} onDismiss={dismiss} />
           {look === 'classic' && config.showQr && <QrOverlay url={menuUrl} />}

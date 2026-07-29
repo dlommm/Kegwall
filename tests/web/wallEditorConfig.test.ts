@@ -47,6 +47,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       columns: 4,
       look: 'ledger',
       glyphMode: 'duotone',
+      takeover: { style: 'dock', minMl: 120 },
       cardTemplate: 'full',
       theme: { id: 'mono', overrides: { '--bg': '#111111', '--accent': '#ff0000' } },
       pages: [{ tapIds: [1, 2] }, { tapIds: [3] }],

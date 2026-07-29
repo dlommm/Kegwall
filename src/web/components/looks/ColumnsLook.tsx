@@ -4,7 +4,9 @@ import { tapLookModel } from '../../lib/lookData';
 import { SrmGlass } from '../glyphs/SrmGlass';
 import { HopFill } from '../glyphs/HopFill';
 import { KegSilhouette } from '../glyphs/KegSilhouette';
-import { LookBadges, SensorChips, useLookClock } from './lookShared';
+import {
+  LookBadges, SensorChips, useLookClock, withSpotlight,
+} from './lookShared';
 
 /**
  * Look 1c — "Tap Columns": one vertical column per tap (reads like a row of
@@ -15,7 +17,7 @@ import { LookBadges, SensorChips, useLookClock } from './lookShared';
  * theme tokens (`.columns-*`).
  */
 export function ColumnsLook({
-  taps, config, units, title, tempC, pageIndex, pageCount, rotationSeconds,
+  taps, config, units, title, tempC, pageIndex, pageCount, rotationSeconds, spotlightTapId,
 }: WallLookProps) {
   const clock = useLookClock();
   const style = { '--look-cols': Math.max(1, taps.length) } as CSSProperties;
@@ -47,7 +49,11 @@ export function ColumnsLook({
             );
           }
           return (
-            <div key={tap.tapId} className={`columns-col${m.isKicked ? ' columns-col--kicked' : ''}`} data-testid="columns-col">
+            <div
+              key={tap.tapId}
+              className={`${withSpotlight('columns-col', tap.tapId, spotlightTapId)}${m.isKicked ? ' columns-col--kicked' : ''}`}
+              data-testid="columns-col"
+            >
               <span className="columns-col__tap-label">{`TAP ${m.tapNumber}`}</span>
               <SrmGlass srm={m.srm} style={m.style} width={100} mode={config.glyphMode} />
               <div className="columns-col__badges">

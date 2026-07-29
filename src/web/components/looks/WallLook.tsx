@@ -23,6 +23,9 @@ export interface WallLookProps {
   pageIndex: number;
   pageCount: number;
   rotationSeconds: number;
+  /** Spotlight takeover (2b): the currently pouring tap's id — its row/card
+   * highlights and every other one dims. Null/undefined = no spotlight. */
+  spotlightTapId?: number | null;
 }
 
 /** Non-classic look id → component. `classic` never reaches here (WallPage

@@ -23,6 +23,18 @@ export function useLookClock(): string {
   return now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
+/** Spotlight takeover (2b) row treatment: with a spotlight active, the pouring
+ * tap's row/card gets the `--spotlit` modifier (accent border + tinted bg) and
+ * every other one dims via `--dimmed`. No spotlight → the base class alone. */
+export function withSpotlight(
+  base: string,
+  tapId: number,
+  spotlightTapId: number | null | undefined,
+): string {
+  if (spotlightTapId == null) return base;
+  return tapId === spotlightTapId ? `${base} ${base}--spotlit` : `${base} ${base}--dimmed`;
+}
+
 export interface LookBadgesProps {
   model: TapLookModel;
   /** Per-look badge copy — the Ledger says "NEW ON TAP", the card looks just "NEW". */

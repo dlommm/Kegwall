@@ -9,6 +9,16 @@ export const wallConfigSchema = z.object({
   look: z.enum(['classic', 'ledger', 'gallery', 'columns']).default('classic'),
   // Glyph treatment for the looks' dynamic data glyphs (design 1d).
   glyphMode: z.enum(['flat', 'outline', 'duotone']).default('flat'),
+  // Pour takeover (design turns 2 + 9): how the wall reacts to a live pour.
+  // 'off' preserves pre-overhaul behavior (badges/glow only) for stored configs;
+  // the five styles are per the design: full (2a), spotlight (2b), split (9a),
+  // dock (9b), fill (9c). `minMl` is the trigger threshold — a pour only takes
+  // over once its live counter passes this volume, so tiny foam blips don't
+  // flash the screen (default ~2 oz).
+  takeover: z.object({
+    style: z.enum(['off', 'full', 'spotlight', 'split', 'dock', 'fill']).default('off'),
+    minMl: z.number().min(0).default(60),
+  }).default({ style: 'off', minMl: 60 }),
   cardTemplate: z.enum(['full', 'standard', 'compact', 'minimal']).default('standard'),
   theme: z.object({
     // 'midnight-slate' is the overhaul's flagship theme; existing walls all carry an

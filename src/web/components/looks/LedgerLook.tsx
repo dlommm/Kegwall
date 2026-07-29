@@ -5,7 +5,7 @@ import { HopFill } from '../glyphs/HopFill';
 import { AbvGlasses } from '../glyphs/AbvGlasses';
 import { KegSilhouette } from '../glyphs/KegSilhouette';
 import {
-  LookBadges, LookQr, SensorChips, TickerMarquee, useLookClock,
+  LookBadges, LookQr, SensorChips, TickerMarquee, useLookClock, withSpotlight,
 } from './lookShared';
 
 /**
@@ -18,7 +18,7 @@ import {
  * theme tokens (see index.css `.ledger-*`).
  */
 export function LedgerLook({
-  taps, config, units, title, menuUrl, tempC, logoUrl,
+  taps, config, units, title, menuUrl, tempC, logoUrl, spotlightTapId,
 }: WallLookProps) {
   const clock = useLookClock();
   const showNotes = config.fields.description !== false;
@@ -55,7 +55,11 @@ export function LedgerLook({
             );
           }
           return (
-            <div key={tap.tapId} className={`ledger-row${m.isKicked ? ' ledger-row--kicked' : ''}`} data-testid="ledger-row">
+            <div
+              key={tap.tapId}
+              className={`${withSpotlight('ledger-row', tap.tapId, spotlightTapId)}${m.isKicked ? ' ledger-row--kicked' : ''}`}
+              data-testid="ledger-row"
+            >
               <div className="ledger-row__tapnum font-display">{m.tapNumber}</div>
 
               <div className="ledger-row__cell">

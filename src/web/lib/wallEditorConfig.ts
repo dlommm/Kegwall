@@ -22,6 +22,8 @@ export interface WallConfigFormState {
   columns: number;
   look: WallConfig['look'];
   glyphMode: WallConfig['glyphMode'];
+  takeoverStyle: WallConfig['takeover']['style'];
+  takeoverMinMl: number;
   cardTemplate: CardTemplate;
   themeId: string;
   /** Always has all 6 `WALL_TOKEN_KEYS`; `''` means "no override, inherit the theme's own value". */
@@ -77,6 +79,8 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     columns: config.columns,
     look: config.look,
     glyphMode: config.glyphMode,
+    takeoverStyle: config.takeover.style,
+    takeoverMinMl: config.takeover.minMl,
     cardTemplate: config.cardTemplate,
     themeId: config.theme.id,
     themeOverrides,
@@ -130,6 +134,7 @@ export function formStateToConfigCandidate(
     columns: form.columns,
     look: form.look,
     glyphMode: form.glyphMode,
+    takeover: { style: form.takeoverStyle, minMl: form.takeoverMinMl },
     cardTemplate: form.cardTemplate,
     theme: {
       id: form.themeId,
