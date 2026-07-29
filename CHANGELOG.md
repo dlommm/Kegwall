@@ -12,6 +12,10 @@
   (`StyleAutocomplete`) — a local, no-network suggestion list (`src/web/data/beerStyles.ts`)
   that fills the gap left by the removed Untappd style autofill, working the same on day
   one for every install with no API key required.
+- **Fixed:** the Kegtron Pro cloud source's notify WebSocket now sends an `Origin` header
+  on the handshake (matching Kegtron's own Node.js example) — mdash.net 403s the
+  connection without one, which was silently degrading every install to 5-minute polling
+  instead of live push updates.
 
 ## v0.1.0 — initial release
 
