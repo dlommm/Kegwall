@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 2026-07-29
+
+The Pour Wall overhaul release (Phases 1–6) plus the rename to **Kegwall**, new project
+branding (banner/logo/favicon), GitLab CI with container-registry publishing
+(`ghcr.io/dlommm/kegwall`, tagged `latest` + version), and an Unraid
+Compose file (`deploy/docker-compose.unraid.yml`).
 
 - **Changed:** Project renamed from **Kegtron Dashboard** to **Kegwall**. Package name,
   Docker image/container names (`kegwall`), systemd unit examples, backup filename

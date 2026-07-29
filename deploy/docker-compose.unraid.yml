@@ -1,0 +1,34 @@
+# Kegwall — Unraid Docker Compose file.
+#
+# For the Unraid "Compose Manager" plugin (or `docker compose` on any host that
+# follows Unraid's /mnt/user/appdata convention). Pulls the published image from
+# the project's container registry — no local build.
+#
+#   - Image: ghcr.io/dlommm/kegwall:latest (multi-arch amd64/arm64,
+#     `latest` always points at the newest stable release; pin a version tag like
+#     `:0.5.0` instead if you prefer explicit upgrades).
+#   - Data: bind-mounted to /mnt/user/appdata/kegwall — holds app.db (SQLite),
+#     uploaded label images, and staged backup/restore files. Back it up like any
+#     other appdata share (CA Appdata Backup covers it).
+#   - Update: re-pull and recreate, e.g. `docker compose pull && docker compose up -d`
+#     from this file's directory, or Compose Manager's "Update Stack".
+#
+# Bridge networking is fine for MQTT-based ingest and the Kegtron cloud API. If
+# this container must receive Kegtron Cloud's UDP broadcast directly (sub-second
+# pour updates) or scan BLE itself, switch to host networking: comment out the
+# `ports:` block and add `network_mode: host` — see
+# ../docs/install/docker.md#networking for the tradeoffs.
+
+services:
+  kegwall:
+    image: ghcr.io/dlommm/kegwall:latest
+    container_name: kegwall
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /mnt/user/appdata/kegwall:/data
+    environment:
+      - NODE_ENV=production
+      # PORT, DATA_DIR and WEB_DIR are set by the image itself; override only
+      # if you know you need to (see ../docs/install/docker.md).

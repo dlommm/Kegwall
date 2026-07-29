@@ -15,11 +15,13 @@
 # that bridge mode does not provide.
 services:
   kegwall:
+    # Builds locally from the repo. To use the published registry image instead,
+    # delete the build: block and swap the image line for:
+    #   image: ghcr.io/dlommm/kegwall:latest
+    # (see docker-compose.unraid.yml for a pull-only example).
     build:
       context: ..
       dockerfile: Dockerfile
-    # Swap the line above for a published tag once one exists, e.g.:
-    # image: ghcr.io/<owner>/kegwall:latest
     image: kegwall:latest
     container_name: kegwall
     restart: unless-stopped

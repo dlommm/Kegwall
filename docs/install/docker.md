@@ -21,10 +21,11 @@ Then open `http://<host>:8080`. First visit sends you to a one-time admin setup 
 (pick a username/password — there is no default login).
 
 This builds the image locally from the `Dockerfile` in the repo root (`deploy/docker-compose.yml`
-sets `build.context: ..`). No image is currently published to a registry — see
-`.github/workflows/release.yml` for the multi-arch GHCR build, which needs a GitHub remote
-to actually run (not yet true for this repo — see that workflow's header comment). Once a
-tag is published there, swap the `build:` block for `image: ghcr.io/<owner>/<repo>:latest`.
+sets `build.context: ..`). A published multi-arch (amd64 + arm64) image also exists at
+`ghcr.io/dlommm/kegwall` — tagged `latest` plus each release version, built
+by `.gitlab-ci.yml` on every `v*` tag. To use it instead of building locally, swap the
+`build:` block for `image: ghcr.io/dlommm/kegwall:latest` (or start from
+`deploy/docker-compose.unraid.yml`, which is already pull-only).
 
 ## What's in the container
 
@@ -135,7 +136,7 @@ directory name, e.g. `deploy_kegtron-data` when run from `deploy/`.)
 
 ```sh
 cd deploy
-docker compose pull   # only if you switched to a published ghcr.io image
+docker compose pull   # only if you switched to the published registry image
 docker compose build  # only if still building locally from source
 docker compose up -d
 ```

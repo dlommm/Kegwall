@@ -1,7 +1,9 @@
+![Kegwall — self-hosted tap monitor & display, powered by Kegtron data](docs/images/banner.png)
+
 # Kegwall
 
-[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
-[![Release](https://github.com/<owner>/<repo>/actions/workflows/release.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/release.yml)
+[![pipeline](https://github.com/dlommm/Kegwall/badges/main/pipeline.svg)](https://github.com/dlommm/Kegwall/-/pipelines)
+[![release](https://github.com/dlommm/Kegwall/-/badges/release.svg)](https://github.com/dlommm/Kegwall/-/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A self-hosted, PourWall-style digital tap wall for [Kegtron](https://kegtron.com) keg
@@ -27,16 +29,37 @@ automations, and deep wall customization.
 
 - **Ingests from both Kegtron hardware lines** — Pro (cloud REST + WebSocket, plus optional
   local UDP multicast for sub-second pour updates) and Gen 1 KT-100/KT-200 (direct
-  Bluetooth LE, or via an MQTT bridge for devices out of range).
-- **Public wall + QR menu** — a TV-friendly grid of tap cards (`/wall/:slug`, no login) with
-  live pour animation, page rotation, four built-in themes, per-field visibility, and a
-  raw custom-CSS escape hatch; a mobile menu page (`/menu/:slug`) drinkers can scan to and
-  claim their pour for the leaderboard.
-- **Admin UI** — beers (Open Brewery DB brewery lookup, offline BJCP-style autocomplete,
-  optional catalog.beer beer search with your own API key), taps/kegs with a guided
-  keg-swap flow, monitor binding, a live-preview wall editor, multi-user accounts with
-  roles (viewer/editor/admin), and stats (pours/day, busiest hours, keg depletion, volume
-  by beer, temperature history, leaderboard).
+  Bluetooth LE, or via an MQTT bridge for devices out of range). Optional
+  [Govee](https://govee.com) cloud sensors add named ambient-temperature chips to the wall
+  header, with a cross-sensor spread warning.
+- **The wall — a full look library × 10 themes.** Every wall picks a *look* (Classic grid, Ledger,
+  Gallery, Tap columns, Chalkboard, Editorial, Neon Arcade, Terminal, Poster, Departures,
+  Zen) and a color *theme*, with dynamic SVG data glyphs (style-matched SRM glassware,
+  IBU hop cone, ABV strength glasses, keg-type level silhouettes — or a photorealistic keg
+  cutaway fill), NEW ON TAP / ALMOST GONE / POURING badges, an announcement line, footer
+  ticker, in-chrome menu QR, and a raw custom-CSS escape hatch.
+- **Pour takeover** — when someone pours, the wall reacts live: Full screen, Spotlight row,
+  Split panel, Bottom dock, or Screen fill modes with a real-time counter fed by Kegtron's
+  UDP stream, a configurable trigger volume, and a pour-complete splash.
+- **View rotation + paired displays** — a per-wall playlist (wall / leaderboard) cycles on
+  the TV with a position bar, big tap lists auto-chunk into pages, and a live pour always
+  interrupts back to the wall. Physical screens pair once with a short code at `/display`
+  and from then on render their assigned wall; multi-room setups get first-class
+  **locations** that scope taps, walls, and the admin views.
+- **Who's pouring** — a kegerator tablet kiosk (`/tablet/:slug`) with passwordless avatar
+  sign-in arms a pourer before they pour; pours attribute automatically, earn a 0–100
+  flow-consistency quality score, and feed a public leaderboard (`/board`) with
+  superlatives. Drinkers can also claim pours from the QR menu, rate the beer afterward
+  (5-star + quick tags), build a personal passport (volume, styles, badges), and group
+  taps into a live session with a recap.
+- **Admin UI** — a sidebar shell with three admin looks (Midnight Slate, Workshop,
+  Console), ⌘K quick-nav, live dashboard (stat cards, real-SRM tap rows, source health,
+  activity feed), keg cards with "kicks in ~N days" forecasts and line-cleaning reminders,
+  beers (Open Brewery DB lookup, offline BJCP-style autocomplete, optional catalog.beer
+  search, auto-import of beers seen on Kegtron devices), guided keg swaps, multi-user
+  roles, a unified filterable Logs page with live tail and export, an Analytics page (KPI
+  row incl. cost/pint and value-on-tap, busiest-hours heatmap, full JSON export), and a
+  connection doctor that live-tests the cloud + UDP path.
 - **Alerts + automations** — a rule engine (keg-low, kicked, temperature, offline source,
   scheduled...) with delivery over in-app notifications, ntfy/Pushover, email (SMTP),
   Discord/Slack webhooks, and MQTT — plus a notification center and one-click templates.
@@ -74,21 +97,33 @@ automations, and deep wall customization.
 
 ## Quickstart (Docker)
 
+Published images live in this repo's container registry —
+`ghcr.io/dlommm/kegwall` — tagged `latest` plus each release version
+(`0.5.0`, ...), multi-arch (amd64 + arm64).
+
 ```sh
-git clone https://github.com/<owner>/kegwall.git
+docker run -d --name kegwall \
+  -p 8080:8080 \
+  -v kegwall-data:/data \
+  --restart unless-stopped \
+  ghcr.io/dlommm/kegwall:latest
+```
+
+Or with Compose (also see [deploy/docker-compose.unraid.yml](deploy/docker-compose.unraid.yml)
+for an Unraid-ready file):
+
+```sh
+git clone https://github.com/dlommm/Kegwall.git
 cd kegwall/deploy
 docker compose up -d
 ```
 
 Open `http://localhost:8080` — first visit takes you to a one-time admin setup screen
 (there is no default login). That's it; everything else (Kegtron API key, MQTT, alert
-channels, walls...) is configured from the admin UI's Settings page.
-
-No published image exists yet (see [Continuous integration](#continuous-integration)
-below), so this builds the image locally from the repo's `Dockerfile` — the first `up -d`
-takes a few minutes, subsequent ones are fast. Full reference — environment variables,
-bridge vs. host networking (needed for Kegtron's UDP broadcast or direct BLE), reverse
-proxy/HTTPS, and backup/updating — is in [docs/install/docker.md](docs/install/docker.md).
+channels, walls...) is configured from the admin UI's Settings page. Full reference —
+environment variables, bridge vs. host networking (needed for Kegtron's UDP broadcast or
+direct BLE), reverse proxy/HTTPS, and backup/updating — is in
+[docs/install/docker.md](docs/install/docker.md).
 
 ## Documentation
 
@@ -108,18 +143,15 @@ Single Node 22 / TypeScript process (ESM, strict): Fastify (REST + WebSocket + s
 files), better-sqlite3 (WAL mode, embedded migrations), React 18 for the web frontend.
 No separate server build step — the server runs its TypeScript source directly under
 `tsx`; only the SPA is compiled ahead of time (`vite build`). See
-[docs/superpowers/specs/2026-07-27-kegwall-design.md](docs/superpowers/specs/2026-07-27-kegwall-design.md)
+[docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md](docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md)
 for the full architecture writeup.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs typecheck, the unit suite, the web build, and a Chromium
-E2E smoke suite on every push/PR. `.github/workflows/release.yml` builds and pushes a
-multi-arch (amd64 + arm64) image to GHCR on a `v*` tag. Both are written and validated
-(YAML-lint clean, steps reviewed against each action's docs) but **not yet exercised on a
-real run** — this repository doesn't have a GitHub remote yet, so the badges above are
-placeholders. Replace `<owner>/<repo>` in this file (and in both workflow files' header
-comments) with the real path once one exists.
+[`.gitlab-ci.yml`](.gitlab-ci.yml) runs typecheck, the unit suite, and the web build on
+every push. Pushing a `v*` tag additionally builds the multi-arch (amd64 + arm64) image,
+pushes it to the container registry as both `X.Y.Z` and `latest` (`latest` never moves on
+a prerelease tag), and creates a GitLab Release for the tag.
 
 ## Running from source (without Docker)
 
@@ -142,9 +174,9 @@ npm run test:e2e  # Playwright, against a production build
 
 ## Contributing
 
-No formal process yet — this is a young project. Bug reports and pull requests are
+No formal process yet — this is a young project. Bug reports and merge requests are
 welcome; for anything nontrivial, opening an issue first to discuss the approach is
-appreciated. Run the full local gate before sending a PR:
+appreciated. Run the full local gate before sending an MR:
 
 ```sh
 npm test && npm run typecheck && npm run build && npm run test:e2e
