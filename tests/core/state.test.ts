@@ -223,6 +223,19 @@ describe('StateManager', () => {
     expect(tap.temp).toBe(4.1);
   });
 
+  it('a tap bound to port 2 reads its DEVICE\'s temp — Kegtron reports it once per '
+    + 'device, always recorded on the port-0 row', () => {
+    const beer2 = createBeer(db, { name: 'Port Two Porter', srm: 30 });
+    const tap2 = createTap(db, { number: 2 }).id;
+    createKeg(db, { beerId: beer2.id, sizeMl: 19000, volStartMl: 19000, tapId: tap2 });
+    const port2 = upsertMonitor(db, { ...ref, portIndex: 2 });
+    bindMonitorToTap(db, port2.id, tap2);
+    // Telemetry arrives on the device's port-0 ref, as both ingest paths emit it.
+    bus.emit('telemetry', { monitor: ref, temp: 2.8, humidity: 41, ts: '2026-07-27T01:00:00.000Z' });
+    const tap = sm.getTapStates().find((t) => t.tapId === tap2)!;
+    expect(tap.temp).toBe(2.8);
+  });
+
   it('temp is null when the bound monitor has no telemetry yet', () => {
     const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
     expect(tap.temp).toBeNull();

@@ -377,6 +377,24 @@ describe('trigger kinds', () => {
       expect(banners).toHaveLength(1);
     });
 
+    it('fires ONCE per physical device, not once per port row', async () => {
+      vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
+      seed();
+      // One 4-port Kegtron: dateCleaned is stamped identically on every port row
+      // at cloud discovery (see shadow.ts) — an overdue device is one alert, not four.
+      for (const portIndex of [0, 1, 2, 3]) {
+        upsertMonitor(db, { ...REF, portIndex }, { meta: { dateCleaned: '2025/12/01' } });
+      }
+      createAutomation(db, ruleFor(
+        { type: 'schedule', time: '09:00', weekdays: [] },
+        [bannerAction()],
+        { conditions: [{ type: 'days_since_cleaned', days: 30 }] },
+      ));
+      makeEngine().start();
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
     it('does not fire when the monitor was cleaned recently enough', async () => {
       vi.setSystemTime(new Date(2026, 0, 5, 9, 0, 0));
       seed();

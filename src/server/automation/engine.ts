@@ -592,17 +592,27 @@ export class AutomationEngine {
    * discovery -- see shadow.ts) rather than once globally like every other schedule rule:
    * "is cleaning due" is inherently a per-device question. Each monitor gets its own
    * tap-scoped `EvalCtx` (so `tap_scope`/alert cooldown/entity-keyed state all work
-   * per-monitor, exactly like any other monitor-derived event) with `daysSinceCleaned`
-   * computed fresh from THAT monitor's `meta.dateCleaned`. A rule with 3 overdue monitors
-   * fires 3 times (once per monitor) from a single schedule tick -- intentional, each is
-   * a distinct alert.
+   * per-device, exactly like any other monitor-derived event) with `daysSinceCleaned`
+   * computed fresh from THAT device's `meta.dateCleaned`. Evaluated once per physical
+   * DEVICE (monitors rows grouped by type+identifier — `dateCleaned` is stamped
+   * identically on every port row at cloud discovery), anchored on the first bound
+   * port row (else the lowest port) so the entity-keyed alert cooldown/auto-resolve
+   * state stays stable. A rule with 2 overdue devices fires 2 times (once per device),
+   * not once per port — a 4-port Kegtron is one device, not four.
    */
   private checkCleaningDueRule(rule: AutomationRule, now: Date): void {
-    for (const monitor of listMonitors(this.db)) {
-      if (monitor.type !== 'kegtron_pro') continue;
-      const ref: MonitorRef = { type: monitor.type, identifier: monitor.identifier, portIndex: monitor.portIndex };
-      const ctx = this.buildMonitorEvalCtx(ref, monitor.tapId, now.toISOString(), {});
-      ctx.daysSinceCleaned = computeDaysSinceCleaned(monitor.meta?.dateCleaned, now);
+    const monitors = listMonitors(this.db).filter((m) => m.type === 'kegtron_pro');
+    const byDevice = new Map<string, typeof monitors>();
+    for (const monitor of monitors) {
+      const key = `${monitor.type}:${monitor.identifier}`;
+      byDevice.set(key, [...(byDevice.get(key) ?? []), monitor]);
+    }
+    for (const ports of byDevice.values()) {
+      ports.sort((a, b) => a.portIndex - b.portIndex);
+      const anchor = ports.find((p) => p.tapId !== null) ?? ports[0]!;
+      const ref: MonitorRef = { type: anchor.type, identifier: anchor.identifier, portIndex: anchor.portIndex };
+      const ctx = this.buildMonitorEvalCtx(ref, anchor.tapId, now.toISOString(), {});
+      ctx.daysSinceCleaned = computeDaysSinceCleaned(anchor.meta?.dateCleaned, now);
       if (!evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) continue;
       this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
     }

@@ -9,7 +9,7 @@ import {
 import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
 } from '../db/monitors.js';
-import { recordTelemetrySampled, latestTelemetryForMonitor } from '../db/telemetry.js';
+import { recordTelemetrySampled, latestTelemetryForDevice } from '../db/telemetry.js';
 import { listPours, countPoursForDrinker } from '../db/pours.js';
 import { PourDeduper } from './pourDedupe.js';
 import { PourSampleTracker, computePourQuality } from './pourQuality.js';
@@ -175,7 +175,9 @@ export class StateManager {
       const key = mon ? monitorRefKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;
       const live = key ? this.live.get(key) : undefined;
       const lastPourRow = keg ? listPours(this.db, { kegId: keg.id, limit: 1 })[0] : undefined;
-      const temp = mon ? latestTelemetryForMonitor(this.db, mon.id)?.temp ?? null : null;
+      // Device-level: temp arrives once per physical Kegtron (recorded on port 0),
+      // so a tap bound to port 2 reads its DEVICE's telemetry, not its port row's.
+      const temp = mon ? latestTelemetryForDevice(this.db, mon.type, mon.identifier)?.temp ?? null : null;
       // Rate-after-claim average (6a): over every rated pour of this BEER, any keg.
       const avgRatingRow = beer
         ? this.db.prepare(`

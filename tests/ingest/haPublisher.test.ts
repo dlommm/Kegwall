@@ -273,6 +273,31 @@ describe('HaPublisherSource against a real broker', () => {
       expect(humidity).toMatchObject({ name: 'Humidity', device_class: 'humidity', unit_of_measurement: '%' });
     });
 
+    it('publishes ONE device (2 configs) for a multi-port Kegtron, anchored on its '
+      + 'lowest port row — even when only a port > 0 is bound', async () => {
+      const { tapId } = seedTap(1);
+      // 4-port device: port 2 bound, ports 0/1/3 idle. One physical device, one HA card.
+      const port0 = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 });
+      upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 1 });
+      const port2 = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 2 });
+      upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 3 });
+      bindMonitorToTap(db, port2.id, tapId);
+
+      await subscribeAll();
+      source = await makeSource();
+      await vi.waitFor(() => expect(byTopicSuffix('/config').length).toBeGreaterThanOrEqual(7));
+
+      // Anchored on the port-0 row's id; no per-port configs for ports 1-3.
+      expect(byTopic(`homeassistant/sensor/kegtron_monitor_${port0.id}/temp/config`)).toHaveLength(1);
+      for (const other of [port2.id, port0.id + 1, port0.id + 3]) {
+        if (other === port0.id) continue;
+        expect(byTopicSuffix(`kegtron_monitor_${other}/temp/config`)).toHaveLength(0);
+      }
+      // Exactly one temp + one humidity config across the whole device.
+      expect(byTopicSuffix('/temp/config')).toHaveLength(1);
+      expect(byTopicSuffix('/humidity/config')).toHaveLength(1);
+    });
+
     it('does NOT publish discovery configs for an UNBOUND Kegtron Pro monitor', async () => {
       seedTap(1);
       const ref = { type: 'kegtron_pro' as const, identifier: 'dev1', portIndex: 0 };

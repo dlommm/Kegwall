@@ -4,7 +4,7 @@ import type { EventBus, EventMap } from '../core/events.js';
 import type { TapState } from '../core/state.js';
 import type { Settings, SettingsStore } from '../db/settings.js';
 import { listMonitors, resolveTapForRef, type Monitor } from '../db/monitors.js';
-import { latestTelemetryForMonitor } from '../db/telemetry.js';
+import { latestTelemetryForDevice } from '../db/telemetry.js';
 import type { Source } from './source.js';
 
 // ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ function buildMonitorDiscoveryConfigs(
   const nodeId = monitorNodeId(monitor.id);
   const stateTopic = monitorStateTopic(cfg, monitor.id);
   const device = {
-    identifiers: [nodeId], name: `Kegtron Pro ${monitor.identifier}`,
+    identifiers: [nodeId], name: monitor.name ?? `Kegtron Pro ${monitor.identifier}`,
     manufacturer: 'Kegtron', model: 'Pro',
   };
   const availability: [{ topic: string }] = [{ topic: availabilityTopic(cfg) }];
@@ -224,11 +224,27 @@ function discoveryTopic(cfg: MqttConfig, component: string, nodeId: string, obje
   return `${cfg.haDiscoveryPrefix}/${component}/${nodeId}/${objectId}/config`;
 }
 
-/** Bound Kegtron Pro monitors only -- an unbound monitor has no tap to attach its device
- * card to in the admin UI, and (more importantly here) HA discovery entities for a
- * monitor nobody's tap ever resolves would be orphaned/meaningless. */
-function boundProMonitors(db: Database.Database): Monitor[] {
-  return listMonitors(db).filter((m) => m.type === 'kegtron_pro' && m.tapId !== null);
+/** One ANCHOR row per bound Kegtron Pro DEVICE. A physical Kegtron has 1-4 ports
+ * (one monitors row each, sharing type+identifier) but reports temperature once per
+ * device — publishing per port meant 4 identically-named HA devices, 3 of them with
+ * permanently-null temp. Group by identifier, keep devices with at least one bound
+ * port, and represent each with its port-0 row when present (keeps the HA unique_id
+ * `kegtron_monitor_{port0RowId}` byte-identical to the old scheme in the common case)
+ * else the lowest-port row. */
+function boundProDeviceAnchors(db: Database.Database): Monitor[] {
+  const byDevice = new Map<string, Monitor[]>();
+  for (const m of listMonitors(db)) {
+    if (m.type !== 'kegtron_pro') continue;
+    const key = `${m.type}:${m.identifier}`;
+    byDevice.set(key, [...(byDevice.get(key) ?? []), m]);
+  }
+  const anchors: Monitor[] = [];
+  for (const ports of byDevice.values()) {
+    if (!ports.some((p) => p.tapId !== null)) continue;
+    ports.sort((a, b) => a.portIndex - b.portIndex);
+    anchors.push(ports[0]!);
+  }
+  return anchors;
 }
 
 /** Signature used to decide whether discovery configs need republishing this cycle -- see
@@ -236,7 +252,7 @@ function boundProMonitors(db: Database.Database): Monitor[] {
 function discoverySignature(tapStates: TapState[], monitors: Monitor[]): string {
   return JSON.stringify({
     taps: tapStates.map((t) => ({ id: t.tapId, beerId: t.beer?.id ?? null, beerName: t.beer?.name ?? null })),
-    monitors: monitors.map((m) => ({ id: m.id, tapId: m.tapId, identifier: m.identifier })),
+    monitors: monitors.map((m) => ({ id: m.id, tapId: m.tapId, identifier: m.identifier, name: m.name })),
   });
 }
 
@@ -372,7 +388,7 @@ export class HaPublisherSource implements Source {
   private publishCycle(cfg: MqttConfig): void {
     if (!this.client?.connected) return;
     const tapStates = this.state.getTapStates();
-    const monitors = boundProMonitors(this.db);
+    const monitors = boundProDeviceAnchors(this.db);
 
     const sig = discoverySignature(tapStates, monitors);
     if (sig !== this.lastDiscoverySignature) {
@@ -440,7 +456,7 @@ export class HaPublisherSource implements Source {
       client.publish(tapStateTopic(cfg, tap.tapId), JSON.stringify(payload), { retain: true, qos: 0 });
     }
     for (const monitor of monitors) {
-      const telemetry = latestTelemetryForMonitor(this.db, monitor.id);
+      const telemetry = latestTelemetryForDevice(this.db, monitor.type, monitor.identifier);
       const payload = { temp_c: telemetry?.temp ?? null, humidity_pct: telemetry?.humidity ?? null };
       client.publish(monitorStateTopic(cfg, monitor.id), JSON.stringify(payload), { retain: true, qos: 0 });
     }

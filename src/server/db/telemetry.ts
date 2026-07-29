@@ -37,6 +37,35 @@ export function latestTelemetryForMonitor(db: Database.Database, monitorId: numb
   return r ?? null;
 }
 
+/** Most recent telemetry across EVERY port row of a physical device (all monitors
+ * sharing type+identifier). Kegtron reports temperature once per DEVICE and the
+ * ingest records it on the port-0 row — so a tap bound to port 2 must read its
+ * device's telemetry, not its own port row's (which is always empty). */
+export function latestTelemetryForDevice(
+  db: Database.Database, type: string, identifier: string,
+): TelemetryPoint | null {
+  const r = db.prepare(
+    `SELECT t.ts, t.temp, t.humidity FROM telemetry t
+       JOIN monitors m ON m.id = t.monitor_id
+      WHERE m.type = ? AND m.identifier = ?
+      ORDER BY t.ts DESC LIMIT 1`)
+    .get(type, identifier) as TelemetryPoint | undefined;
+  return r ?? null;
+}
+
+/** `listTelemetry`, widened to the whole physical device — see
+ * `latestTelemetryForDevice` for why per-port lookups miss everything on ports > 0. */
+export function listTelemetryForDevice(
+  db: Database.Database, type: string, identifier: string, since: string,
+): TelemetryPoint[] {
+  return db.prepare(
+    `SELECT t.ts, t.temp, t.humidity FROM telemetry t
+       JOIN monitors m ON m.id = t.monitor_id
+      WHERE m.type = ? AND m.identifier = ? AND t.ts >= ?
+      ORDER BY t.ts`)
+    .all(type, identifier, since) as TelemetryPoint[];
+}
+
 export function pruneTelemetry(db: Database.Database, olderThanDays = 90): number {
   const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString();
   return db.prepare('DELETE FROM telemetry WHERE ts < ?').run(cutoff).changes;

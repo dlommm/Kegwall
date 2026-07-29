@@ -4,7 +4,7 @@ import { requireRole } from './auth.js';
 import {
   poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard,
 } from '../db/stats.js';
-import { listTelemetry } from '../db/telemetry.js';
+import { listTelemetryForDevice } from '../db/telemetry.js';
 import { getMonitorById } from '../db/monitors.js';
 import { NotFoundError } from '../core/errors.js';
 
@@ -51,14 +51,16 @@ export async function statsRoutes(app: FastifyInstance) {
   });
 
   // Query-param twin of `GET /api/monitors/:id/telemetry` (Task 6, routes/crud.ts) —
-  // same viewer role, same `listTelemetry` reuse, same hours bounds — but addressed by
-  // `?monitorId=` rather than a path param, per the Task 9 plan's endpoint shape, so the
-  // Stats page's temp chart can read it the same way as its other `/api/stats/*` calls.
+  // same viewer role, same device-wide telemetry reuse, same hours bounds — but
+  // addressed by `?monitorId=` rather than a path param, per the Task 9 plan's endpoint
+  // shape, so the Stats page's temp chart can read it the same way as its other
+  // `/api/stats/*` calls. Any port row of a device answers identically.
   app.get('/api/stats/temps', viewer, async (req) => {
     const { monitorId, hours } = tempsQuerySchema.parse(req.query);
-    if (!getMonitorById(db, monitorId)) throw new NotFoundError(`monitor ${monitorId}`);
+    const mon = getMonitorById(db, monitorId);
+    if (!mon) throw new NotFoundError(`monitor ${monitorId}`);
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-    return listTelemetry(db, monitorId, since);
+    return listTelemetryForDevice(db, mon.type, mon.identifier, since);
   });
 
   app.get('/api/stats/leaderboard', viewer, async (req) => {

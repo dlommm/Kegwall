@@ -11,7 +11,7 @@ import {
 import {
   listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
 } from '../db/monitors.js';
-import { listTelemetry } from '../db/telemetry.js';
+import { listTelemetryForDevice } from '../db/telemetry.js';
 import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
@@ -282,12 +282,15 @@ export async function crudRoutes(app: FastifyInstance) {
   const telemetryQuerySchema = z.object({
     hours: z.coerce.number().int().min(1).max(168).default(24),
   });
+  // Device-wide: any port row of a device answers with the whole device's telemetry
+  // (Kegtron reports temp once per device, recorded on the port-0 row).
   app.get('/api/monitors/:id/telemetry', viewer, async (req) => {
     const monitorId = Number((req.params as any).id);
-    if (!getMonitorById(db, monitorId)) throw new NotFoundError('monitor');
+    const mon = getMonitorById(db, monitorId);
+    if (!mon) throw new NotFoundError('monitor');
     const { hours } = telemetryQuerySchema.parse(req.query);
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-    return listTelemetry(db, monitorId, since);
+    return listTelemetryForDevice(db, mon.type, mon.identifier, since);
   });
 
   // --- pours ---
