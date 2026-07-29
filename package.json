@@ -1,11 +1,7 @@
 {
   "name": "kegtron-dashboard",
   "version": "0.1.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
+  "description": "Self-hosted, PourWall-style tap wall for Kegtron keg monitors — standalone-first with optional Home Assistant integration.",
   "scripts": {
     "test": "vitest run",
     "dev": "tsx watch src/server/index.ts",
@@ -16,10 +12,19 @@
     "seed": "tsx scripts/seed.ts",
     "test:e2e": "playwright test"
   },
-  "keywords": [],
+  "keywords": [
+    "kegtron",
+    "kegerator",
+    "tap-wall",
+    "self-hosted",
+    "home-assistant"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "^10.1.0",

@@ -7,11 +7,6 @@ import { MAX_BYTES, writeLabelFile } from './uploads.js';
 import type { BreweryLookupResult, UntappdLookupResult } from '../core/lookupTypes.js';
 import { assertPublicHost, ForbiddenHostError, type HostResolver } from '../core/ssrfGuard.js';
 
-// Re-exported so anything importing FROM this route module (rather than the shared
-// core/lookupTypes.ts directly) keeps working — but see that file's doc comment for why
-// the web client specifically must import from core/lookupTypes.ts, not from here.
-export type { BreweryLookupResult, UntappdLookupResult };
-
 // ---------------------------------------------------------------------------
 // Task 4: two read-only lookup proxies (Open Brewery DB, Untappd) that let the beers
 // form autocomplete a brewery name and pull in beer metadata + label art, plus one
