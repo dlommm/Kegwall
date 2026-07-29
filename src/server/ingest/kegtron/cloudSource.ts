@@ -241,7 +241,15 @@ export class KegtronCloudSource implements Source {
   private openWs(state: DeviceState): Promise<void> {
     return new Promise((resolve) => {
       const url = `${this.wsBaseUrl}${NOTIFY_PATH}?access_token=${encodeURIComponent(state.deviceKey)}`;
-      const ws = new WebSocket(url);
+      // mdash.net 403s the notify WS handshake outright when no `Origin` header is
+      // present (live-diagnosed against the real server; a bare `new WebSocket(url)`
+      // sends none). Kegtron's own Node.js example works around this by passing `{
+      // origin: url }` — the whole notify URL itself, not just a scheme+host — to the
+      // `ws` client (docs/kegtron/Notify.md's Examples section); matching that exactly
+      // here is what makes every device connection actually succeed instead of 403ing
+      // and permanently degrading this source to 5-min polling. See
+      // tests/ingest/cloudSource.test.ts's dedicated regression test.
+      const ws = new WebSocket(url, { origin: url });
       state.ws = ws;
       let settled = false;
       const settleOnce = () => {

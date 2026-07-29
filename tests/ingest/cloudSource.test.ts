@@ -39,6 +39,14 @@ let shadowRequestCount: number;
 let seenServingsParams: unknown;
 let serverSockets: WebSocket[];
 let serverConnectionUrls: string[];
+// Live-diagnosed bug fix regression coverage: mdash.net's real WS handshake 403s with NO
+// `Origin` header (Kegtron's own Node example works around this by passing `{ origin: url
+// }` to the `ws` client — see docs/kegtron/Notify.md's Examples section, and
+// cloudSource.ts's `openWs`). This fake server doesn't reject a missing Origin (that would
+// turn every OTHER test in this file red too, since they all share this same `wss`) — it
+// just records what each handshake actually carried, so one dedicated test below can
+// assert the real value without disturbing the rest of the suite.
+let serverConnectionOrigins: (string | undefined)[];
 let settings: SettingsStore;
 let bus: EventBus;
 let events: { event: string; payload: any }[];
@@ -64,6 +72,7 @@ function listenWs(): Promise<string> {
     wss.on('connection', (ws, req) => {
       serverSockets.push(ws);
       serverConnectionUrls.push(req.url ?? '');
+      serverConnectionOrigins.push(req.headers.origin);
     });
     wss.on('listening', () => {
       const address = wss.address() as { port: number };
@@ -96,6 +105,7 @@ beforeEach(async () => {
   app = Fastify();
   serverSockets = [];
   serverConnectionUrls = [];
+  serverConnectionOrigins = [];
   shadowRequestCount = 0;
   seenServingsParams = undefined;
   servingsHandler = async () => ({ rows: DEFAULT_SERVINGS_ROWS });
@@ -188,6 +198,31 @@ describe('KegtronCloudSource discovery flow', () => {
       const statuses = byEvent('source_status');
       expect(statuses.some((s) => s.healthy === true && s.detail.includes('1/1'))).toBe(true);
     });
+  });
+
+  // Live-diagnosed tonight against real mdash.net: it 403s the notify WS handshake when no
+  // `Origin` header is present. Kegtron's own Node.js example (docs/kegtron/Notify.md)
+  // works around this by passing `{ origin: url }` to the `ws` client constructor — a bare
+  // `new WebSocket(url)` (no origin option) sends no Origin header at all, so every real
+  // device connection 403s and the source degrades to 5-min polling ("all N device
+  // connections down"). This fake server doesn't reject a missing Origin itself (see
+  // `serverConnectionOrigins`'s doc comment above), so this test is a direct, isolated
+  // assertion on what the client actually sent — RED without the `{ origin: url }` fix in
+  // cloudSource.ts's `openWs`, GREEN with it.
+  it('opens the notify WebSocket with an Origin header (mdash.net 403s the handshake without one)', async () => {
+    settings.set('kegtronApiKey', API_KEY);
+    const baseUrl = await listenHttp();
+
+    source = new KegtronCloudSource({ bus, settings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+
+    await vi.waitFor(() => expect(serverConnectionOrigins).toHaveLength(1));
+    expect(serverConnectionOrigins[0]).toBeTruthy();
+    // Matches Kegtron's own example exactly: `origin` is set to the full notify URL
+    // itself (not just a scheme+host), same value serverConnectionUrls[0] captures as the
+    // request path/query.
+    expect(serverConnectionOrigins[0]).toContain('/api/v2/m/device/notify');
+    expect(serverConnectionOrigins[0]).toContain(`access_token=${DEVICE_KEY}`);
   });
 });
 
