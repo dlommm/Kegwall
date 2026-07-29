@@ -15,6 +15,16 @@ import './index.css';
 // verified below by inspecting the build output.
 import '@fontsource-variable/oswald';
 import '@fontsource-variable/inter';
+// Pour Wall overhaul faces: Barlow Condensed 500-700 (display/numbers) +
+// Barlow 400-600 (body) — the typographic identity of the redesign themes
+// (Midnight Slate et al., see themes.ts). Static weight files (Barlow isn't
+// published as a variable font on Fontsource).
+import '@fontsource/barlow/400.css';
+import '@fontsource/barlow/500.css';
+import '@fontsource/barlow/600.css';
+import '@fontsource/barlow-condensed/500.css';
+import '@fontsource/barlow-condensed/600.css';
+import '@fontsource/barlow-condensed/700.css';
 
 const container = document.getElementById('root');
 if (!container) {

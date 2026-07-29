@@ -34,7 +34,7 @@ describe('ThemeProvider', () => {
     expect(computed.getPropertyValue('--font-display').trim()).toContain('Oswald');
   });
 
-  it('falls back to taproom for an unknown theme id', () => {
+  it('falls back to midnight-slate for an unknown theme id', () => {
     const { container } = render(
       <ThemeProvider theme={{ id: 'does-not-exist' }}>
         <p>content</p>
@@ -43,18 +43,18 @@ describe('ThemeProvider', () => {
 
     const el = scopeEl(container);
     const computed = getComputedStyle(el);
-    const taproomTokens = getTheme('taproom').tokens;
-    expect(computed.getPropertyValue('--bg').trim()).toBe(taproomTokens['--bg']);
-    expect(el.dataset.themeId).toBe('taproom');
+    const defaultTokens = getTheme('midnight-slate').tokens;
+    expect(computed.getPropertyValue('--bg').trim()).toBe(defaultTokens['--bg']);
+    expect(el.dataset.themeId).toBe('midnight-slate');
   });
 
-  it('falls back to taproom when no theme prop is given at all', () => {
+  it('falls back to midnight-slate when no theme prop is given at all', () => {
     const { container } = render(
       <ThemeProvider>
         <p>content</p>
       </ThemeProvider>,
     );
-    expect(scopeEl(container).dataset.themeId).toBe('taproom');
+    expect(scopeEl(container).dataset.themeId).toBe('midnight-slate');
   });
 
   it('overrides beat the base theme tokens', () => {

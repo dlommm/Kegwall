@@ -29,6 +29,22 @@ const CARD_TEMPLATES: { value: CardTemplate; label: string }[] = [
   { value: 'minimal', label: 'Minimal' },
 ];
 
+// Wall LOOK (Pour Wall overhaul): the layout template axis. 'classic' keeps the
+// pre-overhaul WallGrid; the design-doc looks own their whole frame (see
+// components/looks/). Card template/columns only apply to 'classic'.
+const LOOKS: { value: WallConfig['look']; label: string }[] = [
+  { value: 'classic', label: 'Classic grid' },
+  { value: 'ledger', label: 'Ledger (rows)' },
+  { value: 'gallery', label: 'Gallery (cards)' },
+  { value: 'columns', label: 'Tap columns' },
+];
+
+const GLYPH_MODES: { value: WallConfig['glyphMode']; label: string }[] = [
+  { value: 'flat', label: 'Flat fill' },
+  { value: 'outline', label: 'Outline' },
+  { value: 'duotone', label: 'Duotone' },
+];
+
 // Keg-asset fill indicator feature: doesn't apply to `compact` (its liquid swatch is too
 // small for the keg cutaway art — see TapCard.tsx), but the setting itself is still a
 // single per-wall toggle rather than per-template, so it's offered here unconditionally;
@@ -202,6 +218,30 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               />
             </label>
             <label className="admin-field">
+              <span>Look</span>
+              <select
+                data-testid="wall-editor-look"
+                value={form.look}
+                onChange={(e) => updateField('look', e.target.value as WallConfig['look'])}
+              >
+                {LOOKS.map((l) => (
+                  <option key={l.value} value={l.value}>{l.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>Glyph style</span>
+              <select
+                data-testid="wall-editor-glyph-mode"
+                value={form.glyphMode}
+                onChange={(e) => updateField('glyphMode', e.target.value as WallConfig['glyphMode'])}
+              >
+                {GLYPH_MODES.map((g) => (
+                  <option key={g.value} value={g.value}>{g.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
               <span>Columns</span>
               <select
                 data-testid="wall-editor-columns"
@@ -366,6 +406,16 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
                 value={form.headerTitle}
                 onChange={(e) => updateField('headerTitle', e.target.value)}
                 placeholder={currentWall.name}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Announcement</span>
+              <input
+                type="text"
+                data-testid="wall-editor-header-subtitle"
+                value={form.headerSubtitle}
+                onChange={(e) => updateField('headerSubtitle', e.target.value)}
+                placeholder="Trivia night Thursdays at 7"
               />
             </label>
             <label className="wall-editor__checkbox">

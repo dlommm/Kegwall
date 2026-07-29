@@ -21,6 +21,38 @@ describe('wallConfigSchema screensaver', () => {
   });
 });
 
+describe('wallConfigSchema look/glyphMode (Pour Wall overhaul)', () => {
+  it("defaults to the 'classic' look with 'flat' glyphs so stored configs render unchanged", () => {
+    const config = wallConfigSchema.parse({});
+    expect(config.look).toBe('classic');
+    expect(config.glyphMode).toBe('flat');
+  });
+
+  it('accepts each overhaul look and glyph mode', () => {
+    for (const look of ['classic', 'ledger', 'gallery', 'columns'] as const) {
+      expect(wallConfigSchema.parse({ look }).look).toBe(look);
+    }
+    for (const glyphMode of ['flat', 'outline', 'duotone'] as const) {
+      expect(wallConfigSchema.parse({ glyphMode }).glyphMode).toBe(glyphMode);
+    }
+  });
+
+  it('rejects unknown look/glyphMode values', () => {
+    expect(() => wallConfigSchema.parse({ look: 'brutalist' })).toThrow();
+    expect(() => wallConfigSchema.parse({ glyphMode: 'neon' })).toThrow();
+  });
+
+  it('defaults the theme to midnight-slate and keeps the header subtitle optional', () => {
+    const config = wallConfigSchema.parse({});
+    expect(config.theme.id).toBe('midnight-slate');
+    expect(config.header.subtitle).toBeUndefined();
+    const withSubtitle = wallConfigSchema.parse({
+      header: { subtitle: 'Trivia Thursdays', showClock: false, showTemp: false },
+    });
+    expect(withSubtitle.header.subtitle).toBe('Trivia Thursdays');
+  });
+});
+
 describe('wallConfigSchema fillStyle (keg-asset fill indicator feature)', () => {
   it("defaults to 'liquid' (the existing SRM LiquidFill) when omitted", () => {
     const config = wallConfigSchema.parse({});

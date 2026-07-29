@@ -127,6 +127,21 @@ describe('WallPage', () => {
     expect(screen.getAllByTestId('tap-card')).toHaveLength(2);
   });
 
+  it('renders a non-classic look instead of the classic header/grid chrome', () => {
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: { slug: 'main', name: 'The Keg Cave', config: makeConfig({ look: 'ledger', showQr: true }) },
+      taps: [makeTap(1)],
+    }));
+    renderWall();
+    expect(screen.getByTestId('ledger-look')).toBeInTheDocument();
+    // The look owns its whole frame: no classic header, grid, or corner QR overlay.
+    expect(screen.queryByTestId('wall-header')).toBeNull();
+    expect(screen.queryByTestId('wall-grid')).toBeNull();
+    expect(screen.queryByTestId('qr-overlay')).toBeNull();
+    // The look renders its own in-chrome QR instead.
+    expect(screen.getByTestId('look-qr')).toBeInTheDocument();
+  });
+
   it('a config.header.title overrides the wall name', () => {
     (useWallData as Mock).mockReturnValue(baseResult({
       wall: { slug: 'main', name: 'The Keg Cave', config: makeConfig({ header: { title: 'Taproom Live', showClock: false, showTemp: false } }) },

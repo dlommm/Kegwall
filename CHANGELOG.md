@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Added:** Pour Wall overhaul Phase 1 — the wall "look" system (design handoff
+  `design_handoff_pourwall_overhaul`). New per-wall `look` axis alongside themes:
+  `Classic grid` (unchanged default), `Ledger` (1a, row-per-tap data ledger), `Gallery`
+  (1b, 3-across card grid) and `Tap columns` (1c, tap-handle columns with page-cycle
+  dots). Four dynamic SVG data glyphs drive the looks: style-matched SRM glassware
+  (pint/nonic/tulip/flute/goblet/mug auto-picked from the beer style), an IBU-filled hop
+  cone, ABV mini-pint strength glasses, and a keg-type-matched keg level silhouette —
+  each in a per-wall `flat`/`outline`/`duotone` glyph style. Six new themes (Midnight
+  Slate — the new default for new walls — Cream, Cellar Teal, Taproom Green, Amber Glow,
+  Arcade) in Barlow/Barlow Condensed, with status/border/faint-text tokens added to the
+  theme system; the four pre-overhaul themes remain for existing walls. Looks carry the
+  full wall chrome in their own voice: NEW ON TAP / ALMOST GONE / live POURING badges,
+  % remaining everywhere, header announcement line (`header.subtitle`), KEGTRON sensor
+  chip, footer marquee ticker, in-chrome menu QR, and page-cycle dots. Wall editor gains
+  Look, Glyph style and Announcement fields with the live preview.
+
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new
   developer credentials, making the feature unusable for any new install. The Kegtron Pro

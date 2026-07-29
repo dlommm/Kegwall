@@ -9,6 +9,7 @@ import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { WallHeader } from '../components/WallHeader';
 import { WallGrid } from '../components/WallGrid';
+import { WallLook } from '../components/looks/WallLook';
 import { BannerLane } from '../components/BannerLane';
 import { QrOverlay } from '../components/QrOverlay';
 import { ScreenCare } from '../components/ScreenCare';
@@ -172,6 +173,9 @@ export function WallPage() {
 
   const title = config.header.title ?? wall.name;
   const menuUrl = `${window.location.origin}/menu`;
+  // Server-parsed configs always carry `look` (schema default 'classic'), but the
+  // defensive fallback keeps any not-yet-reparsed config on the classic path.
+  const look = config.look ?? 'classic';
   // Party mode layers a fixed accent override on top of the wall's OWN configured theme
   // (id + its own overrides untouched) -- see PARTY_MODE_OVERRIDES' doc comment above.
   const theme = partyMode
@@ -185,31 +189,57 @@ export function WallPage() {
         data-testid="wall-page-dimmable"
       >
         <ScreenCare screensaver={config.screensaver} taps={taps} title={title}>
-          <WallHeader
-            title={title}
-            showClock={config.header.showClock}
-            showTemp={config.header.showTemp}
-            tempC={maxTempC}
-            units={units}
-            ticker={config.ticker}
-          />
-          <div
-            key={pageIndex}
-            className={`wall-grid-transition wall-grid-transition--${transition}`}
-            data-testid="wall-page-content"
-            data-transition={transition}
-          >
-            <WallGrid
-              taps={currentTaps}
-              columns={config.columns}
-              template={config.cardTemplate}
-              fields={config.fields}
-              fillStyle={config.fillStyle}
-              units={units}
-            />
-          </div>
+          {look === 'classic' ? (
+            <>
+              <WallHeader
+                title={title}
+                showClock={config.header.showClock}
+                showTemp={config.header.showTemp}
+                tempC={maxTempC}
+                units={units}
+                ticker={config.ticker}
+              />
+              <div
+                key={pageIndex}
+                className={`wall-grid-transition wall-grid-transition--${transition}`}
+                data-testid="wall-page-content"
+                data-transition={transition}
+              >
+                <WallGrid
+                  taps={currentTaps}
+                  columns={config.columns}
+                  template={config.cardTemplate}
+                  fields={config.fields}
+                  fillStyle={config.fillStyle}
+                  units={units}
+                />
+              </div>
+            </>
+          ) : (
+            // Pour Wall overhaul looks (Ledger/Gallery/Columns…) own their whole
+            // frame — header, rows/cards, footer ticker + QR — so the classic
+            // WallHeader/QrOverlay chrome stays out of their way entirely.
+            <div
+              key={pageIndex}
+              className={`wall-grid-transition wall-grid-transition--${transition} look-frame`}
+              data-testid="wall-page-content"
+              data-transition={transition}
+            >
+              <WallLook
+                taps={currentTaps}
+                config={config}
+                units={units}
+                title={title}
+                menuUrl={menuUrl}
+                tempC={maxTempC}
+                pageIndex={pageIndex}
+                pageCount={pages.length}
+                rotationSeconds={config.rotationSeconds}
+              />
+            </div>
+          )}
           <BannerLane queue={queue} onDismiss={dismiss} />
-          {config.showQr && <QrOverlay url={menuUrl} />}
+          {look === 'classic' && config.showQr && <QrOverlay url={menuUrl} />}
         </ScreenCare>
       </div>
       {stale && (

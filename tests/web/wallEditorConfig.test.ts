@@ -17,6 +17,8 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
 
     // Every scalar/structural field round-trips exactly...
     expect(result.config.columns).toBe(defaults.columns);
+    expect(result.config.look).toBe(defaults.look);
+    expect(result.config.glyphMode).toBe(defaults.glyphMode);
     expect(result.config.cardTemplate).toBe(defaults.cardTemplate);
     expect(result.config.theme).toEqual(defaults.theme);
     expect(result.config.pages).toEqual(defaults.pages);
@@ -43,13 +45,17 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
   it('full config: every field populated round-trips byte-for-byte through deserialize -> serialize -> parse', () => {
     const full: WallConfig = {
       columns: 4,
+      look: 'ledger',
+      glyphMode: 'duotone',
       cardTemplate: 'full',
       theme: { id: 'mono', overrides: { '--bg': '#111111', '--accent': '#ff0000' } },
       pages: [{ tapIds: [1, 2] }, { tapIds: [3] }],
       rotationSeconds: 30,
       transition: 'slide',
       showQr: true,
-      header: { title: 'Taproom', showClock: true, showTemp: true },
+      header: {
+        title: 'Taproom', subtitle: 'Trivia Thursdays at 7', showClock: true, showTemp: true,
+      },
       ticker: 'Welcome to the taproom!',
       fields: {
         labelImage: false, brewery: true, style: true, description: true, abv: true, ibu: false, lastPour: true,

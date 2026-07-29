@@ -20,6 +20,8 @@ export type WallTokenKey = typeof WALL_TOKEN_KEYS[number];
 
 export interface WallConfigFormState {
   columns: number;
+  look: WallConfig['look'];
+  glyphMode: WallConfig['glyphMode'];
   cardTemplate: CardTemplate;
   themeId: string;
   /** Always has all 6 `WALL_TOKEN_KEYS`; `''` means "no override, inherit the theme's own value". */
@@ -33,6 +35,7 @@ export interface WallConfigFormState {
   transition: WallConfig['transition'];
   showQr: boolean;
   headerTitle: string;
+  headerSubtitle: string;
   showClock: boolean;
   showTemp: boolean;
   ticker: string;
@@ -72,6 +75,8 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
 
   return {
     columns: config.columns,
+    look: config.look,
+    glyphMode: config.glyphMode,
     cardTemplate: config.cardTemplate,
     themeId: config.theme.id,
     themeOverrides,
@@ -82,6 +87,7 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     transition: config.transition,
     showQr: config.showQr,
     headerTitle: config.header.title ?? '',
+    headerSubtitle: config.header.subtitle ?? '',
     showClock: config.header.showClock,
     showTemp: config.header.showTemp,
     ticker: config.ticker ?? '',
@@ -113,14 +119,17 @@ export function formStateToConfigCandidate(
     if (value.trim() !== '') overrides[key] = value.trim();
   }
 
-  const header: { title?: string; showClock: boolean; showTemp: boolean } = {
+  const header: { title?: string; subtitle?: string; showClock: boolean; showTemp: boolean } = {
     showClock: form.showClock,
     showTemp: form.showTemp,
   };
   if (form.headerTitle.trim() !== '') header.title = form.headerTitle.trim();
+  if (form.headerSubtitle.trim() !== '') header.subtitle = form.headerSubtitle.trim();
 
   const candidate: Record<string, unknown> = {
     columns: form.columns,
+    look: form.look,
+    glyphMode: form.glyphMode,
     cardTemplate: form.cardTemplate,
     theme: {
       id: form.themeId,
