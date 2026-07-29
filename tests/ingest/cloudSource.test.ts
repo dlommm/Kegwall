@@ -117,6 +117,18 @@ beforeEach(async () => {
 
 afterEach(async () => {
   if (source) await source.stop();
+  // Phase 6 flake sweep (phase5 ledger T0, "cloudSource WS-teardown flake seen once under
+  // load"): `wss.close()` on a WebSocketServer that owns its own internal HTTP server (no
+  // `server`/`noServer` option, as here) only waits on the underlying http.Server's own
+  // connection tracking -- once a connection is upgraded to a WebSocket, Node detaches it
+  // from that tracking, so `wss.close()`'s callback can fire while server-side WebSocket
+  // handles (`serverSockets`, pushed by `listenWs()`'s 'connection' handler above) are
+  // still open. `KegtronCloudSource.stop()` does call `ws.terminate()` client-side, but
+  // that's a fire-and-forget close (no confirmation awaited) -- explicitly terminating
+  // every server-side socket captured this test closes the race window instead of relying
+  // on the client-side terminate()'s asynchronous propagation beating the next test's
+  // beforeEach. Safe to call on an already-closed socket (no-op).
+  for (const ws of serverSockets) ws.terminate();
   await app.close();
   await new Promise<void>((resolve) => wss.close(() => resolve()));
 });
