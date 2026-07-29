@@ -31,7 +31,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 9 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 10 });
     db2.close();
   });
 
@@ -57,7 +57,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql',
     ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
@@ -91,7 +91,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -178,7 +178,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql',
     ]);
     db.close();
   });
@@ -207,7 +207,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -280,6 +280,41 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(() => runMigrations(db, fixturesDir)).toThrow(/dangling foreign keys/i);
 
     db.close();
+  });
+
+  it('010 drops locations + every location_id column on a DB that used them, '
+    + 'keeping the monitor friendly name', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const raw = new Database(join(dir, 'app.db'));
+    const now = new Date().toISOString();
+    raw.exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
+    for (const f of ['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql',
+      '008_locations_displays.sql', '009_feature_pack.sql']) {
+      raw.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+      raw.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)').run(f, now);
+    }
+    // Location-scoped data, exactly as a Phase 5 install would have it.
+    raw.prepare(`INSERT INTO locations (name, created_at) VALUES ('Garage', ?)`).run(now);
+    raw.prepare(`INSERT INTO taps (number, location_id) VALUES (1, 1)`).run();
+    raw.prepare(`INSERT INTO monitors (type, identifier, port_index, name, location_id, meta)
+      VALUES ('kegtron_pro', 'dev1', 0, 'Main kegerator', 1, '{}')`).run();
+    raw.prepare(`INSERT INTO walls (slug, name, config, location_id) VALUES ('main', 'Main', '{}', 1)`).run();
+    raw.close();
+
+    const upgraded = openDb(dir);
+    const tables = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
+      .all().map((r: any) => r.name);
+    expect(tables).not.toContain('locations');
+    for (const table of ['monitors', 'taps', 'walls']) {
+      const cols = (upgraded.pragma(`table_info(${table})`) as any[]).map((c) => c.name);
+      expect(cols).not.toContain('location_id');
+    }
+    const monitor = upgraded.prepare(`SELECT * FROM monitors WHERE identifier = 'dev1'`).get() as any;
+    expect(monitor.name).toBe('Main kegerator');
+    // The three tables still accept writes (no dangling REFERENCES from the drop order).
+    expect(() => upgraded.prepare(`INSERT INTO taps (number) VALUES (2)`).run()).not.toThrow();
+    upgraded.close();
   });
 
   it('opens with a 5s busy_timeout pragma set explicitly by openDb', () => {

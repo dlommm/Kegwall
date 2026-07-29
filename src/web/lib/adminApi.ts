@@ -657,26 +657,14 @@ export function getLogs(query: LogsQuery = {}): Promise<ApiResult<LogsResponse>>
   return request(`/api/logs${qs ? `?${qs}` : ''}`);
 }
 
-// --- Pour Wall overhaul Phase 5: locations, monitor identity, displays ------
+// --- Pour Wall overhaul Phase 5: monitor identity, displays -----------------
 
-export type { Location } from '../../server/db/locations.js';
 export type { Display, DisplayOverrides } from '../../server/db/displays.js';
 
-export function listLocations(): Promise<ApiResult<import('../../server/db/locations.js').Location[]>> {
-  return request('/api/locations');
-}
-
-export function createLocation(name: string): Promise<ApiResult<import('../../server/db/locations.js').Location>> {
-  return request('/api/locations', { method: 'POST', body: JSON.stringify({ name }) });
-}
-
-export function deleteLocation(id: number): Promise<ApiResult<null>> {
-  return request(`/api/locations/${id}`, { method: 'DELETE' });
-}
-
-/** PATCH /api/monitors/:id/identity — friendly name + location (design 11a). */
+/** PATCH /api/monitors/:id/identity — renames the whole physical DEVICE (every
+ * port row sharing the addressed monitor's type+identifier gets the name). */
 export function updateMonitorIdentity(id: number, input: {
-  name?: string | null; locationId?: number | null;
+  name?: string | null;
 }): Promise<ApiResult<Monitor>> {
   return request(`/api/monitors/${id}/identity`, { method: 'PATCH', body: JSON.stringify(input) });
 }

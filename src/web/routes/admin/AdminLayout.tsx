@@ -3,9 +3,7 @@ import {
   Navigate, NavLink, Outlet, useLocation, useNavigate,
 } from 'react-router-dom';
 import type { User } from '../../../server/db/users.js';
-import {
-  getMe, logout, listWalls, listLocations, type Location,
-} from '../../lib/adminApi';
+import { getMe, logout, listWalls } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import type { VolumeUnits } from '../../lib/units';
 import { ThemeProvider } from '../../themes/ThemeProvider';
@@ -40,8 +38,7 @@ type Status = 'loading' | 'ready' | 'error';
  * git for the full auth/units-fetch rationale — both fetches still happen exactly once
  * per admin session here).
  *
- * Pour Wall overhaul Phase 4 (design 5a shell): 230px sidebar — brand + site name, a
- * location switcher slot (static "All locations" until Phase 5's locations land), the
+ * Pour Wall overhaul Phase 4 (design 5a shell): 230px sidebar — brand + site name, the
  * nav (active item: accent text, 3px left border, tinted bg), an appearance picker
  * (Midnight Slate / Workshop / Console — see lib/adminTheme.ts) and the user chip.
  * 62px topbar — current page title, quick-nav search (⌘K), the notification bell, and
@@ -59,16 +56,6 @@ export function AdminLayout() {
   const [adminThemeId, setAdminThemeId] = useState<AdminThemeId>(() => loadAdminThemeId());
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [locationId, setLocationId] = useState<number | null>(() => {
-    try {
-      const raw = window.localStorage.getItem('kegtron.adminLocation');
-      const id = raw ? Number(raw) : NaN;
-      return Number.isInteger(id) ? id : null;
-    } catch {
-      return null;
-    }
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -102,11 +89,6 @@ export function AdminLayout() {
       if (!cancelled && result.ok && result.data.length > 0) {
         setFirstWallSlug(result.data[0]!.slug);
       }
-    });
-    listLocations().then((result) => {
-      // Array.isArray guard: a test-mocked fetch (or an older server) may hand
-      // back a non-array body with ok: true — never let that crash the shell.
-      if (!cancelled && result.ok && Array.isArray(result.data)) setLocations(result.data);
     });
     return () => {
       cancelled = true;
@@ -177,32 +159,9 @@ export function AdminLayout() {
       <div className="admin-shell__frame" data-testid="admin-layout" data-admin-theme={adminThemeId}>
         <nav className="admin-nav" aria-label="Admin sections">
           <div className="admin-nav__brand-block">
-            <span className="admin-nav__brand font-display">KEGTRON</span>
+            <span className="admin-nav__brand font-display">KEGWALL</span>
             {siteName && <span className="admin-nav__site">{siteName.toUpperCase()}</span>}
           </div>
-          {/* Location switcher (design 11a): scopes admin pages' tap lists. */}
-          <label className="admin-nav__location" data-testid="admin-location-switcher">
-            <span aria-hidden="true">📍</span>
-            <select
-              data-testid="admin-location-select"
-              value={locationId ?? ''}
-              onChange={(e) => {
-                const next = e.target.value === '' ? null : Number(e.target.value);
-                setLocationId(next);
-                try {
-                  if (next == null) window.localStorage.removeItem('kegtron.adminLocation');
-                  else window.localStorage.setItem('kegtron.adminLocation', String(next));
-                } catch {
-                  // preference just won't stick
-                }
-              }}
-            >
-              <option value="">All locations</option>
-              {locations.map((location) => (
-                <option key={location.id} value={location.id}>{location.name}</option>
-              ))}
-            </select>
-          </label>
           <ul className="admin-nav__list">
             {items.map((item) => (
               <li key={item.path}>
@@ -304,7 +263,7 @@ export function AdminLayout() {
           </header>
 
           <main className="admin-content">
-            <Outlet context={{ me, units, locationId } satisfies AdminOutletContext} />
+            <Outlet context={{ me, units } satisfies AdminOutletContext} />
           </main>
         </div>
       </div>

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Display, Location } from '../../lib/adminApi';
+import type { Display } from '../../lib/adminApi';
 import {
-  createDisplay, createLocation, deleteDisplay, deleteLocation,
-  listDisplays, listLocations, listWalls, updateDisplay, type Wall,
+  createDisplay, deleteDisplay, listDisplays, listWalls, updateDisplay, type Wall,
 } from '../../lib/adminApi';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
@@ -11,25 +10,20 @@ const LOOK_OPTIONS = ['', 'classic', 'ledger', 'gallery', 'columns'] as const;
 const TAKEOVER_OPTIONS = ['', 'off', 'full', 'spotlight', 'split', 'dock', 'fill'] as const;
 
 /**
- * `/admin/displays` — Displays & locations (designs 7c + 11a). Displays: one
- * row per paired screen with its pairing code, wall assignment, optional
- * per-display look/takeover overrides, and last-seen. Locations: the
- * first-class places list; monitors/taps/walls attach to one on their own
- * pages, and the sidebar switcher scopes admin views by it.
+ * `/admin/displays` — Displays (design 7c): one row per paired screen with its
+ * pairing code, wall assignment, optional per-display look/takeover overrides,
+ * and last-seen.
  */
 export function DisplaysPage() {
   const { me } = useAdminContext();
   const canEdit = me.role === 'editor' || me.role === 'admin';
   const [displays, setDisplays] = useState<Display[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
   const [newDisplayName, setNewDisplayName] = useState('');
-  const [newLocationName, setNewLocationName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     listDisplays().then((r) => { if (r.ok) setDisplays(r.data); });
-    listLocations().then((r) => { if (r.ok) setLocations(r.data); });
     listWalls().then((r) => { if (r.ok) setWalls(r.data); });
   }, []);
 
@@ -50,19 +44,6 @@ export function DisplaysPage() {
     }
   }
 
-  async function addLocation() {
-    const name = newLocationName.trim();
-    if (!name) return;
-    const result = await createLocation(name);
-    if (result.ok) {
-      setNewLocationName('');
-      setError(null);
-      load();
-    } else {
-      setError(result.message);
-    }
-  }
-
   async function patchDisplay(id: number, input: Parameters<typeof updateDisplay>[1]) {
     const result = await updateDisplay(id, input);
     if (result.ok) load();
@@ -72,7 +53,7 @@ export function DisplaysPage() {
   return (
     <div data-testid="displays-page">
       <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Displays &amp; locations</h1>
+        <h1 className="admin-page-header__title font-display">Displays</h1>
         <p className="admin-page-quiet">
           A display pairs by opening <code>/display</code> on the TV and typing its code.
         </p>
@@ -177,50 +158,6 @@ export function DisplaysPage() {
               ))}
             </tbody>
           </table>
-        )}
-      </section>
-
-      <section className="displays-section">
-        <h2 className="dashboard-card__title font-display">LOCATIONS</h2>
-        <p className="admin-page-quiet">
-          First-class places (&ldquo;Garage Bar&rdquo;, &ldquo;Lake House&rdquo;) — assign monitors, taps and walls
-          to one, then scope the admin with the sidebar switcher.
-        </p>
-        {canEdit && (
-          <div className="displays-add">
-            <input
-              type="text"
-              data-testid="locations-add-name"
-              placeholder="Garage Bar"
-              value={newLocationName}
-              onChange={(e) => setNewLocationName(e.target.value)}
-            />
-            <button type="button" data-testid="locations-add-button" onClick={addLocation}>
-              Add location
-            </button>
-          </div>
-        )}
-        {locations.length === 0 ? (
-          <p className="admin-page-quiet" data-testid="locations-empty">
-            No locations yet — everything is unscoped (single-location mode).
-          </p>
-        ) : (
-          <ul className="locations-list" data-testid="locations-list">
-            {locations.map((location) => (
-              <li key={location.id} className="locations-row" data-testid="locations-row">
-                <span>{`📍 ${location.name}`}</span>
-                {canEdit && (
-                  <button
-                    type="button"
-                    data-testid="locations-row-delete"
-                    onClick={() => deleteLocation(location.id).then(load)}
-                  >
-                    Remove
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
         )}
       </section>
     </div>

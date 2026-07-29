@@ -7,23 +7,19 @@ export interface Tap {
    * record for this tap when the pour would otherwise land unclaimed (see
    * core/state.ts). `null` means no default — the existing behavior. Phase 5 Task 0. */
   defaultDrinkerId: number | null;
-  /** The location this tap lives at (Pour Wall overhaul Phase 5, design 11a);
-   * null = unscoped (the single-location default). */
-  locationId: number | null;
 }
 
 function rowToTap(r: any): Tap {
   return {
     id: r.id, number: r.number, name: r.name, defaultDrinkerId: r.default_drinker_id,
-    locationId: r.location_id ?? null,
   };
 }
 
 export function createTap(db: Database.Database, input: {
-  number: number; name?: string | null; defaultDrinkerId?: number | null; locationId?: number | null;
+  number: number; name?: string | null; defaultDrinkerId?: number | null;
 }): Tap {
-  const res = db.prepare('INSERT INTO taps (number, name, default_drinker_id, location_id) VALUES (?, ?, ?, ?)')
-    .run(input.number, input.name ?? null, input.defaultDrinkerId ?? null, input.locationId ?? null);
+  const res = db.prepare('INSERT INTO taps (number, name, default_drinker_id) VALUES (?, ?, ?)')
+    .run(input.number, input.name ?? null, input.defaultDrinkerId ?? null);
   return getTap(db, Number(res.lastInsertRowid))!;
 }
 
@@ -37,16 +33,15 @@ export function listTaps(db: Database.Database): Tap[] {
 }
 
 export function updateTap(db: Database.Database, id: number, input: {
-  number?: number; name?: string | null; defaultDrinkerId?: number | null; locationId?: number | null;
+  number?: number; name?: string | null; defaultDrinkerId?: number | null;
 }): Tap {
   const existing = getTap(db, id);
   if (!existing) throw new NotFoundError(`tap ${id}`);
-  db.prepare('UPDATE taps SET number = ?, name = ?, default_drinker_id = ?, location_id = ? WHERE id = ?')
+  db.prepare('UPDATE taps SET number = ?, name = ?, default_drinker_id = ? WHERE id = ?')
     .run(
       input.number ?? existing.number,
       input.name === undefined ? existing.name : input.name,
       input.defaultDrinkerId === undefined ? existing.defaultDrinkerId : input.defaultDrinkerId,
-      input.locationId === undefined ? existing.locationId : input.locationId,
       id,
     );
   return getTap(db, id)!;

@@ -17,11 +17,6 @@ import type { VolumeUnits } from '../../lib/units';
 export interface AdminOutletContext {
   me: User;
   units: VolumeUnits;
-  /** The sidebar location switcher's selection (Pour Wall overhaul Phase 5,
-   * design 11a): null = "All locations". Pages that show scoped data filter by
-   * it (e.g. Dashboard/Taps tap lists via `TapState.locationId`). Optional so
-   * existing test harnesses that build the context by hand keep compiling. */
-  locationId?: number | null;
 }
 
 /** Typed wrapper around `useOutletContext` for `/admin/*` pages — see `AdminOutletContext`. */

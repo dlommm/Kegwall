@@ -6,11 +6,9 @@ export interface Monitor {
   id: number; type: 'kegtron_pro' | 'kegtron_gen1'; identifier: string;
   serial: string | null; portIndex: number; tapId: number | null;
   lastSeen: string | null; meta: Record<string, unknown>;
-  /** Friendly display name ("Main kegerator", design 11a) shown over the raw
-   * serial/identifier; null = unnamed. */
+  /** Friendly display name ("Main kegerator") — device-level: every port row of a
+   * physical device carries the same name; null = unnamed. */
   name: string | null;
-  /** The location this monitor lives at (design 11a); null = unscoped. */
-  locationId: number | null;
 }
 
 function rowToMonitor(r: any): Monitor {
@@ -19,7 +17,6 @@ function rowToMonitor(r: any): Monitor {
     portIndex: r.port_index, tapId: r.tap_id, lastSeen: r.last_seen,
     meta: JSON.parse(r.meta),
     name: r.name ?? null,
-    locationId: r.location_id ?? null,
   };
 }
 
@@ -75,18 +72,17 @@ export function listMonitors(db: Database.Database): Monitor[] {
     .all().map(rowToMonitor);
 }
 
-/** Friendly-name + location assignment (design 11a). */
-export function updateMonitorIdentity(db: Database.Database, monitorId: number, input: {
-  name?: string | null; locationId?: number | null;
-}): Monitor {
+/** Sets the DEVICE-level friendly name: the addressed monitor row identifies the
+ * physical device, and every port row sharing its (type, identifier) gets the same
+ * name — a device is one unit no matter how many ports it has. Returns the
+ * addressed row. */
+export function updateMonitorDeviceName(
+  db: Database.Database, monitorId: number, name: string | null,
+): Monitor {
   const existing = getMonitorById(db, monitorId);
   if (!existing) throw new NotFoundError(`monitor ${monitorId}`);
-  db.prepare('UPDATE monitors SET name = ?, location_id = ? WHERE id = ?')
-    .run(
-      input.name === undefined ? existing.name : input.name,
-      input.locationId === undefined ? existing.locationId : input.locationId,
-      monitorId,
-    );
+  db.prepare('UPDATE monitors SET name = ? WHERE type = ? AND identifier = ?')
+    .run(name, existing.type, existing.identifier);
   return getMonitorById(db, monitorId)!;
 }
 

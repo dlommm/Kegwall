@@ -23,61 +23,41 @@ beforeEach(async () => {
 });
 afterEach(async () => { await app.close(); });
 
-describe('locations (design 11a)', () => {
-  it('creates, lists, renames and deletes locations', async () => {
-    const created = await app.inject({
-      method: 'POST', url: '/api/locations', payload: { name: 'Garage Bar' }, cookies,
-    });
-    expect(created.statusCode).toBe(201);
-    const id = created.json().id;
-
-    const listed = (await app.inject({ method: 'GET', url: '/api/locations', cookies })).json();
-    expect(listed.map((l: any) => l.name)).toEqual(['Garage Bar']);
-
-    await app.inject({
-      method: 'PATCH', url: `/api/locations/${id}`, payload: { name: 'Lake House' }, cookies,
-    });
-    expect((await app.inject({ method: 'GET', url: '/api/locations', cookies })).json()[0].name).toBe('Lake House');
-
-    expect((await app.inject({ method: 'DELETE', url: `/api/locations/${id}`, cookies })).statusCode).toBe(204);
-    expect((await app.inject({ method: 'GET', url: '/api/locations', cookies })).json()).toEqual([]);
-  });
-
-  it('deleting a location unscopes its monitors rather than deleting them', async () => {
+describe('monitor device name', () => {
+  it('renames every port row of the physical device, and clears with an empty string', async () => {
     const db = app.ctx.db;
-    const location = (await app.inject({
-      method: 'POST', url: '/api/locations', payload: { name: 'Garage' }, cookies,
-    })).json();
-    const monitor = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 });
-    await app.inject({
-      method: 'PATCH',
-      url: `/api/monitors/${monitor.id}/identity`,
-      payload: { name: 'Main kegerator', locationId: location.id },
-      cookies,
-    });
-    await app.inject({ method: 'DELETE', url: `/api/locations/${location.id}`, cookies });
-    const monitors = (await app.inject({ method: 'GET', url: '/api/monitors', cookies })).json();
-    expect(monitors[0].name).toBe('Main kegerator');
-    expect(monitors[0].locationId).toBeNull();
-  });
+    const port0 = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 });
+    upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 1 });
+    upsertMonitor(db, { type: 'kegtron_pro', identifier: 'other', portIndex: 0 });
 
-  it('monitor identity: sets a friendly name, rejects unknown locations', async () => {
-    const monitor = upsertMonitor(app.ctx.db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 });
     const renamed = await app.inject({
       method: 'PATCH',
-      url: `/api/monitors/${monitor.id}/identity`,
+      url: `/api/monitors/${port0.id}/identity`,
       payload: { name: 'Main kegerator' },
       cookies,
     });
     expect(renamed.json().name).toBe('Main kegerator');
 
-    const bad = await app.inject({
+    const monitors = (await app.inject({ method: 'GET', url: '/api/monitors', cookies })).json();
+    const dev1 = monitors.filter((m: any) => m.identifier === 'dev1');
+    expect(dev1).toHaveLength(2);
+    for (const m of dev1) expect(m.name).toBe('Main kegerator');
+    expect(monitors.find((m: any) => m.identifier === 'other').name).toBeNull();
+
+    const cleared = await app.inject({
       method: 'PATCH',
-      url: `/api/monitors/${monitor.id}/identity`,
-      payload: { locationId: 999 },
+      url: `/api/monitors/${port0.id}/identity`,
+      payload: { name: '' },
       cookies,
     });
-    expect(bad.statusCode).toBe(404);
+    expect(cleared.json().name).toBeNull();
+  });
+
+  it('404s an unknown monitor id', async () => {
+    const missing = await app.inject({
+      method: 'PATCH', url: '/api/monitors/999/identity', payload: { name: 'X' }, cookies,
+    });
+    expect(missing.statusCode).toBe(404);
   });
 });
 

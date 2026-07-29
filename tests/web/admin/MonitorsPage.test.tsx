@@ -42,7 +42,6 @@ function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
     lastSeen: '2026-07-27T23:00:00.000Z',
     meta: {},
     name: null,
-    locationId: null,
     ...overrides,
   };
 }
@@ -50,7 +49,7 @@ function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
     tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, avgRating: null, nextUpBeerName: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, temp: null, avgRating: null, nextUpBeerName: null, ...overrides,
   };
 }
 

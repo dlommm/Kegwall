@@ -42,7 +42,6 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
     curServMl: null,
     monitorOnline: true,
     temp: null,
-    locationId: null,
     avgRating: null,
     nextUpBeerName: null,
     ...overrides,

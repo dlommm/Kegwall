@@ -2,66 +2,33 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireRole } from './auth.js';
 import {
-  listLocations, createLocation, updateLocation, deleteLocation, getLocation,
-} from '../db/locations.js';
-import {
   listDisplays, createDisplay, updateDisplay, deleteDisplay, getDisplay,
   getDisplayByCode, touchDisplay,
 } from '../db/displays.js';
-import { updateMonitorIdentity, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
+import { updateMonitorDeviceName, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
 import { NotFoundError } from '../core/errors.js';
 
 /**
- * Pour Wall overhaul Phase 5 routes: locations (design 11a), monitor friendly
- * names, and displays with pairing (design 7c).
+ * Monitor device naming + displays with pairing (design 7c).
  */
 export async function placesDisplaysRoutes(app: FastifyInstance) {
   const db = app.ctx.db;
   const viewer = { preHandler: requireRole('viewer') };
   const editor = { preHandler: requireRole('editor') };
 
-  // --- Locations (11a) ------------------------------------------------------
+  // --- Monitor device name --------------------------------------------------
 
-  const locationBody = z.object({ name: z.string().trim().min(1).max(60) });
-
-  app.get('/api/locations', viewer, async () => listLocations(db));
-
-  app.post('/api/locations', editor, async (req, reply) => {
-    const body = locationBody.parse(req.body);
-    reply.code(201);
-    const location = createLocation(db, body.name);
-    app.ctx.log.info('app', `Location created — "${location.name}"`);
-    return location;
-  });
-
-  app.patch('/api/locations/:id', editor, async (req) => {
-    const id = z.coerce.number().int().parse((req.params as any).id);
-    const body = locationBody.parse(req.body);
-    return updateLocation(db, id, body.name);
-  });
-
-  app.delete('/api/locations/:id', editor, async (req, reply) => {
-    const id = z.coerce.number().int().parse((req.params as any).id);
-    deleteLocation(db, id);
-    return reply.code(204).send();
-  });
-
-  // --- Monitor identity (11a: friendly name + location) ---------------------
-
+  // Renames the whole physical DEVICE: every port row sharing the addressed
+  // monitor's (type, identifier) gets the name (see updateMonitorDeviceName).
   app.patch('/api/monitors/:id/identity', editor, async (req) => {
     const id = z.coerce.number().int().parse((req.params as any).id);
     const body = z.object({
       name: z.string().trim().max(60).nullable().optional(),
-      locationId: z.number().int().nullable().optional(),
     }).parse(req.body);
     if (!getMonitorById(db, id)) throw new NotFoundError(`monitor ${id}`);
-    if (body.locationId != null && !getLocation(db, body.locationId)) {
-      throw new NotFoundError(`location ${body.locationId}`);
-    }
-    return sanitizeMonitor(updateMonitorIdentity(db, id, {
-      name: body.name === undefined ? undefined : (body.name === '' ? null : body.name),
-      locationId: body.locationId,
-    }));
+    const name = body.name === undefined ? getMonitorById(db, id)!.name
+      : (body.name === '' ? null : body.name);
+    return sanitizeMonitor(updateMonitorDeviceName(db, id, name));
   });
 
   // --- Displays (7c) --------------------------------------------------------

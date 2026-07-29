@@ -29,9 +29,6 @@ export interface TapState {
    * when the tap has no bound monitor or that monitor hasn't reported telemetry yet.
    * Feeds WallHeader's max-temp readout (see WallPage.tsx). */
   temp: number | null;
-  /** The tap's location (Pour Wall overhaul Phase 5, design 11a) — lets admin
-   * surfaces scope tap lists by the sidebar's location switcher. Null = unscoped. */
-  locationId: number | null;
   /** Mean rate-after-claim star rating (design 6a) across every rated pour of
    * this beer (all kegs), 1 decimal; null when unrated. */
   avgRating: number | null;
@@ -209,7 +206,6 @@ export class StateManager {
         curServMl: live?.curServMl ?? null,
         monitorOnline: key ? this.online.get(key) ?? true : false,
         temp,
-        locationId: tap.locationId,
         avgRating: avgRatingRow?.avg != null ? Math.round(avgRatingRow.avg * 10) / 10 : null,
         nextUpBeerName: nextUpRow?.name ?? null,
       };
