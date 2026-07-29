@@ -311,10 +311,18 @@ export function swapTap(
   return request(`/api/taps/${tapId}/swap`, { method: 'POST', body: JSON.stringify(input) });
 }
 
+/** A monitor plus `deviceKeg` — the size/starting volume the Kegtron device itself
+ * reports (whatever the operator set in Kegtron's own app), used by the swap wizard's
+ * prefill. Null until the server has heard a volume update since boot. */
+export type MonitorWithDeviceKeg = Monitor & {
+  deviceKeg: import('../../server/core/state.js').DeviceKegInfo | null;
+};
+
 /** GET /api/monitors — sanitized (no device key) monitor list; the swap wizard uses this
  * to find a Kegtron Pro monitor bound to the tap being swapped (unlocks the "Import from
- * Kegtron" beer-pick option and the step 4 "Reset volume on device" action). */
-export function listMonitors(): Promise<ApiResult<Monitor[]>> {
+ * Kegtron" beer-pick option, the size-step device prefill, and the step 4 "Reset volume
+ * on device" action). */
+export function listMonitors(): Promise<ApiResult<MonitorWithDeviceKeg[]>> {
   return request('/api/monitors');
 }
 

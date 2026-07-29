@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Added:** the keg swap wizard's Size / Starting volume fields now prefill from what
+  the bound Kegtron device itself reports (the keg size and starting volume set in
+  Kegtron's own app arrive on every volume update), falling back to the beer's last keg
+  as before; a note flags device prefills. Both mL inputs also show a live "≈ X.XX gal"
+  readout, and `GET /api/monitors` now carries the device-reported config as `deviceKeg`.
+
 ## v0.5.0 — 2026-07-29
 
 The Pour Wall overhaul release (Phases 1–6) plus the rename to **Kegwall**, new project

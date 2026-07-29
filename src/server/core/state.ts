@@ -40,9 +40,21 @@ export interface TapState {
   nextUpBeerName: string | null;
 }
 
+/** The keg configuration a Kegtron device itself reports for one port — the operator
+ * sets size/starting volume in Kegtron's own app when tapping a keg, and both the UDP
+ * and cloud-shadow sources relay them on every `volume_update`. Held in memory only:
+ * the cloud poll (and any UDP packet) repopulates it within a cycle of a restart, and
+ * its sole consumer is a prefill hint, not a system of record. */
+export interface DeviceKegInfo {
+  sizeMl: number | null;
+  volStartMl: number;
+  ts: string;
+}
+
 export class StateManager {
   private live = new Map<string, { pouring: boolean; curServMl: number | null }>();
   private online = new Map<string, boolean>();
+  private deviceKeg = new Map<string, DeviceKegInfo>();
   private deduper = new PourDeduper();
   private samples = new PourSampleTracker();
 
@@ -65,6 +77,11 @@ export class StateManager {
 
     this.bus.on('volume_update', (e) => {
       upsertMonitor(this.db, e.monitor);
+      // Remember the device's own keg config even for unbound monitors — the swap
+      // wizard prefills its Size/Starting volume fields from this.
+      this.deviceKeg.set(monitorRefKey(e.monitor), {
+        sizeMl: e.sizeMl, volStartMl: e.volStartMl, ts: e.ts,
+      });
       const tapId = resolveTapForRef(this.db, e.monitor);
       if (tapId === null) return;
       const keg = getActiveKegForTap(this.db, tapId);
@@ -141,6 +158,12 @@ export class StateManager {
     this.bus.on('device_offline', (e) => {
       this.online.set(monitorRefKey(e.monitor), false); changed(e.ts);
     });
+  }
+
+  /** The keg config this monitor's own device last reported (null until a
+   * `volume_update` has arrived since boot). */
+  deviceKegInfo(ref: MonitorRef): DeviceKegInfo | null {
+    return this.deviceKeg.get(monitorRefKey(ref)) ?? null;
   }
 
   getTapStates(): TapState[] {

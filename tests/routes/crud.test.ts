@@ -377,6 +377,20 @@ describe('crud routes', () => {
     expect(patch2.json().kegtronApiKey).toBe('••••y456');
   });
 
+  it('serves the device-reported keg config on /api/monitors as deviceKeg', async () => {
+    app.ctx.bus.emit('volume_update', {
+      monitor: { type: 'kegtron_pro', identifier: 'device1', portIndex: 0 },
+      volStartMl: 29337, volDispensedMl: 530, sizeMl: 29337,
+      ts: '2026-07-29T00:00:00.000Z',
+    });
+    const list = await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies });
+    expect(list.statusCode).toBe(200);
+    const mon = list.json().find((m: any) => m.identifier === 'device1');
+    expect(mon.deviceKeg).toEqual({
+      sizeMl: 29337, volStartMl: 29337, ts: '2026-07-29T00:00:00.000Z',
+    });
+  });
+
   it('never leaks the mdash device key through /api/monitors, for admin or viewer', async () => {
     const DEVICE_KEY = 'device-secret-shhh';
     app.ctx.bus.emit('device_discovered', {

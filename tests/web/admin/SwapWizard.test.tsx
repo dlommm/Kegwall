@@ -8,7 +8,7 @@ import { swapTap, resetKegtronVolume, importKegtronBeer } from '../../../src/web
 import type { TapState } from '../../../src/server/core/state';
 import type { Beer } from '../../../src/server/db/beers';
 import type { Keg } from '../../../src/server/db/kegs';
-import type { Monitor } from '../../../src/server/db/monitors';
+import type { MonitorWithDeviceKeg } from '../../../src/web/lib/adminApi';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   swapTap: vi.fn(),
@@ -50,10 +50,11 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
   };
 }
 
-function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
+function makeMonitor(overrides: Partial<MonitorWithDeviceKeg> = {}): MonitorWithDeviceKeg {
   return {
     id: 9, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
-    tapId: 1, lastSeen: null, meta: {}, name: null, locationId: null, ...overrides,
+    tapId: 1, lastSeen: null, meta: {}, name: null, locationId: null, deviceKeg: null,
+    ...overrides,
   };
 }
 
@@ -180,6 +181,38 @@ describe('SwapWizard', () => {
     fireEvent.click(screen.getByTestId('beer-picker-option'));
     expect(screen.getByTestId('swap-wizard-size')).toHaveValue('20000');
     expect(screen.getByTestId('swap-wizard-volstart')).toHaveValue('18000');
+  });
+
+  it('prefers the bound Kegtron device’s own keg config over the last-keg defaults, with a note and gal readouts', () => {
+    const beer = makeBeer({ id: 5, name: 'Pilsner' });
+    const priorKeg = makeKeg({ id: 8, beerId: 5, sizeMl: 20000, volStartMl: 18000 });
+    const monitor = makeMonitor({
+      deviceKeg: { sizeMl: 29337, volStartMl: 29337, ts: '2026-07-29T00:00:00.000Z' },
+    });
+    render(
+      <SwapWizard tap={emptyTap} beers={[beer]} kegs={[priorKeg]} monitors={[monitor]} onClose={vi.fn()} onDone={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByTestId('beer-picker-option'));
+    expect(screen.getByTestId('swap-wizard-size')).toHaveValue('29337');
+    expect(screen.getByTestId('swap-wizard-volstart')).toHaveValue('29337');
+    expect(screen.getByTestId('swap-wizard-device-prefill-note')).toBeInTheDocument();
+    expect(screen.getByTestId('swap-wizard-size-gal')).toHaveTextContent('≈ 7.75 gal');
+    expect(screen.getByTestId('swap-wizard-volstart-gal')).toHaveTextContent('≈ 7.75 gal');
+  });
+
+  it('falls back to last-keg defaults (no device note) when the device reports no usable keg config', () => {
+    const beer = makeBeer({ id: 5, name: 'Pilsner' });
+    const priorKeg = makeKeg({ id: 8, beerId: 5, sizeMl: 20000, volStartMl: 18000 });
+    const monitor = makeMonitor({
+      deviceKeg: { sizeMl: null, volStartMl: 0, ts: '2026-07-29T00:00:00.000Z' },
+    });
+    render(
+      <SwapWizard tap={emptyTap} beers={[beer]} kegs={[priorKeg]} monitors={[monitor]} onClose={vi.fn()} onDone={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByTestId('beer-picker-option'));
+    expect(screen.getByTestId('swap-wizard-size')).toHaveValue('20000');
+    expect(screen.getByTestId('swap-wizard-volstart')).toHaveValue('18000');
+    expect(screen.queryByTestId('swap-wizard-device-prefill-note')).not.toBeInTheDocument();
   });
 
   it('rejects a starting volume greater than the size, without calling swapTap', async () => {

@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
-import type { Monitor } from '../../../server/db/monitors.js';
-import { swapTap, resetKegtronVolume } from '../../lib/adminApi';
+import { swapTap, resetKegtronVolume, type MonitorWithDeviceKeg } from '../../lib/adminApi';
 import { BeerPicker } from './BeerPicker';
 import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
@@ -14,9 +13,9 @@ interface SwapWizardProps {
    * from the picked beer's most recent keg (see `lastKegDefaults` below). */
   kegs: Keg[];
   /** Sanitized monitor list (no device key) — used to find a Kegtron Pro monitor bound
-   * to this tap, which unlocks the "Import from Kegtron" pick option and the final
-   * "Reset volume on device" step. */
-  monitors: Monitor[];
+   * to this tap, which unlocks the "Import from Kegtron" pick option, the size step's
+   * device prefill (`deviceKeg`), and the final "Reset volume on device" step. */
+  monitors: MonitorWithDeviceKeg[];
   /** Set when opened from the on-deck queue's "Promote" action: skips the beer/size
    * steps entirely (the queued keg already has both) and swaps via `fromKegId`. */
   promoteKeg?: Keg | null;
@@ -42,6 +41,16 @@ function lastKegDefaults(beerId: number, kegs: Keg[]): { sizeMl: string; volStar
     : { sizeMl: '', volStartMl: '' };
 }
 
+const ML_PER_GAL = 3785.411784;
+
+/** "≈ 7.75 gal" readout under an mL input (Kegtron devices are metric-native, so the
+ * canonical fields stay mL), or null while the field isn't a positive number. */
+function galHint(ml: string): string | null {
+  const n = Number(ml.trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `≈ ${(n / ML_PER_GAL).toFixed(2)} gal`;
+}
+
 /**
  * The keg swap wizard (Task 5): confirm kicking whatever's currently on tap, pick (or
  * create/import) the next beer, set size/starting volume, then optionally reset a bound
@@ -65,6 +74,7 @@ export function SwapWizard({
   const [pickedBeer, setPickedBeer] = useState<Beer | null>(null);
   const [sizeMl, setSizeMl] = useState('');
   const [volStartMl, setVolStartMl] = useState('');
+  const [prefilledFromDevice, setPrefilledFromDevice] = useState(false);
   const [kegTypeSelect, setKegTypeSelect] = useState<KegTypeSelectValue>('auto');
   const [sizeError, setSizeError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState(false);
@@ -120,9 +130,17 @@ export function SwapWizard({
 
   function handlePick(beer: Beer) {
     setPickedBeer(beer);
+    // Prefill precedence: what the bound Kegtron device itself reports (the operator
+    // already typed size/starting volume into Kegtron's app) beats this beer's last keg
+    // on record beats empty. Per-field, since a device can report a start volume with
+    // no size (or a zero start before its new keg is configured).
+    const device = boundMonitor?.deviceKeg ?? null;
     const defaults = lastKegDefaults(beer.id, kegs);
-    setSizeMl(defaults.sizeMl);
-    setVolStartMl(defaults.volStartMl);
+    const deviceSize = device?.sizeMl != null && device.sizeMl > 0 ? String(device.sizeMl) : null;
+    const deviceStart = device != null && device.volStartMl > 0 ? String(device.volStartMl) : null;
+    setSizeMl(deviceSize ?? defaults.sizeMl);
+    setVolStartMl(deviceStart ?? defaults.volStartMl);
+    setPrefilledFromDevice(deviceSize !== null || deviceStart !== null);
     setKegTypeSelect('auto');
     setStepIndex(stepIndex + 1);
   }
@@ -258,6 +276,11 @@ export function SwapWizard({
                   value={sizeMl}
                   onChange={(e) => setSizeMl(e.target.value)}
                 />
+                {galHint(sizeMl) && (
+                  <span className="admin-field__unit-hint" data-testid="swap-wizard-size-gal">
+                    {galHint(sizeMl)}
+                  </span>
+                )}
               </label>
               <label className="admin-field">
                 <span>Starting volume (mL)</span>
@@ -268,6 +291,11 @@ export function SwapWizard({
                   value={volStartMl}
                   onChange={(e) => setVolStartMl(e.target.value)}
                 />
+                {galHint(volStartMl) && (
+                  <span className="admin-field__unit-hint" data-testid="swap-wizard-volstart-gal">
+                    {galHint(volStartMl)}
+                  </span>
+                )}
               </label>
               <label className="admin-field">
                 <span>Keg type</span>
@@ -284,6 +312,12 @@ export function SwapWizard({
                 </select>
               </label>
             </div>
+            {prefilledFromDevice && (
+              <p className="swap-wizard__device-note" data-testid="swap-wizard-device-prefill-note">
+                Prefilled from the Kegtron device&rsquo;s own keg setup — adjust if the
+                device hasn&rsquo;t been updated for the new keg yet.
+              </p>
+            )}
             {sizeError && (
               <p role="alert" data-testid="swap-wizard-size-error">{sizeError}</p>
             )}

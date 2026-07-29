@@ -2150,6 +2150,18 @@ h2.admin-field__label-text {
   font-weight: 600;
 }
 
+/* Gallon-equivalent readout under the metric Size / Starting volume inputs (the
+   canonical values stay mL — Kegtron devices are metric-native). */
+.admin-field__unit-hint {
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+}
+
+.swap-wizard__device-note {
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--text) 65%, transparent);
+}
+
 .swap-wizard__actions {
   display: flex;
   flex-wrap: wrap;

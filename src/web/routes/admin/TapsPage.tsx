@@ -3,7 +3,7 @@ import type { TapState } from '../../../server/core/state.js';
 import type { Tap } from '../../../server/db/taps.js';
 import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
-import type { Monitor } from '../../../server/db/monitors.js';
+import type { MonitorWithDeviceKeg } from '../../lib/adminApi';
 import type { KegBurnStat } from '../../../server/db/stats.js';
 import type { CleaningStatus } from '../../../server/db/cleanings.js';
 import {
@@ -71,7 +71,7 @@ export function TapsPage() {
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [beers, setBeers] = useState<Beer[]>([]);
   const [kegs, setKegs] = useState<Keg[]>([]);
-  const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [monitors, setMonitors] = useState<MonitorWithDeviceKeg[]>([]);
   const [tapRows, setTapRows] = useState<Tap[]>([]);
   const [tapsStatus, setTapsStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [expandedTapId, setExpandedTapId] = useState<number | null>(null);

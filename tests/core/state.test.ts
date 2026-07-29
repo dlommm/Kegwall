@@ -42,6 +42,27 @@ describe('StateManager', () => {
     expect(tap.beer!.name).toBe('Citra IPA');
   });
 
+  it('remembers the device-reported keg config per monitor (deviceKegInfo)', () => {
+    expect(sm.deviceKegInfo(ref)).toBeNull();
+    bus.emit('volume_update', {
+      monitor: ref, volStartMl: 29337, volDispensedMl: 530, sizeMl: 29337,
+      ts: '2026-07-27T01:00:00.000Z',
+    });
+    expect(sm.deviceKegInfo(ref)).toEqual({
+      sizeMl: 29337, volStartMl: 29337, ts: '2026-07-27T01:00:00.000Z',
+    });
+    // Unbound monitors are tracked too — the swap wizard's prefill must work even
+    // before the monitor is bound to a tap.
+    const unbound = { type: 'kegtron_pro' as const, identifier: 'dev2', portIndex: 1 };
+    bus.emit('volume_update', {
+      monitor: unbound, volStartMl: 19550, volDispensedMl: 0, sizeMl: null,
+      ts: '2026-07-27T02:00:00.000Z',
+    });
+    expect(sm.deviceKegInfo(unbound)).toEqual({
+      sizeMl: null, volStartMl: 19550, ts: '2026-07-27T02:00:00.000Z',
+    });
+  });
+
   it('records pour_completed into pours and updates keg', () => {
     bus.emit('pour_completed', {
       monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',

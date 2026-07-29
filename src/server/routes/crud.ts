@@ -259,7 +259,14 @@ export async function crudRoutes(app: FastifyInstance) {
   // DEVICE_PUBLIC_KEY) must never leave the server; see that function's doc comment in
   // db/monitors.ts for why (a viewer holding it could call mdash.net directly with full
   // device RPC control, bypassing the editor-role gate on routes/kegtron.ts).
-  app.get('/api/monitors', viewer, async () => listMonitors(db).map(sanitizeMonitor));
+  // Each monitor also carries `deviceKeg` — the size/starting volume the Kegtron device
+  // itself reports (set in Kegtron's own app) — so the swap wizard can prefill from it.
+  app.get('/api/monitors', viewer, async () => listMonitors(db).map((m) => ({
+    ...sanitizeMonitor(m),
+    deviceKeg: app.ctx.state.deviceKegInfo(
+      { type: m.type, identifier: m.identifier, portIndex: m.portIndex },
+    ),
+  })));
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);
     const mon = bindMonitorToTap(db, Number((req.params as any).id), body.tapId);
