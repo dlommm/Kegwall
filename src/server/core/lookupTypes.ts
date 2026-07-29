@@ -19,12 +19,3 @@ export interface BreweryLookupResult {
   city: string | null;
   state: string | null;
 }
-
-export interface UntappdLookupResult {
-  name: string;
-  brewery: string | null;
-  style: string | null;
-  abv: number | null;
-  ibu: number | null;
-  labelUrl: string | null;
-}

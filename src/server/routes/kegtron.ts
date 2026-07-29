@@ -123,7 +123,7 @@ export async function kegtronRoutes(
 
     // Phase 5 Task 0 spec-parity item: decode the port's labelUrl (Untappd label id,
     // per docs/kegtron/kegtron-pro.v2.yaml — see decodeUntappdLabelUrl's doc comment)
-    // and download it through the same SSRF-guarded path the Untappd search sheet uses
+    // and download it through the shared SSRF-guarded remote label download helper
     // (routes/lookup.ts's downloadAndStoreLabel). A download failure (unreachable,
     // oversized, wrong format, guard rejection, ...) is NOT a reason to fail the whole
     // import — the device config itself is still valid and worth creating a beer from;

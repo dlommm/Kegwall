@@ -51,8 +51,8 @@ have a reason to.
 | `WEB_DIR` | `/app/dist/web` | Built SPA assets `routes/static.ts` serves. |
 | `NODE_ENV` | `production` | Disables Fastify's dev-mode pretty logger. |
 
-Everything else (site name, Kegtron API key, MQTT broker, Untappd credentials, alert
-channels...) is configured from the admin UI's Settings page after first login, not via
+Everything else (site name, Kegtron API key, MQTT broker, alert channels...) is
+configured from the admin UI's Settings page after first login, not via
 environment variables — see [docs/setup/kegtron-cloud.md](../setup/kegtron-cloud.md) and
 [docs/setup/home-assistant.md](../setup/home-assistant.md).
 

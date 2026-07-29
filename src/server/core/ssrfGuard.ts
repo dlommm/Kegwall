@@ -4,12 +4,14 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 // ---------------------------------------------------------------------------
 // SSRF guard for every place in this codebase where a user-supplied HOST reaches an
 // outbound server-side `fetch()` (every OTHER outbound call, e.g. MdashClient, Open
-// Brewery DB, Untappd search, targets a fixed/settings-configured base URL, never a
-// caller-supplied one):
-//   - `routes/lookup.ts`'s `POST /api/lookup/untappd/import` (`downloadAndStoreLabel`,
-//     also reused by `routes/kegtron.ts`'s Pro import's labelUrl decode) — an editor
-//     could otherwise point `labelUrl` at an internal service or a cloud metadata
-//     endpoint (169.254.169.254) and have the SERVER fetch it on their behalf.
+// Brewery DB, targets a fixed/settings-configured base URL, never a caller-supplied one):
+//   - `routes/lookup.ts`'s `downloadAndStoreLabel` — a generic remote label download
+//     helper, called today by `routes/kegtron.ts`'s Pro import (its decoded device
+//     `labelUrl` reaches a server-side fetch against a settings-configured CDN base URL —
+//     see `ingest/kegtron/shadow.ts`'s `decodeUntappdLabelUrl`). An admin who can edit
+//     that base URL, or a compromised/malicious upstream feeding a crafted host, could
+//     otherwise point the download at an internal service or a cloud metadata endpoint
+//     (169.254.169.254) and have the SERVER fetch it on their behalf.
 //   - Phase 5 Task 3: `automation/engine.ts`'s `webhook` action — its `url` is
 //     EDITOR-authored (set when a rule is created/edited, per `core/automationSchema.ts`'s
 //     `ActionSchema`), exactly the same "a human with editor role, not the server itself,

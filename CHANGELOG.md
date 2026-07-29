@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
+  Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new
+  developer credentials, making the feature unusable for any new install. The Kegtron Pro
+  device import's own label-art download (decoding a device's own configured label id,
+  unrelated to the removed search API) is unaffected. Open Brewery DB brewery autocomplete
+  is unaffected.
+- **Added:** an offline BJCP-2021-style autocomplete for the beers form's style field
+  (`StyleAutocomplete`) — a local, no-network suggestion list (`src/web/data/beerStyles.ts`)
+  that fills the gap left by the removed Untappd style autofill, working the same on day
+  one for every install with no API key required.
+
 ## v0.1.0 — initial release
 
 First shippable version of Kegtron Dashboard: a self-hosted, standalone-first tap wall

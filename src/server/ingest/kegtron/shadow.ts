@@ -192,10 +192,10 @@ function normalizeDate(v: string | null | undefined): string | null {
  * URL as "no label", never as a reason to fail the whole import.
  *
  * `baseUrl` defaults to the real Untappd CDN host but is overridable — same hidden,
- * test-injectable pattern as `settings.kegtronBaseUrl`/`openBreweryBaseUrl`/
- * `untappdBaseUrl` (see db/settings.ts's `untappdImageBaseUrl`); `routes/kegtron.ts`'s Pro
- * import handler always passes that settings value, so tests can point it at a local fake
- * image server instead of the real untappd.akamaized.net.
+ * test-injectable pattern as `settings.kegtronBaseUrl`/`openBreweryBaseUrl` (see
+ * db/settings.ts's `untappdImageBaseUrl`); `routes/kegtron.ts`'s Pro import handler
+ * always passes that settings value, so tests can point it at a local fake image server
+ * instead of the real untappd.akamaized.net.
  *
  * Returns `null` for `0`/absent/negative/malformed input; never throws.
  */

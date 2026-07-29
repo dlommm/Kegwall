@@ -425,56 +425,37 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
   );
 }
 
-/** Integrations group (Task 8): Untappd creds (masked) + Home Assistant publish toggle
- * and discovery prefix. The HA fields live inside the same `mqtt` settings key Sources
- * owns url/user/pass/prefix for — see SourcesGroup's doc comment for the shared-key merge
- * approach used here too. */
+/** Integrations group (Task 8; Untappd creds removed post-v0.1.0 — Untappd stopped
+ * granting new developer API credentials, so the integration was removed entirely, see
+ * CHANGELOG): Home Assistant publish toggle and discovery prefix. The HA fields live
+ * inside the same `mqtt` settings key Sources owns url/user/pass/prefix for — see
+ * SourcesGroup's doc comment for the shared-key merge approach used here too. */
 function IntegrationsGroup({ settings, onSaved }: GroupProps) {
   const mqtt = settings.mqtt;
-  const untappd = settings.untappd;
-  const [untappdClientId, setUntappdClientId] = useState(untappd?.clientId ?? '');
-  const [secretReplacing, setSecretReplacing] = useState(false);
-  const [newClientSecret, setNewClientSecret] = useState('');
   const [haPublishEnabled, setHaPublishEnabled] = useState(mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled);
   const [haDiscoveryPrefix, setHaDiscoveryPrefix] = useState(mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const untappdDirty = untappdClientId !== (untappd?.clientId ?? '')
-    || (secretReplacing && newClientSecret.trim() !== '');
-  const haDirty = haPublishEnabled !== (mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled)
+  const dirty = haPublishEnabled !== (mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled)
     || haDiscoveryPrefix !== (mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix);
-  const dirty = untappdDirty || haDirty;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!dirty) return;
-    if (untappdDirty && !untappdClientId.trim()) {
-      setError('An Untappd client ID is required to save Untappd settings.');
-      return;
-    }
-    if (haDirty && !mqtt?.url) {
+    if (!mqtt?.url) {
       setError('Configure an MQTT broker URL in the Sources group first — Home Assistant publishing goes out over MQTT.');
       return;
     }
     setError(null);
     setSubmitting(true);
-    const patch: Partial<Settings> = {};
-    if (untappdDirty) {
-      patch.untappd = {
-        clientId: untappdClientId.trim(),
-        clientSecret: secretReplacing && newClientSecret.trim()
-          ? newClientSecret.trim()
-          : (untappd?.clientSecret ?? ''),
-      };
-    }
-    if (haDirty && mqtt) {
-      patch.mqtt = {
+    const patch: Partial<Settings> = {
+      mqtt: {
         ...mqtt,
         haPublishEnabled,
         haDiscoveryPrefix: haDiscoveryPrefix.trim() || MQTT_DEFAULTS.haDiscoveryPrefix,
-      };
-    }
+      },
+    };
     const result = await patchSettings(patch);
     setSubmitting(false);
     if (!result.ok) {
@@ -487,28 +468,6 @@ function IntegrationsGroup({ settings, onSaved }: GroupProps) {
   return (
     <form className="settings-group" data-testid="settings-group-integrations" onSubmit={handleSubmit} aria-labelledby="settings-integrations-title">
       <h2 id="settings-integrations-title" className="admin-field__label-text">Integrations</h2>
-
-      <div className="settings-group__grid">
-        <label className="admin-field">
-          <span>Untappd client ID</span>
-          <input
-            type="text"
-            data-testid="settings-integrations-untappd-clientid"
-            value={untappdClientId}
-            onChange={(e) => setUntappdClientId(e.target.value)}
-          />
-        </label>
-      </div>
-      <MaskedSecretField
-        label="Untappd client secret"
-        testId="settings-integrations-untappd-secret"
-        maskedValue={untappd?.clientSecret}
-        replacing={secretReplacing}
-        value={newClientSecret}
-        onStartReplace={() => { setSecretReplacing(true); setNewClientSecret(''); }}
-        onCancelReplace={() => { setSecretReplacing(false); setNewClientSecret(''); }}
-        onChangeValue={setNewClientSecret}
-      />
 
       <label className="settings-toggle">
         <input

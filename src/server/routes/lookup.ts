@@ -1,27 +1,29 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { requireRole } from './auth.js';
 import { MAX_BYTES, writeLabelFile } from './uploads.js';
-import type { BreweryLookupResult, UntappdLookupResult } from '../core/lookupTypes.js';
+import type { BreweryLookupResult } from '../core/lookupTypes.js';
 import { assertPublicHost, ForbiddenHostError, type HostResolver } from '../core/ssrfGuard.js';
 
 // ---------------------------------------------------------------------------
-// Task 4: two read-only lookup proxies (Open Brewery DB, Untappd) that let the beers
-// form autocomplete a brewery name and pull in beer metadata + label art, plus one
-// write endpoint that downloads a chosen Untappd label server-side so the client never
-// hotlinks Untappd's CDN from the admin UI.
+// Task 4: a read-only lookup proxy (Open Brewery DB) that lets the beers form
+// autocomplete a brewery name, plus `downloadAndStoreLabel` — a generic remote label
+// download helper, SSRF-guarded, that fetches a caller-supplied image URL server-side and
+// stores it locally so nothing in the admin UI ever hotlinks a third-party CDN directly.
+//
+// The Untappd search/import integration that originally lived here (beer-metadata +
+// label-art lookup against Untappd's v4 API) was removed entirely — Untappd stopped
+// granting new developer API credentials, making the feature unusable for any new
+// install. `downloadAndStoreLabel` survives that removal unchanged: `routes/kegtron.ts`'s
+// Kegtron Pro import handler is its only caller now, downloading a Pro device's own
+// configured label art (see that file, and `ingest/kegtron/shadow.ts`'s
+// `decodeUntappdLabelUrl` — a Kegtron Pro device-spec detail, not part of the removed
+// Untappd search integration).
 //
 // Every upstream call gets a short (default 5s, injectable — see `lookupRoutes`'
 // `opts.timeoutMs`, same pattern as MdashClient's `timeoutMs` / app.ts's
 // `wsPingIntervalMs`) timeout and degrades to a clean 502 on any failure — a flaky
-// third-party API should never surface as a raw 500 or hang the beers form. Untappd's
-// client_id/client_secret are sent the way its v4 API requires them: query params on the
-// upstream request only. They are NEVER included in a response body or an error message
-// (see `fetchOrNull` below, whose fixed error messages never echo the request URL or any
-// underlying fetch error text) — the same discipline MdashClient uses for mdash.net
-// device keys (see ingest/kegtron/mdashClient.ts).
+// third-party API should never surface as a raw 500 or hang the beers form.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_TIMEOUT_MS = 5_000;
@@ -45,32 +47,6 @@ function mapBreweries(body: unknown): BreweryLookupResult[] {
       ? row.state_province
       : typeof row.state === 'string' ? row.state : null;
     out.push({ name, city: typeof row.city === 'string' ? row.city : null, state });
-  }
-  return out;
-}
-
-/** Untappd v4's `/search/beer` response nests results at `response.beers.items[]`, each
- * with a `beer` object and a `brewery` object. Items with no beer name are dropped. */
-function mapUntappd(body: unknown): UntappdLookupResult[] {
-  const items = isRecord(body) && isRecord(body.response) && isRecord(body.response.beers)
-    ? body.response.beers.items
-    : undefined;
-  if (!Array.isArray(items)) return [];
-  const out: UntappdLookupResult[] = [];
-  for (const item of items) {
-    if (!isRecord(item)) continue;
-    const beer = isRecord(item.beer) ? item.beer : {};
-    const brewery = isRecord(item.brewery) ? item.brewery : {};
-    const name = typeof beer.beer_name === 'string' ? beer.beer_name.trim() : '';
-    if (!name) continue;
-    out.push({
-      name,
-      brewery: typeof brewery.brewery_name === 'string' ? brewery.brewery_name : null,
-      style: typeof beer.beer_style === 'string' ? beer.beer_style : null,
-      abv: typeof beer.beer_abv === 'number' ? beer.beer_abv : null,
-      ibu: typeof beer.beer_ibu === 'number' ? beer.beer_ibu : null,
-      labelUrl: typeof beer.beer_label === 'string' && beer.beer_label ? beer.beer_label : null,
-    });
   }
   return out;
 }
@@ -114,10 +90,9 @@ async function readCapped(res: Response, maxBytes: number): Promise<Buffer> {
 const FETCH_FAILED = Symbol('fetch_failed');
 
 /** Fetches `url` and parses its JSON body, collapsing EVERY failure mode above to
- * `FETCH_FAILED` — the two GET lookup handlers below treat that as "degrade gracefully
- * to a 502", never surfacing `err.message` (some fetch failures embed the full request
- * URL, which for the Untappd call carries client_id/client_secret in its query string)
- * or a raw upstream response body. */
+ * `FETCH_FAILED` — the GET lookup handler below treats that as "degrade gracefully to a
+ * 502", never surfacing `err.message` (some fetch failures embed the full request URL) or
+ * a raw upstream response body. */
 async function fetchJsonOrFail(url: string, timeoutMs: number): Promise<unknown | typeof FETCH_FAILED> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
@@ -127,8 +102,6 @@ async function fetchJsonOrFail(url: string, timeoutMs: number): Promise<unknown 
     return FETCH_FAILED;
   }
 }
-
-const importSchema = z.object({ labelUrl: z.string() });
 
 export interface LabelDownloadOptions {
   timeoutMs: number;
@@ -147,14 +120,12 @@ export type LabelDownloadResult =
 /**
  * Downloads `rawUrl` through the SSRF-guarded path (http(s)-scheme allowlist ->
  * `assertPublicHost` -> `redirect: 'error'` -> size-capped streamed read -> magic-byte
- * validation) and, on success, writes it into `labelsDir` via `writeLabelFile` — the
- * exact same pipeline `POST /api/lookup/untappd/import` below has always used, extracted
- * so `routes/kegtron.ts`'s Pro import handler (Phase 5 Task 0: decode a port's `labelUrl`
- * into label art) can reuse it instead of re-implementing the guard. Every failure mode
- * is returned as a typed result rather than thrown/replied-to directly, so callers can
- * decide their own response shape (the untappd/import route below replies with it
- * verbatim; the kegtron import route treats any failure as "just skip the label, still
- * create the beer" — see that file).
+ * validation) and, on success, writes it into `labelsDir` via `writeLabelFile`. A generic
+ * remote label download helper — `routes/kegtron.ts`'s Pro import handler (Phase 5 Task 0:
+ * decode a port's `labelUrl` into label art) is its only caller, treating any failure as
+ * "just skip the label, still create the beer" (see that file). Every failure mode here is
+ * returned as a typed result rather than thrown/replied-to directly, so a caller can decide
+ * its own response shape instead of this helper assuming one.
  */
 export async function downloadAndStoreLabel(
   labelsDir: string,
@@ -246,28 +217,21 @@ function isRedirectRejection(err: unknown): boolean {
 }
 
 export interface LookupRoutesOptions {
+  /** Overrides the brewery lookup's upstream fetch timeout (default 5s) — tests only. No
+   * SSRF-guard options here: `GET /api/lookup/breweries` always targets a fixed,
+   * settings-configured base URL, never a caller-supplied host, so `downloadAndStoreLabel`
+   * (which DOES need the guard) is only ever invoked through `routes/kegtron.ts`'s Pro
+   * import now — see that route's own options for where `resolveHost`/`allowInsecureHosts`
+   * actually apply. */
   timeoutMs?: number;
-  /** Overrides the SSRF guard's DNS resolver — tests only; see `core/ssrfGuard.ts`. */
-  resolveHost?: HostResolver;
-  /** Test-only escape hatch for the SSRF guard (never set outside a test build of the
-   * app): lets an import test's fake upstream server live on 127.0.0.1, which the guard
-   * would otherwise (correctly) reject as loopback. Production (`index.ts`) never passes
-   * this, so the guard stays strict for every real request. */
-  allowInsecureHosts?: boolean;
 }
 
 export async function lookupRoutes(
   app: FastifyInstance,
-  dataDir: string,
   opts: LookupRoutesOptions = {},
 ) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const editor = { preHandler: requireRole('editor') };
-  const labelsDir = join(dataDir, 'labels');
-  // Belt-and-suspenders, same rationale as uploads.ts: app.ts always registers
-  // labelsStaticRoutes (which also mkdir's this) first, but a caller wiring
-  // lookupRoutes independently shouldn't 500 on a missing directory.
-  mkdirSync(labelsDir, { recursive: true });
 
   app.get('/api/lookup/breweries', editor, async (req, reply) => {
     const { q } = z.object({ q: z.string().optional() }).parse(req.query);
@@ -286,52 +250,5 @@ export async function lookupRoutes(
       });
     }
     return mapBreweries(body);
-  });
-
-  app.get('/api/lookup/untappd', editor, async (req, reply) => {
-    const untappd = app.ctx.settings.get('untappd');
-    if (!untappd) {
-      return reply.code(501).send({ error: 'not_configured', message: 'Untappd is not configured' });
-    }
-
-    const { q } = z.object({ q: z.string().optional() }).parse(req.query);
-    const query = (q ?? '').trim();
-    if (!query) return [];
-
-    const baseUrl = app.ctx.settings.get('untappdBaseUrl');
-    const url = `${baseUrl}/v4/search/beer`
-      + `?q=${encodeURIComponent(query)}`
-      + `&client_id=${encodeURIComponent(untappd.clientId)}`
-      + `&client_secret=${encodeURIComponent(untappd.clientSecret)}`;
-    const body = await fetchJsonOrFail(url, timeoutMs);
-    if (body === FETCH_FAILED) {
-      return reply.code(502).send({
-        error: 'upstream_error',
-        message: 'Could not reach Untappd — try again, or fill in the beer by hand',
-      });
-    }
-    return mapUntappd(body);
-  });
-
-  app.post('/api/lookup/untappd/import', editor, async (req, reply) => {
-    // Gated on Untappd being configured even though this handler never itself calls the
-    // Untappd API (it just downloads a caller-supplied URL) — the beers form only ever
-    // reaches this endpoint from the Untappd search sheet, which is hidden entirely when
-    // Untappd isn't configured (see BeersPage/UntappdSearchSheet). Keeping the same gate
-    // server-side stops this from doubling as a generic "fetch any URL for me"
-    // authenticated proxy once Untappd is turned off.
-    const untappd = app.ctx.settings.get('untappd');
-    if (!untappd) {
-      return reply.code(501).send({ error: 'not_configured', message: 'Untappd is not configured' });
-    }
-
-    const body = importSchema.parse(req.body ?? {});
-    const result = await downloadAndStoreLabel(labelsDir, body.labelUrl, {
-      timeoutMs, resolveHost: opts.resolveHost, allowInsecureHosts: opts.allowInsecureHosts,
-    });
-    if (!result.ok) {
-      return reply.code(result.status).send({ error: result.error, message: result.message });
-    }
-    return reply.code(201).send({ path: result.path });
   });
 }

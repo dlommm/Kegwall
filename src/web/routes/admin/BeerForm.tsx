@@ -1,9 +1,9 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import type { Beer, BeerInput } from '../../../server/db/beers.js';
-import { createBeer, updateBeer, uploadLabel, lookupUntappd } from '../../lib/adminApi';
+import { createBeer, updateBeer, uploadLabel } from '../../lib/adminApi';
 import { srmToColor } from '../../lib/srm';
 import { BreweryAutocomplete } from './BreweryAutocomplete';
-import { UntappdSearchSheet, type UntappdImportedFields } from './UntappdSearchSheet';
+import { StyleAutocomplete } from './StyleAutocomplete';
 
 interface BeerFormProps {
   mode: 'create' | 'edit';
@@ -22,11 +22,11 @@ function parseOptionalNumber(raw: string): number | null {
 
 /**
  * Create/edit form for a single beer (Task 4) — all `BeerInput` fields, a live SRM color
- * swatch, and a label sourced either from a direct file upload (`POST /api/uploads/label`,
- * Task 1) or an Untappd search-and-import (`UntappdSearchSheet`). The "Search Untappd"
- * trigger is hidden ENTIRELY (not just disabled) when a one-time probe call on mount comes
- * back 501 `not_configured` — per the Task 4 brief, an admin with no Untappd credentials
- * set should never see a control for a feature that can't work.
+ * swatch, and a label sourced from a direct file upload (`POST /api/uploads/label`, Task
+ * 1). The style field is backed by `StyleAutocomplete` (an offline BJCP-2021-style
+ * suggestion list, replacing the removed Untappd search sheet's style autofill — see that
+ * component's doc comment) and the brewery field by `BreweryAutocomplete`; both are plain
+ * text inputs underneath, so a custom/house name in either field is always allowed.
  */
 export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
   const [name, setName] = useState(beer?.name ?? '');
@@ -40,24 +40,9 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
 
   const [labelBusy, setLabelBusy] = useState(false);
   const [labelError, setLabelError] = useState<string | null>(null);
-  const [untappdAvailable, setUntappdAvailable] = useState(false);
-  const [untappdSheetOpen, setUntappdSheetOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // One-time "is Untappd even configured?" probe — an empty query 501s without needing
-  // real credentials to already be entered into the search box (see routes/lookup.ts).
-  useEffect(() => {
-    let cancelled = false;
-    lookupUntappd('').then((result) => {
-      if (cancelled) return;
-      setUntappdAvailable(!(!result.ok && result.status === 501));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const srmNumber = srm.trim() === '' ? null : Number(srm);
 
@@ -118,16 +103,6 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
     }
   }
 
-  function handleImported(fields: UntappdImportedFields) {
-    setName(fields.name);
-    setBrewery(fields.brewery ?? '');
-    setStyle(fields.style ?? '');
-    setAbv(fields.abv != null ? String(fields.abv) : '');
-    setIbu(fields.ibu != null ? String(fields.ibu) : '');
-    setLabelImage(fields.labelImage);
-    setUntappdSheetOpen(false);
-  }
-
   return (
     <form
       className="beer-form"
@@ -158,12 +133,7 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
 
         <label className="admin-field">
           <span>Style</span>
-          <input
-            type="text"
-            data-testid="beer-form-style"
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-          />
+          <StyleAutocomplete value={style} onChange={setStyle} />
         </label>
 
         <label className="admin-field">
@@ -245,17 +215,6 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
             />
           </label>
 
-          {untappdAvailable && (
-            <button
-              type="button"
-              className="beer-form__untappd-button"
-              data-testid="beer-form-untappd-button"
-              onClick={() => setUntappdSheetOpen(true)}
-            >
-              Search Untappd
-            </button>
-          )}
-
           {labelImage && (
             <button
               type="button"
@@ -293,10 +252,6 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
           Cancel
         </button>
       </div>
-
-      {untappdSheetOpen && (
-        <UntappdSearchSheet onImported={handleImported} onClose={() => setUntappdSheetOpen(false)} />
-      )}
     </form>
   );
 }

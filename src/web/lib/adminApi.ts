@@ -34,7 +34,7 @@ import type { WallConfig } from '../../server/core/wallConfig.js';
 // From core/lookupTypes.ts, NOT routes/lookup.ts — see that core module's doc comment:
 // a type-only import of a ROUTES file would drag its Fastify-request-augmenting value
 // imports into this (web) tsconfig's program, where they don't typecheck.
-import type { BreweryLookupResult, UntappdLookupResult } from '../../server/core/lookupTypes.js';
+import type { BreweryLookupResult } from '../../server/core/lookupTypes.js';
 
 /**
  * The authed variant of `./api.ts`'s typed-result fetch pattern (see that file's doc
@@ -222,24 +222,6 @@ export function deleteBeer(id: number): Promise<ApiResult<null>> {
  * still round-trips cleanly (server returns `[]` without calling the upstream service). */
 export function lookupBreweries(q: string): Promise<ApiResult<BreweryLookupResult[]>> {
   return request(`/api/lookup/breweries?q=${encodeURIComponent(q)}`);
-}
-
-/** GET /api/lookup/untappd?q= — 501 `{error:'not_configured'}` (surfaced as
- * `ApiFailure` with `status: 501`) when Untappd creds aren't set; the Untappd search
- * sheet uses an empty `q` call as its own "is this even configured?" probe, since that
- * still 501s without needing a real search term. */
-export function lookupUntappd(q: string): Promise<ApiResult<UntappdLookupResult[]>> {
-  return request(`/api/lookup/untappd?q=${encodeURIComponent(q)}`);
-}
-
-/** POST /api/lookup/untappd/import — downloads `labelUrl` server-side into DATA_DIR/labels
- * and returns its stored `/labels/...` path; the beers form never renders the raw Untappd
- * CDN URL directly (see UntappdSearchSheet). */
-export function importUntappdLabel(labelUrl: string): Promise<ApiResult<{ path: string }>> {
-  return request('/api/lookup/untappd/import', {
-    method: 'POST',
-    body: JSON.stringify({ labelUrl }),
-  });
 }
 
 /** POST /api/uploads/label — multipart file upload (Task 1); returns the stored
@@ -434,9 +416,9 @@ export function deleteUser(id: number): Promise<ApiResult<null>> {
   return request(`/api/users/${id}`, { method: 'DELETE' });
 }
 
-/** GET /api/settings — secrets (kegtronApiKey, mqtt.password, untappd.clientSecret) come
- * back masked (see db/settings.ts's `masked()`); SettingsPage never PATCHes one of these
- * mask strings back — see `patchSettings` below. */
+/** GET /api/settings — secrets (kegtronApiKey, mqtt.password, alertChannels' per-channel
+ * secrets) come back masked (see db/settings.ts's `masked()`); SettingsPage never PATCHes
+ * one of these mask strings back — see `patchSettings` below. */
 export function getSettings(): Promise<ApiResult<Settings>> {
   return request('/api/settings');
 }

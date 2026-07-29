@@ -36,13 +36,11 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     kegtronApiKey: null,
     kegtronBaseUrl: 'https://mdash.net',
     openBreweryBaseUrl: 'https://api.openbrewerydb.org',
-    untappdBaseUrl: 'https://api.untappd.com',
     untappdImageBaseUrl: 'https://untappd.akamaized.net',
     backfillCursors: {},
     udpEnabled: false,
     bleDirectEnabled: false,
     mqtt: null,
-    untappd: null,
     quietHours: null,
     alertChannels: {},
     ...overrides,
@@ -338,31 +336,16 @@ describe('SettingsPage', () => {
   });
 
   describe('Integrations group', () => {
-    it('editing Untappd creds alone PATCHes only untappd, not mqtt', async () => {
-      (getSettings as Mock).mockResolvedValue({
-        ok: true,
-        data: baseSettings({
-          untappd: { clientId: 'oldid', clientSecret: '••••' },
-          mqtt: {
-            url: 'mqtt://host:1883', gen1TopicPrefix: 'home/TheengsGateway',
-            haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
-          },
-        }),
-      });
-      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+    it('has no Untappd fields (integration removed)', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
       render(<SettingsPage />);
       await screen.findByTestId('settings-group-integrations');
 
-      fireEvent.change(screen.getByTestId('settings-integrations-untappd-clientid'), { target: { value: 'newid' } });
-      fireEvent.click(screen.getByTestId('settings-integrations-save'));
-      await flush();
-
-      expect(patchSettings).toHaveBeenCalledWith({
-        untappd: { clientId: 'newid', clientSecret: '••••' },
-      });
+      expect(screen.queryByTestId('settings-integrations-untappd-clientid')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('settings-integrations-untappd-secret-field')).not.toBeInTheDocument();
     });
 
-    it('toggling the HA publish switch PATCHes mqtt with Sources’ fields preserved, and no untappd key', async () => {
+    it('toggling the HA publish switch PATCHes mqtt with Sources’ fields preserved', async () => {
       (getSettings as Mock).mockResolvedValue({
         ok: true,
         data: baseSettings({
@@ -388,8 +371,6 @@ describe('SettingsPage', () => {
           haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
         },
       });
-      const call = (patchSettings as Mock).mock.calls[0]![0];
-      expect(call.untappd).toBeUndefined();
     });
 
     it('blocks enabling HA publish with a clear message when MQTT is not configured at all', async () => {

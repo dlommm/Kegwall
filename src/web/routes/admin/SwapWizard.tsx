@@ -74,10 +74,10 @@ export function SwapWizard({
   const step = steps[stepIndex];
   const canGoBack = stepIndex > 0 && step !== 'reset';
 
-  // Escape closes the wizard from any step, matching UntappdSearchSheet's convention
-  // (Task 4). Safe even mid-flow: nothing is committed before a step's own submit
-  // button runs `doSwap`, and once the swap HAS succeeded (the 'reset' step), closing
-  // is exactly what "Finish" already does.
+  // Escape closes the wizard from any step, the same modal-dismiss convention used
+  // elsewhere in the admin UI. Safe even mid-flow: nothing is committed before a step's
+  // own submit button runs `doSwap`, and once the swap HAS succeeded (the 'reset' step),
+  // closing is exactly what "Finish" already does.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();

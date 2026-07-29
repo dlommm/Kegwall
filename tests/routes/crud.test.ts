@@ -244,14 +244,12 @@ describe('crud routes', () => {
       payload: {
         kegtronApiKey: 'supersecretapikey',
         mqtt: { url: 'mqtt://host:1883', username: 'u', password: 'realmqttpass' },
-        untappd: { clientId: 'id1', clientSecret: 'realclientsecret' },
       },
     });
     const getRes = await app.inject({ method: 'GET', url: '/api/settings', cookies: adminCookies });
     const masked = getRes.json();
     expect(masked.kegtronApiKey).toBe('••••ikey');
     expect(masked.mqtt.password).toBe('••••');
-    expect(masked.untappd.clientSecret).toBe('••••');
 
     // client edits an unrelated field and PATCHes the whole masked body back
     masked.siteName = 'Renamed Taproom';
@@ -267,7 +265,6 @@ describe('crud routes', () => {
     // secrets must still be intact under the hood, not literally '••••...'
     expect(after.kegtronApiKey).toBe('••••ikey');
     expect(after.mqtt.password).toBe('••••');
-    expect(after.untappd.clientSecret).toBe('••••');
   });
 
   it('a later PATCH of an unrelated field does not wipe an already-configured secret '

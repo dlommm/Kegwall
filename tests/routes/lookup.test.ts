@@ -1,17 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../../src/server/app.js';
+import { downloadAndStoreLabel } from '../../src/server/routes/lookup.js';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 
-// Fake upstream server standing in for BOTH Open Brewery DB and Untappd (distinguished
-// by path, exactly like the real APIs) plus a handful of "label image" endpoints for the
-// Untappd import download tests — never call the real openbrewerydb.org/untappd.com from
-// tests, per this repo's established convention (see mdashClient.test.ts / kegtron.test.ts).
-const CLIENT_ID = 'untappd-client-id-8f3a';
-const CLIENT_SECRET = 'untappd-client-secret-b91e';
+// Fake upstream server standing in for Open Brewery DB, plus a handful of "label image"
+// endpoints used directly (unit-style, no route/auth involved) by `downloadAndStoreLabel`'s
+// own test coverage below — never call the real openbrewerydb.org from tests, per this
+// repo's established convention (see mdashClient.test.ts / kegtron.test.ts).
+//
+// The Untappd search/import integration this file originally also covered (GET
+// /api/lookup/untappd, POST /api/lookup/untappd/import) was removed entirely — Untappd
+// stopped granting new developer API credentials, making the feature unusable for any new
+// install (see CHANGELOG). `downloadAndStoreLabel` survives that removal unchanged: its
+// only caller now is `routes/kegtron.ts`'s Pro import (covered by its own tests in
+// kegtron.test.ts), but its full behavior — malformed input, the SSRF guard, oversized/
+// malformed downloads, upstream failures — is exercised once here, directly against the
+// exported function, rather than through a route.
 
 const PNG_BYTES = Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -22,7 +30,6 @@ let app: FastifyInstance;
 let upstream: FastifyInstance;
 let upstreamUrl: string;
 let seenBreweryQuery: Record<string, unknown> | undefined;
-let seenUntappdQuery: Record<string, unknown> | undefined;
 let adminCookies: { session: string };
 let editorCookies: { session: string };
 let viewerCookies: { session: string };
@@ -54,40 +61,6 @@ async function listenUpstream(): Promise<string> {
     return [
       { id: 'abc', name: 'Modern Brew Co', brewery_type: 'micro', city: 'Portland', state_province: 'Oregon' },
     ];
-  });
-
-  upstream.get('/v4/search/beer', async (req, reply) => {
-    seenUntappdQuery = req.query as Record<string, unknown>;
-    const q = (req.query as any).q;
-    if (q === 'ServerError') {
-      reply.code(500);
-      return { error: 'boom' };
-    }
-    if (q === 'Timeout') {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return {};
-    }
-    return {
-      response: {
-        beers: {
-          count: 1,
-          items: [
-            {
-              checkin_count: 120,
-              beer: {
-                bid: 123,
-                beer_name: 'Citra IPA',
-                beer_label: `${upstreamUrl}/images/valid.png`,
-                beer_abv: 6.5,
-                beer_ibu: 60,
-                beer_style: 'IPA - American',
-              },
-              brewery: { brewery_id: 456, brewery_name: 'Test Brewery' },
-            },
-          ],
-        },
-      },
-    };
   });
 
   upstream.get('/images/valid.png', async (_req, reply) => {
@@ -125,22 +98,15 @@ async function listenUpstream(): Promise<string> {
 
 beforeEach(async () => {
   seenBreweryQuery = undefined;
-  seenUntappdQuery = undefined;
   upstreamUrl = await listenUpstream();
 
   // Short timeout override (a la wsPingIntervalMs/MdashClient.timeoutMs) so the timeout
-  // tests below run in milliseconds instead of the real 5s production default.
-  // `lookupAllowInsecureHosts: true` is the test-only SSRF-guard bypass (see
-  // LookupRoutesOptions in lookup.ts) — this fixture's fake upstream server binds to
-  // 127.0.0.1, which the guard correctly rejects by default; the dedicated "SSRF guard"
-  // describe block below builds its OWN strict (non-bypassed) app to test that default.
+  // test below runs in milliseconds instead of the real 5s production default.
   app = await buildApp({
     dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')),
     lookupTimeoutMs: 100,
-    lookupAllowInsecureHosts: true,
   });
   app.ctx.settings.set('openBreweryBaseUrl', upstreamUrl);
-  app.ctx.settings.set('untappdBaseUrl', upstreamUrl);
 
   const setup = await app.inject({
     method: 'POST', url: '/api/auth/setup',
@@ -173,10 +139,9 @@ afterEach(async () => {
 });
 
 describe('settings schema', () => {
-  it('exposes hidden openBreweryBaseUrl/untappdBaseUrl settings with real defaults', async () => {
+  it('exposes a hidden openBreweryBaseUrl setting with its real default', async () => {
     const fresh = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
     expect(fresh.ctx.settings.get('openBreweryBaseUrl')).toBe('https://api.openbrewerydb.org');
-    expect(fresh.ctx.settings.get('untappdBaseUrl')).toBe('https://api.untappd.com');
     await fresh.close();
   });
 });
@@ -254,343 +219,213 @@ describe('GET /api/lookup/breweries', () => {
   });
 });
 
-describe('GET /api/lookup/untappd', () => {
-  it('rejects unauthenticated requests', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/lookup/untappd?q=Citra' });
-    expect(res.statusCode).toBe(401);
+// ---------------------------------------------------------------------------
+// downloadAndStoreLabel — the generic remote label download helper (SSRF-guarded
+// download -> size-capped read -> magic-byte validation -> stored under labelsDir). Its
+// only production caller today is routes/kegtron.ts's Pro import (see kegtron.test.ts for
+// that integration), so it's exercised directly here rather than through a route.
+// ---------------------------------------------------------------------------
+describe('downloadAndStoreLabel', () => {
+  let labelsDir: string;
+
+  beforeEach(() => {
+    labelsDir = mkdtempSync(join(tmpdir(), 'ktdash-labels-'));
   });
 
-  it('rejects a viewer (needs editor role)', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'GET', url: '/api/lookup/untappd?q=Citra', cookies: viewerCookies,
+  it('downloads a valid label and stores it under labelsDir, returning {ok:true, path}', async () => {
+    const result = await downloadAndStoreLabel(labelsDir, `${upstreamUrl}/images/valid.png`, {
+      timeoutMs: 1000, allowInsecureHosts: true,
     });
-    expect(res.statusCode).toBe(403);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.path).toMatch(/^\/labels\/[0-9a-f-]+\.png$/);
+    const stored = readFileSync(join(labelsDir, basename(result.path)));
+    expect(stored.equals(PNG_BYTES)).toBe(true);
   });
 
-  it('501s with {error: "not_configured"} when Untappd creds are absent, even for an editor', async () => {
-    const res = await app.inject({
-      method: 'GET', url: '/api/lookup/untappd?q=Citra', cookies: editorCookies,
-    });
-    expect(res.statusCode).toBe(501);
-    expect(res.json()).toEqual({ error: 'not_configured', message: expect.any(String) });
-  });
-
-  it('maps results to {name, brewery, style, abv, ibu, labelUrl} when configured, sending creds as query params', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'GET', url: '/api/lookup/untappd?q=Citra', cookies: editorCookies,
-    });
-    expect(res.statusCode).toBe(200);
-    expect(seenUntappdQuery?.client_id).toBe(CLIENT_ID);
-    expect(seenUntappdQuery?.client_secret).toBe(CLIENT_SECRET);
-    expect(seenUntappdQuery?.q).toBe('Citra');
-    expect(res.json()).toEqual([{
-      name: 'Citra IPA',
-      brewery: 'Test Brewery',
-      style: 'IPA - American',
-      abv: 6.5,
-      ibu: 60,
-      labelUrl: `${upstreamUrl}/images/valid.png`,
-    }]);
-    expect(JSON.stringify(res.body)).not.toContain(CLIENT_SECRET);
-  });
-
-  it('returns an empty array for a blank query without calling the upstream service (used to probe config status)', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'GET', url: '/api/lookup/untappd?q=', cookies: editorCookies,
-    });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual([]);
-    expect(seenUntappdQuery).toBeUndefined();
-  });
-
-  it('degrades gracefully (502) on an upstream error, never leaking creds in the error body', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'GET', url: '/api/lookup/untappd?q=ServerError', cookies: editorCookies,
-    });
-    expect(res.statusCode).toBe(502);
-    expect(JSON.stringify(res.body)).not.toContain(CLIENT_SECRET);
-    expect(JSON.stringify(res.body)).not.toContain(CLIENT_ID);
-  });
-
-  it('degrades gracefully (502) on a timeout, never leaking creds', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const start = Date.now();
-    const res = await app.inject({
-      method: 'GET', url: '/api/lookup/untappd?q=Timeout', cookies: editorCookies,
-    });
-    const elapsed = Date.now() - start;
-    expect(res.statusCode).toBe(502);
-    expect(elapsed).toBeLessThan(500);
-    expect(JSON.stringify(res.body)).not.toContain(CLIENT_SECRET);
-  });
-});
-
-describe('POST /api/lookup/untappd/import', () => {
-  it('rejects unauthenticated requests', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/lookup/untappd/import', payload: { labelUrl: 'x' } });
-    expect(res.statusCode).toBe(401);
-  });
-
-  it('rejects a viewer (needs editor role)', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: viewerCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/valid.png` },
-    });
-    expect(res.statusCode).toBe(403);
-  });
-
-  it('501s when Untappd is not configured', async () => {
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/valid.png` },
-    });
-    expect(res.statusCode).toBe(501);
-    expect(res.json().error).toBe('not_configured');
-  });
-
-  it('downloads a valid label server-side and stores it under /labels, returning {path}', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/valid.png` },
-    });
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.path).toMatch(/^\/labels\/[0-9a-f-]+\.png$/);
-
-    const fetched = await app.inject({ method: 'GET', url: body.path });
-    expect(fetched.statusCode).toBe(200);
-    expect(fetched.rawPayload.equals(PNG_BYTES)).toBe(true);
-  });
-
-  it('400s for a malformed or non-http(s) labelUrl', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
+  it('400s for a malformed or non-http(s) rawUrl', async () => {
     for (const bad of ['not-a-url', 'ftp://example.com/x.png', 'file:///etc/passwd']) {
-      const res = await app.inject({
-        method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-        payload: { labelUrl: bad },
-      });
-      expect(res.statusCode).toBe(400);
+      const result = await downloadAndStoreLabel(labelsDir, bad, { timeoutMs: 1000, allowInsecureHosts: true });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
     }
   });
 
   it('400s when the downloaded content is not a supported image type, regardless of declared content-type', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/invalid.txt` },
+    const result = await downloadAndStoreLabel(labelsDir, `${upstreamUrl}/images/invalid.txt`, {
+      timeoutMs: 1000, allowInsecureHosts: true,
     });
-    expect(res.statusCode).toBe(400);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(400);
   });
 
   it('413s when the downloaded label exceeds the 5MB cap', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/big.png` },
+    const result = await downloadAndStoreLabel(labelsDir, `${upstreamUrl}/images/big.png`, {
+      timeoutMs: 1000, allowInsecureHosts: true,
     });
-    expect(res.statusCode).toBe(413);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(413);
   });
 
   it('502s when the upstream image host errors', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/error` },
+    const result = await downloadAndStoreLabel(labelsDir, `${upstreamUrl}/images/error`, {
+      timeoutMs: 1000, allowInsecureHosts: true,
     });
-    expect(res.statusCode).toBe(502);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(502);
   });
 
   it('502s (fails closed within the timeout) when the download hangs', async () => {
-    app.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
     const start = Date.now();
-    const res = await app.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: editorCookies,
-      payload: { labelUrl: `${upstreamUrl}/images/slow` },
+    const result = await downloadAndStoreLabel(labelsDir, `${upstreamUrl}/images/slow`, {
+      timeoutMs: 100, allowInsecureHosts: true,
     });
     const elapsed = Date.now() - start;
-    expect(res.statusCode).toBe(502);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(502);
     expect(elapsed).toBeLessThan(500);
   });
-});
 
-// ---------------------------------------------------------------------------
-// SSRF guard (Fix round 1): POST /api/lookup/untappd/import's labelUrl reaches a real
-// server-side fetch, so it's the one place in the app where a user-supplied host could
-// make the SERVER probe internal services / cloud metadata on the editor's behalf. This
-// describe block builds its OWN app WITHOUT `lookupAllowInsecureHosts` — i.e. the real,
-// strict, production default — unlike the shared `app` fixture above (which needs the
-// bypass purely because its fake upstream server happens to bind to 127.0.0.1).
-// ---------------------------------------------------------------------------
-describe('POST /api/lookup/untappd/import — SSRF guard', () => {
-  let strictApp: FastifyInstance;
-  let strictEditorCookies: { session: string };
-  // Set by whichever test needs it — a stand-in DNS resolver injected via
-  // `lookupResolveHost` so these tests never touch real DNS.
-  let resolveHost: ((hostname: string) => Promise<string[]>) | undefined;
+  // ---------------------------------------------------------------------------
+  // SSRF guard: `downloadAndStoreLabel` reaches a real server-side fetch against a
+  // caller-supplied URL, so it's the one place in the app where a user-supplied (or
+  // device-derived, via routes/kegtron.ts's labelUrl decode) host could make the SERVER
+  // probe internal services / cloud metadata on someone's behalf. Every test below calls
+  // the function with NO `allowInsecureHosts` override — i.e. the real, strict,
+  // production default.
+  // ---------------------------------------------------------------------------
+  describe('SSRF guard', () => {
+    // Set by whichever test needs it — a stand-in DNS resolver so these tests never
+    // touch real DNS.
+    let resolveHost: ((hostname: string) => Promise<string[]>) | undefined;
 
-  beforeEach(async () => {
-    resolveHost = undefined;
-    strictApp = await buildApp({
-      dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')),
-      lookupTimeoutMs: 100,
-      // No lookupAllowInsecureHosts — strict by default. resolveHost is read lazily via
-      // the closure below so each test can set it before making its request.
-      lookupResolveHost: (hostname: string) => (resolveHost ?? (async () => []))(hostname),
+    beforeEach(() => {
+      resolveHost = undefined;
     });
-    strictApp.ctx.settings.set('untappd', { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
 
-    const setup = await strictApp.inject({
-      method: 'POST', url: '/api/auth/setup',
-      payload: { username: 'dan', displayName: 'Dan', password: 'hunter22' },
-    });
-    const adminSession = { session: setup.cookies.find((c: any) => c.name === 'session')!.value };
-    await strictApp.inject({
-      method: 'POST', url: '/api/users', cookies: adminSession,
-      payload: { username: 'ed', displayName: 'Ed', password: 'password1', role: 'editor' },
-    });
-    const editorLogin = await strictApp.inject({
-      method: 'POST', url: '/api/auth/login', payload: { username: 'ed', password: 'password1' },
-    });
-    strictEditorCookies = { session: editorLogin.cookies.find((c: any) => c.name === 'session')!.value };
-  });
-
-  afterEach(async () => {
-    await strictApp.close();
-  });
-
-  it.each([
-    ['http://127.0.0.1/label.png', 'loopback IPv4'],
-    ['http://192.168.1.1/label.png', 'private IPv4 (192.168/16)'],
-    ['http://169.254.169.254/latest/meta-data/', 'link-local IPv4 (cloud metadata)'],
-    ['http://10.0.0.5/label.png', 'private IPv4 (10/8)'],
-    ['http://172.16.0.1/label.png', 'private IPv4 (172.16/12)'],
-    ['http://0.0.0.0/label.png', 'unspecified IPv4'],
-    ['http://[::1]/label.png', 'loopback IPv6'],
-    ['http://[fe80::1]/label.png', 'link-local IPv6'],
-    ['http://[fc00::1]/label.png', 'unique-local IPv6'],
-  ])('rejects a literal %s (%s) with 400, without ever attempting a fetch', async (labelUrl) => {
-    const start = Date.now();
-    const res = await strictApp.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
-      payload: { labelUrl },
-    });
-    const elapsed = Date.now() - start;
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({ error: 'validation', message: 'That image URL is not allowed' });
-    // Fast — proves this was rejected synchronously by the guard, not after a real
-    // connection attempt/timeout to an unroutable address like 169.254.169.254.
-    expect(elapsed).toBeLessThan(90);
-  });
-
-  it('rejects a hostname that resolves (per the injected resolver) to a private address', async () => {
-    resolveHost = async (hostname) => {
-      expect(hostname).toBe('internal.example.test');
-      return ['10.1.2.3'];
-    };
-    const res = await strictApp.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
-      payload: { labelUrl: 'http://internal.example.test/label.png' },
-    });
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({ error: 'validation', message: 'That image URL is not allowed' });
-  });
-
-  it('rejects a hostname if ANY of its resolved addresses is private, even if another is public', async () => {
-    resolveHost = async () => ['8.8.8.8', '10.1.2.3'];
-    const res = await strictApp.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
-      payload: { labelUrl: 'http://multi-homed.example.test/label.png' },
-    });
-    expect(res.statusCode).toBe(400);
-  });
-
-  it('allows a hostname that resolves to a public address through to the real fetch', async () => {
-    // "localhost" is used as the hostname so the REAL fetch() call (which does its own,
-    // un-injected DNS resolution) connects to our loopback-bound fake server below — the
-    // injected resolver below only feeds the GUARD's own check, standing in for
-    // whatever real public address a real hostname would resolve to.
-    resolveHost = async (hostname) => {
-      expect(hostname).toBe('localhost');
-      return ['8.8.8.8'];
-    };
-    const fakeLabelServer = Fastify();
-    fakeLabelServer.get('/label.png', async (_req, reply) => {
-      reply.header('content-type', 'image/png');
-      return PNG_BYTES;
-    });
-    await fakeLabelServer.listen({ port: 0, host: '127.0.0.1' });
-    const port = (fakeLabelServer.server.address() as { port: number }).port;
-
-    try {
-      const res = await strictApp.inject({
-        method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
-        payload: { labelUrl: `http://localhost:${port}/label.png` },
+    it.each([
+      ['http://127.0.0.1/label.png', 'loopback IPv4'],
+      ['http://192.168.1.1/label.png', 'private IPv4 (192.168/16)'],
+      ['http://169.254.169.254/latest/meta-data/', 'link-local IPv4 (cloud metadata)'],
+      ['http://10.0.0.5/label.png', 'private IPv4 (10/8)'],
+      ['http://172.16.0.1/label.png', 'private IPv4 (172.16/12)'],
+      ['http://0.0.0.0/label.png', 'unspecified IPv4'],
+      ['http://[::1]/label.png', 'loopback IPv6'],
+      ['http://[fe80::1]/label.png', 'link-local IPv6'],
+      ['http://[fc00::1]/label.png', 'unique-local IPv6'],
+    ])('rejects a literal %s (%s) with a 400, without ever attempting a fetch', async (rawUrl) => {
+      const start = Date.now();
+      const result = await downloadAndStoreLabel(labelsDir, rawUrl, { timeoutMs: 1000 });
+      const elapsed = Date.now() - start;
+      expect(result).toEqual({
+        ok: false, status: 400, error: 'validation', message: 'That image URL is not allowed',
       });
-      expect(res.statusCode).toBe(201);
-      expect(res.json().path).toMatch(/^\/labels\/[0-9a-f-]+\.png$/);
-    } finally {
-      await fakeLabelServer.close();
-    }
-  });
-
-  it('refuses to follow a redirect — a validated host cannot be used to reach a different one via a 302', async () => {
-    // The guard only validates the ORIGINAL host (here, "localhost", made to look
-    // public via the injected resolver, same trick as the previous test) — this test's
-    // point is that the redirect target ("the second server") must never be reached at
-    // all, regardless of what it is, because `redirect: 'error'` refuses to follow it.
-    resolveHost = async (hostname) => {
-      expect(hostname).toBe('localhost');
-      return ['8.8.8.8'];
-    };
-
-    let secondServerHits = 0;
-    const secondServer = Fastify();
-    secondServer.get('/private-secret.png', async (_req, reply) => {
-      secondServerHits += 1;
-      reply.header('content-type', 'image/png');
-      return PNG_BYTES;
+      // Fast — proves this was rejected synchronously by the guard, not after a real
+      // connection attempt/timeout to an unroutable address like 169.254.169.254.
+      expect(elapsed).toBeLessThan(90);
     });
-    await secondServer.listen({ port: 0, host: '127.0.0.1' });
-    const secondPort = (secondServer.server.address() as { port: number }).port;
 
-    const redirectingServer = Fastify();
-    redirectingServer.get('/label.png', async (_req, reply) => {
-      reply.code(302).header('location', `http://localhost:${secondPort}/private-secret.png`).send();
-    });
-    await redirectingServer.listen({ port: 0, host: '127.0.0.1' });
-    const redirectingPort = (redirectingServer.server.address() as { port: number }).port;
-
-    try {
-      const res = await strictApp.inject({
-        method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
-        payload: { labelUrl: `http://localhost:${redirectingPort}/label.png` },
+    it('rejects a hostname that resolves (per the injected resolver) to a private address', async () => {
+      resolveHost = async (hostname) => {
+        expect(hostname).toBe('internal.example.test');
+        return ['10.1.2.3'];
+      };
+      const result = await downloadAndStoreLabel(labelsDir, 'http://internal.example.test/label.png', {
+        timeoutMs: 1000, resolveHost: (h) => resolveHost!(h),
       });
-      expect(res.statusCode).toBe(400);
-      expect(res.json()).toEqual({
-        error: 'validation',
-        message: 'That image URL redirects somewhere else. Use the direct image URL.',
+      expect(result).toEqual({
+        ok: false, status: 400, error: 'validation', message: 'That image URL is not allowed',
       });
-      expect(secondServerHits).toBe(0);
-    } finally {
-      await redirectingServer.close();
-      await secondServer.close();
-    }
-  });
-
-  it('fails closed (400) when the hostname cannot be resolved at all', async () => {
-    resolveHost = async () => {
-      throw new Error('ENOTFOUND');
-    };
-    const res = await strictApp.inject({
-      method: 'POST', url: '/api/lookup/untappd/import', cookies: strictEditorCookies,
-      payload: { labelUrl: 'http://does-not-resolve.example.test/label.png' },
     });
-    expect(res.statusCode).toBe(400);
+
+    it('rejects a hostname if ANY of its resolved addresses is private, even if another is public', async () => {
+      resolveHost = async () => ['8.8.8.8', '10.1.2.3'];
+      const result = await downloadAndStoreLabel(labelsDir, 'http://multi-homed.example.test/label.png', {
+        timeoutMs: 1000, resolveHost: (h) => resolveHost!(h),
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+    });
+
+    it('allows a hostname that resolves to a public address through to the real fetch', async () => {
+      // "localhost" is used as the hostname so the REAL fetch() call (which does its own,
+      // un-injected DNS resolution) connects to our loopback-bound fake server below — the
+      // injected resolver below only feeds the GUARD's own check, standing in for
+      // whatever real public address a real hostname would resolve to.
+      resolveHost = async (hostname) => {
+        expect(hostname).toBe('localhost');
+        return ['8.8.8.8'];
+      };
+      const fakeLabelServer = Fastify();
+      fakeLabelServer.get('/label.png', async (_req, reply) => {
+        reply.header('content-type', 'image/png');
+        return PNG_BYTES;
+      });
+      await fakeLabelServer.listen({ port: 0, host: '127.0.0.1' });
+      const port = (fakeLabelServer.server.address() as { port: number }).port;
+
+      try {
+        const result = await downloadAndStoreLabel(labelsDir, `http://localhost:${port}/label.png`, {
+          timeoutMs: 1000, resolveHost: (h) => resolveHost!(h),
+        });
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.path).toMatch(/^\/labels\/[0-9a-f-]+\.png$/);
+      } finally {
+        await fakeLabelServer.close();
+      }
+    });
+
+    it('refuses to follow a redirect — a validated host cannot be used to reach a different one via a 302', async () => {
+      // The guard only validates the ORIGINAL host (here, "localhost", made to look
+      // public via the injected resolver, same trick as the previous test) — this test's
+      // point is that the redirect target ("the second server") must never be reached at
+      // all, regardless of what it is, because `redirect: 'error'` refuses to follow it.
+      resolveHost = async (hostname) => {
+        expect(hostname).toBe('localhost');
+        return ['8.8.8.8'];
+      };
+
+      let secondServerHits = 0;
+      const secondServer = Fastify();
+      secondServer.get('/private-secret.png', async (_req, reply) => {
+        secondServerHits += 1;
+        reply.header('content-type', 'image/png');
+        return PNG_BYTES;
+      });
+      await secondServer.listen({ port: 0, host: '127.0.0.1' });
+      const secondPort = (secondServer.server.address() as { port: number }).port;
+
+      const redirectingServer = Fastify();
+      redirectingServer.get('/label.png', async (_req, reply) => {
+        reply.code(302).header('location', `http://localhost:${secondPort}/private-secret.png`).send();
+      });
+      await redirectingServer.listen({ port: 0, host: '127.0.0.1' });
+      const redirectingPort = (redirectingServer.server.address() as { port: number }).port;
+
+      try {
+        const result = await downloadAndStoreLabel(labelsDir, `http://localhost:${redirectingPort}/label.png`, {
+          timeoutMs: 1000, resolveHost: (h) => resolveHost!(h),
+        });
+        expect(result).toEqual({
+          ok: false, status: 400, error: 'validation',
+          message: 'That image URL redirects somewhere else. Use the direct image URL.',
+        });
+        expect(secondServerHits).toBe(0);
+      } finally {
+        await redirectingServer.close();
+        await secondServer.close();
+      }
+    });
+
+    it('fails closed (400) when the hostname cannot be resolved at all', async () => {
+      resolveHost = async () => {
+        throw new Error('ENOTFOUND');
+      };
+      const result = await downloadAndStoreLabel(labelsDir, 'http://does-not-resolve.example.test/label.png', {
+        timeoutMs: 1000, resolveHost: (h) => resolveHost!(h),
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+    });
   });
 });

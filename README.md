@@ -32,10 +32,10 @@ automations, and deep wall customization.
   live pour animation, page rotation, four built-in themes, per-field visibility, and a
   raw custom-CSS escape hatch; a mobile menu page (`/menu/:slug`) drinkers can scan to and
   claim their pour for the leaderboard.
-- **Admin UI** — beers (Untappd + Open Brewery DB lookup), taps/kegs with a guided
-  keg-swap flow, monitor binding, a live-preview wall editor, multi-user accounts with
-  roles (viewer/editor/admin), and stats (pours/day, busiest hours, keg depletion, volume
-  by beer, temperature history, leaderboard).
+- **Admin UI** — beers (Open Brewery DB brewery lookup, offline BJCP-style autocomplete),
+  taps/kegs with a guided keg-swap flow, monitor binding, a live-preview wall editor,
+  multi-user accounts with roles (viewer/editor/admin), and stats (pours/day, busiest
+  hours, keg depletion, volume by beer, temperature history, leaderboard).
 - **Alerts + automations** — a rule engine (keg-low, kicked, temperature, offline source,
   scheduled...) with delivery over in-app notifications, ntfy/Pushover, email (SMTP),
   Discord/Slack webhooks, and MQTT — plus a notification center and one-click templates.
@@ -55,10 +55,6 @@ automations, and deep wall customization.
   (no MQTT bridge needed) *is* a byte-exact port of a real, verified parser and is the
   preferred route if you can put the app within Bluetooth range — see
   [docs/install/raspberry-pi.md](docs/install/raspberry-pi.md#direct-ble-setup-gen-1-devices).
-- **Untappd lookup needs your own API credentials.** There is no shared/default Untappd app
-  — the Untappd search field in the admin UI stays hidden until you paste in your own
-  `client_id`/`client_secret` under **Settings → Integrations**. Open Brewery DB autocomplete
-  needs no credentials and works out of the box.
 - **No Secure flag on the session cookie.** Deliberate, for plain-HTTP LAN deployments —
   see [docs/install/docker.md#reverse-proxy-and-https](docs/install/docker.md#reverse-proxy-and-https)
   before exposing this beyond a trusted LAN.

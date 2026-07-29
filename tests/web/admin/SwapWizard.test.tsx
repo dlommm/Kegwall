@@ -17,9 +17,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   createBeer: vi.fn(),
   updateBeer: vi.fn(),
   uploadLabel: vi.fn(),
-  lookupUntappd: vi.fn().mockResolvedValue({ ok: false, status: 501, message: 'not configured' }),
   lookupBreweries: vi.fn().mockResolvedValue({ ok: true, data: [] }),
-  importUntappdLabel: vi.fn(),
 }));
 
 async function flush() {
