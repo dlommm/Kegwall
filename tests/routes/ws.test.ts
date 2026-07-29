@@ -143,6 +143,14 @@ describe('/ws', () => {
   });
 
   it('stops the ping interval when the app closes (no dangling timer)', async () => {
+    // Regression guard (Phase 6 flake sweep, Phase 3 ledger hygiene nit): this test used
+    // to reassign `app` to a freshly-built instance without closing the beforeEach-built
+    // one first, leaking a live FastifyInstance + listening socket on every run. Close it
+    // explicitly (and prove it actually closed) before replacing the binding.
+    const beforeEachApp = app;
+    await expect(beforeEachApp.close()).resolves.toBeUndefined();
+    expect(beforeEachApp.server.listening).toBe(false);
+
     app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')), wsPingIntervalMs: 20 });
     await app.listen({ port: 0 });
     // Regression guard: closing must not throw, and must actually clear the interval —
