@@ -52,7 +52,11 @@ export class LogService {
       lastHealthy.set(e.source, e.healthy);
       if (prev === e.healthy) return;
       const source: LogSource = e.source === 'mqtt_publisher' ? 'app' : 'kegtron';
-      this.log(e.healthy ? 'info' : 'error', source, `${e.source} ${e.healthy ? 'healthy' : 'unhealthy'} — ${e.detail}`);
+      // Never-configured sources (no API key set) log as warn, not error — the
+      // error path auto-creates a notification, and a fresh install with no keys
+      // shouldn't boot straight into error notifications.
+      const level = e.healthy ? 'info' : e.unconfigured ? 'warn' : 'error';
+      this.log(level, source, `${e.source} ${e.healthy ? 'healthy' : 'unhealthy'} — ${e.detail}`);
     });
 
     this.bus.on('device_online', (e) => {

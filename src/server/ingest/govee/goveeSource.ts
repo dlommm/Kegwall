@@ -42,7 +42,7 @@ export class GoveeSource implements Source {
     this.stopped = false;
     const config = this.opts.settings.get('govee');
     if (!config?.apiKey) {
-      this.status(false, 'No Govee API key configured');
+      this.status(false, 'No Govee API key configured', { unconfigured: true });
       return;
     }
     const pollMs = this.opts.pollMs ?? DEFAULT_POLL_MS;
@@ -60,9 +60,9 @@ export class GoveeSource implements Source {
     }
   }
 
-  private status(healthy: boolean, detail: string): void {
+  private status(healthy: boolean, detail: string, extra: { unconfigured?: boolean } = {}): void {
     this.opts.bus.emit('source_status', {
-      source: 'govee', healthy, detail, ts: new Date().toISOString(),
+      source: 'govee', healthy, detail, ts: new Date().toISOString(), ...extra,
     });
   }
 

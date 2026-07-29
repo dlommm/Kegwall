@@ -44,8 +44,10 @@ automations, and deep wall customization.
 - **View rotation + paired displays** — a per-wall playlist (wall / leaderboard) cycles on
   the TV with a position bar, big tap lists auto-chunk into pages, and a live pour always
   interrupts back to the wall. Physical screens pair once with a short code at `/display`
-  and from then on render their assigned wall; multi-room setups get first-class
-  **locations** that scope taps, walls, and the admin views.
+  and from then on render their assigned wall. Multi-room setups assign **Kegtron
+  devices to walls**: monitors group into physical devices (a 4-port Kegtron is one
+  device with four bindable ports, one temperature sensor, one admin card), and each
+  wall shows exactly the taps fed by its assigned devices.
 - **Who's pouring** — a kegerator tablet kiosk (`/tablet/:slug`) with passwordless avatar
   sign-in arms a pourer before they pour; pours attribute automatically, earn a 0–100
   flow-consistency quality score, and feed a public leaderboard (`/board`) with

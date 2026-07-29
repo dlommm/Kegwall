@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- **Added:** Kegtron devices are now first-class. Monitor ports group into physical
+  devices everywhere: the admin Monitors page shows one card per device (editable
+  device name, firmware/online, one WiFi check, one temp/humidity panel) with a port
+  table where each port still binds to a tap; the Analytics temperature picker lists
+  one entry per device instead of one identical option per port; Home Assistant gets
+  one discovery device per physical Kegtron (anchored on the port-0 row so common-case
+  topics/unique_ids don't move) instead of N null-temp clones; and the cleaning-due
+  automation fires once per device, not once per port.
+- **Fixed:** temperature now reads device-wide. Kegtron reports temp once per device
+  (always recorded against port 0), so taps bound to ports 1-3 showed nothing — the
+  wall header, dashboard keg-room card, telemetry endpoints, and HA state payloads now
+  resolve the whole device's telemetry.
+- **Added (breaking):** device→wall assignment (`wall_devices`, migration 011). Each
+  wall is assigned specific Kegtron devices and shows only taps bound to their ports;
+  a device can feed multiple walls. **Strict: a wall with no assigned devices shows NO
+  taps — after upgrading, open each wall in the editor and check its devices, or your
+  TVs render an empty wall.** The wall editor gains a Devices panel; hand-picked pages
+  now choose within the assigned devices' tap pool.
+- **Removed (breaking):** the Locations feature (migration 010 drops the `locations`
+  table and every `location_id` column — stored location data is deleted). The admin
+  sidebar switcher and the Locations half of the Displays page are gone; Displays and
+  pairing are unchanged. Wall/device assignment replaces room scoping.
+- **Changed:** Home Assistant entity topology — per-port temp/humidity entities for
+  ports > 0 are no longer published. Retained discovery configs from a pre-upgrade
+  process aren't auto-tombstoned; if stale HA entities linger, delete their retained
+  `homeassistant/sensor/kegtron_monitor_*/config` topics on the broker once.
+- **Fixed:** a fresh install with no API keys no longer boots into auto-created error
+  notifications — a source that is merely *unconfigured* (Kegtron cloud / Govee key not
+  set) now logs its unhealthy status as a warning; real failures of configured sources
+  still error and notify.
 - **Added:** the keg swap wizard's Size / Starting volume fields now prefill from what
   the bound Kegtron device itself reports (the keg size and starting volume set in
   Kegtron's own app arrive on every volume update), falling back to the beer's last keg

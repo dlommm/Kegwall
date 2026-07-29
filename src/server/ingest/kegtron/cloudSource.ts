@@ -130,7 +130,7 @@ export class KegtronCloudSource implements Source {
     this.stopped = false;
     const apiKey = this.settings.get('kegtronApiKey');
     if (!apiKey) {
-      this.emitStatus(false, 'no API key configured');
+      this.emitStatus(false, 'no API key configured', { unconfigured: true });
       return;
     }
     this.client = new MdashClient({ apiKey, baseUrl: this.baseUrl });
@@ -489,9 +489,9 @@ export class KegtronCloudSource implements Source {
     else this.emitStatus(true, `${open}/${total} device connections open (degraded)`);
   }
 
-  private emitStatus(healthy: boolean, detail: string): void {
+  private emitStatus(healthy: boolean, detail: string, extra: { unconfigured?: boolean } = {}): void {
     this.bus.emit('source_status', {
-      source: 'kegtron_cloud', healthy, detail, ts: new Date().toISOString(),
+      source: 'kegtron_cloud', healthy, detail, ts: new Date().toISOString(), ...extra,
     });
   }
 

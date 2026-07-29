@@ -34,6 +34,10 @@ export interface EventMap {
   source_status: {
     source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'mqtt_publisher' | 'govee';
     healthy: boolean; detail: string; ts: string;
+    /** True when unhealthy only because the source was never CONFIGURED (no API key
+     * set, etc). LogService logs this as a warn, not an error — a fresh install with
+     * no keys shouldn't boot into auto-created error notifications. */
+    unconfigured?: boolean;
   };
   state_changed: { scope: 'taps' | 'notifications' | 'sources'; ts: string };
   /** Pour Wall overhaul Phase 6 (design 6g, Kegtron-first beers): emitted by the cloud

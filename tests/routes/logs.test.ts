@@ -67,4 +67,24 @@ describe('GET /api/logs', () => {
     const res = await app.inject({ method: 'GET', url: '/api/logs?levels=error', cookies });
     expect(res.json().entries[0].message).toContain('timeout');
   });
+
+  it('an UNCONFIGURED source going unhealthy logs a warn, not an error — no notification', async () => {
+    app.ctx.bus.emit('source_status', {
+      source: 'kegtron_cloud', healthy: false, detail: 'no API key configured',
+      unconfigured: true, ts: new Date().toISOString(),
+    });
+    expect((app.ctx.db.prepare('SELECT COUNT(*) c FROM notifications').get() as any).c).toBe(0);
+    const res = await app.inject({ method: 'GET', url: '/api/logs?levels=warn', cookies });
+    expect(res.json().entries[0].message).toContain('no API key configured');
+
+    // A genuinely failing (configured) source still errors + notifies.
+    app.ctx.bus.emit('source_status', {
+      source: 'kegtron_cloud', healthy: true, detail: 'connected', ts: new Date().toISOString(),
+    });
+    app.ctx.bus.emit('source_status', {
+      source: 'kegtron_cloud', healthy: false, detail: 'customer fetch failed: 503',
+      ts: new Date().toISOString(),
+    });
+    expect((app.ctx.db.prepare('SELECT COUNT(*) c FROM notifications').get() as any).c).toBe(1);
+  });
 });
