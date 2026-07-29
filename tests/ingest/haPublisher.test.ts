@@ -20,6 +20,11 @@ import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js
 // Phase 5 Task 5: HaPublisherSource against a real local aedes broker -- same
 // fake-upstream-real-protocol precedent as tests/ingest/mqttSource.test.ts and
 // tests/notify/mqttSender.test.ts.
+//
+// Phase 6 flake sweep: this file is intentionally kept in vitest.config.ts's
+// `server-mqtt-broker` project (`fileParallelism: false`) alongside those other real-
+// aedes-broker files -- see that config file's header comment for the empirically
+// reproduced "Invalid header flag bits" stream-corruption flake this avoids.
 // ---------------------------------------------------------------------------
 
 interface Received { topic: string; payload: string; retain: boolean }

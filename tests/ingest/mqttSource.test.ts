@@ -12,6 +12,14 @@ import { SettingsStore } from '../../src/server/db/settings.js';
 import { EventBus } from '../../src/server/core/events.js';
 import { Gen1MqttSource } from '../../src/server/ingest/gen1/mqttSource.js';
 
+// This file spins up a REAL local aedes broker (see startBroker() below) rather than
+// mocking `mqtt` -- same fake-upstream-real-protocol precedent as tests/ingest/
+// haPublisher.test.ts, tests/notify/mqttSender.test.ts, and the automation engine's
+// `mqtt_publish` action tests. Phase 6 flake sweep: this file is intentionally kept in
+// vitest.config.ts's `server-mqtt-broker` project (`fileParallelism: false`) alongside
+// those other 3 files -- see that config file's header comment for the empirically
+// reproduced "Invalid header flag bits" stream-corruption flake this avoids.
+
 // See the fixture file's own header comment for full provenance/citations -- Theengs
 // Decoder has no built-in Kegtron device profile (verified 2026-07-28), so this fixture
 // models Theengs' general MQTT envelope conventions + kegtron-ble's verified sensor key
