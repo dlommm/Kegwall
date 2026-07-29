@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Tap } from '../../../server/db/taps.js';
 import { wallConfigSchema } from '../../../server/core/wallConfig.js';
-import { listTaps, updateWall, type Wall } from '../../lib/adminApi';
+import {
+  listTaps, listMonitors, updateWall, getWallDevices, setWallDevices,
+  type Wall, type WallDeviceRef,
+} from '../../lib/adminApi';
+import { groupMonitors, deviceLabel, type MonitorDeviceGroup } from '../../lib/monitorDevices';
 import {
   configToFormState, parseWallConfigForm, WALL_TOKEN_KEYS,
   type WallConfigFormState, type WallTokenKey,
@@ -119,6 +123,9 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [form, setForm] = useState<WallConfigFormState>(() => configToFormState(safeParseConfig(wall.config)));
   const [taps, setTaps] = useState<Tap[]>([]);
   const [tapsStatus, setTapsStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [deviceGroups, setDeviceGroups] = useState<MonitorDeviceGroup[]>([]);
+  const [selectedDeviceKeys, setSelectedDeviceKeys] = useState<Set<string>>(new Set());
+  const [devicesStatus, setDevicesStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [errors, setErrors] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
@@ -135,10 +142,39 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
         setTapsStatus('error');
       }
     });
+    Promise.all([listMonitors(), getWallDevices(wall.id)]).then(([monitorsRes, devicesRes]) => {
+      if (cancelled) return;
+      if (monitorsRes.ok && devicesRes.ok) {
+        setDeviceGroups(groupMonitors(monitorsRes.data));
+        setSelectedDeviceKeys(new Set(devicesRes.data.map((d) => `${d.type}:${d.identifier}`)));
+        setDevicesStatus('loaded');
+      } else {
+        setDevicesStatus('error');
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [wall.id]);
+
+  /** The tap pool this wall may draw from: taps bound to ports of the SELECTED devices
+   * (strict — nothing selected means an empty pool and a wall that shows nothing). */
+  const allowedTapIdSet = new Set(
+    deviceGroups
+      .filter((g) => selectedDeviceKeys.has(g.key))
+      .flatMap((g) => g.ports.map((p) => p.tapId))
+      .filter((id): id is number => id != null),
+  );
+  const allowedTaps = taps.filter((t) => allowedTapIdSet.has(t.id));
+
+  function toggleDevice(key: string, checked: boolean) {
+    setSelectedDeviceKeys((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
 
   function updateField<K extends keyof WallConfigFormState>(key: K, value: WallConfigFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -179,7 +215,9 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
       return;
     }
 
-    const validTapIds = taps.map((t) => t.id);
+    // Only taps within the selected devices' pool stay valid — the parser's existing
+    // prune drops page tapIds that fell out of scope when a device was unchecked.
+    const validTapIds = allowedTaps.map((t) => t.id);
     const parsed = parseWallConfigForm(form, validTapIds);
     if (!parsed.ok) {
       setErrors(parsed.errors);
@@ -188,6 +226,15 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
 
     setErrors(null);
     setSaving(true);
+    const deviceRefs: WallDeviceRef[] = deviceGroups
+      .filter((g) => selectedDeviceKeys.has(g.key))
+      .map((g) => ({ type: g.type, identifier: g.identifier }));
+    const devicesResult = await setWallDevices(currentWall.id, deviceRefs);
+    if (!devicesResult.ok) {
+      setSaving(false);
+      setErrors([devicesResult.message]);
+      return;
+    }
     const result = await updateWall(currentWall.id, {
       name: name.trim(), slug, config: parsed.config,
     });
@@ -399,8 +446,55 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               Couldn&rsquo;t load taps. Reload to try again.
             </p>
           )}
+          <section className="wall-editor__devices" data-testid="wall-editor-devices">
+            <h3 className="font-display">DEVICES</h3>
+            <p className="admin-page-quiet">
+              This wall shows only taps fed by the Kegtron devices checked here.
+            </p>
+            {devicesStatus === 'loading' && (
+              <p className="admin-page-quiet" data-testid="wall-editor-devices-loading">Loading devices…</p>
+            )}
+            {devicesStatus === 'error' && (
+              <p className="admin-page-quiet" role="alert" data-testid="wall-editor-devices-error">
+                Couldn&rsquo;t load devices. Reload to try again.
+              </p>
+            )}
+            {devicesStatus === 'loaded' && deviceGroups.length === 0 && (
+              <p className="admin-page-quiet" data-testid="wall-editor-devices-empty">
+                No Kegtron devices discovered yet.
+              </p>
+            )}
+            {devicesStatus === 'loaded' && deviceGroups.map((group) => {
+              const boundTaps = group.ports
+                .map((port) => taps.find((t) => t.id === port.tapId) ?? null)
+                .filter((t): t is Tap => t != null);
+              return (
+                <label className="wall-editor__device" data-testid="wall-editor-device" key={group.key}>
+                  <input
+                    type="checkbox"
+                    data-testid="wall-editor-device-checkbox"
+                    checked={selectedDeviceKeys.has(group.key)}
+                    onChange={(e) => toggleDevice(group.key, e.target.checked)}
+                  />
+                  <span>{deviceLabel(group)}</span>
+                  <span className="admin-page-quiet">
+                    {group.ports.length} {group.ports.length === 1 ? 'port' : 'ports'}
+                    {boundTaps.length > 0
+                      ? ` · taps ${boundTaps.map((t) => t.name ?? t.number).join(', ')}`
+                      : ' · no taps bound'}
+                  </span>
+                </label>
+              );
+            })}
+            {devicesStatus === 'loaded' && selectedDeviceKeys.size === 0 && (
+              <p role="alert" data-testid="wall-editor-devices-none-warning">
+                No devices selected — this wall will show no taps.
+              </p>
+            )}
+          </section>
+
           {tapsStatus === 'loaded' && (
-            <WallPagesBuilder pages={form.pages} taps={taps} onChange={(pages) => updateField('pages', pages)} />
+            <WallPagesBuilder pages={form.pages} taps={allowedTaps} onChange={(pages) => updateField('pages', pages)} />
           )}
 
           <div className="wall-editor__grid">

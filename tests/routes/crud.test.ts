@@ -305,6 +305,54 @@ describe('crud routes', () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  describe('wall devices (device→wall scoping)', () => {
+    async function makeWall(slug: string): Promise<number> {
+      return (await app.inject({
+        method: 'POST', url: '/api/walls', cookies: adminCookies,
+        payload: { slug, name: slug, config: {} },
+      })).json().id;
+    }
+
+    it('PUT replaces the assignment, GET reads it back, and state_changed fires', async () => {
+      const wallId = await makeWall('devwall');
+      app.ctx.bus.emit('device_discovered', {
+        monitor: { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 },
+      });
+      const events: unknown[] = [];
+      app.ctx.bus.on('state_changed', (e) => events.push(e));
+
+      const put = await app.inject({
+        method: 'PUT', url: `/api/walls/${wallId}/devices`, cookies: adminCookies,
+        payload: { devices: [{ type: 'kegtron_pro', identifier: 'dev1' }] },
+      });
+      expect(put.statusCode).toBe(200);
+      expect(put.json()).toEqual([{ type: 'kegtron_pro', identifier: 'dev1' }]);
+      expect(events).toHaveLength(1);
+
+      const get = await app.inject({
+        method: 'GET', url: `/api/walls/${wallId}/devices`, cookies: adminCookies,
+      });
+      expect(get.json()).toEqual([{ type: 'kegtron_pro', identifier: 'dev1' }]);
+    });
+
+    it('rejects an unknown device pair with a 400 naming it', async () => {
+      const wallId = await makeWall('badwall');
+      const bad = await app.inject({
+        method: 'PUT', url: `/api/walls/${wallId}/devices`, cookies: adminCookies,
+        payload: { devices: [{ type: 'kegtron_pro', identifier: 'ghost' }] },
+      });
+      expect(bad.statusCode).toBe(400);
+      expect(bad.json().message).toContain('ghost');
+    });
+
+    it('404s an unknown wall id', async () => {
+      const missing = await app.inject({
+        method: 'GET', url: '/api/walls/999999/devices', cookies: adminCookies,
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+  });
+
   it('masks settings secrets', async () => {
     await app.inject({
       method: 'PATCH', url: '/api/settings', cookies: adminCookies,

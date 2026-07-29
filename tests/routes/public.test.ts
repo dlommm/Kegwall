@@ -5,6 +5,8 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
 import { createDrinker, createUser } from '../../src/server/db/users.js';
+import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
+import { setWallDevices } from '../../src/server/db/wallDevices.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,6 +26,12 @@ beforeEach(async () => {
   }).pour.id;
   drinkerId = createDrinker(db, { displayName: 'Sam' }).id;
   db.prepare(`INSERT INTO walls (slug, name, config) VALUES ('main', 'Main', '{}')`).run();
+  // Wall scoping is strict (no assigned devices = no taps), so the shared fixture wall
+  // gets a bound device covering the seeded tap.
+  const wallId = (db.prepare(`SELECT id FROM walls WHERE slug = 'main'`).get() as any).id;
+  const monitor = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 });
+  bindMonitorToTap(db, monitor.id, tap.id);
+  setWallDevices(db, wallId, [{ type: 'kegtron_pro', identifier: 'dev1' }]);
 });
 afterEach(async () => { await app.close(); });
 
@@ -34,6 +42,40 @@ describe('public routes', () => {
     expect(res.json().taps[0].beer.name).toBe('Citra IPA');
     expect(res.json().units).toBe('us');
     expect((await app.inject({ method: 'GET', url: '/api/public/wall/nope' })).statusCode).toBe(404);
+  });
+
+  it('wall device scoping: the payload carries allowedTapIds, and a wall with NO '
+    + 'assigned devices serves NO taps (strict)', async () => {
+    const db = app.ctx.db;
+    const scoped = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
+    expect(scoped.json().allowedTapIds).toHaveLength(1);
+
+    db.prepare(`INSERT INTO walls (slug, name, config) VALUES ('bare', 'Bare', '{}')`).run();
+    const bare = await app.inject({ method: 'GET', url: '/api/public/wall/bare' });
+    expect(bare.statusCode).toBe(200);
+    expect(bare.json().taps).toEqual([]);
+    expect(bare.json().allowedTapIds).toEqual([]);
+  });
+
+  it('wall device scoping: only taps bound to the wall\'s assigned devices appear, '
+    + 'and the same device can feed two walls', async () => {
+    const db = app.ctx.db;
+    // A second tap fed by a DIFFERENT device, not assigned to 'main'.
+    const beer2 = createBeer(db, { name: 'Rival Lager' });
+    const tap2 = createTap(db, { number: 2 });
+    createKeg(db, { beerId: beer2.id, sizeMl: 19000, volStartMl: 19000, tapId: tap2.id });
+    const rival = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'rival', portIndex: 0 });
+    bindMonitorToTap(db, rival.id, tap2.id);
+
+    const main = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
+    expect(main.json().taps.map((t: any) => t.beer.name)).toEqual(['Citra IPA']);
+
+    // dev1 on a second wall too — device→wall is many-to-many.
+    db.prepare(`INSERT INTO walls (slug, name, config) VALUES ('second', 'Second', '{}')`).run();
+    const secondId = (db.prepare(`SELECT id FROM walls WHERE slug = 'second'`).get() as any).id;
+    setWallDevices(db, secondId, [{ type: 'kegtron_pro', identifier: 'dev1' }]);
+    const second = await app.inject({ method: 'GET', url: '/api/public/wall/second' });
+    expect(second.json().taps.map((t: any) => t.beer.name)).toEqual(['Citra IPA']);
   });
 
   it('serves the menu with site name', async () => {

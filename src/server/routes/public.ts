@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getWallBySlug } from './crud.js';
+import { allowedTapIdsForWall } from '../db/wallDevices.js';
 import { recentUnclaimedPours, setPourDrinker, countPoursForDrinker } from '../db/pours.js';
 import { listDrinkers, createDrinker, getUser } from '../db/users.js';
 import { getKeg } from '../db/kegs.js';
@@ -27,12 +28,19 @@ export async function publicRoutes(app: FastifyInstance) {
     const wall = getWallBySlug(db, (req.params as any).slug);
     if (!wall) return reply.code(404).send({ error: 'not_found', message: 'No such wall' });
     const config = wallConfigSchema.parse(wall.config) as WallConfig;
-    let taps = app.ctx.state.getTapStates();
+    // Device scoping first (strict: no assigned devices => no taps — see db/wallDevices),
+    // then the hand-picked pages union narrows WITHIN that pool. allowedTapIds also
+    // ships to the client, which must re-apply it to every /ws snapshot (the WS feed is
+    // global, not per-wall — see routes/ws.ts).
+    const allowedTapIds = allowedTapIdsForWall(db, wall.id);
+    const allowed = new Set(allowedTapIds);
+    let taps = app.ctx.state.getTapStates().filter((t) => allowed.has(t.tapId));
     const configured = new Set(config.pages.flatMap((p) => p.tapIds));
     if (configured.size > 0) taps = taps.filter((t) => configured.has(t.tapId));
     return {
       wall: { slug: wall.slug, name: wall.name, config },
       taps,
+      allowedTapIds,
       units: app.ctx.settings.get('displayUnits'),
     };
   });

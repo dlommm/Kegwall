@@ -6658,6 +6658,24 @@ h2.admin-field__label-text {
   color: var(--text-dim);
 }
 
+/* Device→wall assignment panel: one checkbox per physical Kegtron device. */
+.wall-editor__devices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.wall-editor__device {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
 .wall-editor__rotation-view {
   display: flex;
   align-items: center;

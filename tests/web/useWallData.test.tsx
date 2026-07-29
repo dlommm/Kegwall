@@ -37,6 +37,51 @@ describe('useWallData', () => {
     expect(getWall).toHaveBeenCalledTimes(1);
   });
 
+  it('filters every live snapshot against the wall\'s allowedTapIds — the /ws feed is '
+    + 'global, so out-of-scope taps must never leak onto the wall', async () => {
+    const wall = { slug: 'main', name: 'Main', config: {} };
+    (getWall as Mock).mockResolvedValue({
+      ok: true, data: { wall, taps: [], allowedTapIds: [1, 3], units: 'us' },
+    });
+    (useTapStates as Mock).mockReturnValue({
+      ...baseTapStatesResult,
+      taps: [{ tapId: 1 }, { tapId: 2 }, { tapId: 3 }],
+    });
+
+    const { result } = renderHook(() => useWallData('main'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.taps.map((t) => t.tapId)).toEqual([1, 3]);
+  });
+
+  it('an empty allowedTapIds is strict — the wall shows nothing', async () => {
+    const wall = { slug: 'main', name: 'Main', config: {} };
+    (getWall as Mock).mockResolvedValue({
+      ok: true, data: { wall, taps: [], allowedTapIds: [], units: 'us' },
+    });
+    (useTapStates as Mock).mockReturnValue({
+      ...baseTapStatesResult, taps: [{ tapId: 1 }, { tapId: 2 }],
+    });
+
+    const { result } = renderHook(() => useWallData('main'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.taps).toEqual([]);
+  });
+
+  it('a payload WITHOUT allowedTapIds (older server) applies no device filtering', async () => {
+    const wall = { slug: 'main', name: 'Main', config: {} };
+    (getWall as Mock).mockResolvedValue({ ok: true, data: { wall, taps: [], units: 'us' } });
+    (useTapStates as Mock).mockReturnValue({
+      ...baseTapStatesResult, taps: [{ tapId: 1 }, { tapId: 2 }],
+    });
+
+    const { result } = renderHook(() => useWallData('main'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.taps.map((t) => t.tapId)).toEqual([1, 2]);
+  });
+
   it('defaults units to "us" before the fetch resolves', () => {
     (getWall as Mock).mockReturnValue(new Promise(() => {})); // never resolves
 

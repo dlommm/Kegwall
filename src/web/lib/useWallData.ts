@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { getWall } from './api';
@@ -39,6 +39,9 @@ export function useWallData(
 ): UseWallDataResult {
   const [wall, setWall] = useState<UseWallDataResult['wall']>(null);
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
+  // Device→wall scoping (strict): the tap ids this wall may show, resolved server-side
+  // from wall_devices. null = an older server payload without the field (no filtering).
+  const [allowedTapIds, setAllowedTapIds] = useState<number[] | null>(null);
   const [units, setUnits] = useState<VolumeUnits>('us');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +66,7 @@ export function useWallData(
       if (result.ok) {
         setWall(result.data.wall);
         setInitialTaps(result.data.taps);
+        setAllowedTapIds(result.data.allowedTapIds ?? null);
         setUnits(result.data.units ?? 'us');
         setError(null);
         setNotFound(false);
@@ -79,8 +83,20 @@ export function useWallData(
   }, [slug]);
 
   const {
-    taps, stale, connected, reconnectCount,
+    taps: liveTaps, stale, connected, reconnectCount,
   } = useTapStates(initialTaps, { onMessage: options.onMessage });
+
+  // The /ws snapshot is GLOBAL (every tap in the install, no per-wall routing — see
+  // routes/ws.ts), and useTapStates overwrites the REST-seeded list with it within
+  // ~1s of mount. Re-applying the wall's allowed set here is therefore the single
+  // choke point that keeps device scoping true for everything downstream: page
+  // resolution, the auto-chunk path, takeover, max-temp, and the tablet's pouring
+  // detection all read this hook's taps.
+  const taps = useMemo(() => {
+    if (allowedTapIds == null) return liveTaps;
+    const allowed = new Set(allowedTapIds);
+    return liveTaps.filter((t) => allowed.has(t.tapId));
+  }, [liveTaps, allowedTapIds]);
 
   useEffect(() => {
     // reconnectCount is 0 on the initial mount (useTapStates only increments it after a
@@ -92,6 +108,7 @@ export function useWallData(
       if (cancelled) return;
       if (result.ok) {
         setWall(result.data.wall);
+        setAllowedTapIds(result.data.allowedTapIds ?? null);
         setUnits(result.data.units ?? 'us');
         setError(null);
         setNotFound(false);

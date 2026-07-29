@@ -5,6 +5,7 @@ import { createKeg, recordPourTx } from '../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../src/server/db/monitors.js';
 import { createDrinker } from '../src/server/db/users.js';
 import { createWall, getWallBySlug } from '../src/server/routes/crud.js';
+import { setWallDevices } from '../src/server/db/wallDevices.js';
 import { createAutomation, listAutomations } from '../src/server/db/automations.js';
 import { getTemplate } from '../src/server/automation/templates.js';
 
@@ -22,17 +23,20 @@ const dispensed = [3200, 9500, 1100, 15200];
 // (dev convenience, not just first-run) never collides — see brief Step 4:
 // "second run adds more rows, never crashes".
 const tapBase = (db.prepare('SELECT COUNT(*) c FROM taps').get() as { c: number }).c;
+// Every tap gets a device port: taps 0/2/3 on a 3-port Kegtron Pro, tap 1 on a Gen 1.
+// Wall scoping is strict (a wall shows only taps bound to its assigned devices), so an
+// unbound tap would never appear on the seeded wall.
 const kegs = beers.map((beer, i) => {
   const tap = createTap(db, { number: tapBase + i + 1 });
   const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
-  if (i < 2) {
-    const mon = upsertMonitor(db, {
-      type: i === 0 ? 'kegtron_pro' : 'kegtron_gen1',
-      identifier: i === 0 ? 'seed-device-1' : 'aa:bb:cc:dd:ee:01',
-      portIndex: 0,
-    }, { serial: `SEED-${i}` });
-    bindMonitorToTap(db, mon.id, tap.id);
-  }
+  const mon = i === 1
+    ? upsertMonitor(db, {
+        type: 'kegtron_gen1', identifier: 'aa:bb:cc:dd:ee:01', portIndex: 0,
+      }, { serial: 'SEED-1' })
+    : upsertMonitor(db, {
+        type: 'kegtron_pro', identifier: 'seed-device-1', portIndex: i === 0 ? 0 : i - 1,
+      }, { serial: 'SEED-0' });
+  bindMonitorToTap(db, mon.id, tap.id);
   return keg;
 });
 
@@ -44,6 +48,11 @@ createDrinker(db, { displayName: 'Sam', avatarColor: '#4e7a4e' });
 if (!getWallBySlug(db, 'main')) {
   createWall(db, { slug: 'main', name: 'Main Wall', config: { columns: 2 } });
 }
+// Replace-set is idempotent, so reseeding just reasserts the same assignment.
+setWallDevices(db, getWallBySlug(db, 'main')!.id, [
+  { type: 'kegtron_pro', identifier: 'seed-device-1' },
+  { type: 'kegtron_gen1', identifier: 'aa:bb:cc:dd:ee:01' },
+]);
 
 // 30 days of pours, weighted to evenings
 for (let day = 30; day >= 1; day--) {

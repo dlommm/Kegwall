@@ -4,17 +4,23 @@ import {
 import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { WallEditor } from '../../../src/web/routes/admin/WallEditor';
-import { listTaps, updateWall } from '../../../src/web/lib/adminApi';
+import {
+  listTaps, listMonitors, updateWall, getWallDevices, setWallDevices,
+} from '../../../src/web/lib/adminApi';
 import type { Wall } from '../../../src/web/lib/adminApi';
 import { wallConfigSchema } from '../../../src/server/core/wallConfig';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   listTaps: vi.fn(),
+  listMonitors: vi.fn(),
   updateWall: vi.fn(),
+  getWallDevices: vi.fn(),
+  setWallDevices: vi.fn(),
 }));
 
 async function flush() {
   await act(async () => {
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
   });
@@ -38,6 +44,28 @@ beforeEach(() => {
       { id: 1, number: 1, name: 'Left' },
       { id: 2, number: 2, name: 'Right' },
     ],
+  });
+  // One 2-port device feeding both taps, already assigned to the wall — keeps the
+  // editor's device-scoped tap pool identical to the full tap list for the
+  // pre-existing tests.
+  (listMonitors as Mock).mockResolvedValue({
+    ok: true,
+    data: [
+      {
+        id: 10, type: 'kegtron_pro', identifier: 'dev1', serial: 'SN1', portIndex: 0,
+        tapId: 1, lastSeen: null, meta: {}, name: null, deviceKeg: null,
+      },
+      {
+        id: 11, type: 'kegtron_pro', identifier: 'dev1', serial: 'SN1', portIndex: 1,
+        tapId: 2, lastSeen: null, meta: {}, name: null, deviceKeg: null,
+      },
+    ],
+  });
+  (getWallDevices as Mock).mockResolvedValue({
+    ok: true, data: [{ type: 'kegtron_pro', identifier: 'dev1' }],
+  });
+  (setWallDevices as Mock).mockResolvedValue({
+    ok: true, data: [{ type: 'kegtron_pro', identifier: 'dev1' }],
   });
 });
 
@@ -257,5 +285,53 @@ describe('WallEditor', () => {
 
     fireEvent.click(resetButton);
     expect(screen.getByTestId('wall-editor-token-reset---accent')).toBeDisabled();
+  });
+
+  describe('devices panel (device→wall scoping)', () => {
+    it('lists each physical device with a checkbox reflecting the wall\'s assignment', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      const devices = screen.getAllByTestId('wall-editor-device');
+      expect(devices).toHaveLength(1);
+      expect(devices[0]).toHaveTextContent('dev1');
+      expect(devices[0]).toHaveTextContent('2 ports');
+      expect(screen.getByTestId('wall-editor-device-checkbox')).toBeChecked();
+      expect(screen.queryByTestId('wall-editor-devices-none-warning')).not.toBeInTheDocument();
+    });
+
+    it('unchecking every device warns that the wall will show no taps', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      fireEvent.click(screen.getByTestId('wall-editor-device-checkbox'));
+      expect(screen.getByTestId('wall-editor-devices-none-warning'))
+        .toHaveTextContent(/show no taps/i);
+    });
+
+    it('saving PUTs the device assignment before patching the wall', async () => {
+      (updateWall as Mock).mockResolvedValue({ ok: true, data: makeWall() });
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+
+      fireEvent.click(screen.getByTestId('wall-editor-device-checkbox')); // uncheck
+      await act(async () => {
+        fireEvent.submit(screen.getByTestId('wall-editor-form'));
+      });
+
+      expect(setWallDevices).toHaveBeenCalledWith(1, []);
+      expect(updateWall).toHaveBeenCalledTimes(1);
+    });
+
+    it('a device-assignment save failure surfaces the message and skips the wall PATCH', async () => {
+      (setWallDevices as Mock).mockResolvedValue({ ok: false, status: 400, message: 'unknown device' });
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+
+      await act(async () => {
+        fireEvent.submit(screen.getByTestId('wall-editor-form'));
+      });
+
+      expect(screen.getByTestId('wall-editor-errors')).toHaveTextContent('unknown device');
+      expect(updateWall).not.toHaveBeenCalled();
+    });
   });
 });

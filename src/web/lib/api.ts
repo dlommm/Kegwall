@@ -7,6 +7,11 @@ import type { VolumeUnits } from './units';
 export interface WallResponse {
   wall: { slug: string; name: string; config: WallConfig };
   taps: TapState[];
+  /** The tap ids this wall may show — taps bound to the wall's assigned Kegtron
+   * devices (strict: `[]` = show nothing). The client must re-apply this to every
+   * `/ws` snapshot, which is global rather than per-wall. Optional so an older
+   * server payload (no field) means "no device filtering". */
+  allowedTapIds?: number[];
   /** The taproom's configured display units (global settings' `displayUnits`). */
   units: VolumeUnits;
 }

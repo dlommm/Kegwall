@@ -387,6 +387,24 @@ export function updateWall(
   return request(`/api/walls/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 
+export type { WallDeviceRef } from '../../server/db/wallDevices.js';
+
+/** GET /api/walls/:id/devices — the Kegtron devices assigned to a wall (the wall shows
+ * only taps bound to their ports; none assigned = the wall shows nothing). */
+export function getWallDevices(
+  wallId: number,
+): Promise<ApiResult<import('../../server/db/wallDevices.js').WallDeviceRef[]>> {
+  return request(`/api/walls/${wallId}/devices`);
+}
+
+/** PUT /api/walls/:id/devices — replace-set the wall's device assignment. */
+export function setWallDevices(
+  wallId: number,
+  devices: import('../../server/db/wallDevices.js').WallDeviceRef[],
+): Promise<ApiResult<import('../../server/db/wallDevices.js').WallDeviceRef[]>> {
+  return request(`/api/walls/${wallId}/devices`, { method: 'PUT', body: JSON.stringify({ devices }) });
+}
+
 /** DELETE /api/walls/:id — 204 on success; the wall's `/wall/:slug` URL stops resolving
  * immediately (no FK/conflict case today — nothing else references a wall row). */
 export function deleteWall(id: number): Promise<ApiResult<null>> {

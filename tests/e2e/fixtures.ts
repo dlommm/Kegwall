@@ -6,6 +6,7 @@ import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createDrinker } from '../../src/server/db/users.js';
 import { createWall, getWallBySlug } from '../../src/server/routes/crud.js';
+import { setWallDevices } from '../../src/server/db/wallDevices.js';
 
 /**
  * Deterministic seed data shared by `wall.spec.ts` (functional E2E smoke, Task 7 plan)
@@ -91,8 +92,15 @@ export function seedE2EFixtures(ctx: AppContext): E2EFixtures {
     db.prepare('UPDATE kegs SET vol_dispensed_ml = ? WHERE id = ?').run(DISPENSED_ML[i], keg.id);
   });
 
+  // The Pro device gets 3 ports so every tap is fed by SOME device port — wall
+  // scoping is strict (a wall shows only taps bound to its assigned devices), so an
+  // unbound tap would silently vanish from every seeded wall.
   const proMonitor = upsertMonitor(db, E2E_MONITORS.pro, { serial: 'E2E-PRO-0' });
   bindMonitorToTap(db, proMonitor.id, taps[0]!.id);
+  const proPort1 = upsertMonitor(db, { ...E2E_MONITORS.pro, portIndex: 1 }, { serial: 'E2E-PRO-0' });
+  bindMonitorToTap(db, proPort1.id, taps[2]!.id);
+  const proPort2 = upsertMonitor(db, { ...E2E_MONITORS.pro, portIndex: 2 }, { serial: 'E2E-PRO-0' });
+  bindMonitorToTap(db, proPort2.id, taps[3]!.id);
   const gen1Monitor = upsertMonitor(db, E2E_MONITORS.gen1, { serial: 'E2E-GEN1-0' });
   bindMonitorToTap(db, gen1Monitor.id, taps[1]!.id);
 
@@ -111,7 +119,7 @@ export function seedE2EFixtures(ctx: AppContext): E2EFixtures {
 
   for (const [themeId, slug] of Object.entries(E2E_THEME_SLUGS)) {
     if (getWallBySlug(db, slug)) continue;
-    createWall(db, {
+    const wall = createWall(db, {
       slug,
       name: 'Garage Brewing Co.',
       config: {
@@ -122,6 +130,11 @@ export function seedE2EFixtures(ctx: AppContext): E2EFixtures {
         ticker: 'Trivia night Thursday · Happy hour 4-6pm daily · Ask about our loyalty punch card',
       },
     });
+    // Both devices on every wall — strict scoping shows nothing otherwise.
+    setWallDevices(db, wall.id, [
+      { type: E2E_MONITORS.pro.type, identifier: E2E_MONITORS.pro.identifier },
+      { type: E2E_MONITORS.gen1.type, identifier: E2E_MONITORS.gen1.identifier },
+    ]);
   }
 
   return {

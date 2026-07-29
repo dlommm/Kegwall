@@ -12,6 +12,7 @@ import {
   listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
 } from '../db/monitors.js';
 import { listTelemetryForDevice } from '../db/telemetry.js';
+import { listWallDevices, setWallDevices } from '../db/wallDevices.js';
 import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
@@ -359,8 +360,43 @@ export async function crudRoutes(app: FastifyInstance) {
     return { id, slug: body.slug ?? existing.slug, name: body.name ?? existing.name, config };
   });
   app.delete('/api/walls/:id', editor, async (req, reply) => {
+    // wall_devices rows go with it via ON DELETE CASCADE (migration 011).
     db.prepare('DELETE FROM walls WHERE id = ?').run(Number((req.params as any).id));
     return reply.code(204).send();
+  });
+
+  // --- wall devices (device→wall scoping) ---
+  // A wall shows only taps bound to ports of its assigned devices; no devices = no
+  // taps (strict). The assignment propagates to TVs the way wall-config edits do:
+  // the PUT emits state_changed now, and the resolved allowedTapIds ride the
+  // /api/public/wall payload, refetched by clients on WS reconnect/refresh.
+  const wallDevicesBody = z.object({
+    devices: z.array(z.object({
+      type: z.enum(['kegtron_pro', 'kegtron_gen1']),
+      identifier: z.string().min(1),
+    })).max(100),
+  });
+  const requireWall = (id: number) => {
+    if (!db.prepare('SELECT id FROM walls WHERE id = ?').get(id)) throw new NotFoundError('wall');
+  };
+  app.get('/api/walls/:id/devices', viewer, async (req) => {
+    const id = Number((req.params as any).id);
+    requireWall(id);
+    return listWallDevices(db, id);
+  });
+  app.put('/api/walls/:id/devices', editor, async (req) => {
+    const id = Number((req.params as any).id);
+    requireWall(id);
+    const { devices } = wallDevicesBody.parse(req.body);
+    for (const d of devices) {
+      const known = db.prepare(
+        'SELECT 1 FROM monitors WHERE type = ? AND identifier = ? LIMIT 1')
+        .get(d.type, d.identifier);
+      if (!known) throw new ValidationError(`unknown device ${d.type}:${d.identifier}`);
+    }
+    const stored = setWallDevices(db, id, devices);
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    return stored;
   });
 
   // --- users ---
