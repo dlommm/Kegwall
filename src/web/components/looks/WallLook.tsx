@@ -4,6 +4,9 @@ import type { VolumeUnits } from '../../lib/units';
 import { LedgerLook } from './LedgerLook';
 import { GalleryLook } from './GalleryLook';
 import { ColumnsLook } from './ColumnsLook';
+import {
+  ChalkboardLook, EditorialLook, NeonLook, TerminalLook, PosterLook, DeparturesLook, ZenLook,
+} from './styleLooks';
 
 /** The props every wall look receives (the "look contract"): the current
  * page's taps, the wall config, resolved title, and the shared chrome inputs
@@ -34,6 +37,13 @@ const LOOKS = {
   ledger: LedgerLook,
   gallery: GalleryLook,
   columns: ColumnsLook,
+  chalkboard: ChalkboardLook,
+  editorial: EditorialLook,
+  neon: NeonLook,
+  terminal: TerminalLook,
+  poster: PosterLook,
+  departures: DeparturesLook,
+  zen: ZenLook,
 } as const;
 
 export type LookId = keyof typeof LOOKS | 'classic';

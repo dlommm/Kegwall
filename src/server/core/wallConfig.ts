@@ -6,7 +6,10 @@ export const wallConfigSchema = z.object({
   // (colors/fonts) and `cardTemplate` (which only applies to the 'classic' grid look).
   // 'classic' is the pre-overhaul WallGrid/TapCard wall, and stays the default so
   // existing walls' stored config (parsed with this key absent) render unchanged.
-  look: z.enum(['classic', 'ledger', 'gallery', 'columns']).default('classic'),
+  look: z.enum([
+    'classic', 'ledger', 'gallery', 'columns',
+    'chalkboard', 'editorial', 'neon', 'terminal', 'poster', 'departures', 'zen',
+  ]).default('classic'),
   // Glyph treatment for the looks' dynamic data glyphs (design 1d).
   glyphMode: z.enum(['flat', 'outline', 'duotone']).default('flat'),
   // Pour takeover (design turns 2 + 9): how the wall reacts to a live pour.

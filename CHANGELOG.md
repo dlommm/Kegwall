@@ -72,6 +72,17 @@
   11a): first-class places with CRUD; monitors gain a friendly name + location, taps and
   walls gain a location, and the admin sidebar's location switcher now scopes the
   Dashboard/Taps tap lists (persisted per browser).
+- **Added:** Pour Wall overhaul Phase 6 (part 1) — the turn-8 look library, completing
+  all 10 wall looks: Chalkboard (8a, Caveat hand-lettering, chalk-outline glassware,
+  dashed dividers, dotted price leaders), Editorial (8b, Playfair Display serif,
+  numbered 01–06, notes column, hairline "P% REMAINS" bar), Neon Arcade (8c, glow
+  borders/text-shadows, gradient level bars, big ABV), Terminal (8d, IBM Plex Mono,
+  `[██████░░░░]` ASCII bars, box-drawing frame), Poster (8e, each row's background IS
+  the beer's real SRM hex with luminance-picked ink), Departures (8f, split-flap board
+  with a POURING/LOW/ON TIME status column) and Zen (8g, SRM dot + hairline level).
+  Every look shows % remaining, renders badges/pour-spotlight state in its own voice,
+  and supports page-cycle dots; colors read through theme tokens so all 10 looks pair
+  with any theme. Caveat + Playfair Display added via Fontsource.
 
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new

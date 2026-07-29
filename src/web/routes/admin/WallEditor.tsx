@@ -37,6 +37,13 @@ const LOOKS: { value: WallConfig['look']; label: string }[] = [
   { value: 'ledger', label: 'Ledger (rows)' },
   { value: 'gallery', label: 'Gallery (cards)' },
   { value: 'columns', label: 'Tap columns' },
+  { value: 'chalkboard', label: 'Chalkboard' },
+  { value: 'editorial', label: 'Editorial' },
+  { value: 'neon', label: 'Neon arcade' },
+  { value: 'terminal', label: 'Terminal' },
+  { value: 'poster', label: 'Poster' },
+  { value: 'departures', label: 'Departures' },
+  { value: 'zen', label: 'Zen' },
 ];
 
 const GLYPH_MODES: { value: WallConfig['glyphMode']; label: string }[] = [

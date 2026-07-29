@@ -121,6 +121,29 @@ export function LookQr({ url, label = 'SCAN FOR MENU' }: LookQrProps) {
   );
 }
 
+export interface LookPageDotsProps {
+  pageIndex: number;
+  pageCount: number;
+}
+
+/** Generic page-cycle dots (design rule: every look supports page cycling "in
+ * its own voice" — these are the quiet default; ColumnsLook keeps its own
+ * labeled variant). Renders nothing for a single page. */
+export function LookPageDots({ pageIndex, pageCount }: LookPageDotsProps) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="look-page-dots" data-testid="look-page-dots">
+      {Array.from({ length: pageCount }, (_, i) => (
+        <span
+          // eslint-disable-next-line react/no-array-index-key -- dots are positional
+          key={i}
+          className={i === pageIndex ? 'look-page-dots__dot look-page-dots__dot--active' : 'look-page-dots__dot'}
+        />
+      ))}
+    </div>
+  );
+}
+
 export interface SensorChipsProps {
   /** Max Kegtron temp across the wall's taps (Celsius), or null to hide. */
   tempC: number | null;

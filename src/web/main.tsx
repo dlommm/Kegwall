@@ -30,6 +30,13 @@ import '@fontsource/barlow-condensed/700.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
+// Caveat — the Chalkboard wall look's hand-lettering (8a).
+import '@fontsource/caveat/500.css';
+import '@fontsource/caveat/600.css';
+// Playfair Display — the Editorial wall look's serif (8b).
+import '@fontsource/playfair-display/500.css';
+import '@fontsource/playfair-display/500-italic.css';
+import '@fontsource/playfair-display/700.css';
 
 const container = document.getElementById('root');
 if (!container) {
