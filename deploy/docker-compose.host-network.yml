@@ -1,0 +1,65 @@
+# Kegtron Dashboard — host-network variant.
+#
+# Quickstart:
+#   cd deploy
+#   docker compose -f docker-compose.host-network.yml up -d
+#   open http://localhost:8080
+#
+# WHY HOST NETWORKING
+# --------------------------------------------------------------------------
+# Two ingest paths need this instead of the default bridge network used by
+# docker-compose.yml:
+#
+# 1. Kegtron Cloud's local relay (docs/setup/kegtron-cloud.md) announces
+#    itself over a UDP broadcast/multicast datagram on the LAN. Docker's
+#    default bridge network NATs the container onto an isolated subnet — UDP
+#    broadcasts sent by devices on the physical LAN never reach it, and a
+#    published UDP port (`-p 1234:1234/udp`) forwards *unicast* traffic to a
+#    specific port, not arbitrary broadcast/multicast datagrams. The
+#    container needs to sit directly on the host's network namespace so it
+#    observes broadcast traffic the same way a non-containerized process on
+#    the host would.
+#
+# 2. The Gen1 direct-BLE source (@abandonware/noble, an optionalDependency —
+#    see the Dockerfile's comment block on why it may or may not be present
+#    in a given build) talks to the host's Bluetooth adapter via a raw HCI
+#    socket. That's a host kernel resource, not something bridge networking
+#    mediates at all — host networking alone isn't sufficient for this case,
+#    it also needs `--privileged` (or the narrower `--cap-add=NET_ADMIN
+#    --cap-add=NET_RAW`) and the Bluetooth adapter reachable inside the
+#    container, so it's included here as the network prerequisite but is
+#    NOT a complete BLE setup on its own — see docs/install/raspberry-pi.md
+#    for the rest.
+#
+# TRADE-OFFS
+# --------------------------------------------------------------------------
+# - `network_mode: host` only works as documented here on Linux hosts (bare
+#   metal or a Raspberry Pi). Docker Desktop on macOS/Windows runs containers
+#   inside a Linux VM, so "host" networking there is the VM's network, not
+#   your actual LAN — UDP broadcast discovery will NOT work under Docker
+#   Desktop regardless of this file. Use a Linux host (e.g. the Raspberry Pi
+#   path) if you need Kegtron Cloud UDP discovery or direct BLE.
+# - `ports:` is meaningless (and omitted) under host networking — the
+#   container binds directly to the host's 8080, so make sure nothing else
+#   on the host is already using it.
+# - No network isolation from the host — weigh that against running behind a
+#   reverse proxy on a trusted LAN.
+services:
+  kegtron-dashboard:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: kegtron-dashboard:latest
+    container_name: kegtron-dashboard
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - kegtron-data:/data
+    environment:
+      - NODE_ENV=production
+      # PORT must match whatever you actually browse to, since host
+      # networking means this is the literal host port, not a mapped one.
+      # - PORT=8080
+
+volumes:
+  kegtron-data:

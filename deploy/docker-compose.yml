@@ -1,0 +1,50 @@
+# Kegtron Dashboard — basic Docker Compose example.
+#
+# Quickstart:
+#   cd deploy
+#   docker compose up -d
+#   open http://localhost:8080
+#
+# This is the default network mode (bridge) — fine for MQTT-based ingest
+# (Kegtron Cloud UDP relay, Home Assistant MQTT, an external BLE-to-MQTT
+# bridge such as OpenMQTTGateway) since those are all outbound/unicast TCP
+# connections the container makes to a broker. If you need this container to
+# receive Kegtron Cloud's UDP broadcast directly, or to scan for BLE adverts
+# itself via @abandonware/noble, see docker-compose.host-network.yml instead
+# — both of those need host networking (or explicit multicast/BLE plumbing)
+# that bridge mode does not provide.
+services:
+  kegtron-dashboard:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    # Swap the line above for a published tag once one exists, e.g.:
+    # image: ghcr.io/<owner>/kegtron-dashboard:latest
+    image: kegtron-dashboard:latest
+    container_name: kegtron-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Named volume — holds app.db (SQLite), uploaded label images, and any
+      # staged backup/restore files. Back it up with:
+      #   docker run --rm -v deploy_kegtron-data:/data -v "$PWD":/backup \
+      #     alpine tar czf /backup/kegtron-data-backup.tar.gz -C /data .
+      - kegtron-data:/data
+    environment:
+      # DATA_DIR and WEB_DIR are already set correctly by the image's own
+      # ENV (see Dockerfile) — repeated here only as documentation of what's
+      # configurable. Uncomment/edit as needed.
+      # - PORT=8080
+      # - DATA_DIR=/data
+      # - WEB_DIR=/app/dist/web
+      # - NODE_ENV=production
+      #
+      # Session cookies: if you put this behind a reverse proxy that
+      # terminates TLS (recommended — see docs/install/docker.md), make sure
+      # the proxy forwards X-Forwarded-Proto so the app knows the original
+      # request was HTTPS.
+      - NODE_ENV=production
+
+volumes:
+  kegtron-data:
