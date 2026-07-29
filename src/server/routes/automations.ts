@@ -6,11 +6,18 @@ import {
 } from '../db/automations.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import { TEMPLATES, getTemplate } from '../automation/templates.js';
+import { ALERT_CHANNEL_NAMES, type AlertChannelName } from '../notify/channels/index.js';
 
 const fromTemplateSchema = z.object({
   template: z.string().min(1),
   params: z.record(z.string(), z.unknown()).optional(),
 });
+
+/** Display labels for the `notify` action's channel multi-select (Task 6) — matches
+ * `ALERT_CHANNEL_NAMES`'s order/membership exactly (see notify/channels/index.ts). */
+const CHANNEL_LABELS: Record<AlertChannelName, string> = {
+  ntfy: 'ntfy', pushover: 'Pushover', smtp: 'Email (SMTP)', discord: 'Discord', slack: 'Slack',
+};
 
 /**
  * Phase 5 Task 4: alert templates (GET/from-template) + automations CRUD + the
@@ -53,6 +60,24 @@ export async function automationsRoutes(app: FastifyInstance) {
     const automations = inputs.map((input) => createAutomation(db, input));
     emitChanged();
     return reply.code(201).send({ automations });
+  });
+
+  // GET /api/automations/channels -- registered before GET /api/automations/:id for the
+  // same reason `templates` is above: `channels` would otherwise match `:id`'s pattern.
+  // Task 6's `notify` action editor needs to know which channels currently have config
+  // saved (a `notify` action referencing an unconfigured channel silently no-ops at fire
+  // time -- see engine.ts's `sendToChannels`), WITHOUT exposing full settings (`GET
+  // /api/settings` is admin-only; this page is editor/viewer-accessible) -- so this
+  // returns just names + display labels, `inApp` always included (it's always usable, no
+  // config to check) plus whichever of `ALERT_CHANNEL_NAMES` has a truthy `alertChannels`
+  // entry right now.
+  app.get('/api/automations/channels', viewer, async () => {
+    const cfg = app.ctx.settings.get('alertChannels');
+    const channels: { name: string; label: string }[] = [{ name: 'inApp', label: 'In-app' }];
+    for (const name of ALERT_CHANNEL_NAMES) {
+      if (cfg[name]) channels.push({ name, label: CHANNEL_LABELS[name] });
+    }
+    return channels;
   });
 
   app.get('/api/automations', viewer, async () => listAutomations(db));

@@ -9,6 +9,7 @@ import type { VolumeUnits } from '../../lib/units';
 import { ThemeProvider } from '../../themes/ThemeProvider';
 import { ADMIN_NAV_ITEMS, visibleNavItems } from './adminNav';
 import type { AdminOutletContext } from './useAdminContext';
+import { NotificationBell } from './NotificationBell';
 
 /** True when `pathname` is (or is nested under) one of `ADMIN_NAV_ITEMS`' admin-only
  * sections (Users, Settings) — the route-guarding half of the role matrix: nav hiding
@@ -139,6 +140,7 @@ export function AdminLayout() {
 
         <div className="admin-shell__main">
           <header className="admin-topbar">
+            <NotificationBell />
             <div className="admin-user-chip" data-testid="admin-user-chip">
               <span className="admin-user-chip__name">{me.displayName}</span>
               <span className="admin-user-chip__role">{me.role}</span>

@@ -62,6 +62,31 @@ describe('GET /api/automations/templates', () => {
   });
 });
 
+describe('GET /api/automations/channels', () => {
+  it('always includes inApp, viewer role', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/automations/channels', cookies: viewerCookies });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([{ name: 'inApp', label: 'In-app' }]);
+  });
+
+  it('includes an alertChannels-configured channel once its settings are saved', async () => {
+    await app.inject({
+      method: 'PATCH', url: '/api/settings', cookies: adminCookies,
+      payload: { alertChannels: { discord: { webhookUrl: 'https://discord.com/api/webhooks/1/abc' } } },
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/automations/channels', cookies: viewerCookies });
+    expect(res.json()).toEqual([
+      { name: 'inApp', label: 'In-app' },
+      { name: 'discord', label: 'Discord' },
+    ]);
+  });
+
+  it('requires authentication', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/automations/channels' });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
 describe('POST /api/automations/from-template', () => {
   it('creates a rule from a single-rule template with default params and emits automations_changed', async () => {
     const events: unknown[] = [];

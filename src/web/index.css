@@ -848,6 +848,233 @@
   text-transform: capitalize;
 }
 
+/*
+ * Notification bell (Task 6) — a small relatively-positioned wrapper so the dropdown
+ * panel can anchor off it (`position: absolute`); the badge is a small pill overlapping
+ * the button's corner, same "small pill, accent-tinted" language as `.users-role-badge`.
+ */
+.notification-bell {
+  position: relative;
+}
+
+.notification-bell__button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.notification-bell__button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.notification-bell__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.notification-bell__panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  width: 22rem;
+  max-width: calc(100vw - 2rem);
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: 0 0.75rem 2rem color-mix(in srgb, black 35%, transparent);
+}
+
+.notification-bell__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.notification-bell__panel-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.notification-bell__panel-header button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.notification-bell__panel-header button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.notification-bell__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.notification-bell__view-all {
+  align-self: center;
+  padding-top: 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--accent);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.notification-bell__view-all:hover {
+  text-decoration: underline;
+}
+
+/* Notification row (Task 6) — shared by the bell panel and /admin/notifications. */
+.notification-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.notification-row:last-child {
+  border-bottom: none;
+}
+
+.notification-row__severity {
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.notification-row__severity--warning {
+  background: #e0793d;
+}
+
+.notification-row__severity--critical {
+  background: #d94f4f;
+}
+
+.notification-row__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.notification-row__title {
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.notification-row__detail {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.notification-row__time {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.notification-row[data-acked='true'] .notification-row__title {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.notification-row__ack {
+  flex-shrink: 0;
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.notification-row__ack:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* /admin/notifications (Task 6) — the full paginated history; rows reuse .notification-row. */
+.notifications-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.25rem 1.1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.notifications-page__load-more {
+  align-self: center;
+  margin-top: 1rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.notifications-page__load-more:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.notifications-page__load-more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.notifications-page__load-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.notification-bell__button:focus-visible,
+.notification-bell__panel-header button:focus-visible,
+.notification-bell__view-all:focus-visible,
+.notification-row__ack:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .admin-topbar__signout {
   padding: 0.4rem 0.9rem;
   border-radius: 0.4rem;
@@ -2864,6 +3091,68 @@ h2.admin-field__label-text {
   outline-offset: 2px;
 }
 
+/* Channels group (Task 6) — 5 independent per-channel blocks inside one `.settings-group`
+   card, same stacked-block language as `.backup-panel__block` above. */
+.channels-group__block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.channels-group__block + .channels-group__block {
+  margin-top: 0.7rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.channels-group__block-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.channels-group__block-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.channels-group__test {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.channels-group__test button {
+  padding: 0.35rem 0.8rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.channels-group__test-result {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.channels-group__test-result[data-ok='true'] {
+  color: var(--accent);
+}
+
+.channels-group__test-result[data-ok='false'] {
+  color: #e0793d;
+}
+
+.channels-group__block button:focus-visible,
+.channels-group__block input:focus-visible,
+.channels-group__test button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /*
  * Stats page (Phase 4 Task 9) — Recharts-driven pours/hour/temp/volume charts, per-keg
  * depletion cards, and the leaderboard table. Per the binding "Charts style" section:
@@ -3090,6 +3379,308 @@ h2.admin-field__label-text {
 
 .stats-switcher__option:focus-visible,
 .stats-chart__monitor-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Automations (Task 6) — the list follows `.taps-list`/`.taps-row`'s exact shell language
+ * (row card, main line, right-aligned actions); the template picker and structured
+ * builder reuse `.beer-form`/`.admin-field`/`.wall-editor__section` throughout rather than
+ * inventing new field chrome, per the existing pages' "one form language" convention.
+ */
+.automations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.automations-row {
+  padding: 0.75rem 1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.automations-row__main {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.automations-row__enabled-toggle {
+  flex: none;
+}
+
+.automations-row__enabled-dot {
+  display: block;
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 25%, transparent);
+}
+
+.automations-row__enabled-dot[data-enabled='true'] {
+  background: var(--accent);
+}
+
+.automations-row__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.automations-row__title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.automations-row__name {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.automations-row__summary {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.automations-row__last-fired {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.automations-row__actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+.automations-row__actions button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.automations-row__actions button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* Alert badge — same small-pill language as `.users-role-badge`, tinted per severity. */
+.automations-alert-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text);
+}
+
+.automations-alert-badge--info {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.automations-alert-badge--warning {
+  border-color: color-mix(in srgb, #e0793d 55%, transparent);
+  background: color-mix(in srgb, #e0793d 20%, transparent);
+}
+
+.automations-alert-badge--critical {
+  border-color: color-mix(in srgb, #d94f4f 55%, transparent);
+  background: color-mix(in srgb, #d94f4f 22%, transparent);
+}
+
+/* Template picker */
+.automations-template-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.automations-template-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.automations-template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.automations-template-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.automations-template-card--blank {
+  border-style: dashed;
+}
+
+.automations-template-card__label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.automations-template-card__description {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.automations-template-params {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+/* Builder — reuses .wall-editor__section fieldsets + .admin-field inputs; only the
+   per-item (condition/action) card chrome and the hint-chip row are new here. */
+.automation-builder__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-items: end;
+  gap: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.automation-builder__field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.automation-builder__checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.1rem;
+}
+
+.automation-builder__weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+}
+
+.automation-builder__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  margin-bottom: 0.6rem;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.automation-builder__item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.automation-builder__item-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.automation-builder__item-actions button {
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.automation-builder__item-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.automation-builder__hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: -0.35rem 0 0.3rem;
+}
+
+.automation-builder__hint-chip {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-family: var(--font-mono-numeric, monospace);
+  cursor: pointer;
+}
+
+.automation-builder__hint-chip:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.automation-builder__run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.automation-builder__run > button {
+  align-self: flex-start;
+  padding: 0.45rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.automation-builder__run [data-ok='false'] {
+  color: #e0793d;
+}
+
+.automations-row__actions button:focus-visible,
+.automations-template-card:focus-visible,
+.automation-builder__item-actions button:focus-visible,
+.automation-builder__hint-chip:focus-visible,
+.automation-builder__run > button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

@@ -4,13 +4,16 @@ import {
 import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPage } from '../../../src/web/routes/admin/SettingsPage';
-import { getSettings, patchSettings, uploadLabel } from '../../../src/web/lib/adminApi';
+import {
+  getSettings, patchSettings, uploadLabel, testChannel,
+} from '../../../src/web/lib/adminApi';
 import type { Settings } from '../../../src/server/db/settings';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   getSettings: vi.fn(),
   patchSettings: vi.fn(),
   uploadLabel: vi.fn(),
+  testChannel: vi.fn(),
 }));
 
 vi.mock('../../../src/web/routes/admin/BackupPanel', () => ({
@@ -61,6 +64,7 @@ describe('SettingsPage', () => {
     expect(screen.getByTestId('settings-group-kegtron')).toBeInTheDocument();
     expect(screen.getByTestId('settings-group-sources')).toBeInTheDocument();
     expect(screen.getByTestId('settings-group-integrations')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-group-channels')).toBeInTheDocument();
     expect(screen.getByTestId('backup-panel')).toBeInTheDocument();
   });
 
@@ -399,6 +403,114 @@ describe('SettingsPage', () => {
 
       expect(screen.getByTestId('settings-integrations-error')).toHaveTextContent(/mqtt/i);
       expect(patchSettings).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Channels group (Task 6)', () => {
+    it('saving one channel (ntfy) PATCHes alertChannels with the other already-configured channels left untouched (isolation)', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({
+          alertChannels: { discord: { webhookUrl: 'https://discord.example/api/webhooks/1/…' } },
+        }),
+      });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-channels');
+
+      fireEvent.change(screen.getByTestId('settings-channels-ntfy-server-url'), {
+        target: { value: 'https://ntfy.sh' },
+      });
+      fireEvent.change(screen.getByTestId('settings-channels-ntfy-topic'), { target: { value: 'kegtron' } });
+      fireEvent.click(screen.getByTestId('settings-channels-ntfy-save'));
+      await flush();
+
+      expect(patchSettings).toHaveBeenCalledWith({
+        alertChannels: {
+          discord: { webhookUrl: 'https://discord.example/api/webhooks/1/…' },
+          ntfy: { serverUrl: 'https://ntfy.sh', topic: 'kegtron' },
+        },
+      });
+    });
+
+    it('pushover: shows the masked token, only reveals a real input after Replace, and never round-trips the mask', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({ alertChannels: { pushover: { token: '••••abcd', user: 'u1' } } }),
+      });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-channels');
+
+      expect(screen.getByTestId('settings-channels-pushover-token-masked')).toHaveTextContent('••••abcd');
+      fireEvent.click(screen.getByTestId('settings-channels-pushover-token-replace'));
+      fireEvent.change(screen.getByTestId('settings-channels-pushover-token-input'), {
+        target: { value: 'brandnewtoken' },
+      });
+      fireEvent.click(screen.getByTestId('settings-channels-pushover-save'));
+      await flush();
+
+      const call = (patchSettings as Mock).mock.calls[0]![0];
+      expect(call.alertChannels.pushover).toEqual({ token: 'brandnewtoken', user: 'u1' });
+      expect(JSON.stringify(call)).not.toContain('••••');
+    });
+
+    it('smtp: saves host/port/secure/from/to plus a freshly typed password', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-channels');
+
+      fireEvent.change(screen.getByTestId('settings-channels-smtp-host'), { target: { value: 'smtp.example.com' } });
+      fireEvent.change(screen.getByTestId('settings-channels-smtp-port'), { target: { value: '587' } });
+      fireEvent.click(screen.getByTestId('settings-channels-smtp-secure'));
+      fireEvent.change(screen.getByTestId('settings-channels-smtp-from'), { target: { value: 'a@b.com' } });
+      fireEvent.change(screen.getByTestId('settings-channels-smtp-to'), { target: { value: 'c@d.com' } });
+      fireEvent.click(screen.getByTestId('settings-channels-smtp-password-replace'));
+      fireEvent.change(screen.getByTestId('settings-channels-smtp-password-input'), { target: { value: 'hunter2' } });
+      fireEvent.click(screen.getByTestId('settings-channels-smtp-save'));
+      await flush();
+
+      const call = (patchSettings as Mock).mock.calls[0]![0];
+      expect(call.alertChannels.smtp).toEqual({
+        host: 'smtp.example.com', port: 587, secure: true, from: 'a@b.com', to: 'c@d.com', password: 'hunter2',
+      });
+    });
+
+    it('discord: masked webhook URL with Replace, saved untouched otherwise', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({ alertChannels: { discord: { webhookUrl: 'https://discord.example/…' } } }),
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-channels');
+      expect(screen.getByTestId('settings-channels-discord-webhook-masked')).toHaveTextContent('https://discord.example/…');
+      expect(screen.getByTestId('settings-channels-discord-save')).toBeDisabled();
+    });
+
+    it('send-test: calls testChannel(name) and shows the result', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      (testChannel as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-channels');
+
+      fireEvent.click(screen.getByTestId('settings-channels-ntfy-test'));
+      await flush();
+
+      expect(testChannel).toHaveBeenCalledWith('ntfy');
+      expect(screen.getByTestId('settings-channels-ntfy-test-result')).toHaveTextContent(/sent|success|ok/i);
+    });
+
+    it('send-test shows a failure message without touching the saved form state', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      (testChannel as Mock).mockResolvedValue({ ok: true, data: { ok: false, message: 'not configured yet' } });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-channels');
+
+      fireEvent.click(screen.getByTestId('settings-channels-ntfy-test'));
+      await flush();
+
+      expect(screen.getByTestId('settings-channels-ntfy-test-result')).toHaveTextContent('not configured yet');
     });
   });
 });

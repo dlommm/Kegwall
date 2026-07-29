@@ -16,6 +16,9 @@ import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard,
   listRecentPours, setPourDrinker,
+  listAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
+  runAutomation, listAutomationTemplates, createFromTemplate, listAutomationChannels,
+  listNotifications, getUnackedCount, ackNotification, ackAllNotifications, testChannel,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -676,5 +679,144 @@ describe('admin api client', () => {
     await setPourDrinker(1, null);
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(JSON.parse(call[1].body)).toEqual({ drinkerId: null });
+  });
+
+  // --- Task 6: automations + notification center + channel send-test ---
+
+  const rule = {
+    id: 1, name: 'Keg low', enabled: true, isAlert: true,
+    trigger: { type: 'keg_level_crosses', thresholdPct: 15, direction: 'below' },
+    conditions: [], actions: [], alertConfig: {
+      cooldownMinutes: 60, autoResolve: true, notifyOnResolve: false, severity: 'warning',
+    },
+    lastFiredAt: null,
+  };
+
+  it('listAutomations GETs /api/automations', async () => {
+    mockFetchOnce(200, [rule]);
+    const result = await listAutomations();
+    expect(result).toEqual({ ok: true, data: [rule] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations', expect.any(Object));
+  });
+
+  it('getAutomation GETs /api/automations/:id', async () => {
+    mockFetchOnce(200, rule);
+    const result = await getAutomation(1);
+    expect(result).toEqual({ ok: true, data: rule });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations/1', expect.any(Object));
+  });
+
+  it('createAutomation POSTs the rule input', async () => {
+    mockFetchOnce(201, rule);
+    const input = { name: 'Keg low', trigger: { type: 'keg_level_crosses', thresholdPct: 15, direction: 'below' } };
+    const result = await createAutomation(input as any);
+    expect(result).toEqual({ ok: true, data: rule });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual(input);
+  });
+
+  it('updateAutomation PATCHes /api/automations/:id', async () => {
+    mockFetchOnce(200, rule);
+    const result = await updateAutomation(1, { enabled: false });
+    expect(result).toEqual({ ok: true, data: rule });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/1');
+    expect(call[1].method).toBe('PATCH');
+    expect(JSON.parse(call[1].body)).toEqual({ enabled: false });
+  });
+
+  it('deleteAutomation DELETEs /api/automations/:id', async () => {
+    mockFetchOnce(204, null);
+    const result = await deleteAutomation(1);
+    expect(result).toEqual({ ok: true, data: null });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/1');
+    expect(call[1].method).toBe('DELETE');
+  });
+
+  it('runAutomation POSTs /api/automations/:id/run', async () => {
+    mockFetchOnce(200, { results: [{ type: 'wall_banner', ok: true }] });
+    const result = await runAutomation(1);
+    expect(result).toEqual({ ok: true, data: { results: [{ type: 'wall_banner', ok: true }] } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/1/run');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('listAutomationTemplates GETs /api/automations/templates', async () => {
+    mockFetchOnce(200, [{ id: 'keg_low', label: 'Keg low', description: 'x', params: [] }]);
+    const result = await listAutomationTemplates();
+    expect(result.ok).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations/templates', expect.any(Object));
+  });
+
+  it('createFromTemplate POSTs /api/automations/from-template', async () => {
+    mockFetchOnce(201, { automations: [rule] });
+    const result = await createFromTemplate('keg_low', { thresholdPct: 25 });
+    expect(result).toEqual({ ok: true, data: { automations: [rule] } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/automations/from-template');
+    expect(call[1].method).toBe('POST');
+    expect(JSON.parse(call[1].body)).toEqual({ template: 'keg_low', params: { thresholdPct: 25 } });
+  });
+
+  it('listAutomationChannels GETs /api/automations/channels', async () => {
+    mockFetchOnce(200, [{ name: 'inApp', label: 'In-app' }]);
+    const result = await listAutomationChannels();
+    expect(result).toEqual({ ok: true, data: [{ name: 'inApp', label: 'In-app' }] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/automations/channels', expect.any(Object));
+  });
+
+  const notification = {
+    id: 1, automationId: null, ts: '2026-07-28T00:00:00.000Z', severity: 'info', title: 'X', body: null, acked: false,
+  };
+
+  it('listNotifications GETs /api/notifications with no params by default', async () => {
+    mockFetchOnce(200, [notification]);
+    const result = await listNotifications();
+    expect(result).toEqual({ ok: true, data: [notification] });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/notifications', expect.any(Object));
+  });
+
+  it('listNotifications forwards limit/before as query params', async () => {
+    mockFetchOnce(200, [notification]);
+    await listNotifications({ limit: 10, before: 5 });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/notifications?limit=10&before=5', expect.any(Object));
+  });
+
+  it('getUnackedCount GETs /api/notifications/unacked-count', async () => {
+    mockFetchOnce(200, { count: 3 });
+    const result = await getUnackedCount();
+    expect(result).toEqual({ ok: true, data: { count: 3 } });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/notifications/unacked-count', expect.any(Object));
+  });
+
+  it('ackNotification POSTs /api/notifications/:id/ack', async () => {
+    mockFetchOnce(200, { ...notification, acked: true });
+    const result = await ackNotification(1);
+    expect(result).toEqual({ ok: true, data: { ...notification, acked: true } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/notifications/1/ack');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('ackAllNotifications POSTs /api/notifications/ack-all', async () => {
+    mockFetchOnce(200, { count: 2 });
+    const result = await ackAllNotifications();
+    expect(result).toEqual({ ok: true, data: { count: 2 } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/notifications/ack-all');
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('testChannel POSTs /api/channels/:name/test', async () => {
+    mockFetchOnce(200, { ok: true });
+    const result = await testChannel('ntfy');
+    expect(result).toEqual({ ok: true, data: { ok: true } });
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[0]).toBe('/api/channels/ntfy/test');
+    expect(call[1].method).toBe('POST');
   });
 });

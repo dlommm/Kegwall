@@ -18,6 +18,7 @@ import { lookupRoutes } from './routes/lookup.js';
 import { backupRoutes } from './routes/backup.js';
 import { channelsRoutes } from './routes/channels.js';
 import { automationsRoutes } from './routes/automations.js';
+import { notificationsRoutes } from './routes/notifications.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 import type { HostResolver } from './core/ssrfGuard.js';
@@ -163,6 +164,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                                            // Phase 5 Task 4's templates/CRUD/run-now
                                            // routes, reads app.ctx.engine (already
                                            // constructed by createContext by this point)
+  await notificationsRoutes(app);         // direct call — see encapsulation note above;
+                                           // Phase 5 Task 6's notification-center REST
+                                           // surface (list/ack/ack-all/unacked-count)
   await staticRoutes(app, opts.webDir); // direct call, LAST — setNotFoundHandler inside a
                                          // register()'d plugin would not apply globally
 

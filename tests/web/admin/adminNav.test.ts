@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ADMIN_NAV_ITEMS, visibleNavItems } from '../../../src/web/routes/admin/adminNav';
 
 describe('admin nav role matrix', () => {
-  it('defines the 8 sections from the Phase 4 design direction, in sidebar order', () => {
+  it('defines the 8 Phase 4 sections plus Phase 5 Task 6\'s Automations, in sidebar order', () => {
     expect(ADMIN_NAV_ITEMS.map((i) => i.label)).toEqual([
-      'Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Users', 'Settings', 'Stats',
+      'Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Automations', 'Users', 'Settings', 'Stats',
     ]);
   });
 
@@ -15,18 +15,18 @@ describe('admin nav role matrix', () => {
 
   it('shows every item to an admin', () => {
     expect(visibleNavItems('admin').map((i) => i.label)).toEqual([
-      'Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Users', 'Settings', 'Stats',
+      'Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Automations', 'Users', 'Settings', 'Stats',
     ]);
   });
 
   it('hides Users and Settings from an editor', () => {
     const labels = visibleNavItems('editor').map((i) => i.label);
-    expect(labels).toEqual(['Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Stats']);
+    expect(labels).toEqual(['Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Automations', 'Stats']);
   });
 
   it('hides Users and Settings from a viewer, but shows everything else (read-only pages land in later tasks)', () => {
     const labels = visibleNavItems('viewer').map((i) => i.label);
-    expect(labels).toEqual(['Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Stats']);
+    expect(labels).toEqual(['Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Automations', 'Stats']);
   });
 
   it('defensively hides admin-only items when role is null', () => {
