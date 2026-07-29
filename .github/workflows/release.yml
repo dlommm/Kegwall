@@ -1,0 +1,97 @@
+# Kegtron Dashboard — release image publish.
+#
+# Builds the production image (see ../../Dockerfile) for linux/amd64 AND linux/arm64
+# (Raspberry Pi 4/5 and other arm64 hosts — see docs/install/raspberry-pi.md) and pushes
+# it to the GitHub Container Registry (ghcr.io) whenever a tag matching `v*` (e.g.
+# v0.1.0) is pushed.
+#
+# *** CANNOT RUN YET — documented, not verified ***
+# This repo has no GitHub remote as of this commit (local-only git history — see the
+# phase 6 packaging ledger). A workflow only executes once GitHub Actions is running
+# against a real `github.com/<owner>/<repo>` remote with a `v*` tag pushed to it, so this
+# file has been reviewed carefully (YAML-linted, steps cross-checked against each action's
+# published docs) but has NOT been exercised by an actual run. Once a remote exists:
+#   1. Push this branch and any tag matching `v*` (e.g. `git tag v0.1.0 && git push --tags`).
+#   2. Confirm the repo's Settings -> Actions -> General -> Workflow permissions allows
+#      "Read and write permissions" (needed for the implicit GITHUB_TOKEN to push to
+#      ghcr.io) — or rely on this workflow's own `permissions:` block, which already
+#      requests `packages: write` and should be sufficient without a repo-wide setting
+#      change.
+#   3. Confirm the resulting image at ghcr.io/<owner>/<repo lowercased> boots on both
+#      architectures (`docker run --rm --platform linux/arm64 ...` from an amd64 host, or
+#      vice versa, via the qemu emulation this workflow itself sets up).
+#
+# BADGE PLACEHOLDER (Task 5 wires this into README.md once it exists):
+#
+#   [![Release](https://github.com/<owner>/<repo>/actions/workflows/release.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/release.yml)
+#
+# Replace <owner>/<repo> with the real GitHub path once one exists.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build + push multi-arch image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ghcr.io image paths must be all-lowercase; `github.repository` preserves the
+      # repo's actual casing ("Kegtron-Dashboard"), so it can't be used directly.
+      - name: Resolve lowercase image name
+        id: image
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (cross-arch emulation for the arm64 build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag scheme for a pushed `vX.Y.Z` tag: X.Y.Z, X.Y, X, and `latest` — the usual
+      # semver-family convention, all pointing at the same multi-arch manifest.
+      # `latest` is guarded to only move on a stable `vX.Y.Z` tag push — not on a
+      # prerelease tag (e.g. `v0.2.0-rc.1`, which contains a `-`) and not on a
+      # `workflow_dispatch` run (which has no `refs/tags/v*` ref at all), so neither
+      # can accidentally move `:latest` out from under a real release.
+      - name: Docker metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

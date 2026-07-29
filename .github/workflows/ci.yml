@@ -1,0 +1,100 @@
+# Kegtron Dashboard — CI.
+#
+# Runs on every push/PR against main: typecheck, unit tests, web build, and the Chromium
+# e2e smoke suite. Single sequential job (not split into parallel jobs) — the steps have
+# a real dependency chain: `npm run build` must produce dist/web before `npm run test:e2e`
+# can boot the app under test (see playwright.config.ts's header comment — the e2e spec
+# serves the built SPA, it doesn't run Vite dev).
+#
+# BADGE PLACEHOLDER (Task 5 wires this into README.md once it exists — this repo has no
+# GitHub remote yet, so there is no badge URL to point at until Task 5/publish time):
+#
+#   [![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+#
+# Replace <owner>/<repo> with the real GitHub path once one exists.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck, unit tests, build, e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build web bundle
+        run: npm run build
+
+      # Playwright's browser binaries live outside node_modules (~/.cache/ms-playwright),
+      # so setup-node's npm cache above does not cover them — cache them separately, keyed
+      # on the installed @playwright/test version so a version bump invalidates the cache
+      # automatically. On a cache hit, only the OS-level dependencies (apt packages
+      # Chromium needs — not covered by this cache) still need installing; on a miss, pull
+      # both the browser binary and its OS deps in one `--with-deps` call.
+      - name: Resolve installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium (with OS deps)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Install Playwright OS deps only (browser cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: E2E smoke tests
+        timeout-minutes: 10
+        run: npm run test:e2e
+
+      # playwright.config.ts sets `reporter: [['list']]` (no 'html' reporter configured)
+      # and `trace: 'retain-on-failure'`, so a failing run's artifacts land under
+      # test-results/ as per-test trace.zip bundles (open with `npx playwright show-trace
+      # <file>`), not a playwright-report/ HTML folder — that directory is only produced
+      # when the 'html' reporter is enabled, which this repo's config deliberately omits
+      # (see playwright.config.ts header comment). Uploading test-results/ is therefore
+      # the artifact that actually exists to upload; if playwright.config.ts ever adds the
+      # 'html' reporter, add playwright-report/ as a second `path` entry here.
+      - name: Upload Playwright test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
