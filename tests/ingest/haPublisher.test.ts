@@ -12,7 +12,7 @@ import { EventBus } from '../../src/server/core/events.js';
 import { StateManager } from '../../src/server/core/state.js';
 import { HaPublisherSource } from '../../src/server/ingest/haPublisher.js';
 import { createBeer } from '../../src/server/db/beers.js';
-import { createTap } from '../../src/server/db/taps.js';
+import { createTap, deleteTap } from '../../src/server/db/taps.js';
 import { createKeg, swapKeg } from '../../src/server/db/kegs.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
 
@@ -398,6 +398,96 @@ describe('HaPublisherSource against a real broker', () => {
       bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
 
       await vi.waitFor(() => expect(byTopicSuffix(`kegtron_monitor_${mon.id}/temp/config`)).toHaveLength(1));
+    });
+  });
+
+  describe('discovery tombstone cleanup on entity removal (Task 7 ledger follow-up)', () => {
+    it('publishes empty retained payloads to a DELETED tap\'s 5 discovery topics on the next cycle', async () => {
+      // No keg ever created on this tap (deleteTap refuses a tap with keg history), so
+      // it's created bare -- state.getTapStates() still lists a keg-less tap (see
+      // core/state.ts), so it still gets a full set of discovery configs meanwhile.
+      const tap = createTap(db, { number: 9 });
+      await subscribeAll();
+      source = await makeSource(20);
+      await vi.waitFor(() => expect(byTopicSuffix('/config').length).toBeGreaterThanOrEqual(5));
+      received = [];
+
+      deleteTap(db, tap.id);
+      bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+
+      const staleTopics = [
+        `homeassistant/sensor/kegtron_tap_${tap.id}/level/config`,
+        `homeassistant/sensor/kegtron_tap_${tap.id}/remaining/config`,
+        `homeassistant/sensor/kegtron_tap_${tap.id}/beer/config`,
+        `homeassistant/sensor/kegtron_tap_${tap.id}/last_pour/config`,
+        `homeassistant/binary_sensor/kegtron_tap_${tap.id}/pouring/config`,
+      ];
+      await vi.waitFor(() => {
+        for (const topic of staleTopics) {
+          expect(byTopic(topic).some((r) => r.payload === '')).toBe(true);
+        }
+      });
+
+      // Retention proof -- NOT via the live delivery's `packet.retain` flag (this file's
+      // own header comment #1 documents why that's unreliable: aedes always clears it for
+      // an already-subscribed client regardless of the original publish's retain setting).
+      // The only reliable proof is a client subscribing AFTER the fact: it gets NOTHING,
+      // meaning the empty publish genuinely CLEARED the broker's retained store for this
+      // topic -- if the tombstone publish hadn't set `retain: true`, the ORIGINAL discovery
+      // config would still be the retained message and a late subscriber would receive
+      // THAT instead.
+      for (const topic of staleTopics) {
+        // eslint-disable-next-line no-await-in-loop -- each check needs its own fresh client
+        const late = await lateSubscribeCollect(topic);
+        expect(late).toHaveLength(0);
+      }
+    });
+
+    it('publishes empty retained payloads to an UNBOUND monitor\'s 2 discovery topics', async () => {
+      const { tapId } = seedTap(1);
+      const ref = { type: 'kegtron_pro' as const, identifier: 'dev1', portIndex: 0 };
+      const mon = upsertMonitor(db, ref);
+      bindMonitorToTap(db, mon.id, tapId);
+
+      await subscribeAll();
+      source = await makeSource(20);
+      await vi.waitFor(() => expect(byTopicSuffix(`kegtron_monitor_${mon.id}/temp/config`)).toHaveLength(1));
+      received = [];
+
+      bindMonitorToTap(db, mon.id, null); // unbind, not delete
+      bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+
+      const staleTopics = [
+        `homeassistant/sensor/kegtron_monitor_${mon.id}/temp/config`,
+        `homeassistant/sensor/kegtron_monitor_${mon.id}/humidity/config`,
+      ];
+      await vi.waitFor(() => {
+        for (const topic of staleTopics) {
+          expect(byTopic(topic).some((r) => r.payload === '')).toBe(true);
+        }
+      });
+
+      const late = await lateSubscribeCollect(staleTopics[0]!);
+      expect(late).toHaveLength(0);
+    });
+
+    it('does NOT tombstone a still-live tap\'s topics when an unrelated tap is added', async () => {
+      const { tapId } = seedTap(1);
+      await subscribeAll();
+      source = await makeSource(20);
+      await vi.waitFor(() => expect(byTopicSuffix('/config').length).toBeGreaterThanOrEqual(5));
+      received = [];
+
+      seedTap(2);
+      bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+      await vi.waitFor(() => expect(byTopicSuffix('/config').length).toBeGreaterThan(0));
+
+      // The first tap's own discovery topics are republished (superset republish, per the
+      // existing "shape changed -> republish everything" behavior) with real content, never
+      // tombstoned (empty) -- it's still a live tap.
+      const stillLive = byTopic(`homeassistant/sensor/kegtron_tap_${tapId}/level/config`);
+      expect(stillLive.length).toBeGreaterThan(0);
+      expect(stillLive.every((r) => r.payload !== '')).toBe(true);
     });
   });
 

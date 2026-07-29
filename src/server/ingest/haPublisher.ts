@@ -64,6 +64,13 @@ import type { Source } from './source.js';
 // 6. `alert_fired`/`pour_completed` event relay topics are explicitly NON-retained (task
 //    brief) -- they're point-in-time notifications, not current state; a client
 //    subscribing later must not replay a stale one.
+// 7. Discovery TOMBSTONE cleanup (Phase 5 Task 7 ledger follow-up, closing a gap the Task
+//    5 report flagged): every `publishDiscovery()` call also diffs the topic set it's
+//    about to publish against the set from its own previous call, and publishes an empty
+//    retained payload (HA's documented removal mechanism) to any topic that dropped out --
+//    a deleted tap's or an unbound Pro monitor's stale discovery configs, which nothing
+//    before this task ever cleared. See `publishDiscovery()`'s own doc comment for the
+//    single-process-lifetime caveat.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_DEBOUNCE_MS = 1000;
@@ -248,6 +255,11 @@ export class HaPublisherSource implements Source {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubs: Array<() => void> = [];
   private lastDiscoverySignature: string | null = null;
+  /** Task 7 ledger follow-up: the full set of discovery topic strings published on the
+   * MOST RECENT `publishDiscovery()` call -- diffed against the next cycle's set to find
+   * topics that no longer belong to any current tap/monitor (deleted tap, unbound Pro
+   * monitor) so they can be tombstoned. See `publishDiscovery()`'s doc comment. */
+  private lastDiscoveryTopics = new Set<string>();
 
   constructor(opts: HaPublisherOptions) {
     this.bus = opts.bus;
@@ -278,6 +290,7 @@ export class HaPublisherSource implements Source {
     for (const unsub of this.unsubs) unsub();
     this.unsubs = [];
     this.lastDiscoverySignature = null;
+    this.lastDiscoveryTopics = new Set();
 
     const client = this.client;
     const cfg = this.cfg;
@@ -369,24 +382,46 @@ export class HaPublisherSource implements Source {
     this.publishState(cfg, tapStates, monitors);
   }
 
+  /**
+   * Publishes every current tap/monitor's discovery configs, THEN tombstones any topic
+   * that was part of the PREVIOUS cycle's set but isn't part of this one (Task 7 ledger
+   * follow-up: a deleted tap or an unbound Kegtron Pro monitor used to have discovery
+   * configs retained on the broker that nothing here ever republishes or clears on its
+   * own -- HA keeps showing a frozen, orphaned device forever). An empty retained payload
+   * on a discovery config topic is HA's own documented mechanism for making it forget
+   * that entity (https://www.home-assistant.io/integrations/mqtt/#removing-an-entity).
+   * Only reachable when `publishDiscovery` actually runs (the signature changed), which is
+   * exactly the condition under which an entity could have disappeared. Tracking is
+   * in-memory / single-process-lifetime only (see haPublisher.test.ts's "Concerns" note in
+   * the Task 5 report) -- a topic retained by a PRIOR process run that's since had its tap/
+   * monitor deleted while the app was down won't be cleaned up until this source starts,
+   * observes the current (already-reduced) entity set, AND something changes the
+   * signature again from there; there's no cheap way to query a broker's existing retained
+   * set from an MQTT client to reconcile against on startup.
+   */
   private publishDiscovery(cfg: MqttConfig, tapStates: TapState[], monitors: Monitor[]): void {
     const client = this.client!;
+    const newTopics = new Set<string>();
     for (const tap of tapStates) {
       for (const { component, objectId, config } of buildTapDiscoveryConfigs(cfg, tap)) {
-        client.publish(
-          discoveryTopic(cfg, component, tapNodeId(tap.tapId), objectId),
-          JSON.stringify(config), { retain: true, qos: 1 },
-        );
+        const topic = discoveryTopic(cfg, component, tapNodeId(tap.tapId), objectId);
+        newTopics.add(topic);
+        client.publish(topic, JSON.stringify(config), { retain: true, qos: 1 });
       }
     }
     for (const monitor of monitors) {
       for (const { component, objectId, config } of buildMonitorDiscoveryConfigs(cfg, monitor)) {
-        client.publish(
-          discoveryTopic(cfg, component, monitorNodeId(monitor.id), objectId),
-          JSON.stringify(config), { retain: true, qos: 1 },
-        );
+        const topic = discoveryTopic(cfg, component, monitorNodeId(monitor.id), objectId);
+        newTopics.add(topic);
+        client.publish(topic, JSON.stringify(config), { retain: true, qos: 1 });
       }
     }
+    for (const staleTopic of this.lastDiscoveryTopics) {
+      if (!newTopics.has(staleTopic)) {
+        client.publish(staleTopic, '', { retain: true, qos: 1 });
+      }
+    }
+    this.lastDiscoveryTopics = newTopics;
   }
 
   private publishState(cfg: MqttConfig, tapStates: TapState[], monitors: Monitor[]): void {
