@@ -238,8 +238,11 @@ describe('AutomationBuilder', () => {
 
     expect(runAutomation).toHaveBeenCalledWith(1);
     const results = screen.getByTestId('automation-builder-run-results');
-    expect(results).toHaveTextContent('notify');
-    expect(results).toHaveTextContent('webhook');
+    // Humanized action labels (Task 7 polish fix — the raw enum-ish `r.type` ("notify",
+    // "webhook") used to render verbatim here, inconsistent with the same action's own
+    // dropdown label just above ("Send notification", "Webhook") — see ACTION_LABELS).
+    expect(results).toHaveTextContent('Send notification');
+    expect(results).toHaveTextContent('Webhook');
     expect(results).toHaveTextContent('timed out');
   });
 

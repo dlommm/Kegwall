@@ -837,7 +837,13 @@ export function AutomationBuilder({
               {runResults.map((r, i) => (
                 // eslint-disable-next-line react/no-array-index-key -- results have no stable id, in fixed action order
                 <li key={i} data-testid={`automation-builder-run-result-${i}`} data-ok={r.ok}>
-                  {r.type}: {r.ok ? 'OK' : `Failed — ${r.error}`}
+                  {/* `AutomationRunResult.type` (adminApi.ts) is a plain `string`, not the
+                      literal `Action['type']` union -- it's decoded from an HTTP response,
+                      so it can't be narrowed at compile time. Falls back to the raw value
+                      for a type this build's ACTION_LABELS doesn't know about (defensive,
+                      matches this app's other "unrecognized -> fall back, never throw"
+                      precedents, e.g. renderTemplate's missing-path behavior). */}
+                  {(ACTION_LABELS as Record<string, string>)[r.type] ?? r.type}: {r.ok ? 'OK' : `Failed — ${r.error}`}
                 </li>
               ))}
             </ul>
