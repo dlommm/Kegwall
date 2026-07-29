@@ -40,10 +40,12 @@ services:
       # - WEB_DIR=/app/dist/web
       # - NODE_ENV=production
       #
-      # Session cookies: if you put this behind a reverse proxy that
-      # terminates TLS (recommended — see docs/install/docker.md), make sure
-      # the proxy forwards X-Forwarded-Proto so the app knows the original
-      # request was HTTPS.
+      # Session cookies: it's fine (recommended) to put this behind a reverse
+      # proxy that terminates TLS — see docs/install/docker.md's "Reverse
+      # proxy and HTTPS" section. The app itself stays plain HTTP either way:
+      # it does not read X-Forwarded-Proto and does not set the session
+      # cookie's Secure flag today, so no extra proxy header config is
+      # needed (or used) here.
       - NODE_ENV=production
 
 volumes:
