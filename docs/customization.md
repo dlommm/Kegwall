@@ -20,6 +20,13 @@ this doc explains what each option actually does, sourced from the wall config s
   (from a bound Kegtron Pro monitor's sensor, if any).
 - **Ticker** — optional scrolling text banner.
 - **Fields** — per-field visibility toggles (which beer attributes show on cards).
+- **Fill style** — `Beer-colored liquid` (default) shows the SRM-true `LiquidFill` swatch;
+  `Keg cutaway` shows `KegFill` instead, a photorealistic cutaway of the actual keg type
+  (auto-matched from the tap's keg size, or pinned via that keg's own "Keg type" field in
+  the swap wizard / on-deck queue) with a green/yellow/red level fill and a large percent
+  readout. Only takes effect on the `full`/`standard`/`minimal` card templates — `compact`
+  always shows the small liquid swatch regardless (its card row is too short for the
+  cutaway art).
 - **QR code** — optionally show a QR code linking to a menu/detail page.
 
 ## Themes

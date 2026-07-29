@@ -112,7 +112,7 @@ describe('TapsPage', () => {
             id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: 6, description: null, labelImage: null, createdAt: '',
           },
           keg: {
-            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750, dateTapped: null, status: 'on_tap', createdAt: '', levelPct: 75, remainingMl: 14250,
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 75, remainingMl: 14250,
           },
         }),
         makeTap(2),
@@ -136,7 +136,7 @@ describe('TapsPage', () => {
           id: 1, name: 'Stout', brewery: null, style: null, abv: null, ibu: null, srm: 35, description: null, labelImage: null, createdAt: '',
         },
         keg: {
-          id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000, dateTapped: null, status: 'kicked', createdAt: '', levelPct: 0, remainingMl: 0,
+          id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000, dateTapped: null, status: 'kicked', createdAt: '', kegType: null, levelPct: 0, remainingMl: 0,
         },
       })],
       stale: false, connected: true, reconnectCount: 0,

@@ -14,7 +14,7 @@ import type { Notification } from '../../server/db/notificationsRepo.js';
 // comment above for the routes-file case this is NOT: that one drags in Fastify request/
 // reply augmentations that don't typecheck in tsconfig.web.json's program).
 import type { Settings } from '../../server/db/settings.js';
-import type { Pour, Keg, KegStatus } from '../../server/db/kegs.js';
+import type { Pour, Keg, KegStatus, KegType } from '../../server/db/kegs.js';
 import type { Tap } from '../../server/db/taps.js';
 import type { Monitor } from '../../server/db/monitors.js';
 import type { ActivityEvent } from '../../server/db/activity.js';
@@ -282,7 +282,7 @@ export function listKegs(params: { status?: KegStatus } = {}): Promise<ApiResult
  * current keg instead — the on-deck queue's "add to queue" action. */
 export function createKeg(input: {
   beerId: number; sizeMl: number; volStartMl: number;
-  tapId?: number | null; status?: 'on_deck';
+  tapId?: number | null; status?: 'on_deck'; kegType?: KegType;
 }): Promise<ApiResult<Keg>> {
   return request('/api/kegs', { method: 'POST', body: JSON.stringify(input) });
 }
@@ -298,12 +298,15 @@ export function listOnDeck(tapId: number): Promise<ApiResult<Keg[]>> {
   return request(`/api/taps/${tapId}/on-deck`);
 }
 
-/** POST /api/taps/:id/swap — either taps a brand-new keg (`beerId`/`sizeMl`/`volStartMl`)
- * or promotes an already-queued on-deck keg (`fromKegId`); either way, any currently
- * on_tap keg for this tap is kicked first (see db/kegs.ts's `swapKeg`). */
+/** POST /api/taps/:id/swap — either taps a brand-new keg (`beerId`/`sizeMl`/`volStartMl`,
+ * optionally `kegType`) or promotes an already-queued on-deck keg (`fromKegId`, which
+ * ignores `kegType` — the promoted keg keeps whatever it was created with); either way,
+ * any currently on_tap keg for this tap is kicked first (see db/kegs.ts's `swapKeg`). */
 export function swapTap(
   tapId: number,
-  input: { beerId: number; sizeMl: number; volStartMl: number } | { fromKegId: number },
+  input:
+    | { beerId: number; sizeMl: number; volStartMl: number; kegType?: KegType }
+    | { fromKegId: number },
 ): Promise<ApiResult<Keg>> {
   return request(`/api/taps/${tapId}/swap`, { method: 'POST', body: JSON.stringify(input) });
 }

@@ -82,6 +82,96 @@
 }
 
 /*
+ * KegFill — the `fillStyle: 'keg'` alternative to LiquidFill (see KegFill.tsx's doc
+ * comment). The source photo is portrait (tall/narrow, like a real keg), so unlike
+ * LiquidFill (which stretches to fill its box edge-to-edge) `.keg-fill__crop` is sized to
+ * the card's full height and centered horizontally, letting it read as a keg standing on
+ * a shelf rather than a stretched image.
+ */
+.keg-fill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.keg-fill__crop {
+  position: relative;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 0.375rem;
+}
+
+.keg-fill__image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The cavity box — positioned/sized per-asset via KegFill.tsx's inline `cavityStyle`
+ * (from `lib/kegAssets.ts`'s hand-tuned `KEG_ASSETS[...].cavity`). `overflow: hidden`
+ * clips `.keg-fill__level` to the cavity's rounded rect; the percent number sits centered
+ * on top via flex, above the fill via normal DOM/paint order. */
+.keg-fill__cavity {
+  position: absolute;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Semi-transparent so the cavity's gauge markings stay legible underneath — per the
+ * spec's ~0.55-0.7 alpha range. */
+.keg-fill__level {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.62;
+}
+
+.keg-fill__level--transition {
+  transition: height 500ms ease, background 500ms ease;
+}
+
+.keg-fill__percent {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-mono-numeric);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(0.9rem, 1.8vw, 2.25rem);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 8px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.keg-fill--pouring {
+  animation: liquid-fill-glow 1.8s ease-in-out infinite;
+}
+
+.keg-fill__readout {
+  position: absolute;
+  inset: auto 0 0.5rem 0;
+  text-align: center;
+  font-family: var(--font-mono-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/*
  * WallGrid — sized to `config.columns` via the `--wall-columns` custom property (set
  * inline by WallGrid.tsx). Fewer columns means more room per cell, which is the entire
  * "card scale" story per the design direction: no separate zoom/scale knob needed.

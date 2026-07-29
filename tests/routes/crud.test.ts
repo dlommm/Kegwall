@@ -67,6 +67,82 @@ describe('crud routes', () => {
     expect(swap.json()).toMatchObject({ status: 'on_tap', beerId: beer.id });
   });
 
+  describe('keg_type (manual asset override, keg-asset fill indicator feature)', () => {
+    it('POST /api/taps/:id/swap accepts and persists an explicit kegType', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const swap = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, kegType: 'cornelius',
+        },
+      });
+      expect(swap.statusCode).toBe(201);
+      expect(swap.json()).toMatchObject({ kegType: 'cornelius' });
+    });
+
+    it('POST /api/taps/:id/swap defaults kegType to null (auto-match) when omitted', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const swap = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+      });
+      expect(swap.json()).toMatchObject({ kegType: null });
+    });
+
+    it('POST /api/taps/:id/swap 400s for an unrecognized kegType', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const swap = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, kegType: 'not-a-real-asset',
+        },
+      });
+      expect(swap.statusCode).toBe(400);
+    });
+
+    it('POST /api/kegs accepts and persists an explicit kegType', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const res = await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, kegType: 'mini-keg',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ kegType: 'mini-keg' });
+    });
+
+    it('POST /api/kegs 400s for an unrecognized kegType', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const res = await app.inject({
+        method: 'POST', url: '/api/kegs', cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000, kegType: 'not-a-real-asset',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
   describe('keg_tapped / keg_kicked bus events (Phase 5 Task 3: feeds the automation '
     + 'engine\'s keg_tapped/keg_kicked triggers)', () => {
     it('POST /api/taps/:id/swap onto an EMPTY tap emits only keg_tapped (no incumbent to kick)', async () => {

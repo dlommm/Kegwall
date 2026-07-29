@@ -100,7 +100,7 @@ describe('MonitorsPage', () => {
           tapName: 'Left',
           keg: {
             id: 1, beerId: 1, tapId: 5, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 4750,
-            dateTapped: null, status: 'on_tap', createdAt: '', levelPct: 75, remainingMl: 14250,
+            dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 75, remainingMl: 14250,
           },
         }),
       ],

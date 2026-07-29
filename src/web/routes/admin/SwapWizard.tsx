@@ -5,6 +5,7 @@ import type { Keg } from '../../../server/db/kegs.js';
 import type { Monitor } from '../../../server/db/monitors.js';
 import { swapTap, resetKegtronVolume } from '../../lib/adminApi';
 import { BeerPicker } from './BeerPicker';
+import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
 interface SwapWizardProps {
   tap: TapState;
@@ -64,6 +65,7 @@ export function SwapWizard({
   const [pickedBeer, setPickedBeer] = useState<Beer | null>(null);
   const [sizeMl, setSizeMl] = useState('');
   const [volStartMl, setVolStartMl] = useState('');
+  const [kegTypeSelect, setKegTypeSelect] = useState<KegTypeSelectValue>('auto');
   const [sizeError, setSizeError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState(false);
   const [swapError, setSwapError] = useState<string | null>(null);
@@ -86,7 +88,11 @@ export function SwapWizard({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
-  async function doSwap(input: { beerId: number; sizeMl: number; volStartMl: number } | { fromKegId: number }) {
+  async function doSwap(
+    input:
+      | { beerId: number; sizeMl: number; volStartMl: number; kegType?: Exclude<KegTypeSelectValue, 'auto'> }
+      | { fromKegId: number },
+  ) {
     setSwapError(null);
     setSwapping(true);
     const result = await swapTap(tap.tapId, input);
@@ -117,6 +123,7 @@ export function SwapWizard({
     const defaults = lastKegDefaults(beer.id, kegs);
     setSizeMl(defaults.sizeMl);
     setVolStartMl(defaults.volStartMl);
+    setKegTypeSelect('auto');
     setStepIndex(stepIndex + 1);
   }
 
@@ -137,7 +144,15 @@ export function SwapWizard({
       return;
     }
     if (!pickedBeer) return;
-    void doSwap({ beerId: pickedBeer.id, sizeMl: size, volStartMl: start });
+    // 'auto' (the default) is never sent to the server — omitting `kegType` entirely
+    // means "auto-match by sizeMl" server-side too (see kegs.ts's `createKeg`/`swapKeg`),
+    // so there's no reason to ship the sentinel string itself.
+    void doSwap({
+      beerId: pickedBeer.id,
+      sizeMl: size,
+      volStartMl: start,
+      ...(kegTypeSelect !== 'auto' ? { kegType: kegTypeSelect } : {}),
+    });
   }
 
   async function handleResetVolume() {
@@ -253,6 +268,20 @@ export function SwapWizard({
                   value={volStartMl}
                   onChange={(e) => setVolStartMl(e.target.value)}
                 />
+              </label>
+              <label className="admin-field">
+                <span>Keg type</span>
+                <select
+                  data-testid="swap-wizard-keg-type"
+                  value={kegTypeSelect}
+                  onChange={(e) => setKegTypeSelect(e.target.value as KegTypeSelectValue)}
+                >
+                  {KEG_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} data-testid="swap-wizard-keg-type-option">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             {sizeError && (

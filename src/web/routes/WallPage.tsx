@@ -204,6 +204,7 @@ export function WallPage() {
               columns={config.columns}
               template={config.cardTemplate}
               fields={config.fields}
+              fillStyle={config.fillStyle}
               units={units}
             />
           </div>

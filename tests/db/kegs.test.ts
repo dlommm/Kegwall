@@ -5,7 +5,7 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import {
   createKeg, getActiveKegForTap, applyDispense, recordPourTx, swapKeg, listKegs,
-  getLatestKickedKegForTap, listOnDeckForTap, removeOnDeckKeg,
+  getLatestKickedKegForTap, listOnDeckForTap, removeOnDeckKeg, getKeg,
 } from '../../src/server/db/kegs.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
@@ -25,6 +25,49 @@ describe('kegs repo', () => {
   it('creates a keg on a tap and finds it as active', () => {
     const keg = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
     expect(getActiveKegForTap(db, tapId)?.id).toBe(keg.id);
+  });
+
+  describe('keg_type (manual asset override)', () => {
+    it('defaults to null (auto-match) when omitted', () => {
+      const keg = createKeg(db, { beerId, sizeMl: 19000, volStartMl: 19000, tapId });
+      expect(keg.kegType).toBeNull();
+    });
+
+    it('persists an explicit override', () => {
+      const keg = createKeg(db, {
+        beerId, sizeMl: 19000, volStartMl: 19000, tapId, kegType: 'cornelius',
+      });
+      expect(keg.kegType).toBe('cornelius');
+      expect(getKeg(db, keg.id)?.kegType).toBe('cornelius');
+    });
+
+    it('rejects an unrecognized override at the DB layer (CHECK constraint)', () => {
+      expect(() => createKeg(db, {
+        beerId, sizeMl: 19000, volStartMl: 19000, tapId, kegType: 'not-a-real-asset' as any,
+      })).toThrow();
+    });
+
+    it('swapKeg persists an explicit kegType on the freshly-tapped keg', () => {
+      const newBeer = createBeer(db, { name: 'Fresh Pils' }).id;
+      const fresh = swapKeg(db, {
+        tapId, newBeerId: newBeer, sizeMl: 19000, volStartMl: 19000, kegType: 'mini-keg',
+      });
+      expect(fresh.kegType).toBe('mini-keg');
+    });
+
+    it('swapKeg defaults to null (auto-match) when kegType is omitted', () => {
+      const newBeer = createBeer(db, { name: 'Fresh Pils' }).id;
+      const fresh = swapKeg(db, { tapId, newBeerId: newBeer, sizeMl: 19000, volStartMl: 19000 });
+      expect(fresh.kegType).toBeNull();
+    });
+
+    it('promoting an on-deck keg via fromKegId keeps the kegType it was created with', () => {
+      const queued = createKeg(db, {
+        beerId, sizeMl: 20000, volStartMl: 20000, tapId, status: 'on_deck', kegType: 'sixth-barrel',
+      });
+      const promoted = swapKeg(db, { tapId, fromKegId: queued.id });
+      expect(promoted.kegType).toBe('sixth-barrel');
+    });
   });
 
   it('applyDispense sets absolute dispensed volume, clamped at 0', () => {

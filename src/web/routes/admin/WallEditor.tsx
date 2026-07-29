@@ -9,6 +9,7 @@ import {
 import {
   FIELD_KEYS, TEMPLATE_DEFAULT_FIELDS, type CardTemplate, type FieldKey,
 } from '../../lib/cardFields';
+import type { WallConfig } from '../../../server/core/wallConfig.js';
 import { THEMES, getTheme } from '../../themes/themes';
 import { WallPagesBuilder } from './WallPagesBuilder';
 import { WallPreview } from './WallPreview';
@@ -26,6 +27,15 @@ const CARD_TEMPLATES: { value: CardTemplate; label: string }[] = [
   { value: 'standard', label: 'Standard' },
   { value: 'compact', label: 'Compact' },
   { value: 'minimal', label: 'Minimal' },
+];
+
+// Keg-asset fill indicator feature: doesn't apply to `compact` (its liquid swatch is too
+// small for the keg cutaway art — see TapCard.tsx), but the setting itself is still a
+// single per-wall toggle rather than per-template, so it's offered here unconditionally;
+// an admin on `compact` just won't see it take visual effect until they switch templates.
+const FILL_STYLES: { value: WallConfig['fillStyle']; label: string }[] = [
+  { value: 'liquid', label: 'Beer-colored liquid' },
+  { value: 'keg', label: 'Keg cutaway' },
 ];
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -212,6 +222,18 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               >
                 {CARD_TEMPLATES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>Fill style</span>
+              <select
+                data-testid="wall-editor-fill-style"
+                value={form.fillStyle}
+                onChange={(e) => updateField('fillStyle', e.target.value as WallConfig['fillStyle'])}
+              >
+                {FILL_STYLES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </label>

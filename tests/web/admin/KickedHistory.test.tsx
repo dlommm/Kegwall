@@ -28,7 +28,7 @@ function makeBeer(overrides: Partial<Beer> = {}): Beer {
 function makeKeg(overrides: Partial<Keg> = {}): Keg {
   return {
     id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000,
-    dateTapped: null, status: 'kicked', createdAt: '2026-07-28T00:00:00.000Z', ...overrides,
+    dateTapped: null, status: 'kicked', createdAt: '2026-07-28T00:00:00.000Z', kegType: null, ...overrides,
   };
 }
 

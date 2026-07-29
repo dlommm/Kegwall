@@ -57,6 +57,36 @@ describe('WallEditor', () => {
     expect(screen.getByTestId('wall-editor-template')).toHaveValue('compact');
   });
 
+  it("loads the wall's fillStyle into the 'Fill style' dropdown, defaulting to Beer-colored liquid", async () => {
+    render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+    expect(screen.getByTestId('wall-editor-fill-style')).toHaveValue('liquid');
+  });
+
+  it("loads an explicit fillStyle: 'keg' wall correctly", async () => {
+    const wall = makeWall({ config: wallConfigSchema.parse({ fillStyle: 'keg' }) });
+    render(<WallEditor wall={wall} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+    expect(screen.getByTestId('wall-editor-fill-style')).toHaveValue('keg');
+  });
+
+  it("changing 'Fill style' and saving sends the new value to updateWall", async () => {
+    const savedWall = makeWall({ config: wallConfigSchema.parse({ fillStyle: 'keg' }) });
+    (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
+    render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+
+    fireEvent.change(screen.getByTestId('wall-editor-fill-style'), { target: { value: 'keg' } });
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('wall-editor-form'));
+    });
+
+    expect(updateWall).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ config: expect.objectContaining({ fillStyle: 'keg' }) }),
+    );
+  });
+
   it('renders the pages builder once taps have loaded', async () => {
     render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
     expect(await screen.findByTestId('wall-pages-builder')).toBeInTheDocument();

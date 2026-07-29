@@ -28,7 +28,7 @@ describe('migrations', () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 4 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 5 });
     db2.close();
   });
 
@@ -54,7 +54,7 @@ describe('migrations', () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql',
     ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
@@ -88,7 +88,7 @@ describe('migrations', () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -134,6 +134,85 @@ describe('migrations', () => {
       .run(999999, tap.id)).toThrow();
 
     db.close();
+  });
+
+  it('adds kegs.keg_type (nullable, CHECKed against the 7 keg-asset ids), preserving '
+    + 'existing kegs and rejecting an unrecognized value', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const db = openDb(dir);
+    const now = new Date().toISOString();
+
+    db.prepare(`INSERT INTO beers (name, created_at) VALUES ('Test Ale', ?)`).run(now);
+    const beerId = (db.prepare(`SELECT id FROM beers WHERE name = 'Test Ale'`).get() as any).id;
+    db.prepare(`INSERT INTO taps (number) VALUES (1)`).run();
+    db.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (?, 1, 19000, 19000, 'on_tap', ?)`).run(beerId, now);
+
+    // pre-existing keg gets NULL (auto-match, not a stored override)
+    const keg = db.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
+    expect(keg.keg_type).toBeNull();
+
+    for (const id of [
+      'half-barrel', 'quarter-barrel', 'sixth-barrel', 'fifty-liter', 'cornelius', 'slim-quarter', 'mini-keg',
+    ]) {
+      expect(() => db.prepare('UPDATE kegs SET keg_type = ? WHERE id = 1').run(id)).not.toThrow();
+    }
+    expect((db.prepare('SELECT keg_type FROM kegs WHERE id = 1').get() as any).keg_type).toBe('mini-keg');
+
+    // clearing back to NULL (back to auto-match) is allowed
+    expect(() => db.prepare('UPDATE kegs SET keg_type = NULL WHERE id = 1').run()).not.toThrow();
+
+    // an unrecognized id is rejected by the CHECK constraint
+    expect(() => db.prepare(`UPDATE kegs SET keg_type = 'not-a-real-asset' WHERE id = 1`).run()).toThrow();
+
+    db.close();
+  });
+
+  it('applies every migration through 005, in order, on a fresh database', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const db = openDb(dir);
+    const applied = db.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
+      .map((r: any) => r.name);
+    expect(applied).toEqual([
+      '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql',
+    ]);
+    db.close();
+  });
+
+  it('applies 005 on top of a database migrated only through 004 (upgrade path), '
+    + 'preserving existing keg rows', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const raw = new Database(join(dir, 'app.db'));
+    raw.exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
+    for (const name of [
+      '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql', '004_tap_default_drinker.sql',
+    ]) {
+      raw.exec(readFileSync(join(MIGRATIONS_DIR, name), 'utf8'));
+      raw.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)')
+        .run(name, new Date().toISOString());
+    }
+    const now = new Date().toISOString();
+    raw.prepare(`INSERT INTO beers (name, created_at) VALUES ('Pre-005 Ale', ?)`).run(now);
+    raw.prepare(`INSERT INTO taps (number) VALUES (1)`).run();
+    raw.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (1, 1, 19000, 19000, 'on_tap', ?)`).run(now);
+    raw.close();
+
+    const upgraded = openDb(dir);
+    const applied = upgraded.prepare('SELECT name FROM schema_migrations ORDER BY name').all()
+      .map((r: any) => r.name);
+    expect(applied).toEqual([
+      '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql',
+    ]);
+
+    const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
+    expect(keg.keg_type).toBeNull();
+    expect(keg.vol_start_ml).toBe(19000);
+    expect(() => upgraded.prepare(`UPDATE kegs SET keg_type = 'cornelius' WHERE id = 1`).run()).not.toThrow();
+
+    upgraded.close();
   });
 
   it('fails closed on a corrupting migration: rolls back, does NOT mark it applied, and '

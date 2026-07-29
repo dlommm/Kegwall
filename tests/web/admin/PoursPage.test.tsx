@@ -42,7 +42,7 @@ function makePour(overrides: Partial<Pour> = {}): Pour {
 function makeKeg(overrides: Partial<Keg> = {}): Keg {
   return {
     id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 400,
-    dateTapped: null, status: 'on_tap', createdAt: '', ...overrides,
+    dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, ...overrides,
   };
 }
 

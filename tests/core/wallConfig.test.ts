@@ -20,3 +20,19 @@ describe('wallConfigSchema screensaver', () => {
     })).toThrow();
   });
 });
+
+describe('wallConfigSchema fillStyle (keg-asset fill indicator feature)', () => {
+  it("defaults to 'liquid' (the existing SRM LiquidFill) when omitted", () => {
+    const config = wallConfigSchema.parse({});
+    expect(config.fillStyle).toBe('liquid');
+  });
+
+  it("accepts an explicit 'keg' override", () => {
+    const config = wallConfigSchema.parse({ fillStyle: 'keg' });
+    expect(config.fillStyle).toBe('keg');
+  });
+
+  it('rejects an unrecognized fillStyle value', () => {
+    expect(() => wallConfigSchema.parse({ fillStyle: 'bogus' })).toThrow();
+  });
+});
