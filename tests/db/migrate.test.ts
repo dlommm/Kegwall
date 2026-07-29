@@ -11,7 +11,10 @@ const MIGRATIONS_DIR = join(
   dirname(fileURLToPath(import.meta.url)), '../../src/server/db/migrations',
 );
 
-describe('migrations', () => {
+// 30 s timeout (vs the 5 s default): the upgrade-path tests replay the full SQL
+// migration chain against a fresh on-disk SQLite file, which comfortably beats
+// 5 s on a dev machine but not on a slow shared CI runner under load.
+describe('migrations', { timeout: 30_000 }, () => {
   it('creates all tables and is idempotent', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
     const db = openDb(dir);
