@@ -31,7 +31,7 @@ const KEG_LOW_ALERT = {
   ],
   actions: [
     { type: 'notify' as const, channels: ['in_app'], title: 'Keg low', body: '{{beer.name}} is low' },
-    { type: 'mqtt_publish' as const, topic: 'kegtron-dashboard/event/alert', payloadTemplate: '{}' },
+    { type: 'mqtt_publish' as const, topic: 'kegwall/event/alert', payloadTemplate: '{}' },
   ],
   alertConfig: {
     cooldownMinutes: 30, autoResolve: true, notifyOnResolve: true, severity: 'warning' as const,

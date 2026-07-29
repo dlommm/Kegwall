@@ -6,7 +6,7 @@ can't look up from a working admin UI once you're in that situation.
 ## Backing up
 
 **Settings -> Backup -> "Download backup"** (admin role required). This downloads a
-single file (`kegtron-dashboard-backup-YYYY-MM-DD.db`) containing everything: beers,
+single file (`kegwall-backup-YYYY-MM-DD.db`) containing everything: beers,
 taps, kegs, pours, users, and settings.
 
 Under the hood (`src/server/routes/backup.ts`): it uses better-sqlite3's own online backup
@@ -33,8 +33,8 @@ atomically, the next time the server process starts. The UI tells you this expli
 
 So after uploading, you must restart the server yourself:
 
-- Docker: `docker compose restart` (or `docker restart kegtron-dashboard`).
-- Bare metal / systemd: `sudo systemctl restart kegtron-dashboard` (or however you're
+- Docker: `docker compose restart` (or `docker restart kegwall`).
+- Bare metal / systemd: `sudo systemctl restart kegwall` (or however you're
   running the process).
 
 On that next startup (`applyPendingRestore()` in `src/server/db/db.ts`), before anything
@@ -90,7 +90,7 @@ docker compose up -d
 **Bare metal:**
 
 ```sh
-sudo systemctl stop kegtron-dashboard   # or however you run it
+sudo systemctl stop kegwall   # or however you run it
 
 cd "$DATA_DIR"   # wherever you pointed DATA_DIR, e.g. ./data
 rm -f app.db app.db-wal app.db-shm
@@ -98,7 +98,7 @@ mv app.db.bak app.db
 [ -f app.db.bak-wal ] && mv app.db.bak-wal app.db-wal
 [ -f app.db.bak-shm ] && mv app.db.bak-shm app.db-shm
 
-sudo systemctl start kegtron-dashboard
+sudo systemctl start kegwall
 ```
 
 This discards whatever was in the failed restore attempt and returns you exactly to the

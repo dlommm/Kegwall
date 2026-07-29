@@ -511,7 +511,7 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
                       updateField('viewRotationViews', views);
                     }}
                   />
-                  {view.kind === 'wall' ? 'Pour wall' : 'Leaderboard'}
+                  {view.kind === 'wall' ? 'Kegwall' : 'Leaderboard'}
                 </label>
                 <label className="admin-field">
                   <span>Seconds</span>

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-# Kegtron Dashboard — production image.
+# Kegwall — production image.
 #
 # There is no server BUILD step: the app runs its TypeScript server source
 # directly under tsx at container start (see the runtime stage's CMD). Only

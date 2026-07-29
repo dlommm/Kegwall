@@ -276,7 +276,7 @@ describe('SettingsPage', () => {
           mqtt: {
             url: 'mqtt://old:1883', username: 'olduser', password: '••••',
             gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: true,
-            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
           },
         }),
       });
@@ -298,7 +298,7 @@ describe('SettingsPage', () => {
           // never resets them.
           haPublishEnabled: true,
           haDiscoveryPrefix: 'homeassistant',
-          appTopicPrefix: 'kegtron-dashboard',
+          appTopicPrefix: 'kegwall',
         },
       });
     });
@@ -310,7 +310,7 @@ describe('SettingsPage', () => {
           mqtt: {
             url: 'mqtt://host:1883', username: 'u', password: '••••',
             gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: false,
-            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
           },
         }),
       });
@@ -358,7 +358,7 @@ describe('SettingsPage', () => {
           mqtt: {
             url: 'mqtt://host:1883', username: 'u', password: '••••',
             gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: false,
-            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
           },
         }),
       });
@@ -374,7 +374,7 @@ describe('SettingsPage', () => {
         mqtt: {
           url: 'mqtt://host:1883', username: 'u', password: '••••',
           gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: true,
-          haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+          haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
         },
       });
     });

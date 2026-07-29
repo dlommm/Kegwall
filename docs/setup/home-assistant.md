@@ -1,6 +1,6 @@
 # Set up Home Assistant integration
 
-Kegtron Dashboard can publish live tap state to Home Assistant over MQTT, using HA's
+Kegwall can publish live tap state to Home Assistant over MQTT, using HA's
 [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#discovery-messages)
 format — entities appear automatically, no HA YAML required. This is a one-way publisher
 (`src/server/ingest/haPublisher.ts`) — it doesn't read anything back from HA.
@@ -76,7 +76,7 @@ should not replay a stale event:
   (`tap`/`beer` may be `null` for rules with no tap context, e.g. a startup or scheduled
   rule — `tapId` is included alongside them for the same reason).
 
-`appTopicPrefix` defaults to `kegtron-dashboard` and is shared with the state topics above
+`appTopicPrefix` defaults to `kegwall` and is shared with the state topics above
 (`{appTopicPrefix}/tap/{tapId}/state`, `{appTopicPrefix}/monitor/{monitorId}/state`,
 `{appTopicPrefix}/availability`) — there's no separate setting for it in the current admin
 UI; it uses the built-in default unless you've edited raw settings.
@@ -86,7 +86,7 @@ Example HA automation trigger:
 ```yaml
 trigger:
   - platform: mqtt
-    topic: "kegtron-dashboard/event/pour"
+    topic: "kegwall/event/pour"
 ```
 
 ## Known limitation: stale discovery entities after an offline deletion

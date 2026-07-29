@@ -40,7 +40,7 @@ export async function channelsRoutes(app: FastifyInstance) {
 
     try {
       await channel.send({
-        title: 'Kegtron Dashboard test notification',
+        title: 'Kegwall test notification',
         body: `This is a test message from the ${name} channel.`,
         severity: 'info',
       });

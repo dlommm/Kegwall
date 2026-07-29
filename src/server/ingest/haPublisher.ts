@@ -137,7 +137,7 @@ function buildTapDiscoveryConfigs(
   const stateTopic = tapStateTopic(cfg, tap.tapId);
   const device = {
     identifiers: [nodeId], name: `Tap ${tap.tapNumber}`,
-    manufacturer: 'Kegtron Dashboard', model: 'Tap',
+    manufacturer: 'Kegwall', model: 'Tap',
   };
   const availability: [{ topic: string }] = [{ topic: availabilityTopic(cfg) }];
 

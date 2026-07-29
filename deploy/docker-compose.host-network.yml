@@ -1,4 +1,4 @@
-# Kegtron Dashboard — host-network variant.
+# Kegwall — host-network variant.
 #
 # Quickstart:
 #   cd deploy
@@ -45,12 +45,12 @@
 # - No network isolation from the host — weigh that against running behind a
 #   reverse proxy on a trusted LAN.
 services:
-  kegtron-dashboard:
+  kegwall:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: kegtron-dashboard:latest
-    container_name: kegtron-dashboard
+    image: kegwall:latest
+    container_name: kegwall
     restart: unless-stopped
     network_mode: host
     volumes:

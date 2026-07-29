@@ -97,7 +97,7 @@ describe('WallPage view rotation (design 4a)', () => {
     const chips = screen.getAllByTestId('playlist-bar-chip');
     expect(chips).toHaveLength(2);
     expect(chips[0]!.className).toContain('playlist-bar__chip--active');
-    expect(chips[0]).toHaveTextContent('POUR WALL');
+    expect(chips[0]).toHaveTextContent('KEGWALL');
     expect(chips[1]).toHaveTextContent('LEADERBOARD');
   });
 

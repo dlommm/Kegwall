@@ -24,7 +24,7 @@ const MQTT_DEFAULTS = {
   gen1TopicPrefix: 'home/TheengsGateway',
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
-  appTopicPrefix: 'kegtron-dashboard',
+  appTopicPrefix: 'kegwall',
 };
 
 function triggersRestart(patch: Partial<Settings>): boolean {

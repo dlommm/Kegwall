@@ -1,7 +1,7 @@
 import type { RotationView } from '../lib/useViewRotation';
 
 const VIEW_LABELS: Record<RotationView['kind'], string> = {
-  wall: 'POUR WALL',
+  wall: 'KEGWALL',
   leaderboard: 'LEADERBOARD',
 };
 

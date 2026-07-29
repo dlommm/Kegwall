@@ -1,4 +1,4 @@
-# Kegtron Dashboard
+# Kegwall
 
 [![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
 [![Release](https://github.com/<owner>/<repo>/actions/workflows/release.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/release.yml)
@@ -75,8 +75,8 @@ automations, and deep wall customization.
 ## Quickstart (Docker)
 
 ```sh
-git clone https://github.com/<owner>/kegtron-dashboard.git
-cd kegtron-dashboard/deploy
+git clone https://github.com/<owner>/kegwall.git
+cd kegwall/deploy
 docker compose up -d
 ```
 
@@ -108,7 +108,7 @@ Single Node 22 / TypeScript process (ESM, strict): Fastify (REST + WebSocket + s
 files), better-sqlite3 (WAL mode, embedded migrations), React 18 for the web frontend.
 No separate server build step — the server runs its TypeScript source directly under
 `tsx`; only the SPA is compiled ahead of time (`vite build`). See
-[docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md](docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md)
+[docs/superpowers/specs/2026-07-27-kegwall-design.md](docs/superpowers/specs/2026-07-27-kegwall-design.md)
 for the full architecture writeup.
 
 ## Continuous integration

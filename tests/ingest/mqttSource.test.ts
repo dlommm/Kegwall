@@ -127,7 +127,7 @@ describe('Gen1MqttSource full message flow against an aedes broker', () => {
       gen1TopicPrefix: 'home/TheengsGateway',
       haPublishEnabled: false,
       haDiscoveryPrefix: 'homeassistant',
-      appTopicPrefix: 'kegtron-dashboard',
+      appTopicPrefix: 'kegwall',
     });
   });
 

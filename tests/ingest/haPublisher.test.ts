@@ -107,7 +107,7 @@ const MQTT_CFG = {
   gen1TopicPrefix: 'home/TheengsGateway',
   haPublishEnabled: true,
   haDiscoveryPrefix: 'homeassistant',
-  appTopicPrefix: 'kegtron-dashboard',
+  appTopicPrefix: 'kegwall',
 };
 
 function tmpDataDir(): string {
@@ -183,11 +183,11 @@ describe('HaPublisherSource against a real broker', () => {
   it('publishes retained "online" availability on connect', async () => {
     await subscribeAll();
     source = await makeSource();
-    await vi.waitFor(() => expect(byTopic('kegtron-dashboard/availability')).toHaveLength(1));
-    expect(byTopic('kegtron-dashboard/availability')[0]!.payload).toBe('online');
+    await vi.waitFor(() => expect(byTopic('kegwall/availability')).toHaveLength(1));
+    expect(byTopic('kegwall/availability')[0]!.payload).toBe('online');
     await vi.waitFor(() => expect(statusEvents.some((s) => s.healthy)).toBe(true));
 
-    const late = await lateSubscribeCollect('kegtron-dashboard/availability');
+    const late = await lateSubscribeCollect('kegwall/availability');
     expect(late).toHaveLength(1);
     expect(late[0]).toMatchObject({ payload: 'online', retain: true });
   });
@@ -195,15 +195,15 @@ describe('HaPublisherSource against a real broker', () => {
   it('publishes retained "offline" availability on stop()', async () => {
     await subscribeAll();
     source = await makeSource();
-    await vi.waitFor(() => expect(byTopic('kegtron-dashboard/availability').some((r) => r.payload === 'online')).toBe(true));
+    await vi.waitFor(() => expect(byTopic('kegwall/availability').some((r) => r.payload === 'online')).toBe(true));
     await source.stop();
     source = null;
     await vi.waitFor(() => {
-      const avail = byTopic('kegtron-dashboard/availability');
+      const avail = byTopic('kegwall/availability');
       expect(avail[avail.length - 1]?.payload).toBe('offline');
     });
 
-    const late = await lateSubscribeCollect('kegtron-dashboard/availability');
+    const late = await lateSubscribeCollect('kegwall/availability');
     expect(late).toHaveLength(1);
     expect(late[0]).toMatchObject({ payload: 'offline', retain: true });
   });
@@ -220,13 +220,13 @@ describe('HaPublisherSource against a real broker', () => {
       expect(cfg).toMatchObject({
         name: 'Level',
         unique_id: `kegtron_tap_${tapId}_level`,
-        state_topic: `kegtron-dashboard/tap/${tapId}/state`,
+        state_topic: `kegwall/tap/${tapId}/state`,
         unit_of_measurement: '%',
         device: {
           identifiers: [`kegtron_tap_${tapId}`],
           name: 'Tap 1',
         },
-        availability: [{ topic: 'kegtron-dashboard/availability' }],
+        availability: [{ topic: 'kegwall/availability' }],
       });
 
       const remaining = json(byTopic(`homeassistant/sensor/kegtron_tap_${tapId}/remaining/config`)[0]!);
@@ -235,7 +235,7 @@ describe('HaPublisherSource against a real broker', () => {
       const beerCfg = json(byTopic(`homeassistant/sensor/kegtron_tap_${tapId}/beer/config`)[0]!);
       expect(beerCfg).toMatchObject({
         name: 'Beer',
-        json_attributes_topic: `kegtron-dashboard/tap/${tapId}/state`,
+        json_attributes_topic: `kegwall/tap/${tapId}/state`,
       });
       expect(beerCfg.json_attributes_template).toContain('style');
 
@@ -265,7 +265,7 @@ describe('HaPublisherSource against a real broker', () => {
       const temp = json(byTopic(`homeassistant/sensor/kegtron_monitor_${mon.id}/temp/config`)[0]!);
       expect(temp).toMatchObject({
         name: 'Temperature', device_class: 'temperature', unit_of_measurement: '°C',
-        state_topic: `kegtron-dashboard/monitor/${mon.id}/state`,
+        state_topic: `kegwall/monitor/${mon.id}/state`,
         device: { identifiers: [`kegtron_monitor_${mon.id}`] },
       });
 
@@ -511,12 +511,12 @@ describe('HaPublisherSource against a real broker', () => {
       const ts = new Date().toISOString();
       bus.emit('pour_completed', { monitor: ref, volumeMl: 355, durationMs: 4000, source: 'cloud', ts });
 
-      await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/pour')).toHaveLength(1));
-      const msg = byTopic('kegtron-dashboard/event/pour')[0]!;
+      await vi.waitFor(() => expect(byTopic('kegwall/event/pour')).toHaveLength(1));
+      const msg = byTopic('kegwall/event/pour')[0]!;
       expect(json(msg)).toEqual({ tap: 3, beer: 'Session IPA', volumeMl: 355, ts });
 
       // Non-retention proof: a client subscribing AFTER the fact receives nothing.
-      const late = await lateSubscribeCollect('kegtron-dashboard/event/pour', 100);
+      const late = await lateSubscribeCollect('kegwall/event/pour', 100);
       expect(late).toHaveLength(0);
     });
 
@@ -541,14 +541,14 @@ describe('HaPublisherSource against a real broker', () => {
         ruleId: 1, ruleName: 'Keg Low', severity: 'warning', title: 'Keg low', body: 'Below 15%', tapId, ts,
       });
 
-      await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/alert')).toHaveLength(1));
-      const msg = byTopic('kegtron-dashboard/event/alert')[0]!;
+      await vi.waitFor(() => expect(byTopic('kegwall/event/alert')).toHaveLength(1));
+      const msg = byTopic('kegwall/event/alert')[0]!;
       expect(json(msg)).toEqual({
         rule: 'Keg Low', severity: 'warning', title: 'Keg low', body: 'Below 15%',
         tap: 4, beer: 'Citra Pale Ale', tapId, ts,
       });
 
-      const late = await lateSubscribeCollect('kegtron-dashboard/event/alert', 100);
+      const late = await lateSubscribeCollect('kegwall/event/alert', 100);
       expect(late).toHaveLength(0);
     });
 
@@ -561,8 +561,8 @@ describe('HaPublisherSource against a real broker', () => {
       const ts = new Date().toISOString();
       bus.emit('alert_fired', { ruleId: 2, ruleName: 'App started', severity: 'info', title: 'x', body: '', ts });
 
-      await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/alert')).toHaveLength(1));
-      const payload = json(byTopic('kegtron-dashboard/event/alert')[0]!);
+      await vi.waitFor(() => expect(byTopic('kegwall/event/alert')).toHaveLength(1));
+      const payload = json(byTopic('kegwall/event/alert')[0]!);
       expect(payload).toMatchObject({ tap: null, beer: null, tapId: null });
     });
 
@@ -577,8 +577,8 @@ describe('HaPublisherSource against a real broker', () => {
         ruleId: 3, ruleName: 'Ghost Tap', severity: 'warning', title: 'x', body: 'y', tapId: 999999, ts,
       });
 
-      await vi.waitFor(() => expect(byTopic('kegtron-dashboard/event/alert')).toHaveLength(1));
-      const payload = json(byTopic('kegtron-dashboard/event/alert')[0]!);
+      await vi.waitFor(() => expect(byTopic('kegwall/event/alert')).toHaveLength(1));
+      const payload = json(byTopic('kegwall/event/alert')[0]!);
       expect(payload).toMatchObject({ tap: null, beer: null, tapId: 999999 });
     });
   });
@@ -619,7 +619,7 @@ describe('HaPublisherSource against a real broker', () => {
     it('an ungraceful disconnect (socket destroyed, no clean DISCONNECT) delivers the retained "offline" will', async () => {
       await subscribeAll();
       source = await makeSource();
-      await vi.waitFor(() => expect(byTopic('kegtron-dashboard/availability').some((r) => r.payload === 'online')).toBe(true));
+      await vi.waitFor(() => expect(byTopic('kegwall/availability').some((r) => r.payload === 'online')).toBe(true));
       received = [];
 
       // Simulate a crash: destroy the underlying TCP stream directly, bypassing mqtt.js's
@@ -629,11 +629,11 @@ describe('HaPublisherSource against a real broker', () => {
       client.stream.destroy();
 
       await vi.waitFor(() => {
-        const avail = byTopic('kegtron-dashboard/availability');
+        const avail = byTopic('kegwall/availability');
         expect(avail.some((r) => r.payload === 'offline')).toBe(true);
       }, { timeout: 2000 });
 
-      const late = await lateSubscribeCollect('kegtron-dashboard/availability');
+      const late = await lateSubscribeCollect('kegwall/availability');
       expect(late).toHaveLength(1);
       expect(late[0]).toMatchObject({ payload: 'offline', retain: true });
 

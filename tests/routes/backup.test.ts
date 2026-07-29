@@ -75,7 +75,7 @@ describe('GET /api/admin/backup', () => {
     const res = await app.inject({ method: 'GET', url: '/api/admin/backup', cookies: adminCookies });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-disposition']).toMatch(
-      /^attachment; filename="kegtron-dashboard-backup-\d{4}-\d{2}-\d{2}\.db"$/,
+      /^attachment; filename="kegwall-backup-\d{4}-\d{2}-\d{2}\.db"$/,
     );
 
     const verifyDir = mkdtempSync(join(tmpdir(), 'ktdash-verify-'));

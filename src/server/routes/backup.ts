@@ -62,7 +62,7 @@ export async function backupRoutes(app: FastifyInstance, dataDir: string) {
     const date = new Date().toISOString().slice(0, 10);
     reply
       .header('content-type', 'application/octet-stream')
-      .header('content-disposition', `attachment; filename="kegtron-dashboard-backup-${date}.db"`);
+      .header('content-disposition', `attachment; filename="kegwall-backup-${date}.db"`);
 
     const stream = createReadStream(stagingPath);
     const cleanup = () => rmSync(stagingDir, { recursive: true, force: true });

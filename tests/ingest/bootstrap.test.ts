@@ -70,7 +70,7 @@ describe('registerConfiguredSources', () => {
       gen1TopicPrefix: 'home/TheengsGateway',
       haPublishEnabled: false,
       haDiscoveryPrefix: 'homeassistant',
-      appTopicPrefix: 'kegtron-dashboard',
+      appTopicPrefix: 'kegwall',
     });
     ctx.settings.set('bleDirectEnabled', true);
 
@@ -94,7 +94,7 @@ describe('registerConfiguredSources', () => {
       gen1TopicPrefix: 'home/TheengsGateway',
       haPublishEnabled: true,
       haDiscoveryPrefix: 'homeassistant',
-      appTopicPrefix: 'kegtron-dashboard',
+      appTopicPrefix: 'kegwall',
     });
 
     registerConfiguredSources(ctx);
@@ -107,14 +107,14 @@ describe('registerConfiguredSources', () => {
     const ctx = makeCtx();
     ctx.settings.set('mqtt', {
       url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
-      haPublishEnabled: true, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+      haPublishEnabled: true, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
     });
     registerConfiguredSources(ctx);
     expect(ctx.sources.status().find((s) => s.name === 'mqtt_publisher')!.registered).toBe(true);
 
     ctx.settings.set('mqtt', {
       url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
-      haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegtron-dashboard',
+      haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
     });
     registerConfiguredSources(ctx);
     expect(ctx.sources.status().find((s) => s.name === 'mqtt_publisher')!.registered).toBe(false);

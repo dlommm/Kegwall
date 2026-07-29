@@ -26,7 +26,7 @@ bridge vs. host mode" section. For direct-BLE specifically, also add:
 
 ```yaml
 services:
-  kegtron-dashboard:
+  kegwall:
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -47,8 +47,8 @@ sudo apt-get install -y nodejs
 # better-sqlite3's native build needs a compiler toolchain
 sudo apt-get install -y python3 make g++
 
-git clone <this repo's URL> kegtron-dashboard
-cd kegtron-dashboard
+git clone <this repo's URL> kegwall
+cd kegwall
 npm ci
 npm run build
 DATA_DIR=./data npm start
@@ -59,17 +59,17 @@ server — only the web SPA is built ahead of time via `npm run build`, into `di
 Open `http://<pi-hostname>:8080`.
 
 For a persistent install, wrap the start command in a systemd unit, e.g.
-`/etc/systemd/system/kegtron-dashboard.service`:
+`/etc/systemd/system/kegwall.service`:
 
 ```ini
 [Unit]
-Description=Kegtron Dashboard
+Description=Kegwall
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/kegtron-dashboard
-Environment=DATA_DIR=/home/pi/kegtron-dashboard/data
+WorkingDirectory=/home/pi/kegwall
+Environment=DATA_DIR=/home/pi/kegwall/data
 Environment=PORT=8080
 ExecStart=/usr/bin/npm start
 Restart=on-failure
@@ -79,7 +79,7 @@ WantedBy=multi-user.target
 ```
 
 ```sh
-sudo systemctl enable --now kegtron-dashboard
+sudo systemctl enable --now kegwall
 ```
 
 ## Direct BLE setup (Gen 1 devices)
@@ -134,7 +134,7 @@ Autostart it (Raspberry Pi OS desktop, `~/.config/autostart/kegtron-wall.desktop
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Kegtron Wall
+Name=Kegwall
 Exec=chromium-browser --noerrdialogs --disable-infobars --kiosk http://localhost:8080/wall/<slug>
 X-GNOME-Autostart-enabled=true
 ```

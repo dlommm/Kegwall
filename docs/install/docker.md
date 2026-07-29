@@ -1,6 +1,6 @@
 # Install with Docker
 
-The supported way to run Kegtron Dashboard. One image, one persistent volume.
+The supported way to run Kegwall. One image, one persistent volume.
 
 ## Prerequisites
 
@@ -12,8 +12,8 @@ The supported way to run Kegtron Dashboard. One image, one persistent volume.
 ## Quickstart
 
 ```sh
-git clone <this repo's URL> kegtron-dashboard
-cd kegtron-dashboard/deploy
+git clone <this repo's URL> kegwall
+cd kegwall/deploy
 docker compose up -d
 ```
 
@@ -89,7 +89,7 @@ docker compose -f docker-compose.host-network.yml up -d
 
 ## Reverse proxy and HTTPS
 
-Kegtron Dashboard has no built-in TLS — it's meant to sit behind a reverse proxy (Caddy,
+Kegwall has no built-in TLS — it's meant to sit behind a reverse proxy (Caddy,
 nginx, Traefik) if you want HTTPS, or to stay on a trusted LAN over plain HTTP.
 
 Be aware of one specific thing before exposing it beyond a trusted LAN: the session cookie

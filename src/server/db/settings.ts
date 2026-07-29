@@ -77,7 +77,7 @@ export const settingsSchema = z.object({
       gen1TopicPrefix: z.string().default('home/TheengsGateway'),
       haPublishEnabled: z.boolean().default(false),
       haDiscoveryPrefix: z.string().default('homeassistant'),
-      appTopicPrefix: z.string().default('kegtron-dashboard'),
+      appTopicPrefix: z.string().default('kegwall'),
     })
     .nullable()
     .default(null),

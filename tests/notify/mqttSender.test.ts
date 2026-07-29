@@ -17,7 +17,7 @@ const MQTT_DEFAULTS = {
   gen1TopicPrefix: 'home/TheengsGateway',
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
-  appTopicPrefix: 'kegtron-dashboard',
+  appTopicPrefix: 'kegwall',
 };
 
 let broker: Aedes;
@@ -69,9 +69,9 @@ describe('MqttSender', () => {
   it('publishes a topic/payload to the configured broker', async () => {
     const sender = new MqttSender(settings);
     try {
-      await sender.publish('kegtron-dashboard/event/pour', '{"volume_ml":355}');
+      await sender.publish('kegwall/event/pour', '{"volume_ml":355}');
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(received).toContainEqual({ topic: 'kegtron-dashboard/event/pour', payload: '{"volume_ml":355}' });
+      expect(received).toContainEqual({ topic: 'kegwall/event/pour', payload: '{"volume_ml":355}' });
     } finally {
       await sender.close();
     }

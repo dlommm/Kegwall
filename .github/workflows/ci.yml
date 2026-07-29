@@ -1,4 +1,4 @@
-# Kegtron Dashboard — CI.
+# Kegwall — CI.
 #
 # Runs on every push/PR against main: typecheck, unit tests, web build, and the Chromium
 # e2e smoke suite. Single sequential job (not split into parallel jobs) — the steps have

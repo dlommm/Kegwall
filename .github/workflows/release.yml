@@ -1,4 +1,4 @@
-# Kegtron Dashboard — release image publish.
+# Kegwall — release image publish.
 #
 # Builds the production image (see ../../Dockerfile) for linux/amd64 AND linux/arm64
 # (Raspberry Pi 4/5 and other arm64 hosts — see docs/install/raspberry-pi.md) and pushes
@@ -49,7 +49,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ghcr.io image paths must be all-lowercase; `github.repository` preserves the
-      # repo's actual casing ("Kegtron-Dashboard"), so it can't be used directly.
+      # repo's actual casing ("Kegwall"), so it can't be used directly.
       - name: Resolve lowercase image name
         id: image
         run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"

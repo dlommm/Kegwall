@@ -2,7 +2,7 @@
 
 Kegtron Gen 1 (KT-100, KT-200) devices only speak Bluetooth Low Energy — there's no
 WiFi/Ethernet/cloud path on the device itself (unlike Kegtron Pro). To get their readings
-into Kegtron Dashboard you need either:
+into Kegwall you need either:
 
 - **A host running this app within direct Bluetooth range** — the verified path. See
   [docs/install/raspberry-pi.md#direct-ble-setup-gen-1-devices](raspberry-pi.md#direct-ble-setup-gen-1-devices).
@@ -89,7 +89,7 @@ Example payload the parser accepts:
 2. Configure the bridge's MQTT topic prefix to match what you'll set below (or note its
    default and use that as `gen1TopicPrefix` instead — either direction works, they just
    need to match).
-3. In Kegtron Dashboard's admin UI: **Settings -> Sources**:
+3. In Kegwall's admin UI: **Settings -> Sources**:
    - **MQTT broker URL** — `mqtt://host:1883` (or `mqtts://host:8883` for TLS), the same
      broker your bridge publishes to.
    - **MQTT username** / password — if your broker requires auth.

@@ -9,7 +9,7 @@ running, just an API key from it.
 1. Log in to [dashboard.kegtron.com](https://dashboard.kegtron.com).
 2. Open the **Account** tab.
 3. Copy your API key.
-4. In Kegtron Dashboard's admin UI: **Settings -> Kegtron -> API key**, paste it in, save.
+4. In Kegwall's admin UI: **Settings -> Kegtron -> API key**, paste it in, save.
 
 That one key is all this app needs — device discovery, live updates, and historical
 backfill all flow through it. The Settings page's own description: "The mdash.net API key

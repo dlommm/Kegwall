@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Changed:** Project renamed from **Kegtron Dashboard** to **Kegwall**. Package name,
+  Docker image/container names (`kegwall`), systemd unit examples, backup filename
+  (`kegwall-backup-YYYY-MM-DD.db`), web page title, HA device manufacturer, and the wall
+  rotation chip label (now `KEGWALL`) all follow. **Breaking for MQTT/HA installs using
+  the default topic prefix:** `appTopicPrefix` now defaults to `kegwall`, so state/event
+  topics move from `kegtron-dashboard/...` to `kegwall/...` unless you had saved a custom
+  prefix in Settings. Set `appTopicPrefix` back to `kegtron-dashboard` to keep old topics.
 - **Added:** Pour Wall overhaul Phase 1 — the wall "look" system (design handoff
   `design_handoff_pourwall_overhaul`). New per-wall `look` axis alongside themes:
   `Classic grid` (unchanged default), `Ledger` (1a, row-per-tap data ledger), `Gallery`

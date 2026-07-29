@@ -1,4 +1,4 @@
-# Kegtron Dashboard — basic Docker Compose example.
+# Kegwall — basic Docker Compose example.
 #
 # Quickstart:
 #   cd deploy
@@ -14,14 +14,14 @@
 # — both of those need host networking (or explicit multicast/BLE plumbing)
 # that bridge mode does not provide.
 services:
-  kegtron-dashboard:
+  kegwall:
     build:
       context: ..
       dockerfile: Dockerfile
     # Swap the line above for a published tag once one exists, e.g.:
-    # image: ghcr.io/<owner>/kegtron-dashboard:latest
-    image: kegtron-dashboard:latest
-    container_name: kegtron-dashboard
+    # image: ghcr.io/<owner>/kegwall:latest
+    image: kegwall:latest
+    container_name: kegwall
     restart: unless-stopped
     ports:
       - "8080:8080"
