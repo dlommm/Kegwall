@@ -28,7 +28,7 @@ describe('migrations', () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 5 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 6 });
     db2.close();
   });
 
@@ -54,7 +54,7 @@ describe('migrations', () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql',
     ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
@@ -88,7 +88,7 @@ describe('migrations', () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -175,7 +175,7 @@ describe('migrations', () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql',
     ]);
     db.close();
   });
@@ -204,7 +204,7 @@ describe('migrations', () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;

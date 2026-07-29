@@ -55,7 +55,7 @@ function makeEvent(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
 function makePour(overrides: Partial<Pour> = {}): Pour {
   return {
     id: 1, kegId: 1, ts: '2026-07-28T11:00:00.000Z', volumeMl: 500,
-    durationMs: null, source: 'udp', drinkerId: null, ...overrides,
+    durationMs: null, source: 'udp', drinkerId: null, quality: null, ...overrides,
   };
 }
 

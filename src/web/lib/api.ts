@@ -121,3 +121,64 @@ export function claimPour(pourId: number, drinkerId: number): Promise<ApiResult<
     body: JSON.stringify({ pourId, drinkerId }),
   });
 }
+
+// --- Pour Wall overhaul Phase 3: pourers, tablet arming, leaderboard ---------
+
+/** A pourer on the tablet's avatar grid: a PublicDrinker + lifetime pour count. */
+export interface PublicPourer extends PublicDrinker {
+  pourCount: number;
+}
+
+export interface TabletArmStatus {
+  armed: boolean;
+  drinkerId?: number;
+  expiresAt?: string;
+}
+
+export interface LeaderboardEntryPublic {
+  drinkerId: number;
+  displayName: string;
+  avatarColor: string | null;
+  pourCount: number;
+  volumeMl: number;
+  avgQuality: number | null;
+  qualityCount: number;
+}
+
+export interface LeaderboardResponse {
+  window: 'week' | 'month' | 'all';
+  entries: LeaderboardEntryPublic[];
+  superlatives: {
+    mostPours: { displayName: string; pourCount: number } | null;
+    smoothest: { displayName: string; avgQuality: number | null } | null;
+    biggestPour: { drinkerId: number; displayName: string; volumeMl: number; ts: string } | null;
+  };
+}
+
+export function getPourers(): Promise<ApiResult<PublicPourer[]>> {
+  return request<PublicPourer[]>('/api/public/pourers');
+}
+
+export function createPourer(name: string, color?: string): Promise<ApiResult<PublicDrinker>> {
+  return request<PublicDrinker>('/api/public/pourers', {
+    method: 'POST',
+    body: JSON.stringify(color ? { name, color } : { name }),
+  });
+}
+
+export function armTablet(drinkerId: number): Promise<ApiResult<TabletArmStatus>> {
+  return request<TabletArmStatus>('/api/public/tablet/arm', {
+    method: 'POST',
+    body: JSON.stringify({ drinkerId }),
+  });
+}
+
+export function disarmTablet(): Promise<ApiResult<TabletArmStatus>> {
+  return request<TabletArmStatus>('/api/public/tablet/arm', { method: 'DELETE' });
+}
+
+export function getLeaderboard(
+  window: 'week' | 'month' | 'all' = 'month',
+): Promise<ApiResult<LeaderboardResponse>> {
+  return request<LeaderboardResponse>(`/api/public/leaderboard?window=${window}`);
+}

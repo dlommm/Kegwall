@@ -36,6 +36,15 @@ export interface EventMap {
     healthy: boolean; detail: string; ts: string;
   };
   state_changed: { scope: 'taps' | 'notifications' | 'sources'; ts: string };
+  /** Pour Wall overhaul Phase 3 (tablet flow, design 3a): emitted by StateManager when a
+   * recorded pour is attributed to the tablet's ARMED pourer (see core/tabletArm.ts) —
+   * NOT for default-drinker or claim-flow attributions. The WS layer relays it as
+   * `{type:'pour_attributed', ...}` so the tablet can flip to its done screen with the
+   * final volume, beer, and the pourer's lifetime pour count. */
+  pour_attributed: {
+    drinkerId: number; pourId: number; tapId: number; tapNumber: number;
+    beerName: string | null; volumeMl: number; pourCount: number; ts: string;
+  };
   /** Phase 5 Task 3: emitted by `routes/crud.ts` whenever a keg's status transitions to
    * `on_tap` — from `POST /api/taps/:id/swap` (both the "kick the incumbent, tap a new
    * or promoted-on-deck keg" swap wizard path) and `PATCH /api/kegs/:id` (a manual status

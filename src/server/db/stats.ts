@@ -57,6 +57,12 @@ export interface LeaderboardEntry {
   avatarColor: string | null;
   pourCount: number;
   volumeMl: number;
+  /** Mean pour-quality score (see core/pourQuality.ts) over the drinker's SCORED pours
+   * in the window, rounded; null when none of their pours carries a score. */
+  avgQuality: number | null;
+  /** How many of the drinker's pours in the window carry a quality score — lets
+   * consumers require a minimum sample size before crowning "smoothest pour". */
+  qualityCount: number;
 }
 
 /**
@@ -227,7 +233,8 @@ export function leaderboard(
   }
   const rows = db.prepare(`
     SELECT u.id AS drinker_id, u.display_name AS display_name, u.avatar_color AS avatar_color,
-           COUNT(p.id) AS pour_count, COALESCE(SUM(p.volume_ml), 0) AS volume_ml
+           COUNT(p.id) AS pour_count, COALESCE(SUM(p.volume_ml), 0) AS volume_ml,
+           AVG(p.quality) AS avg_quality, COUNT(p.quality) AS quality_count
     FROM pours p
     JOIN users u ON u.id = p.drinker_id
     WHERE ${clauses.join(' AND ')}
@@ -235,10 +242,46 @@ export function leaderboard(
     ORDER BY volume_ml DESC
   `).all(...params) as {
     drinker_id: number; display_name: string; avatar_color: string | null;
-    pour_count: number; volume_ml: number;
+    pour_count: number; volume_ml: number; avg_quality: number | null; quality_count: number;
   }[];
   return rows.map((r) => ({
     drinkerId: r.drinker_id, displayName: r.display_name, avatarColor: r.avatar_color,
     pourCount: r.pour_count, volumeMl: r.volume_ml,
+    avgQuality: r.avg_quality != null ? Math.round(r.avg_quality) : null,
+    qualityCount: r.quality_count,
   }));
+}
+
+export interface BiggestClaimedPour {
+  drinkerId: number;
+  displayName: string;
+  volumeMl: number;
+  ts: string;
+}
+
+/** The single largest claimed pour in the window — the leaderboard footer's
+ * "biggest pour" superlative. Null when no claimed pours exist in the window. */
+export function biggestClaimedPour(
+  db: Database.Database, window: 'week' | 'month' | 'all', now = new Date(),
+): BiggestClaimedPour | null {
+  const clauses = ['p.drinker_id IS NOT NULL'];
+  const params: unknown[] = [];
+  if (window !== 'all') {
+    clauses.push('p.ts >= ?');
+    params.push(new Date(now.getTime() - LEADERBOARD_WINDOW_DAYS[window] * MS_PER_DAY).toISOString());
+  }
+  const r = db.prepare(`
+    SELECT p.drinker_id AS drinker_id, u.display_name AS display_name,
+           p.volume_ml AS volume_ml, p.ts AS ts
+    FROM pours p
+    JOIN users u ON u.id = p.drinker_id
+    WHERE ${clauses.join(' AND ')}
+    ORDER BY p.volume_ml DESC
+    LIMIT 1
+  `).get(...params) as {
+    drinker_id: number; display_name: string; volume_ml: number; ts: string;
+  } | undefined;
+  return r ? {
+    drinkerId: r.drinker_id, displayName: r.display_name, volumeMl: r.volume_ml, ts: r.ts,
+  } : null;
 }

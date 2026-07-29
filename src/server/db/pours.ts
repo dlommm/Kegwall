@@ -6,6 +6,7 @@ function rowToPour(r: any): Pour {
   return {
     id: r.id, kegId: r.keg_id, ts: r.ts, volumeMl: r.volume_ml,
     durationMs: r.duration_ms, source: r.source, drinkerId: r.drinker_id,
+    quality: r.quality ?? null,
   };
 }
 
@@ -28,6 +29,12 @@ export function recentUnclaimedPours(db: Database.Database, windowMinutes: numbe
   return db.prepare(
     'SELECT * FROM pours WHERE drinker_id IS NULL AND ts >= ? ORDER BY ts DESC')
     .all(cutoff).map(rowToPour);
+}
+
+/** A drinker's lifetime claimed-pour count — the tablet done screen's "pour #N". */
+export function countPoursForDrinker(db: Database.Database, drinkerId: number): number {
+  return (db.prepare('SELECT COUNT(*) c FROM pours WHERE drinker_id = ?')
+    .get(drinkerId) as any).c;
 }
 
 export function setPourDrinker(db: Database.Database, pourId: number, drinkerId: number | null): Pour {

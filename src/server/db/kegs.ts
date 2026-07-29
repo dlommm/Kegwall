@@ -20,6 +20,9 @@ export interface Keg {
 export interface Pour {
   id: number; kegId: number; ts: string; volumeMl: number;
   durationMs: number | null; source: 'cloud' | 'udp' | 'ble'; drinkerId: number | null;
+  /** Flow-rate-consistency score 0-100 (see core/pourQuality.ts), or null when the
+   * pour had too few live samples to score. */
+  quality: number | null;
 }
 
 /** `keg.levelPct`'s formula, extracted (Phase 5 Task 3) so the automation engine's
@@ -150,13 +153,13 @@ export function applyDispense(db: Database.Database, kegId: number, volDispensed
 
 export function recordPourTx(db: Database.Database, input: {
   kegId: number; ts: string; volumeMl: number; durationMs?: number | null;
-  source: 'cloud' | 'udp' | 'ble'; drinkerId?: number | null;
+  source: 'cloud' | 'udp' | 'ble'; drinkerId?: number | null; quality?: number | null;
 }): { pour: Pour; keg: Keg } {
   const tx = db.transaction(() => {
-    const res = db.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, duration_ms, source, drinker_id)
-        VALUES (?, ?, ?, ?, ?, ?)`)
+    const res = db.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, duration_ms, source, drinker_id, quality)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .run(input.kegId, input.ts, input.volumeMl, input.durationMs ?? null,
-        input.source, input.drinkerId ?? null);
+        input.source, input.drinkerId ?? null, input.quality ?? null);
     db.prepare('UPDATE kegs SET vol_dispensed_ml = vol_dispensed_ml + ? WHERE id = ?')
       .run(Math.round(input.volumeMl), input.kegId);
     return Number(res.lastInsertRowid);
@@ -167,6 +170,7 @@ export function recordPourTx(db: Database.Database, input: {
     pour: {
       id: r.id, kegId: r.keg_id, ts: r.ts, volumeMl: r.volume_ml,
       durationMs: r.duration_ms, source: r.source, drinkerId: r.drinker_id,
+      quality: r.quality ?? null,
     },
     keg: getKeg(db, input.kegId)!,
   };

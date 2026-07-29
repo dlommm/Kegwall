@@ -10,8 +10,10 @@ import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
 } from '../db/monitors.js';
 import { recordTelemetrySampled, latestTelemetryForMonitor } from '../db/telemetry.js';
-import { listPours } from '../db/pours.js';
+import { listPours, countPoursForDrinker } from '../db/pours.js';
 import { PourDeduper } from './pourDedupe.js';
+import { PourSampleTracker, computePourQuality } from './pourQuality.js';
+import type { TabletArmRegistry } from './tabletArm.js';
 
 export interface TapState {
   tapId: number;
@@ -33,8 +35,16 @@ export class StateManager {
   private live = new Map<string, { pouring: boolean; curServMl: number | null }>();
   private online = new Map<string, boolean>();
   private deduper = new PourDeduper();
+  private samples = new PourSampleTracker();
 
-  constructor(private db: Database.Database, private bus: EventBus) {}
+  /** `tabletArm` (optional — the kiosk feature can be absent in tests): the tablet's
+   * armed-pourer slot. An armed pourer is consumed by (and attributed to) the next
+   * recorded pour, beating the tap's default drinker — see core/tabletArm.ts. */
+  constructor(
+    private db: Database.Database,
+    private bus: EventBus,
+    private tabletArm?: TabletArmRegistry,
+  ) {}
 
   start(): void {
     const changed = (ts: string) => this.bus.emit('state_changed', { scope: 'taps', ts });
@@ -56,11 +66,13 @@ export class StateManager {
 
     this.bus.on('pour_started', (e) => {
       this.live.set(monitorRefKey(e.monitor), { pouring: true, curServMl: 0 });
+      this.samples.begin(e.monitor, Date.parse(e.ts));
       changed(e.ts);
     });
 
     this.bus.on('pour_progress', (e) => {
       this.live.set(monitorRefKey(e.monitor), { pouring: true, curServMl: e.curServMl });
+      this.samples.progress(e.monitor, Date.parse(e.ts), e.curServMl);
       changed(e.ts);
     });
 
@@ -69,23 +81,40 @@ export class StateManager {
       // out to be a duplicate report — the physical pour did finish, only the recorded
       // transaction is suppressed.
       this.live.delete(monitorRefKey(e.monitor));
+      // Samples are taken (and cleared) unconditionally so a suppressed duplicate
+      // doesn't leave a stale run to pollute the next pour's score.
+      const samples = this.samples.take(e.monitor);
       if (this.deduper.shouldRecord(e.monitor, e.volumeMl, e.ts)) {
         const tapId = resolveTapForRef(this.db, e.monitor);
         if (tapId !== null) {
           const keg = getActiveKegForTap(this.db, tapId);
           if (keg) {
-            // Phase 5 Task 0 (admin pours management): a device-reported pour is always
-            // born unclaimed (no ingest path carries drinker attribution) — if this tap
-            // has a configured default drinker, stamp it at creation time instead of
-            // leaving the pour to sit unclaimed until someone claims it via the public
-            // wall/menu claim flow (or an admin reassigns it later, see
-            // routes/crud.ts's PATCH /api/pours/:id/drinker).
+            // Attribution precedence (Pour Wall overhaul Phase 3): the tablet's ARMED
+            // pourer wins (an explicit "I'm pouring now" at the kiosk, consumed one
+            // pour per arming — see core/tabletArm.ts), then the tap's configured
+            // default drinker (Phase 5 Task 0, admin pours management), else the pour
+            // is born unclaimed for the public claim flow / admin reassignment.
+            const armedDrinkerId = this.tabletArm?.consume() ?? null;
             const tap = getTap(this.db, tapId);
-            recordPourTx(this.db, {
+            const { pour } = recordPourTx(this.db, {
               kegId: keg.id, ts: e.ts, volumeMl: e.volumeMl,
               durationMs: e.durationMs, source: e.source,
-              drinkerId: tap?.defaultDrinkerId ?? null,
+              drinkerId: armedDrinkerId ?? tap?.defaultDrinkerId ?? null,
+              quality: computePourQuality(samples),
             });
+            if (armedDrinkerId !== null) {
+              const beer = getBeer(this.db, keg.beerId);
+              this.bus.emit('pour_attributed', {
+                drinkerId: armedDrinkerId,
+                pourId: pour.id,
+                tapId,
+                tapNumber: tap?.number ?? 0,
+                beerName: beer?.name ?? null,
+                volumeMl: e.volumeMl,
+                pourCount: countPoursForDrinker(this.db, armedDrinkerId),
+                ts: e.ts,
+              });
+            }
           }
         }
       }

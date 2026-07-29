@@ -61,6 +61,23 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
     broadcast(JSON.stringify({ type: 'theme_override', minutes: e.minutes }));
   });
 
+  // Pour Wall overhaul Phase 3: relay tablet-armed pour attributions so the kiosk can
+  // flip to its done screen the moment the pour records. Broadcast to every client like
+  // everything else on this feed; non-tablet listeners ignore the unknown type.
+  app.ctx.bus.on('pour_attributed', (e) => {
+    broadcast(JSON.stringify({
+      type: 'pour_attributed',
+      drinkerId: e.drinkerId,
+      pourId: e.pourId,
+      tapId: e.tapId,
+      tapNumber: e.tapNumber,
+      beerName: e.beerName,
+      volumeMl: e.volumeMl,
+      pourCount: e.pourCount,
+      ts: e.ts,
+    }));
+  });
+
   // Heartbeat (Phase 3 final review, finding I1): ingest sources only trigger
   // `state_changed` on an actual change, and a Pro-only/idle taproom can go well past the
   // client's 60s staleness window without one — that's a perfectly healthy socket showing

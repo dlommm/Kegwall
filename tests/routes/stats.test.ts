@@ -252,7 +252,7 @@ describe('GET /api/stats/leaderboard', () => {
       method: 'GET', url: '/api/stats/leaderboard?window=all', cookies: adminCookies,
     });
     expect(res.json()).toEqual([{
-      drinkerId: alice.id, displayName: 'Alice', avatarColor: '#ff0000', pourCount: 1, volumeMl: 300,
+      drinkerId: alice.id, displayName: 'Alice', avatarColor: '#ff0000', pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0,
     }]);
   });
 

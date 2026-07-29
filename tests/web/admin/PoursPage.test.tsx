@@ -35,7 +35,7 @@ async function flush() {
 function makePour(overrides: Partial<Pour> = {}): Pour {
   return {
     id: 1, kegId: 1, ts: '2026-07-28T11:55:00.000Z', volumeMl: 400,
-    durationMs: 4000, source: 'cloud', drinkerId: null, ...overrides,
+    durationMs: 4000, source: 'cloud', drinkerId: null, quality: null, ...overrides,
   };
 }
 

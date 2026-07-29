@@ -6,8 +6,12 @@ import type { LeaderboardEntry } from '../../../src/server/db/stats';
 
 function makeData(): LeaderboardEntry[] {
   return [
-    { drinkerId: 1, displayName: 'Bob', avatarColor: '#00ff00', pourCount: 4, volumeMl: 1200 },
-    { drinkerId: 2, displayName: 'Alice', avatarColor: null, pourCount: 2, volumeMl: 600 },
+    {
+      drinkerId: 1, displayName: 'Bob', avatarColor: '#00ff00', pourCount: 4, volumeMl: 1200, avgQuality: 92, qualityCount: 4,
+    },
+    {
+      drinkerId: 2, displayName: 'Alice', avatarColor: null, pourCount: 2, volumeMl: 600, avgQuality: null, qualityCount: 0,
+    },
   ];
 }
 

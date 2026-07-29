@@ -64,6 +64,7 @@ export function Leaderboard({ data, units, window, onWindowChange }: Leaderboard
               <th scope="col">Drinker</th>
               <th scope="col">Pours</th>
               <th scope="col">Volume</th>
+              <th scope="col">Quality</th>
             </tr>
           </thead>
           <tbody>
@@ -79,6 +80,11 @@ export function Leaderboard({ data, units, window, onWindowChange }: Leaderboard
                 </td>
                 <td className="font-tabular">{row.pourCount}</td>
                 <td className="font-tabular">{formatVolumeMl(row.volumeMl, units)}</td>
+                {/* Mean flow-consistency score (Pour Wall overhaul Phase 3, design 6b);
+                    em dash when none of the drinker's pours carries a score. */}
+                <td className="font-tabular" data-testid="leaderboard-quality-cell">
+                  {row.avgQuality != null ? row.avgQuality : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

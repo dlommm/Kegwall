@@ -2,9 +2,10 @@ import {
   useCallback, useEffect, useRef, useState,
 } from 'react';
 import {
-  getRecentPours, getDrinkers, claimPour, type RecentPour, type PublicDrinker,
+  getRecentPours, getDrinkers, claimPour, createPourer, type RecentPour, type PublicDrinker,
 } from '../lib/api';
 import { formatRelativeTime } from '../lib/useRelativeTime';
+import { getRememberedPourer, rememberPourer, type RememberedPourer } from '../lib/pourerIdentity';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -33,7 +34,11 @@ interface DrinkerPickerSheetProps {
   status: ClaimStatus;
   errorKind: ClaimErrorKind | null;
   claimedDrinker: PublicDrinker | null;
+  /** "Your phone remembers you" (design 3b) — offered as a one-tap claim on top. */
+  remembered: RememberedPourer | null;
   onSelectDrinker: (drinker: PublicDrinker) => void;
+  /** Name-only passwordless signup + claim in one step (design 3b's join). */
+  onSignupAndClaim: (name: string) => void;
   onRetryDrinkers: () => void;
   onClose: () => void;
 }
@@ -46,9 +51,11 @@ interface DrinkerPickerSheetProps {
  * plain retry notice (429/other, list stays visible so a fresh tap just retries).
  */
 function DrinkerPickerSheet({
-  pour, drinkers, drinkersStatus, status, errorKind, claimedDrinker, onSelectDrinker, onRetryDrinkers, onClose,
+  pour, drinkers, drinkersStatus, status, errorKind, claimedDrinker, remembered,
+  onSelectDrinker, onSignupAndClaim, onRetryDrinkers, onClose,
 }: DrinkerPickerSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const [signupName, setSignupName] = useState('');
 
   useEffect(() => {
     sheetRef.current?.focus();
@@ -106,6 +113,17 @@ function DrinkerPickerSheet({
         {showList && (
           <>
             <p className="claim-sheet__prompt font-body">Who&rsquo;s this pour for?</p>
+            {remembered && (
+              <button
+                type="button"
+                className="claim-sheet__remembered"
+                data-testid="claim-sheet-remembered"
+                disabled={status === 'claiming'}
+                onClick={() => onSelectDrinker({ id: remembered.id, displayName: remembered.name, avatarColor: null })}
+              >
+                {`That was me — ${remembered.name} 🍺`}
+              </button>
+            )}
             {status === 'claiming' && (
               <p className="claim-sheet__status" data-testid="claim-sheet-claiming">Claiming…</p>
             )}
@@ -159,6 +177,31 @@ function DrinkerPickerSheet({
                 ))}
               </ul>
             )}
+            <div className="claim-sheet__signup" data-testid="claim-sheet-signup">
+              <p className="claim-sheet__signup-hint font-body">
+                New here? Just a name — no email, no password. Your phone remembers you.
+              </p>
+              <div className="claim-sheet__signup-row">
+                <input
+                  type="text"
+                  className="claim-sheet__signup-name"
+                  data-testid="claim-sheet-signup-name"
+                  value={signupName}
+                  maxLength={40}
+                  placeholder="Your name"
+                  onChange={(e) => setSignupName(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="claim-sheet__signup-join"
+                  data-testid="claim-sheet-signup-join"
+                  disabled={status === 'claiming' || signupName.trim() === ''}
+                  onClick={() => onSignupAndClaim(signupName.trim())}
+                >
+                  Join &amp; claim
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -176,6 +219,7 @@ function DrinkerPickerSheet({
  */
 export function ClaimSheet() {
   const [pours, setPours] = useState<RecentPour[]>([]);
+  const [remembered, setRemembered] = useState<RememberedPourer | null>(() => getRememberedPourer());
   const [drinkers, setDrinkers] = useState<PublicDrinker[]>([]);
   const [drinkersStatus, setDrinkersStatus] = useState<DrinkersStatus>('loading');
   const [drinkersRetryToken, setDrinkersRetryToken] = useState(0);
@@ -284,6 +328,10 @@ export function ClaimSheet() {
         setStatus('success');
         setClaimedDrinker(drinker);
         setPours((prev) => prev.filter((p) => p.id !== pourId));
+        // "Your phone remembers you" (design 3b): claiming as someone IS the
+        // identity signal on a personal phone — next time it's a one-tap claim.
+        rememberPourer({ id: drinker.id, name: drinker.displayName });
+        setRemembered({ id: drinker.id, name: drinker.displayName });
         return;
       }
       if (result.status === 409) {
@@ -302,6 +350,27 @@ export function ClaimSheet() {
     } finally {
       claimInFlightRef.current = false;
     }
+  }
+
+  /** Design 3b's join: name-only signup, then claim the selected pour as the
+   * brand-new pourer in one flow. Reuses handleSelectDrinker so every claim
+   * outcome (success/409/429) renders identically to an existing-drinker claim. */
+  async function handleSignupAndClaim(name: string) {
+    if (!selectedPour || claimInFlightRef.current) return;
+    setStatus('claiming');
+    setErrorKind(null);
+    const created = await createPourer(name);
+    if (selectedPourRef.current?.id !== selectedPour.id) return;
+    if (!created.ok) {
+      setStatus('error');
+      setErrorKind(created.status === 429 ? 'rateLimited' : 'other');
+      return;
+    }
+    await handleSelectDrinker({
+      id: created.data.id,
+      displayName: created.data.displayName,
+      avatarColor: created.data.avatarColor,
+    });
   }
 
   return (
@@ -342,7 +411,9 @@ export function ClaimSheet() {
           status={status}
           errorKind={errorKind}
           claimedDrinker={claimedDrinker}
+          remembered={remembered}
           onSelectDrinker={handleSelectDrinker}
+          onSignupAndClaim={handleSignupAndClaim}
           onRetryDrinkers={retryDrinkers}
           onClose={closeSheet}
         />

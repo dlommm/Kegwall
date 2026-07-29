@@ -29,6 +29,19 @@
   with a progress hairline; Dock is a 110 px bottom bar; Fill floods the screen with the
   beer's real SRM liquid + foam band under a 220 px counter. All theme-token driven, all
   motion gated by prefers-reduced-motion.
+- **Added:** Pour Wall overhaul Phase 3 — who's-pouring. A kegerator tablet kiosk at
+  `/tablet/:slug` (wall-themed) with the passwordless 4-screen flow: avatar grid with
+  pour counts → name + color signup (no email, no password) → armed ("You're up — pour
+  from any tap") with automatic tap detection and the live counter → done screen
+  ("Cheers — N oz of X logged · pour #N") with a 5 s auto sign-out. Arming is
+  server-side (`/api/public/tablet/arm`, 10-min TTL, one pour per arming) so the pour
+  attributes even if the tablet sleeps; an armed pourer beats a tap's default drinker.
+  Pour quality score 0–100 from UDP flow-rate consistency, stored per pour and surfaced
+  as the admin leaderboard's new Quality column. New public leaderboard endpoint + a
+  standalone `/board` TV view with rank bars, gal/L volume, quality, and footer
+  superlatives (most pours / smoothest pour / biggest pour). Phone QR claim flow now
+  matches design 3b: 10-minute claim window (was 15), inline name-only "join & claim"
+  signup, and "your phone remembers you" (localStorage) for one-tap claims.
 
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new

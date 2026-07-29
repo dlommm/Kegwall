@@ -1,12 +1,24 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getWallBySlug } from './crud.js';
-import { recentUnclaimedPours, setPourDrinker } from '../db/pours.js';
-import { listDrinkers } from '../db/users.js';
+import { recentUnclaimedPours, setPourDrinker, countPoursForDrinker } from '../db/pours.js';
+import { listDrinkers, createDrinker, getUser } from '../db/users.js';
 import { getKeg } from '../db/kegs.js';
 import { getBeer } from '../db/beers.js';
 import { listTaps } from '../db/taps.js';
+import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
+
+/** Design 3b: pours are claimable for 10 minutes after they happen. */
+const CLAIM_WINDOW_MINUTES = 10;
+
+/** Minimum scored pours before someone can win the "smoothest pour" superlative —
+ * one lucky 98 shouldn't beat a consistent 94 (design 6b). */
+const SMOOTHEST_MIN_SCORED = 3;
+
+// A CSS color for the avatar circle: hex or a simple color word. Deliberately
+// tight (not a general CSS <color>) since it round-trips into inline styles.
+const AVATAR_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export async function publicRoutes(app: FastifyInstance) {
   const db = app.ctx.db;
@@ -36,9 +48,85 @@ export async function publicRoutes(app: FastifyInstance) {
       id: d.id, displayName: d.displayName, avatarColor: d.avatarColor,
     })));
 
+  // Passwordless pourer signup (Pour Wall overhaul Phase 3, design 3a/3b): name +
+  // avatar color only — no email, no password. Used by the tablet kiosk's "I'M NEW —
+  // SIGN ME UP" screen and the phone QR claim flow's join step. Rate-limited hard:
+  // it's an unauthenticated LAN write.
+  app.post('/api/public/pourers', {
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    const body = z.object({
+      name: z.string().trim().min(1).max(40),
+      color: z.string().regex(AVATAR_COLOR_PATTERN).optional(),
+    }).parse(req.body);
+    const drinker = createDrinker(db, { displayName: body.name, avatarColor: body.color });
+    reply.code(201);
+    return { id: drinker.id, displayName: drinker.displayName, avatarColor: drinker.avatarColor };
+  });
+
+  // The tablet's avatar grid: every pourer with their lifetime pour count.
+  app.get('/api/public/pourers', async () =>
+    listDrinkers(db).map((d) => ({
+      id: d.id,
+      displayName: d.displayName,
+      avatarColor: d.avatarColor,
+      pourCount: countPoursForDrinker(db, d.id),
+    })));
+
+  // Tablet arming (design 3a): "who's pouring?" → arm → the next recorded pour on any
+  // tap is attributed to the armed pourer (see core/tabletArm.ts + StateManager).
+  app.post('/api/public/tablet/arm', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    const body = z.object({ drinkerId: z.number().int() }).parse(req.body);
+    const drinker = getUser(db, body.drinkerId);
+    if (!drinker || !drinker.isDrinker) {
+      return reply.code(400).send({ error: 'validation', message: 'No such pourer' });
+    }
+    const armed = app.ctx.tabletArm.arm(body.drinkerId);
+    return { armed: true, drinkerId: armed.drinkerId, expiresAt: new Date(armed.expiresAt).toISOString() };
+  });
+
+  app.delete('/api/public/tablet/arm', async () => {
+    app.ctx.tabletArm.disarm();
+    return { armed: false };
+  });
+
+  app.get('/api/public/tablet/arm', async () => {
+    const armed = app.ctx.tabletArm.current();
+    return armed
+      ? { armed: true, drinkerId: armed.drinkerId, expiresAt: new Date(armed.expiresAt).toISOString() }
+      : { armed: false };
+  });
+
+  // Public leaderboard (design 4a view + 6b quality/superlatives) — feeds /board.
+  app.get('/api/public/leaderboard', async (req) => {
+    const query = z.object({
+      window: z.enum(['week', 'month', 'all']).default('month'),
+    }).parse(req.query ?? {});
+    const entries = leaderboard(db, query.window);
+    const byPours = [...entries].sort((a, b) => b.pourCount - a.pourCount)[0] ?? null;
+    const smoothest = entries
+      .filter((e) => e.avgQuality !== null && e.qualityCount >= SMOOTHEST_MIN_SCORED)
+      .sort((a, b) => (b.avgQuality ?? 0) - (a.avgQuality ?? 0))[0] ?? null;
+    return {
+      window: query.window,
+      entries,
+      superlatives: {
+        mostPours: byPours && byPours.pourCount > 0
+          ? { displayName: byPours.displayName, pourCount: byPours.pourCount }
+          : null,
+        smoothest: smoothest
+          ? { displayName: smoothest.displayName, avgQuality: smoothest.avgQuality }
+          : null,
+        biggestPour: biggestClaimedPour(db, query.window),
+      },
+    };
+  });
+
   app.get('/api/public/recent-pours', async () => {
     const tapByNumber = new Map(listTaps(db).map((t) => [t.id, t.number]));
-    return recentUnclaimedPours(db, 15).map((p) => {
+    return recentUnclaimedPours(db, CLAIM_WINDOW_MINUTES).map((p) => {
       const keg = getKeg(db, p.kegId)!;
       const beer = getBeer(db, keg.beerId);
       return {
