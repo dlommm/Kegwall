@@ -8,6 +8,11 @@
   device import's own label-art download (decoding a device's own configured label id,
   unrelated to the removed search API) is unaffected. Open Brewery DB brewery autocomplete
   is unaffected.
+- **Added:** a keg cutaway fill style for walls — per-wall "Fill style" option (`Beer-colored
+  liquid` or `Keg cutaway`) rendering photorealistic cutaway keg art matched to the keg's
+  size (½/¼/sixtel/50L/corny/slim-quarter/mini, auto-matched from Kegtron's keg size with a
+  manual "Keg type" override on kegs), a traffic-light level color (green → yellow → red as
+  the keg empties) and a live percent readout centered in the keg.
 - **Added:** an offline BJCP-2021-style autocomplete for the beers form's style field
   (`StyleAutocomplete`) — a local, no-network suggestion list (`src/web/data/beerStyles.ts`)
   that fills the gap left by the removed Untappd style autofill, working the same on day
