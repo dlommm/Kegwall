@@ -261,6 +261,12 @@ describe('AutomationBuilder', () => {
     expect(screen.queryByTestId('automation-builder-add-condition')).not.toBeInTheDocument();
     expect(screen.queryByTestId('automation-builder-add-action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('automation-builder-action-0-remove')).not.toBeInTheDocument();
+    // `runRuleOnce` genuinely dispatches every real action (not a dry preview) and the
+    // server 403s a viewer out of POST /:id/run — the test-run button must not render at
+    // all for a read-only viewer, even though `automation` (the rule being viewed) has a
+    // real id.
+    expect(screen.queryByTestId('automation-builder-run')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('automation-builder-run-panel')).not.toBeInTheDocument();
   });
 
   it('cancel calls onCancel', async () => {

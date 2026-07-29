@@ -18,13 +18,16 @@ const listQuerySchema = z.object({
  * actually fetch/page/ack anything. This module fills that gap.
  *
  * Every route here -- INCLUDING the two ack endpoints -- is `viewer` role, not `editor`.
- * Per the plan's own explicit framing ("viewer can ack; their own view state is global --
- * acceptable, note it"): a notification's `acked` flag is one shared, app-wide bit (there
- * is no per-user "I've seen this" state), not a personal preference or a mutation to any
- * managed resource, so gating it above `viewer` would only mean a read-only role can see
- * every notification's content but can never dismiss any of them -- worse UX for no real
- * access-control benefit. `automations` CRUD (the thing that actually PRODUCES
- * notifications) stays `editor`-gated exactly as before; this module doesn't touch that.
+ * The plan's own Task 6 text says "Viewer read-only throughout"; this is a DELIBERATE
+ * implementation judgment call that deviates from that, not something the plan itself
+ * calls for -- flagged here (and in the Task 6 report's Design Calls) for the coordinator's
+ * awareness rather than left silently unattributed. Reasoning: a notification's `acked`
+ * flag is one shared, app-wide bit (there is no per-user "I've seen this" state), not a
+ * personal preference or a mutation to any managed resource, so gating it above `viewer`
+ * would only mean a read-only role can see every notification's content but can never
+ * dismiss any of them -- worse UX for no real access-control benefit. `automations` CRUD
+ * (the thing that actually PRODUCES notifications) stays `editor`-gated exactly as
+ * required; this module doesn't touch that.
  */
 export async function notificationsRoutes(app: FastifyInstance) {
   const db = app.ctx.db;

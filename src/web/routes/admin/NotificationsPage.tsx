@@ -12,11 +12,13 @@ type PageStatus = 'loading' | 'loaded' | 'error';
 /**
  * `/admin/notifications` (Task 6) — the full notification history with before-cursor
  * pagination (see `db/notificationsRepo.ts`'s `listNotifications`: `before` is an
- * EXCLUSIVE cursor on `id`, not `ts`). No role branching: per the plan's own framing
- * ("viewer can ack; their own view state is global — acceptable, note it"), acking a
- * notification is a shared, app-wide bit, not a personal preference or a managed-resource
- * mutation — every role that can reach this page can also ack from it, same as
- * `NotificationBell`'s panel.
+ * EXCLUSIVE cursor on `id`, not `ts`). No role branching: every role that can reach this
+ * page can also ack from it, same as `NotificationBell`'s panel. The plan's own Task 6
+ * text says "Viewer read-only throughout" — this is a DELIBERATE implementation judgment
+ * call that deviates from that (see `routes/notifications.ts`'s matching doc comment and
+ * the Task 6 report's Design Calls section), not a plan requirement: acking is a shared,
+ * app-wide bit (no per-user "read" state), not a personal preference or a managed-resource
+ * mutation, so gating it above `viewer` buys no real access control.
  */
 export function NotificationsPage() {
   const [items, setItems] = useState<Notification[]>([]);

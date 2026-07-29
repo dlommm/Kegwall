@@ -81,7 +81,11 @@ function TemplateHintChips({
  * `blankFormState()`) and editing (`automation` set, starts from `ruleToFormState`) —
  * AutomationsPage decides which by whether it's opening the builder from "Blank rule" or
  * an existing row's "Edit" button. Test-run (`POST /:id/run`) is only offered once the
- * rule has a real `id` — a blank draft has nothing to run yet.
+ * rule has a real `id` — a blank draft has nothing to run yet — AND only when `canEdit`:
+ * a viewer's "View" entry point renders `canEdit={false}`, and `runRuleOnce` genuinely
+ * dispatches every real action (notify/webhook/mqtt/etc, not a dry preview), which the
+ * server's `POST /:id/run` route already 403s a viewer out of (`editor` role, see
+ * routes/automations.ts) — the button must not even render for a role that can't use it.
  *
  * Every kind-switch (trigger/condition/action) REPLACES that item wholesale with the new
  * kind's schema-valid defaults — the WallEditor "template switch resets fields" lesson,
@@ -817,7 +821,7 @@ export function AutomationBuilder({
         )}
       </form>
 
-      {automation && (
+      {automation && canEdit && (
         <div className="automation-builder__run" data-testid="automation-builder-run-panel">
           <button type="button" data-testid="automation-builder-run" disabled={running} onClick={handleRun}>
             {running ? 'Running…' : 'Test run'}

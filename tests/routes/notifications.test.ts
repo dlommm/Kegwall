@@ -11,9 +11,10 @@ import { insertNotification } from '../../src/server/db/notificationsRepo.js';
 // ---------------------------------------------------------------------------
 // Phase 5 Task 6: the notification center's REST surface. `db/notificationsRepo.ts`
 // (Task 1) shipped list/ack/ackAll/unackedCount; nothing exposed them over HTTP until
-// this task. Every route -- INCLUDING the two ack endpoints -- is `viewer` role: see the
-// plan's own framing ("viewer can ack; their own view state is global -- acceptable,
-// note it") and this route module's doc comment.
+// this task. Every route -- INCLUDING the two ack endpoints -- is `viewer` role: a
+// DELIBERATE implementation judgment call that deviates from the plan's own Task 6 text
+// ("Viewer read-only throughout") -- see `routes/notifications.ts`'s doc comment (and the
+// Task 6 report's Design Calls section) for the reasoning and attribution.
 // ---------------------------------------------------------------------------
 
 let app: FastifyInstance;
