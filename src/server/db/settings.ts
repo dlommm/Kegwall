@@ -29,6 +29,18 @@ export const settingsSchema = z.object({
   // Pro device-spec detail, unrelated to the removed Untappd search integration below).
   // Not a secret; no admin UI form.
   untappdImageBaseUrl: z.string().default('https://untappd.akamaized.net'),
+  // catalog.beer beer search (replaces the removed Untappd search) — a nested,
+  // independently-nullable object (same shape as `mqtt` above) with a single secret
+  // sub-field, `apiKey`. Masked to a last-4 suffix (like `kegtronApiKey`/
+  // `alertChannels.pushover.token`), not a bare '••••' (like `mqtt.password`) — an API
+  // key, unlike a password, is safe and useful to partially reveal. See
+  // `assertNoMaskedSecret`/`sanitizePatch`/`masked()` below for how it's guarded.
+  catalogBeer: z.object({ apiKey: z.string().min(1) }).nullable().default(null),
+  // Same hidden, test-injectable pattern as `openBreweryBaseUrl`/`kegtronBaseUrl` above —
+  // `routes/lookup.ts`'s beer-search proxy hits this in production; tests point it at a
+  // local fake server instead. Not a secret (no credential lives in the URL) and not
+  // surfaced in any settings form.
+  catalogBeerBaseUrl: z.string().default('https://catalog.beer'),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
@@ -137,6 +149,9 @@ function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[
   if (key === 'mqtt' && value && typeof value === 'object' && isMaskedString((value as any).password)) {
     throw new ValidationError('mqtt.password looks like a masked display value; refusing to store it');
   }
+  if (key === 'catalogBeer' && value && typeof value === 'object' && isMaskedString((value as any).apiKey)) {
+    throw new ValidationError('catalogBeer.apiKey looks like a masked display value; refusing to store it');
+  }
   if (key === 'alertChannels' && value && typeof value === 'object') {
     const ac = value as Record<string, any>;
     if (ac.pushover && isMaskedString(ac.pushover.token)) {
@@ -195,6 +210,9 @@ export class SettingsStore {
     if (out.mqtt && isMaskedString(out.mqtt.password)) {
       out.mqtt = { ...out.mqtt, password: this.get('mqtt')?.password };
     }
+    if (out.catalogBeer && isMaskedString(out.catalogBeer.apiKey)) {
+      out.catalogBeer = { ...out.catalogBeer, apiKey: this.get('catalogBeer')?.apiKey ?? '' };
+    }
     if (out.alertChannels) {
       const stored = this.get('alertChannels');
       const ac = { ...out.alertChannels };
@@ -230,6 +248,9 @@ export class SettingsStore {
       }
     }
     if (s.mqtt?.password) s.mqtt.password = '••••';
+    if (s.catalogBeer?.apiKey) {
+      s.catalogBeer.apiKey = '••••' + s.catalogBeer.apiKey.slice(-4);
+    }
     if (s.alertChannels.pushover?.token) {
       s.alertChannels.pushover.token = '••••' + s.alertChannels.pushover.token.slice(-4);
     }

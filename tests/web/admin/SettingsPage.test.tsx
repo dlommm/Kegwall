@@ -37,6 +37,8 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     kegtronBaseUrl: 'https://mdash.net',
     openBreweryBaseUrl: 'https://api.openbrewerydb.org',
     untappdImageBaseUrl: 'https://untappd.akamaized.net',
+    catalogBeer: null,
+    catalogBeerBaseUrl: 'https://catalog.beer',
     backfillCursors: {},
     udpEnabled: false,
     bleDirectEnabled: false,
@@ -384,6 +386,112 @@ describe('SettingsPage', () => {
 
       expect(screen.getByTestId('settings-integrations-error')).toHaveTextContent(/mqtt/i);
       expect(patchSettings).not.toHaveBeenCalled();
+    });
+
+    // catalog.beer beer search (replaces the removed Untappd search) — an independent
+    // masked-secret block within Integrations, same Replace affordance as Kegtron's own
+    // API key, plus a one-line note about the 1,000 requests/month free tier.
+    describe('Catalog.beer block', () => {
+      it('shows the masked value, a free-tier note, and only reveals a real input after Replace', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ catalogBeer: { apiKey: '••••-key' } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        expect(screen.getByTestId('settings-integrations-catalogbeer-apikey-masked')).toHaveTextContent('••••-key');
+        expect(screen.queryByTestId('settings-integrations-catalogbeer-apikey-input')).not.toBeInTheDocument();
+        expect(screen.getByTestId('settings-integrations-catalogbeer-save')).toBeDisabled();
+        expect(screen.getByTestId('settings-integrations-catalogbeer')).toHaveTextContent(/1,000 requests\/month/i);
+
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+        expect(screen.getByTestId('settings-integrations-catalogbeer-apikey-input')).toBeInTheDocument();
+        expect(screen.getByTestId('settings-integrations-catalogbeer-save')).toBeDisabled(); // still empty
+      });
+
+      it('shows "Not set" when catalog.beer has never been configured', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ catalogBeer: null }) });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+        expect(screen.getByTestId('settings-integrations-catalogbeer-apikey-masked')).toHaveTextContent('Not set');
+      });
+
+      it('never round-trips the masked string: PATCHes only the freshly typed apiKey, as {catalogBeer: {apiKey}}', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ catalogBeer: { apiKey: '••••-key' } }),
+        });
+        (patchSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ catalogBeer: { apiKey: '••••9999' } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+        fireEvent.change(screen.getByTestId('settings-integrations-catalogbeer-apikey-input'), {
+          target: { value: 'brandnewcatalogbeerkey9999' },
+        });
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-save'));
+        await flush();
+
+        expect(patchSettings).toHaveBeenCalledWith({ catalogBeer: { apiKey: 'brandnewcatalogbeerkey9999' } });
+        const call = (patchSettings as Mock).mock.calls[0]![0];
+        expect(JSON.stringify(call)).not.toContain('••••');
+      });
+
+      it('canceling a Replace goes back to the masked display without sending anything', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ catalogBeer: { apiKey: '••••-key' } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+        fireEvent.change(screen.getByTestId('settings-integrations-catalogbeer-apikey-input'), {
+          target: { value: 'typedbutcanceled' },
+        });
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-cancel'));
+
+        expect(screen.getByTestId('settings-integrations-catalogbeer-apikey-masked')).toHaveTextContent('••••-key');
+        expect(screen.getByTestId('settings-integrations-catalogbeer-save')).toBeDisabled();
+        expect(patchSettings).not.toHaveBeenCalled();
+      });
+
+      it('does NOT show the "Sources restarted" notice — catalog.beer backs no ingest source', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        (patchSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ catalogBeer: { apiKey: '••••9999' } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+        fireEvent.change(screen.getByTestId('settings-integrations-catalogbeer-apikey-input'), {
+          target: { value: 'brandnewcatalogbeerkey9999' },
+        });
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-save'));
+        await flush();
+
+        expect(screen.queryByTestId('settings-restart-notice')).not.toBeInTheDocument();
+        expect(screen.getByTestId('settings-saved-notice')).toBeInTheDocument();
+      });
+
+      it("saving Catalog.beer doesn't wipe an unsaved MQTT draft mid-edit in the Sources group", async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        (patchSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ catalogBeer: { apiKey: '••••9999' } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-sources');
+
+        fireEvent.change(screen.getByTestId('settings-sources-mqtt-url'), { target: { value: 'mqtt://half-typed:1883' } });
+
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+        fireEvent.change(screen.getByTestId('settings-integrations-catalogbeer-apikey-input'), {
+          target: { value: 'brandnewcatalogbeerkey9999' },
+        });
+        fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-save'));
+        await flush();
+
+        expect(screen.getByTestId('settings-sources-mqtt-url')).toHaveValue('mqtt://half-typed:1883');
+      });
     });
   });
 

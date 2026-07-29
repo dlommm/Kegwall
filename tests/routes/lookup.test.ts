@@ -30,6 +30,8 @@ let app: FastifyInstance;
 let upstream: FastifyInstance;
 let upstreamUrl: string;
 let seenBreweryQuery: Record<string, unknown> | undefined;
+let seenBeerQuery: Record<string, unknown> | undefined;
+let seenBeerAuthHeader: string | undefined;
 let adminCookies: { session: string };
 let editorCookies: { session: string };
 let viewerCookies: { session: string };
@@ -61,6 +63,62 @@ async function listenUpstream(): Promise<string> {
     return [
       { id: 'abc', name: 'Modern Brew Co', brewery_type: 'micro', city: 'Portland', state_province: 'Oregon' },
     ];
+  });
+
+  upstream.get('/beer/search', async (req, reply) => {
+    seenBeerQuery = req.query as Record<string, unknown>;
+    seenBeerAuthHeader = req.headers.authorization;
+    const q = (req.query as any).q;
+    if (q === 'RateLimited') {
+      reply.code(429);
+      return { error: 'rate_limit_exceeded', message: 'monthly request limit exceeded' };
+    }
+    if (q === 'ServerError') {
+      reply.code(500);
+      return { error: 'boom' };
+    }
+    if (q === 'Timeout') {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return { object: 'list', data: [] };
+    }
+    if (q === 'BadJson') {
+      reply.header('content-type', 'application/json');
+      return reply.send('{not valid json');
+    }
+    if (q === 'NoName') {
+      return { object: 'list', data: [{ id: 'x', name: '', style: 'IPA' }] };
+    }
+    if (q === 'NoBrewer') {
+      return {
+        object: 'list',
+        data: [{
+          id: 'beer_2', name: 'Solo Beer', style: 'Stout', style_id: 'stout',
+          abv: 5, ibu: 20, description: 'No brewer attached.',
+        }],
+      };
+    }
+    // Real catalog.beer /beer/search response shape (verified against api-docs): a "list"
+    // object with results in `data[]`, each with a nested `brewer` object.
+    return {
+      object: 'list',
+      url: '/beer/search',
+      query: q,
+      has_more: false,
+      data: [
+        {
+          id: 'beer_1', object: 'beer', name: 'Sculpin IPA',
+          style: 'American-Style India Pale Ale', style_id: 'american-ipa',
+          parent: 'ipa', class: 'ale', beverage_type: 'beer',
+          description: 'A hop-forward IPA.', abv: 7, ibu: 70,
+          cb_verified: true, brewer_verified: false, last_modified: 1783642824,
+          brewer: {
+            id: 'brewer_1', object: 'brewer', name: 'Ballast Point Brewing Company',
+            description: null, short_description: null, url: 'https://ballastpoint.com',
+            cb_verified: true, brewer_verified: false, last_modified: 1783642824,
+          },
+        },
+      ],
+    };
   });
 
   upstream.get('/images/valid.png', async (_req, reply) => {
@@ -98,6 +156,8 @@ async function listenUpstream(): Promise<string> {
 
 beforeEach(async () => {
   seenBreweryQuery = undefined;
+  seenBeerQuery = undefined;
+  seenBeerAuthHeader = undefined;
   upstreamUrl = await listenUpstream();
 
   // Short timeout override (a la wsPingIntervalMs/MdashClient.timeoutMs) so the timeout
@@ -107,6 +167,7 @@ beforeEach(async () => {
     lookupTimeoutMs: 100,
   });
   app.ctx.settings.set('openBreweryBaseUrl', upstreamUrl);
+  app.ctx.settings.set('catalogBeerBaseUrl', upstreamUrl);
 
   const setup = await app.inject({
     method: 'POST', url: '/api/auth/setup',
@@ -143,6 +204,167 @@ describe('settings schema', () => {
     const fresh = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
     expect(fresh.ctx.settings.get('openBreweryBaseUrl')).toBe('https://api.openbrewerydb.org');
     await fresh.close();
+  });
+
+  it('exposes a hidden catalogBeerBaseUrl setting with its real default', async () => {
+    const fresh = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
+    expect(fresh.ctx.settings.get('catalogBeerBaseUrl')).toBe('https://catalog.beer');
+    await fresh.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/lookup/beers — catalog.beer beer search (Wave N; replaces the removed Untappd
+// search). Free tier is 1,000 requests/month, so this is deliberately search-ON-SUBMIT
+// only from the client (BeerSearchSheet) — no per-keystroke calls, nothing this route
+// itself needs to rate-limit. Unlike the brewery lookup (no auth needed), this is gated
+// entirely behind whether `catalogBeer.apiKey` is configured, following the OLD Untappd
+// route's exact 501 `not_configured` pattern (see git history) since an admin with no
+// catalog.beer credentials set should never see a working control for a feature that
+// can't work — BeerSearchSheet's mount-time probe call relies on this.
+// ---------------------------------------------------------------------------
+describe('GET /api/lookup/beers', () => {
+  it('rejects unauthenticated requests', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/lookup/beers?q=IPA' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('rejects a viewer (needs editor role)', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/api/lookup/beers?q=IPA', cookies: viewerCookies,
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('501s with {error: "not_configured"} when no catalog.beer API key is set — even for '
+    + 'an empty query (the client\'s mount-time probe)', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/api/lookup/beers?q=', cookies: editorCookies,
+    });
+    expect(res.statusCode).toBe(501);
+    expect(res.json().error).toBe('not_configured');
+    expect(seenBeerQuery).toBeUndefined(); // never even reaches the upstream call
+  });
+
+  it('501s for a non-empty query too, when not configured', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/api/lookup/beers?q=IPA', cookies: editorCookies,
+    });
+    expect(res.statusCode).toBe(501);
+    expect(seenBeerQuery).toBeUndefined();
+  });
+
+  describe('with catalog.beer configured', () => {
+    beforeEach(() => {
+      app.ctx.settings.set('catalogBeer', { apiKey: 'cb-test-api-key-123' });
+    });
+
+    it('returns an empty array for a blank query without calling the upstream service', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=', cookies: editorCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual([]);
+      expect(seenBeerQuery).toBeUndefined();
+    });
+
+    it('maps a catalog.beer result to {name, brewery, style, abv, ibu, description}', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=sculpin', cookies: editorCookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(seenBeerQuery?.q).toBe('sculpin');
+      expect(res.json()).toEqual([{
+        name: 'Sculpin IPA',
+        brewery: 'Ballast Point Brewing Company',
+        style: 'American-Style India Pale Ale',
+        abv: 7,
+        ibu: 70,
+        description: 'A hop-forward IPA.',
+      }]);
+    });
+
+    it('sends the Authorization header as exactly "Basic " + base64(apiKey + \':\')', async () => {
+      await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=sculpin', cookies: editorCookies,
+      });
+      const expected = `Basic ${Buffer.from('cb-test-api-key-123:', 'utf8').toString('base64')}`;
+      expect(seenBeerAuthHeader).toBe(expected);
+    });
+
+    it('sends no password component — base64 of just "<key>:" (verified against the '
+      + 'documented example: base64("cadcbe6f-a80d-4e33-9f20-b53c2ed83845:") = '
+      + '"Y2FkY2JlNmYtYTgwZC00ZTMzLTlmMjAtYjUzYzJlZDgzODQ1Og=="', async () => {
+      app.ctx.settings.set('catalogBeer', { apiKey: 'cadcbe6f-a80d-4e33-9f20-b53c2ed83845' });
+      await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=x', cookies: editorCookies,
+      });
+      expect(seenBeerAuthHeader).toBe('Basic Y2FkY2JlNmYtYTgwZC00ZTMzLTlmMjAtYjUzYzJlZDgzODQ1Og==');
+    });
+
+    it('brewer-less results map to brewery: null', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=NoBrewer', cookies: editorCookies,
+      });
+      expect(res.json()).toEqual([{
+        name: 'Solo Beer', brewery: null, style: 'Stout', abv: 5, ibu: 20,
+        description: 'No brewer attached.',
+      }]);
+    });
+
+    it('drops rows with no name', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=NoName', cookies: editorCookies,
+      });
+      expect(res.json()).toEqual([]);
+    });
+
+    it('cleanly passes through a 429 with a message about the monthly limit, not the raw upstream body', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=RateLimited', cookies: editorCookies,
+      });
+      expect(res.statusCode).toBe(429);
+      expect(res.json().message).toMatch(/monthly/i);
+      expect(JSON.stringify(res.body)).not.toContain('rate_limit_exceeded');
+    });
+
+    it('degrades gracefully (502, no raw upstream body) when the upstream service errors', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=ServerError', cookies: editorCookies,
+      });
+      expect(res.statusCode).toBe(502);
+      expect(res.json().error).toBe('upstream_error');
+      expect(JSON.stringify(res.body)).not.toContain('boom');
+    });
+
+    it('degrades gracefully (502) when the upstream service exceeds the timeout', async () => {
+      const start = Date.now();
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=Timeout', cookies: editorCookies,
+      });
+      const elapsed = Date.now() - start;
+      expect(res.statusCode).toBe(502);
+      expect(elapsed).toBeLessThan(500);
+    });
+
+    it('degrades gracefully (502, not a raw 500) when the upstream service returns malformed JSON', async () => {
+      const res = await app.inject({
+        method: 'GET', url: '/api/lookup/beers?q=BadJson', cookies: editorCookies,
+      });
+      expect(res.statusCode).toBe(502);
+      expect(res.json().error).toBe('upstream_error');
+    });
+
+    it('never leaks the API key in a response body, on success or on any failure path', async () => {
+      const apiKey = 'cb-test-api-key-123';
+      for (const q of ['sculpin', 'RateLimited', 'ServerError', 'Timeout', 'BadJson']) {
+        const res = await app.inject({
+          method: 'GET', url: `/api/lookup/beers?q=${q}`, cookies: editorCookies,
+        });
+        expect(res.body).not.toContain(apiKey);
+        expect(res.body).not.toContain(Buffer.from(`${apiKey}:`, 'utf8').toString('base64'));
+      }
+    });
   });
 });
 

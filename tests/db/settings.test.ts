@@ -109,6 +109,51 @@ describe('SettingsStore', () => {
     expect(store.get('siteName')).toBe('Still Works');
   });
 
+  // catalog.beer beer search (replaces the removed Untappd search): `catalogBeer` is a
+  // nested, independently-nullable object (like `mqtt`) with a single secret sub-field,
+  // `apiKey` -- same "secret nested inside a nested object" shape as `mqtt.password`,
+  // masked to a last-4 suffix (like `kegtronApiKey`/`alertChannels.pushover.token`) rather
+  // than a bare '••••' (like `mqtt.password`) since an API key, unlike a password, is
+  // safe and useful to partially reveal for at-a-glance recognition.
+  describe('catalogBeer', () => {
+    it('defaults to null (not configured)', () => {
+      expect(store.get('catalogBeer')).toBeNull();
+    });
+
+    it('round-trips a real apiKey', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      expect(store.get('catalogBeer')).toEqual({ apiKey: 'cb-real-secret-key' });
+    });
+
+    it('masks apiKey to a last-4 suffix', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      const m = store.masked();
+      expect(m.catalogBeer?.apiKey).toBe('••••-key');
+    });
+
+    it('set() throws ValidationError when given a masked catalogBeer.apiKey', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      expect(() => store.set('catalogBeer', { apiKey: '••••-key' })).toThrow(ValidationError);
+      expect(store.get('catalogBeer')?.apiKey).toBe('cb-real-secret-key');
+    });
+
+    it('sanitizePatch merges a masked catalogBeer.apiKey back to the currently-stored real value', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      const sanitized = store.sanitizePatch({ catalogBeer: { apiKey: '••••-key' } });
+      expect(sanitized.catalogBeer?.apiKey).toBe('cb-real-secret-key');
+    });
+
+    it('sanitizePatch leaves a freshly typed (unmasked) catalogBeer.apiKey alone', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      const sanitized = store.sanitizePatch({ catalogBeer: { apiKey: 'brand-new-key' } });
+      expect(sanitized.catalogBeer?.apiKey).toBe('brand-new-key');
+    });
+
+    it('exposes a hidden catalogBeerBaseUrl setting with its real default', () => {
+      expect(store.get('catalogBeerBaseUrl')).toBe('https://catalog.beer');
+    });
+  });
+
   // Phase 5 Task 2: alertChannels config (ntfy/pushover/smtp/discord/slack), each
   // optional/nullable. Secrets: pushover.token, smtp.password, discord.webhookUrl,
   // slack.webhookUrl (masked to origin + '/…' so an admin can still recognize which

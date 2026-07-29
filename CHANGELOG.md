@@ -16,6 +16,11 @@
   on the handshake (matching Kegtron's own Node.js example) — mdash.net 403s the
   connection without one, which was silently degrading every install to 5-minute polling
   instead of live push updates.
+- **Added:** catalog.beer beer search (optional, own API key) — a `BeerSearchSheet` in the
+  beers form (Settings → Integrations → Catalog.beer) fills name/brewery/style/ABV/IBU/
+  description from a search-on-submit lookup against catalog.beer's `/beer/search`. No
+  label art (catalog.beer's API has none) and a 1,000 requests/month free-tier cap, which
+  is why searches fire only on Enter/button, never per keystroke.
 
 ## v0.1.0 — initial release
 

@@ -425,12 +425,14 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
   );
 }
 
-/** Integrations group (Task 8; Untappd creds removed post-v0.1.0 — Untappd stopped
- * granting new developer API credentials, so the integration was removed entirely, see
- * CHANGELOG): Home Assistant publish toggle and discovery prefix. The HA fields live
- * inside the same `mqtt` settings key Sources owns url/user/pass/prefix for — see
- * SourcesGroup's doc comment for the shared-key merge approach used here too. */
-function IntegrationsGroup({ settings, onSaved }: GroupProps) {
+/** Home Assistant publish toggle + discovery prefix (Task 8) — its own form/Save inside
+ * the Integrations group. The HA fields live inside the same `mqtt` settings key Sources
+ * owns url/user/pass/prefix for — see SourcesGroup's doc comment for the shared-key merge
+ * approach used here too. Split out of what used to be all of `IntegrationsGroup` so the
+ * unrelated `CatalogBeerBlock` below (a fully independent settings key) can save on its
+ * own, without either block's submit disturbing the other's unsaved draft or triggering
+ * the wrong version-bump/remount (see SettingsPage's `catalogBeerVersion` doc comment). */
+function HomeAssistantBlock({ settings, onSaved }: GroupProps) {
   const mqtt = settings.mqtt;
   const [haPublishEnabled, setHaPublishEnabled] = useState(mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled);
   const [haDiscoveryPrefix, setHaDiscoveryPrefix] = useState(mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix);
@@ -466,9 +468,7 @@ function IntegrationsGroup({ settings, onSaved }: GroupProps) {
   }
 
   return (
-    <form className="settings-group" data-testid="settings-group-integrations" onSubmit={handleSubmit} aria-labelledby="settings-integrations-title">
-      <h2 id="settings-integrations-title" className="admin-field__label-text">Integrations</h2>
-
+    <form className="channels-group__block" data-testid="settings-integrations-ha" onSubmit={handleSubmit}>
       <label className="settings-toggle">
         <input
           type="checkbox"
@@ -493,6 +493,105 @@ function IntegrationsGroup({ settings, onSaved }: GroupProps) {
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
     </form>
+  );
+}
+
+/** catalog.beer beer search's API key (Wave N; replaces the removed Untappd search) — a
+ * fully independent settings key (`catalogBeer`, not shared with anything else), so this
+ * gets its own form + Save, self-resetting its local "replacing" state after a successful
+ * save (same idiom as ChannelsGroup's Pushover/SMTP/webhook blocks) rather than relying on
+ * a page-level remount. Note the free-tier limit right in the UI (1,000 requests/month) so
+ * an admin isn't surprised by a 429 later. */
+function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
+  const cfg = settings.catalogBeer;
+  const [replacing, setReplacing] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = replacing && newKey.trim() !== '';
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!dirty) return;
+    setError(null);
+    setSubmitting(true);
+    const patch: Partial<Settings> = { catalogBeer: { apiKey: newKey.trim() } };
+    const result = await patchSettings(patch);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setReplacing(false);
+    setNewKey('');
+    onSaved(result.data, patch);
+  }
+
+  return (
+    <form
+      className="channels-group__block"
+      data-testid="settings-integrations-catalogbeer"
+      onSubmit={handleSubmit}
+    >
+      <h3 className="channels-group__block-title">Catalog.beer</h3>
+      <p className="admin-page-quiet">
+        Powers the beers form&rsquo;s &ldquo;Search catalog.beer&rdquo; lookup (optional — bring your
+        own API key). Free tier: 1,000 requests/month.
+      </p>
+      <MaskedSecretField
+        label="API key"
+        testId="settings-integrations-catalogbeer-apikey"
+        maskedValue={cfg?.apiKey}
+        replacing={replacing}
+        value={newKey}
+        onStartReplace={() => { setReplacing(true); setNewKey(''); }}
+        onCancelReplace={() => { setReplacing(false); setNewKey(''); }}
+        onChangeValue={setNewKey}
+      />
+      {error && (
+        <p className="beer-form__notice" role="alert" data-testid="settings-integrations-catalogbeer-error">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        className="beer-form__submit"
+        disabled={!dirty || submitting}
+        data-testid="settings-integrations-catalogbeer-save"
+      >
+        {submitting ? 'Saving…' : 'Save changes'}
+      </button>
+    </form>
+  );
+}
+
+interface IntegrationsGroupProps {
+  settings: Settings;
+  /** For the HA block only — routes to the SHARED `mqtt` version counter (same as
+   * SourcesGroup) since HA's fields live inside `mqtt`. */
+  onSaved: (updated: Settings, patch: Partial<Settings>) => void;
+  /** For the CatalogBeerBlock only — routes to its OWN version counter, deliberately
+   * separate from `onSaved` above: `catalogBeer` shares nothing with `mqtt`, so bumping
+   * the shared mqtt-version counter on a catalog.beer-only save would needlessly remount
+   * (and discard any unsaved draft in) the SIBLING SourcesGroup too. See
+   * SettingsPage's `catalogBeerVersion`. */
+  onCatalogBeerSaved: (updated: Settings, patch: Partial<Settings>) => void;
+}
+
+/** Integrations group (Task 8; Untappd creds removed post-v0.1.0 — Untappd stopped
+ * granting new developer API credentials, so the integration was removed entirely, see
+ * CHANGELOG): Home Assistant publish/discovery-prefix, plus (Wave N) the optional
+ * catalog.beer search API key — two fully independent blocks, each with its own form and
+ * Save button, same "outer `<section>`, independent `<form>` blocks inside" shape as
+ * ChannelsGroup below. */
+function IntegrationsGroup({ settings, onSaved, onCatalogBeerSaved }: IntegrationsGroupProps) {
+  return (
+    <section className="settings-group" data-testid="settings-group-integrations" aria-labelledby="settings-integrations-title">
+      <h2 id="settings-integrations-title" className="admin-field__label-text">Integrations</h2>
+      <HomeAssistantBlock settings={settings} onSaved={onSaved} />
+      <CatalogBeerBlock settings={settings} onSaved={onCatalogBeerSaved} />
+    </section>
   );
 }
 
@@ -895,7 +994,7 @@ function ChannelsGroup({ settings, onSaved }: GroupProps) {
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
-type GroupId = 'site' | 'kegtron' | 'mqtt' | 'channels';
+type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'channels';
 
 /**
  * `/admin/settings` (Task 8, admin-only route — same "no role branching needed" situation
@@ -910,6 +1009,11 @@ type GroupId = 'site' | 'kegtron' | 'mqtt' | 'channels';
  * both, via their `key` props) is for. Site and Kegtron own fully independent keys, so
  * they each get their OWN version counter that bumps ONLY on their own save — an admin
  * mid-edit on the Site form doesn't lose that draft just because they saved Sources first.
+ *
+ * `catalogBeerVersion` follows that same "own independent key, own counter" precedent for
+ * Integrations' `CatalogBeerBlock` — it must NOT share `mqttVersion` (that would remount,
+ * and so discard any unsaved draft in, the SIBLING SourcesGroup on every catalog.beer
+ * save, even though catalog.beer shares nothing with `mqtt`).
  */
 export function SettingsPage() {
   const [status, setStatus] = useState<PageStatus>('loading');
@@ -917,6 +1021,7 @@ export function SettingsPage() {
   const [siteVersion, setSiteVersion] = useState(0);
   const [kegtronVersion, setKegtronVersion] = useState(0);
   const [mqttVersion, setMqttVersion] = useState(0);
+  const [catalogBeerVersion, setCatalogBeerVersion] = useState(0);
   const [notice, setNotice] = useState<'saved' | 'restarted' | null>(null);
 
   const load = useCallback(() => {
@@ -928,6 +1033,7 @@ export function SettingsPage() {
         setSiteVersion((v) => v + 1);
         setKegtronVersion((v) => v + 1);
         setMqttVersion((v) => v + 1);
+        setCatalogBeerVersion((v) => v + 1);
       } else {
         setStatus('error');
       }
@@ -943,6 +1049,7 @@ export function SettingsPage() {
     if (group === 'site') setSiteVersion((v) => v + 1);
     else if (group === 'kegtron') setKegtronVersion((v) => v + 1);
     else if (group === 'mqtt') setMqttVersion((v) => v + 1);
+    else if (group === 'catalogBeer') setCatalogBeerVersion((v) => v + 1);
     // 'channels': no version bump/remount — see ChannelsGroup's doc comment for why each
     // of its 5 blocks manages its own post-save local-state reset instead.
     setNotice(triggersRestart(patch) ? 'restarted' : 'saved');
@@ -993,9 +1100,10 @@ export function SettingsPage() {
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
         />
         <IntegrationsGroup
-          key={`integrations-${mqttVersion}`}
+          key={`integrations-${mqttVersion}-${catalogBeerVersion}`}
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
+          onCatalogBeerSaved={(updated, patch) => handleGroupSaved('catalogBeer', updated, patch)}
         />
         <ChannelsGroup
           settings={settings}

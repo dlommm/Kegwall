@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireRole } from './auth.js';
 import { MAX_BYTES, writeLabelFile } from './uploads.js';
-import type { BreweryLookupResult } from '../core/lookupTypes.js';
+import type { BreweryLookupResult, BeerLookupResult } from '../core/lookupTypes.js';
 import { assertPublicHost, ForbiddenHostError, type HostResolver } from '../core/ssrfGuard.js';
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,32 @@ function mapBreweries(body: unknown): BreweryLookupResult[] {
       ? row.state_province
       : typeof row.state === 'string' ? row.state : null;
     out.push({ name, city: typeof row.city === 'string' ? row.city : null, state });
+  }
+  return out;
+}
+
+/** catalog.beer's `GET /beer/search` (verified against https://catalog.beer/api-docs)
+ * returns a "list" envelope — `{object: 'list', data: [...]}` — never a bare array, unlike
+ * Open Brewery DB above. Each beer carries a nested `brewer` object (its `name` is the
+ * brewery); items with no beer name are dropped, same as `mapBreweries`. catalog.beer has
+ * NO label-art field at all (see `core/lookupTypes.ts`'s `BeerLookupResult` doc comment),
+ * so unlike the removed Untappd integration there is no `labelUrl` to map here. */
+function mapBeers(body: unknown): BeerLookupResult[] {
+  const rows = isRecord(body) && Array.isArray(body.data) ? body.data : [];
+  const out: BeerLookupResult[] = [];
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    const name = typeof row.name === 'string' ? row.name.trim() : '';
+    if (!name) continue;
+    const brewer = isRecord(row.brewer) ? row.brewer : null;
+    out.push({
+      name,
+      brewery: brewer && typeof brewer.name === 'string' ? brewer.name : null,
+      style: typeof row.style === 'string' ? row.style : null,
+      abv: typeof row.abv === 'number' ? row.abv : null,
+      ibu: typeof row.ibu === 'number' ? row.ibu : null,
+      description: typeof row.description === 'string' ? row.description : null,
+    });
   }
   return out;
 }
@@ -100,6 +126,38 @@ async function fetchJsonOrFail(url: string, timeoutMs: number): Promise<unknown 
     return await res.json();
   } catch {
     return FETCH_FAILED;
+  }
+}
+
+/** Like `fetchJsonOrFail` above, but for the (Basic-auth'd) catalog.beer beer search,
+ * whose caller needs to distinguish a 429 — catalog.beer's documented response once an
+ * account exceeds its monthly request quota (free tier: 1,000/month) — from every OTHER
+ * failure mode, so it can surface a specific, actionable message instead of a generic
+ * "couldn't reach the service" one. Every other failure (network error, timeout, a non-2xx
+ * status that isn't 429, or a malformed/non-JSON body) still collapses to `'failed'`, same
+ * "degrade gracefully, never surface raw upstream detail" contract as `fetchJsonOrFail`.
+ * Never logs or echoes `authHeader` (the Basic-auth credential) anywhere — it's sent only
+ * as a request header, never in a URL, error message, or return value. */
+type AuthedFetchResult =
+  | { kind: 'ok'; body: unknown }
+  | { kind: 'rate_limited' }
+  | { kind: 'failed' };
+
+async function fetchAuthedJsonOrFail(
+  url: string,
+  authHeader: string,
+  timeoutMs: number,
+): Promise<AuthedFetchResult> {
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: authHeader },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (res.status === 429) return { kind: 'rate_limited' };
+    if (!res.ok) return { kind: 'failed' };
+    return { kind: 'ok', body: await res.json() };
+  } catch {
+    return { kind: 'failed' };
   }
 }
 
@@ -250,5 +308,50 @@ export async function lookupRoutes(
       });
     }
     return mapBreweries(body);
+  });
+
+  // catalog.beer beer search — replaces the removed Untappd search (see git history).
+  // Gated on `catalogBeer.apiKey` being configured, following the OLD Untappd route's
+  // exact 501 `not_configured` pattern (checked BEFORE the empty-query short-circuit, so
+  // BeerSearchSheet's mount-time probe call — an empty `q` — reliably 501s when there's no
+  // key, exactly like the breweries lookup's own empty-query short-circuit reliably
+  // returns `[]` once past this gate). catalog.beer's free tier is 1,000 requests/month,
+  // so this route does nothing itself to cut down call volume — that's enforced entirely
+  // client-side by BeerSearchSheet being search-ON-SUBMIT, never per-keystroke.
+  app.get('/api/lookup/beers', editor, async (req, reply) => {
+    const catalogBeer = app.ctx.settings.get('catalogBeer');
+    if (!catalogBeer) {
+      return reply.code(501).send({ error: 'not_configured', message: 'catalog.beer is not configured' });
+    }
+
+    const { q } = z.object({ q: z.string().optional() }).parse(req.query);
+    const query = (q ?? '').trim();
+    if (!query) return [];
+
+    const baseUrl = app.ctx.settings.get('catalogBeerBaseUrl');
+    // catalog.beer's Basic-auth convention: the API key IS the username, with an empty
+    // password (verified against api-docs — `base64_encode('<api_key>:')`, note the
+    // trailing colon with nothing after it). Sent as a header, never a query param, so it
+    // can never end up in a request-URL-derived log line or error message.
+    const authHeader = `Basic ${Buffer.from(`${catalogBeer.apiKey}:`, 'utf8').toString('base64')}`;
+    const result = await fetchAuthedJsonOrFail(
+      `${baseUrl}/beer/search?q=${encodeURIComponent(query)}`,
+      authHeader,
+      timeoutMs,
+    );
+    if (result.kind === 'rate_limited') {
+      return reply.code(429).send({
+        error: 'rate_limited',
+        message: 'catalog.beer’s monthly request limit (1,000 free) has been reached — try again next '
+          + 'month, or fill in the beer by hand',
+      });
+    }
+    if (result.kind === 'failed') {
+      return reply.code(502).send({
+        error: 'upstream_error',
+        message: 'Could not reach the beer lookup service — try again, or fill in the beer by hand',
+      });
+    }
+    return mapBeers(result.body);
   });
 }
