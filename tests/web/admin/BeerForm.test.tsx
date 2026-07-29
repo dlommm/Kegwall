@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react';
 import { BeerForm } from '../../../src/web/routes/admin/BeerForm';
 import {
-  createBeer, updateBeer, uploadLabel, lookupUntappd, lookupBreweries, importUntappdLabel,
+  createBeer, updateBeer, uploadLabel, lookupBreweries, lookupBeers,
 } from '../../../src/web/lib/adminApi';
 import { srmToColor } from '../../../src/web/lib/srm';
 import type { Beer } from '../../../src/server/db/beers';
@@ -16,9 +16,8 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   createBeer: vi.fn(),
   updateBeer: vi.fn(),
   uploadLabel: vi.fn(),
-  lookupUntappd: vi.fn(),
   lookupBreweries: vi.fn(),
-  importUntappdLabel: vi.fn(),
+  lookupBeers: vi.fn(),
 }));
 
 async function flush() {
@@ -38,8 +37,12 @@ function makeBeer(overrides: Partial<Beer> = {}): Beer {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  (lookupUntappd as Mock).mockResolvedValue({ ok: false, status: 501, message: 'Untappd is not configured' });
   (lookupBreweries as Mock).mockResolvedValue({ ok: true, data: [] });
+  // Mount-time "is catalog.beer even configured?" probe — an empty query 501s without
+  // needing real search results. Defaults to "not configured" (hidden button) so every
+  // existing test above stays unaffected; the dedicated describe block below overrides
+  // this per-test to exercise the "configured" path.
+  (lookupBeers as Mock).mockResolvedValue({ ok: false, status: 501, message: 'not configured' });
 });
 
 afterEach(() => {
@@ -100,14 +103,14 @@ describe('BeerForm', () => {
     render(<BeerForm mode="edit" beer={beer} onSaved={onSaved} onCancel={vi.fn()} />);
 
     expect(screen.getByTestId('beer-form-name')).toHaveValue('Citra IPA');
-    expect(screen.getByTestId('beer-form-style')).toHaveValue('IPA');
+    expect(screen.getByTestId('style-input')).toHaveValue('IPA');
     expect(screen.getByTestId('beer-form-abv')).toHaveValue('6.5');
     expect(screen.getByTestId('beer-form-ibu')).toHaveValue('60');
     expect(screen.getByTestId('beer-form-srm')).toHaveValue('6');
     expect(screen.getByTestId('beer-form-description')).toHaveValue('Hoppy.');
     expect(screen.getByTestId('beer-form-label-thumb')).toHaveAttribute('src', '/labels/existing.png');
 
-    fireEvent.change(screen.getByTestId('beer-form-style'), { target: { value: 'Hazy IPA' } });
+    fireEvent.change(screen.getByTestId('style-input'), { target: { value: 'Hazy IPA' } });
     fireEvent.click(screen.getByTestId('beer-form-submit'));
     await flush();
 
@@ -156,45 +159,89 @@ describe('BeerForm', () => {
     expect(screen.getByTestId('beer-form-label-error')).toHaveTextContent('File exceeds the 5MB limit');
   });
 
-  it('hides the "Search Untappd" button entirely when the config probe 501s', async () => {
-    (lookupUntappd as Mock).mockResolvedValue({ ok: false, status: 501, message: 'not configured' });
+  it('picking a StyleAutocomplete suggestion fills the style field and is submitted as-is', async () => {
+    (createBeer as Mock).mockResolvedValue({ ok: true, data: makeBeer({ style: 'Hazy IPA' }) });
     render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+    fireEvent.change(screen.getByTestId('beer-form-name'), { target: { value: 'Test Beer' } });
+    const styleInput = screen.getByTestId('style-input');
+    fireEvent.change(styleInput, { target: { value: 'Hazy IP' } });
+    fireEvent.focus(styleInput);
+    fireEvent.click(screen.getByText('Hazy IPA'));
+    expect(styleInput).toHaveValue('Hazy IPA');
+
+    fireEvent.click(screen.getByTestId('beer-form-submit'));
     await flush();
-    expect(screen.queryByTestId('beer-form-untappd-button')).not.toBeInTheDocument();
+    expect(createBeer).toHaveBeenCalledWith(expect.objectContaining({ style: 'Hazy IPA' }));
   });
 
-  it('shows the "Search Untappd" button when configured, and importing a result fills the form', async () => {
-    vi.useFakeTimers();
-    (lookupUntappd as Mock).mockImplementation((q: string) => Promise.resolve(
-      q === ''
-        ? { ok: true, data: [] }
-        : {
+  it('allows a free-text style not in the BJCP list — never blocked or overwritten', async () => {
+    (createBeer as Mock).mockResolvedValue({ ok: true, data: makeBeer({ style: 'House Blend' }) });
+    render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+    fireEvent.change(screen.getByTestId('beer-form-name'), { target: { value: 'Test Beer' } });
+    fireEvent.change(screen.getByTestId('style-input'), { target: { value: 'House Blend' } });
+    fireEvent.click(screen.getByTestId('beer-form-submit'));
+    await flush();
+    expect(createBeer).toHaveBeenCalledWith(expect.objectContaining({ style: 'House Blend' }));
+  });
+
+  // catalog.beer beer search (replaces the removed Untappd search) — mirrors the removed
+  // UntappdSearchSheet's 501-probe wiring exactly (see git history: eba5caa^).
+  describe('catalog.beer search sheet', () => {
+    it('probes on mount with an empty query and hides the button entirely when it 501s (not configured)', async () => {
+      render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+      await flush();
+      expect(lookupBeers).toHaveBeenCalledWith('');
+      expect(screen.queryByTestId('beer-form-catalogbeer-button')).not.toBeInTheDocument();
+    });
+
+    it('shows the button when the probe succeeds, opens the sheet, and fills every mapped '
+      + 'field (name/brewery/style/abv/ibu/description) on pick — no label field involved', async () => {
+      (lookupBeers as Mock).mockImplementation((q: string) => {
+        if (q === '') return Promise.resolve({ ok: true, data: [] }); // probe: configured
+        return Promise.resolve({
           ok: true,
           data: [{
-            name: 'Citra IPA', brewery: 'Untappd Brewery', style: 'IPA', abv: 7.2, ibu: 65,
-            labelUrl: 'https://untappd.example/label.png',
+            name: 'Sculpin IPA', brewery: 'Ballast Point Brewing Company',
+            style: 'American-Style India Pale Ale', abv: 7, ibu: 70,
+            description: 'A hop-forward IPA.',
           }],
-        },
-    ));
-    (importUntappdLabel as Mock).mockResolvedValue({ ok: true, data: { path: '/labels/imported.png' } });
+        });
+      });
+      render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+      await flush();
 
-    render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
-    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
-    expect(screen.getByTestId('beer-form-untappd-button')).toBeInTheDocument();
+      const button = screen.getByTestId('beer-form-catalogbeer-button');
+      fireEvent.click(button);
+      expect(screen.getByTestId('beer-search-sheet-backdrop')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('beer-form-untappd-button'));
-    fireEvent.change(screen.getByTestId('untappd-search-input'), { target: { value: 'Citra' } });
-    await act(async () => { vi.advanceTimersByTime(300); });
-    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      fireEvent.change(screen.getByTestId('beer-search-input'), { target: { value: 'Sculpin' } });
+      fireEvent.submit(screen.getByTestId('beer-search-form'));
+      await flush();
+      fireEvent.click(screen.getByTestId('beer-search-sheet-result'));
 
-    fireEvent.click(screen.getByTestId('untappd-sheet-result'));
-    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(screen.getByTestId('beer-form-name')).toHaveValue('Sculpin IPA');
+      expect(screen.getByTestId('brewery-input')).toHaveValue('Ballast Point Brewing Company');
+      expect(screen.getByTestId('style-input')).toHaveValue('American-Style India Pale Ale');
+      expect(screen.getByTestId('beer-form-abv')).toHaveValue('7');
+      expect(screen.getByTestId('beer-form-ibu')).toHaveValue('70');
+      expect(screen.getByTestId('beer-form-description')).toHaveValue('A hop-forward IPA.');
+      // The label field is never touched by a catalog.beer import — there is no label art.
+      expect(screen.getByTestId('beer-form-label-placeholder')).toBeInTheDocument();
+      // Sheet closes after a pick.
+      expect(screen.queryByTestId('beer-search-sheet-backdrop')).not.toBeInTheDocument();
+    });
 
-    expect(screen.getByTestId('beer-form-name')).toHaveValue('Citra IPA');
-    expect(screen.getByTestId('beer-form-style')).toHaveValue('IPA');
-    expect(screen.getByTestId('beer-form-abv')).toHaveValue('7.2');
-    expect(screen.getByTestId('beer-form-ibu')).toHaveValue('65');
-    expect(screen.getByTestId('beer-form-label-thumb')).toHaveAttribute('src', '/labels/imported.png');
-    expect(screen.queryByTestId('untappd-sheet-backdrop')).not.toBeInTheDocument();
+    it('closing the sheet without picking anything leaves the form untouched', async () => {
+      (lookupBeers as Mock).mockResolvedValue({ ok: true, data: [] }); // probe: configured
+      render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+      await flush();
+
+      fireEvent.click(screen.getByTestId('beer-form-catalogbeer-button'));
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByTestId('beer-search-sheet-backdrop')).not.toBeInTheDocument();
+      expect(screen.getByTestId('beer-form-name')).toHaveValue('');
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
 import { SettingsStore } from '../../src/server/db/settings.js';
 import { ValidationError } from '../../src/server/core/errors.js';
@@ -6,9 +7,11 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+let db: Database.Database;
 let store: SettingsStore;
 beforeEach(() => {
-  store = new SettingsStore(openDb(mkdtempSync(join(tmpdir(), 'ktdash-'))));
+  db = openDb(mkdtempSync(join(tmpdir(), 'ktdash-')));
+  store = new SettingsStore(db);
 });
 
 // mqtt has several zod-defaulted sub-fields that are required in the output
@@ -67,32 +70,88 @@ describe('SettingsStore', () => {
     expect(store.get('mqtt')?.password).toBe('realmqttpass');
   });
 
-  it('set() throws ValidationError when given a masked untappd.clientSecret', () => {
-    store.set('untappd', { clientId: 'id1', clientSecret: 'realclientsecret' });
-    expect(() => store.set('untappd', { clientId: 'id1', clientSecret: '••••' }))
-      .toThrow(ValidationError);
-    expect(store.get('untappd')?.clientSecret).toBe('realclientsecret');
-  });
-
-  it('sanitizePatch drops a masked top-level secret and merges masked nested secrets', () => {
+  it('sanitizePatch drops a masked top-level secret and merges a masked nested secret', () => {
     store.set('kegtronApiKey', 'realsecretvalue1');
     store.set('mqtt', {
       ...MQTT_DEFAULTS, url: 'mqtt://host:1883', username: 'u', password: 'realmqttpass',
     });
-    store.set('untappd', { clientId: 'id1', clientSecret: 'realclientsecret' });
 
     const patch = {
       kegtronApiKey: '••••ue16',
       mqtt: { ...MQTT_DEFAULTS, url: 'mqtt://newhost:1883', username: 'u2', password: '••••' },
-      untappd: { clientId: 'id2', clientSecret: '••••' },
     };
     const sanitized = store.sanitizePatch(patch);
 
     expect(sanitized.kegtronApiKey).toBeUndefined();
     expect(sanitized.mqtt).toMatchObject({ url: 'mqtt://newhost:1883', username: 'u2' });
     expect(sanitized.mqtt?.password).toBe('realmqttpass');
-    expect(sanitized.untappd).toMatchObject({ clientId: 'id2' });
-    expect(sanitized.untappd?.clientSecret).toBe('realclientsecret');
+  });
+
+  // Post-Untappd-removal regression: an install upgraded from a version that still had
+  // the `untappd` settings key would have a stale `untappd` row sitting in the `settings`
+  // table (SettingsStore never deletes a row just because a later schema drops the key).
+  // zod's default `z.object()` behavior is to silently STRIP unrecognized keys on parse
+  // (not throw — verified directly against this repo's zod version), so `all()`/`get()`
+  // must keep working unmodified against that leftover row; this inserts one directly
+  // (bypassing `set()`, which no longer accepts an `untappd` key at the type level at
+  // all) to prove it.
+  it('tolerates a stale, no-longer-in-schema settings row (e.g. a pre-removal "untappd" row) without throwing', () => {
+    db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run('untappd', JSON.stringify({ clientId: 'stale-id', clientSecret: 'stale-secret' }));
+    store.set('siteName', 'Still Works');
+
+    expect(() => store.all()).not.toThrow();
+    const all = store.all();
+    expect(all.siteName).toBe('Still Works');
+    expect((all as Record<string, unknown>).untappd).toBeUndefined();
+    expect(() => store.masked()).not.toThrow();
+    expect(store.get('siteName')).toBe('Still Works');
+  });
+
+  // catalog.beer beer search (replaces the removed Untappd search): `catalogBeer` is a
+  // nested, independently-nullable object (like `mqtt`) with a single secret sub-field,
+  // `apiKey` -- same "secret nested inside a nested object" shape as `mqtt.password`,
+  // masked to a last-4 suffix (like `kegtronApiKey`/`alertChannels.pushover.token`) rather
+  // than a bare '••••' (like `mqtt.password`) since an API key, unlike a password, is
+  // safe and useful to partially reveal for at-a-glance recognition.
+  describe('catalogBeer', () => {
+    it('defaults to null (not configured)', () => {
+      expect(store.get('catalogBeer')).toBeNull();
+    });
+
+    it('round-trips a real apiKey', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      expect(store.get('catalogBeer')).toEqual({ apiKey: 'cb-real-secret-key' });
+    });
+
+    it('masks apiKey to a last-4 suffix', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      const m = store.masked();
+      expect(m.catalogBeer?.apiKey).toBe('••••-key');
+    });
+
+    it('set() throws ValidationError when given a masked catalogBeer.apiKey', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      expect(() => store.set('catalogBeer', { apiKey: '••••-key' })).toThrow(ValidationError);
+      expect(store.get('catalogBeer')?.apiKey).toBe('cb-real-secret-key');
+    });
+
+    it('sanitizePatch merges a masked catalogBeer.apiKey back to the currently-stored real value', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      const sanitized = store.sanitizePatch({ catalogBeer: { apiKey: '••••-key' } });
+      expect(sanitized.catalogBeer?.apiKey).toBe('cb-real-secret-key');
+    });
+
+    it('sanitizePatch leaves a freshly typed (unmasked) catalogBeer.apiKey alone', () => {
+      store.set('catalogBeer', { apiKey: 'cb-real-secret-key' });
+      const sanitized = store.sanitizePatch({ catalogBeer: { apiKey: 'brand-new-key' } });
+      expect(sanitized.catalogBeer?.apiKey).toBe('brand-new-key');
+    });
+
+    it('exposes a hidden catalogBeerBaseUrl setting with its real default', () => {
+      expect(store.get('catalogBeerBaseUrl')).toBe('https://catalog.beer');
+    });
   });
 
   // Phase 5 Task 2: alertChannels config (ntfy/pushover/smtp/discord/slack), each

@@ -14,7 +14,7 @@ import type { Notification } from '../../server/db/notificationsRepo.js';
 // comment above for the routes-file case this is NOT: that one drags in Fastify request/
 // reply augmentations that don't typecheck in tsconfig.web.json's program).
 import type { Settings } from '../../server/db/settings.js';
-import type { Pour, Keg, KegStatus } from '../../server/db/kegs.js';
+import type { Pour, Keg, KegStatus, KegType } from '../../server/db/kegs.js';
 import type { Tap } from '../../server/db/taps.js';
 import type { Monitor } from '../../server/db/monitors.js';
 import type { ActivityEvent } from '../../server/db/activity.js';
@@ -34,7 +34,7 @@ import type { WallConfig } from '../../server/core/wallConfig.js';
 // From core/lookupTypes.ts, NOT routes/lookup.ts — see that core module's doc comment:
 // a type-only import of a ROUTES file would drag its Fastify-request-augmenting value
 // imports into this (web) tsconfig's program, where they don't typecheck.
-import type { BreweryLookupResult, UntappdLookupResult } from '../../server/core/lookupTypes.js';
+import type { BreweryLookupResult, BeerLookupResult } from '../../server/core/lookupTypes.js';
 
 /**
  * The authed variant of `./api.ts`'s typed-result fetch pattern (see that file's doc
@@ -224,22 +224,14 @@ export function lookupBreweries(q: string): Promise<ApiResult<BreweryLookupResul
   return request(`/api/lookup/breweries?q=${encodeURIComponent(q)}`);
 }
 
-/** GET /api/lookup/untappd?q= — 501 `{error:'not_configured'}` (surfaced as
- * `ApiFailure` with `status: 501`) when Untappd creds aren't set; the Untappd search
- * sheet uses an empty `q` call as its own "is this even configured?" probe, since that
- * still 501s without needing a real search term. */
-export function lookupUntappd(q: string): Promise<ApiResult<UntappdLookupResult[]>> {
-  return request(`/api/lookup/untappd?q=${encodeURIComponent(q)}`);
-}
-
-/** POST /api/lookup/untappd/import — downloads `labelUrl` server-side into DATA_DIR/labels
- * and returns its stored `/labels/...` path; the beers form never renders the raw Untappd
- * CDN URL directly (see UntappdSearchSheet). */
-export function importUntappdLabel(labelUrl: string): Promise<ApiResult<{ path: string }>> {
-  return request('/api/lookup/untappd/import', {
-    method: 'POST',
-    body: JSON.stringify({ labelUrl }),
-  });
+/** GET /api/lookup/beers?q= — the beers form's "Search catalog.beer" sheet (replaces the
+ * removed Untappd search). Deliberately search-ON-SUBMIT only from every caller
+ * (BeerSearchSheet), never per-keystroke — catalog.beer's free tier is 1,000 requests/
+ * month. An empty `q` 501s `{error:'not_configured'}` when no API key is set (see
+ * routes/lookup.ts) — BeerSearchSheet's own mount-time probe relies on exactly that, same
+ * pattern the removed UntappdSearchSheet used against `lookupUntappd('')`. */
+export function lookupBeers(q: string): Promise<ApiResult<BeerLookupResult[]>> {
+  return request(`/api/lookup/beers?q=${encodeURIComponent(q)}`);
 }
 
 /** POST /api/uploads/label — multipart file upload (Task 1); returns the stored
@@ -290,7 +282,7 @@ export function listKegs(params: { status?: KegStatus } = {}): Promise<ApiResult
  * current keg instead — the on-deck queue's "add to queue" action. */
 export function createKeg(input: {
   beerId: number; sizeMl: number; volStartMl: number;
-  tapId?: number | null; status?: 'on_deck';
+  tapId?: number | null; status?: 'on_deck'; kegType?: KegType;
 }): Promise<ApiResult<Keg>> {
   return request('/api/kegs', { method: 'POST', body: JSON.stringify(input) });
 }
@@ -306,12 +298,15 @@ export function listOnDeck(tapId: number): Promise<ApiResult<Keg[]>> {
   return request(`/api/taps/${tapId}/on-deck`);
 }
 
-/** POST /api/taps/:id/swap — either taps a brand-new keg (`beerId`/`sizeMl`/`volStartMl`)
- * or promotes an already-queued on-deck keg (`fromKegId`); either way, any currently
- * on_tap keg for this tap is kicked first (see db/kegs.ts's `swapKeg`). */
+/** POST /api/taps/:id/swap — either taps a brand-new keg (`beerId`/`sizeMl`/`volStartMl`,
+ * optionally `kegType`) or promotes an already-queued on-deck keg (`fromKegId`, which
+ * ignores `kegType` — the promoted keg keeps whatever it was created with); either way,
+ * any currently on_tap keg for this tap is kicked first (see db/kegs.ts's `swapKeg`). */
 export function swapTap(
   tapId: number,
-  input: { beerId: number; sizeMl: number; volStartMl: number } | { fromKegId: number },
+  input:
+    | { beerId: number; sizeMl: number; volStartMl: number; kegType?: KegType }
+    | { fromKegId: number },
 ): Promise<ApiResult<Keg>> {
   return request(`/api/taps/${tapId}/swap`, { method: 'POST', body: JSON.stringify(input) });
 }
@@ -434,9 +429,9 @@ export function deleteUser(id: number): Promise<ApiResult<null>> {
   return request(`/api/users/${id}`, { method: 'DELETE' });
 }
 
-/** GET /api/settings — secrets (kegtronApiKey, mqtt.password, untappd.clientSecret) come
- * back masked (see db/settings.ts's `masked()`); SettingsPage never PATCHes one of these
- * mask strings back — see `patchSettings` below. */
+/** GET /api/settings — secrets (kegtronApiKey, mqtt.password, alertChannels' per-channel
+ * secrets) come back masked (see db/settings.ts's `masked()`); SettingsPage never PATCHes
+ * one of these mask strings back — see `patchSettings` below. */
 export function getSettings(): Promise<ApiResult<Settings>> {
   return request('/api/settings');
 }

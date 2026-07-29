@@ -21,11 +21,11 @@ function formatIbu(ibu: number | null): string {
 }
 
 /**
- * `/admin/beers` (Task 4): the beer catalog table plus create/edit form, brewery
- * autocomplete (inside `BeerForm`), and Untappd lookup sheet. A viewer sees a read-only
- * table — no "Add beer" button, no per-row Edit/Delete controls, and `BeerForm` is never
- * mounted for them at all (not just hidden), matching the server's own `editor`-role gate
- * on every beers-mutating endpoint.
+ * `/admin/beers` (Task 4): the beer catalog table plus create/edit form, with brewery and
+ * style autocomplete (both inside `BeerForm`). A viewer sees a read-only table — no "Add
+ * beer" button, no per-row Edit/Delete controls, and `BeerForm` is never mounted for them
+ * at all (not just hidden), matching the server's own `editor`-role gate on every
+ * beers-mutating endpoint.
  */
 export function BeersPage() {
   const { me } = useAdminContext();

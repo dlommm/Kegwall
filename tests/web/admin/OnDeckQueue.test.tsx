@@ -15,9 +15,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   createBeer: vi.fn(),
   updateBeer: vi.fn(),
   uploadLabel: vi.fn(),
-  lookupUntappd: vi.fn().mockResolvedValue({ ok: false, status: 501, message: 'not configured' }),
   lookupBreweries: vi.fn().mockResolvedValue({ ok: true, data: [] }),
-  importUntappdLabel: vi.fn(),
 }));
 
 async function flush() {
@@ -38,7 +36,8 @@ function makeBeer(overrides: Partial<Beer> = {}): Beer {
 function makeKeg(overrides: Partial<Keg> = {}): Keg {
   return {
     id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
-    dateTapped: null, status: 'on_deck', createdAt: '2026-07-28T00:00:00.000Z', ...overrides,
+    dateTapped: null, status: 'on_deck', createdAt: '2026-07-28T00:00:00.000Z', kegType: null,
+    ...overrides,
   };
 }
 
@@ -173,6 +172,50 @@ describe('OnDeckQueue', () => {
       beerId: 7, sizeMl: 20000, volStartMl: 20000, tapId: 4, status: 'on_deck',
     });
     expect(screen.queryByTestId('on-deck-add-form')).not.toBeInTheDocument();
+  });
+
+  describe('keg type select (keg-asset fill indicator feature)', () => {
+    it("defaults the 'Keg type' select to Auto and omits kegType from the createKeg payload", async () => {
+      const beer = makeBeer({ id: 7, name: 'Stout' });
+      (createKeg as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 21, beerId: 7 }) });
+      render(
+        <OnDeckQueue tapId={4} beers={[beer]} kegs={[]} units="us" canEdit onPromote={vi.fn()} refreshKey={0} />,
+      );
+      await flush();
+      fireEvent.click(screen.getByTestId('on-deck-add-toggle'));
+      fireEvent.click(screen.getByTestId('beer-picker-option'));
+      expect(screen.getByTestId('on-deck-add-keg-type')).toHaveValue('auto');
+
+      fireEvent.change(screen.getByTestId('on-deck-add-size'), { target: { value: '19000' } });
+      fireEvent.change(screen.getByTestId('on-deck-add-volstart'), { target: { value: '19000' } });
+      fireEvent.click(screen.getByTestId('on-deck-add-submit'));
+      await flush();
+
+      expect(createKeg).toHaveBeenCalledWith({
+        beerId: 7, sizeMl: 19000, volStartMl: 19000, tapId: 4, status: 'on_deck',
+      });
+    });
+
+    it("an explicit 'Keg type' selection is sent as kegType on the createKeg payload", async () => {
+      const beer = makeBeer({ id: 7, name: 'Stout' });
+      (createKeg as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 21, beerId: 7 }) });
+      render(
+        <OnDeckQueue tapId={4} beers={[beer]} kegs={[]} units="us" canEdit onPromote={vi.fn()} refreshKey={0} />,
+      );
+      await flush();
+      fireEvent.click(screen.getByTestId('on-deck-add-toggle'));
+      fireEvent.click(screen.getByTestId('beer-picker-option'));
+
+      fireEvent.change(screen.getByTestId('on-deck-add-size'), { target: { value: '19000' } });
+      fireEvent.change(screen.getByTestId('on-deck-add-volstart'), { target: { value: '19000' } });
+      fireEvent.change(screen.getByTestId('on-deck-add-keg-type'), { target: { value: 'sixth-barrel' } });
+      fireEvent.click(screen.getByTestId('on-deck-add-submit'));
+      await flush();
+
+      expect(createKeg).toHaveBeenCalledWith({
+        beerId: 7, sizeMl: 19000, volStartMl: 19000, tapId: 4, status: 'on_deck', kegType: 'sixth-barrel',
+      });
+    });
   });
 
   it('a failed add-to-queue shows an inline error and keeps the form open', async () => {

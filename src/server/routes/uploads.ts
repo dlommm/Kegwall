@@ -5,8 +5,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireRole } from './auth.js';
 
-/** 5MB cap, shared with Task 4's `routes/lookup.ts` Untappd label download (which
- * bounds its own streamed read against this same constant — see that file). */
+/** 5MB cap, shared with Task 4's `routes/lookup.ts` `downloadAndStoreLabel` remote label
+ * download helper (which bounds its own streamed read against this same constant — see
+ * that file). */
 export const MAX_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -29,8 +30,9 @@ const SIGNATURES: { ext: 'png' | 'jpg' | 'webp'; matches: (b: Buffer) => boolean
   },
 ];
 
-/** Exported for `routes/lookup.ts`'s Untappd label import, which reuses the exact same
- * magic-byte sniffing on a server-downloaded buffer instead of a multipart upload. */
+/** Exported for `routes/lookup.ts`'s `downloadAndStoreLabel` remote label download
+ * helper, which reuses the exact same magic-byte sniffing on a server-downloaded buffer
+ * instead of a multipart upload. */
 export function detectExt(buf: Buffer): string | null {
   return SIGNATURES.find((s) => s.matches(buf))?.ext ?? null;
 }
@@ -38,8 +40,9 @@ export function detectExt(buf: Buffer): string | null {
 /** Validates `buf` by magic bytes and, if it's a supported image, writes it to
  * `<labelsDir>/<uuid>.<ext>` and returns the `/labels/...` path the client should store as
  * `labelImage`. Returns `null` (writes nothing) for an unsupported/undetectable type.
- * Shared by this module's multipart upload handler and `routes/lookup.ts`'s Untappd
- * label-download handler — one place owns "what counts as a valid stored label". */
+ * Shared by this module's multipart upload handler and `routes/lookup.ts`'s
+ * `downloadAndStoreLabel` remote label download helper — one place owns "what counts as
+ * a valid stored label". */
 export function writeLabelFile(labelsDir: string, buf: Buffer): string | null {
   const ext = detectExt(buf);
   if (!ext) return null;
@@ -49,9 +52,10 @@ export function writeLabelFile(labelsDir: string, buf: Buffer): string | null {
 }
 
 /** `POST /api/uploads/label` — editor-role image upload used by the beers form (Task 4)
- * and, indirectly, Untappd label fetches (also Task 4, which downloads server-side into
- * this same directory rather than hotlinking). Kept as its own small route module so
- * `crud.ts` doesn't have to grow a multipart/file-storage concern. */
+ * and, indirectly, `routes/kegtron.ts`'s Pro import label download (also Task 4-descended,
+ * which downloads server-side into this same directory rather than hotlinking). Kept as
+ * its own small route module so `crud.ts` doesn't have to grow a multipart/file-storage
+ * concern. */
 export async function uploadsRoutes(app: FastifyInstance, dataDir: string) {
   await app.register(multipart, { limits: { fileSize: MAX_BYTES, files: 1 } });
 

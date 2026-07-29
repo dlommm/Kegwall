@@ -257,7 +257,7 @@ describe('WallPage', () => {
         },
         keg: {
           id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
-          dateTapped: null, status: 'on_tap', createdAt: '', levelPct: 100, remainingMl: 19000,
+          dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
         },
       })],
       units: 'metric',

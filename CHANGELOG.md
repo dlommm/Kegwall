@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+- **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
+  Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new
+  developer credentials, making the feature unusable for any new install. The Kegtron Pro
+  device import's own label-art download (decoding a device's own configured label id,
+  unrelated to the removed search API) is unaffected. Open Brewery DB brewery autocomplete
+  is unaffected.
+- **Added:** a keg cutaway fill style for walls — per-wall "Fill style" option (`Beer-colored
+  liquid` or `Keg cutaway`) rendering photorealistic cutaway keg art matched to the keg's
+  size (½/¼/sixtel/50L/corny/slim-quarter/mini, auto-matched from Kegtron's keg size with a
+  manual "Keg type" override on kegs), a traffic-light level color (green → yellow → red as
+  the keg empties) and a live percent readout centered in the keg.
+- **Added:** an offline BJCP-2021-style autocomplete for the beers form's style field
+  (`StyleAutocomplete`) — a local, no-network suggestion list (`src/web/data/beerStyles.ts`)
+  that fills the gap left by the removed Untappd style autofill, working the same on day
+  one for every install with no API key required.
+- **Fixed:** the Kegtron Pro cloud source's notify WebSocket now sends an `Origin` header
+  on the handshake (matching Kegtron's own Node.js example) — mdash.net 403s the
+  connection without one, which was silently degrading every install to 5-minute polling
+  instead of live push updates.
+- **Added:** catalog.beer beer search (optional, own API key) — a `BeerSearchSheet` in the
+  beers form (Settings → Integrations → Catalog.beer) fills name/brewery/style/ABV/IBU/
+  description from a search-on-submit lookup against catalog.beer's `/beer/search`. No
+  label art (catalog.beer's API has none) and a 1,000 requests/month free-tier cap, which
+  is why searches fire only on Enter/button, never per keystroke.
+
 ## v0.1.0 — initial release
 
 First shippable version of Kegtron Dashboard: a self-hosted, standalone-first tap wall

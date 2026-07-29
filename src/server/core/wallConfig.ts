@@ -26,6 +26,13 @@ export const wallConfigSchema = z.object({
     enabled: z.boolean().default(false),
     startAfterMinutes: z.number().int().min(1).default(10),
   }).default({ enabled: false, startAfterMinutes: 10 }),
+  // Keg-asset fill indicator feature: per-wall display style for a tap's fill visual.
+  // 'liquid' (default) is the existing SRM-true LiquidFill; 'keg' renders KegFill's
+  // photorealistic cutaway-keg cavity with a traffic-light level color instead. Default
+  // 'liquid' so existing walls' stored config (parsed with this key absent) render
+  // exactly as before. Applies to the full/standard/minimal card templates only —
+  // `compact`'s tiny liquid swatch keeps the liquid swatch regardless (see TapCard.tsx).
+  fillStyle: z.enum(['liquid', 'keg']).default('liquid'),
 });
 
 export type WallConfig = z.infer<typeof wallConfigSchema>;

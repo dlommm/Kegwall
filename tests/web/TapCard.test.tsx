@@ -48,6 +48,7 @@ function makeKeg(overrides: Partial<WallKeg> = {}): WallKeg {
     dateTapped: '2026-07-01T00:00:00.000Z',
     status: 'on_tap',
     createdAt: '2026-07-01T00:00:00.000Z',
+    kegType: null,
     levelPct: 50,
     remainingMl: 9_750,
     ...overrides,
@@ -307,6 +308,80 @@ describe('TapCard', () => {
       render(<TapCard tap={makeTap({ pouring: true, curServMl: 50 })} />);
       expect(screen.getByTestId('liquid-fill').className).not.toMatch(/pouring/);
       expect(screen.getByTestId('liquid-fill-foam').getAttribute('class')).not.toMatch(/ripple/);
+    });
+  });
+
+  describe('fillStyle (keg-asset fill indicator feature)', () => {
+    it("defaults to LiquidFill when fillStyle is omitted", () => {
+      mockReducedMotion(false);
+      render(<TapCard tap={makeTap()} template="standard" />);
+      expect(screen.getByTestId('liquid-fill')).toBeInTheDocument();
+      expect(screen.queryByTestId('keg-fill')).not.toBeInTheDocument();
+    });
+
+    it("renders KegFill instead of LiquidFill when fillStyle is 'keg', for full/standard/minimal", () => {
+      mockReducedMotion(false);
+      for (const template of ['full', 'standard', 'minimal'] as const) {
+        const { unmount } = render(
+          <TapCard tap={makeTap()} template={template} fillStyle="keg" />,
+        );
+        expect(screen.getByTestId('keg-fill')).toBeInTheDocument();
+        expect(screen.queryByTestId('liquid-fill')).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it("compact ALWAYS renders LiquidFill (the small swatch), even when fillStyle is 'keg'", () => {
+      mockReducedMotion(false);
+      render(<TapCard tap={makeTap()} template="compact" fillStyle="keg" />);
+      expect(screen.getByTestId('liquid-fill')).toBeInTheDocument();
+      expect(screen.queryByTestId('keg-fill')).not.toBeInTheDocument();
+    });
+
+    it('passes the keg size and kegType override through to KegFill for asset resolution', () => {
+      mockReducedMotion(false);
+      render(
+        <TapCard
+          tap={makeTap({ keg: makeKeg({ sizeMl: 58674, kegType: 'mini-keg' }) })}
+          fillStyle="keg"
+        />,
+      );
+      expect(screen.getByTestId('keg-fill')).toHaveAttribute('data-asset', 'mini-keg');
+    });
+
+    it('auto-matches the asset by sizeMl when the keg has no kegType override', () => {
+      mockReducedMotion(false);
+      render(
+        <TapCard
+          tap={makeTap({ keg: makeKeg({ sizeMl: 58674, kegType: null }) })}
+          fillStyle="keg"
+        />,
+      );
+      expect(screen.getByTestId('keg-fill')).toHaveAttribute('data-asset', 'half-barrel');
+    });
+
+    it('drains KegFill to 0% for a kicked keg, same as LiquidFill', () => {
+      mockReducedMotion(false);
+      render(
+        <TapCard
+          tap={makeTap({ keg: makeKeg({ status: 'kicked', levelPct: 70 }) })}
+          fillStyle="keg"
+        />,
+      );
+      expect(screen.getByTestId('keg-fill-percent')).toHaveTextContent('0%');
+      expect(screen.getByTestId('keg-fill-overlay').style.height).toBe('0%');
+    });
+
+    it('formats the running pour readout on KegFill per the units prop while pouring', () => {
+      mockReducedMotion(false);
+      render(
+        <TapCard
+          tap={makeTap({ pouring: true, curServMl: 148 })}
+          fillStyle="keg"
+          units="metric"
+        />,
+      );
+      expect(screen.getByTestId('keg-fill-readout')).toHaveTextContent(formatVolumeMl(148, 'metric'));
     });
   });
 });

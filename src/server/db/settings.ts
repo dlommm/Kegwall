@@ -19,16 +19,28 @@ export const settingsSchema = z.object({
   // and so always uses that same default too).
   kegtronBaseUrl: z.string().default('https://mdash.net'),
   // Same hidden, test-injectable pattern as `kegtronBaseUrl` above — Task 4's
-  // routes/lookup.ts proxies Open Brewery DB and Untappd from real production defaults
-  // here, but tests point these at a local fake server instead. Neither is a secret (no
-  // credential lives in either URL) and neither is surfaced in any settings form.
+  // routes/lookup.ts proxies Open Brewery DB from a real production default here, but
+  // tests point this at a local fake server instead. Not a secret (no credential lives in
+  // the URL) and not surfaced in any settings form.
   openBreweryBaseUrl: z.string().default('https://api.openbrewerydb.org'),
-  untappdBaseUrl: z.string().default('https://api.untappd.com'),
-  // Same hidden, test-injectable pattern as the two above — the CDN host
-  // `decodeUntappdLabelUrl` (ingest/kegtron/shadow.ts) reconstructs a Pro import's label
-  // image URL against (Phase 5 Task 0's labelUrl-decode spec-parity item). Not a secret;
-  // no admin UI form.
+  // Same hidden, test-injectable pattern as the one above — the CDN host
+  // `decodeUntappdLabelUrl` (ingest/kegtron/shadow.ts) reconstructs a Kegtron Pro import's
+  // label image URL against (Phase 5 Task 0's labelUrl-decode spec-parity item; a Kegtron
+  // Pro device-spec detail, unrelated to the removed Untappd search integration below).
+  // Not a secret; no admin UI form.
   untappdImageBaseUrl: z.string().default('https://untappd.akamaized.net'),
+  // catalog.beer beer search (replaces the removed Untappd search) — a nested,
+  // independently-nullable object (same shape as `mqtt` above) with a single secret
+  // sub-field, `apiKey`. Masked to a last-4 suffix (like `kegtronApiKey`/
+  // `alertChannels.pushover.token`), not a bare '••••' (like `mqtt.password`) — an API
+  // key, unlike a password, is safe and useful to partially reveal. See
+  // `assertNoMaskedSecret`/`sanitizePatch`/`masked()` below for how it's guarded.
+  catalogBeer: z.object({ apiKey: z.string().min(1) }).nullable().default(null),
+  // Same hidden, test-injectable pattern as `openBreweryBaseUrl`/`kegtronBaseUrl` above —
+  // `routes/lookup.ts`'s beer-search proxy hits this in production; tests point it at a
+  // local fake server instead. Not a secret (no credential lives in the URL) and not
+  // surfaced in any settings form.
+  catalogBeerBaseUrl: z.string().default('https://catalog.beer'),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
@@ -54,10 +66,6 @@ export const settingsSchema = z.object({
     })
     .nullable()
     .default(null),
-  untappd: z
-    .object({ clientId: z.string(), clientSecret: z.string() })
-    .nullable()
-    .default(null),
   quietHours: z
     .object({ start: z.string(), end: z.string() }) // "22:00" / "08:00"
     .nullable()
@@ -70,8 +78,8 @@ export const settingsSchema = z.object({
   // `pushover.token`, `smtp.password`, `discord.webhookUrl`, `slack.webhookUrl` (a
   // Discord/Slack webhook URL IS the credential — an unguessable token lives in its
   // path) — see `SECRET_KEYS`/`assertNoMaskedSecret`/`sanitizePatch`/`masked()` below for
-  // how each is masked, following the existing `mqtt.password`/`untappd.clientSecret`
-  // precedent one level deeper (a secret nested inside a nested object).
+  // how each is masked, following the existing `mqtt.password` precedent one level
+  // deeper (a secret nested inside a nested object).
   alertChannels: z
     .object({
       ntfy: z.object({ serverUrl: z.string().url(), topic: z.string().min(1) }).nullable().optional(),
@@ -132,7 +140,7 @@ function maskWebhookUrl(url: string): string {
  * PATCH without editing the secret field, the mask string must never be
  * written as if it were the real secret — that would silently destroy the
  * stored value. This guards both the flat `kegtronApiKey` field and the
- * nested `mqtt.password` / `untappd.clientSecret` fields.
+ * nested `mqtt.password` field.
  */
 function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[K]): void {
   if ((SECRET_KEYS as readonly string[]).includes(key as string) && isMaskedString(value)) {
@@ -141,8 +149,8 @@ function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[
   if (key === 'mqtt' && value && typeof value === 'object' && isMaskedString((value as any).password)) {
     throw new ValidationError('mqtt.password looks like a masked display value; refusing to store it');
   }
-  if (key === 'untappd' && value && typeof value === 'object' && isMaskedString((value as any).clientSecret)) {
-    throw new ValidationError('untappd.clientSecret looks like a masked display value; refusing to store it');
+  if (key === 'catalogBeer' && value && typeof value === 'object' && isMaskedString((value as any).apiKey)) {
+    throw new ValidationError('catalogBeer.apiKey looks like a masked display value; refusing to store it');
   }
   if (key === 'alertChannels' && value && typeof value === 'object') {
     const ac = value as Record<string, any>;
@@ -190,10 +198,9 @@ export class SettingsStore {
    * Prepares a PATCH body for writing: a top-level secret whose value is
    * still in its masked display form is dropped from the patch entirely
    * (the real stored value is left untouched); a nested secret sub-field
-   * (mqtt.password, untappd.clientSecret) that is still masked is replaced
-   * with the currently-stored real value so the rest of that object's edits
-   * (e.g. mqtt.url) still apply. Callers should pass the result to `set()`
-   * key by key, as the PATCH route does.
+   * (mqtt.password) that is still masked is replaced with the currently-stored
+   * real value so the rest of that object's edits (e.g. mqtt.url) still apply.
+   * Callers should pass the result to `set()` key by key, as the PATCH route does.
    */
   sanitizePatch(patch: Partial<Settings>): Partial<Settings> {
     const out: Partial<Settings> = { ...patch };
@@ -203,20 +210,16 @@ export class SettingsStore {
     if (out.mqtt && isMaskedString(out.mqtt.password)) {
       out.mqtt = { ...out.mqtt, password: this.get('mqtt')?.password };
     }
-    if (out.untappd && isMaskedString(out.untappd.clientSecret)) {
-      // clientSecret is a required string in the schema; a masked value here
-      // implies a real one must already exist (masked() only masks a truthy
-      // secret), so the '' fallback is unreachable in practice — it exists
-      // only to satisfy the type when the stored settings lack untappd.
-      out.untappd = { ...out.untappd, clientSecret: this.get('untappd')?.clientSecret ?? '' };
+    if (out.catalogBeer && isMaskedString(out.catalogBeer.apiKey)) {
+      out.catalogBeer = { ...out.catalogBeer, apiKey: this.get('catalogBeer')?.apiKey ?? '' };
     }
     if (out.alertChannels) {
       const stored = this.get('alertChannels');
       const ac = { ...out.alertChannels };
       // Each channel's secret is swapped back in independently — a PATCH round-trips the
       // WHOLE alertChannels object (same "client sends the full object back" idiom as
-      // mqtt/untappd above), so any subset of channels can be mid-edit (still masked)
-      // while others carry a fresh, already-real value in the same request.
+      // mqtt above), so any subset of channels can be mid-edit (still masked) while
+      // others carry a fresh, already-real value in the same request.
       if (ac.pushover && isMaskedString(ac.pushover.token)) {
         ac.pushover = { ...ac.pushover, token: stored?.pushover?.token ?? '' };
       }
@@ -245,7 +248,9 @@ export class SettingsStore {
       }
     }
     if (s.mqtt?.password) s.mqtt.password = '••••';
-    if (s.untappd?.clientSecret) s.untappd.clientSecret = '••••';
+    if (s.catalogBeer?.apiKey) {
+      s.catalogBeer.apiKey = '••••' + s.catalogBeer.apiKey.slice(-4);
+    }
     if (s.alertChannels.pushover?.token) {
       s.alertChannels.pushover.token = '••••' + s.alertChannels.pushover.token.slice(-4);
     }

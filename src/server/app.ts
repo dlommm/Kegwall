@@ -69,14 +69,17 @@ export interface AppOptions {
   startSources?: boolean;
   /** Overrides the `/ws` heartbeat interval (default 30s) — tests only; see `wsRoutes`. */
   wsPingIntervalMs?: number;
-  /** Overrides `routes/lookup.ts`'s upstream fetch timeout (default 5s) — tests only,
-   * same pattern as `wsPingIntervalMs` above / MdashClient's `timeoutMs`. */
+  /** Overrides `routes/lookup.ts`'s brewery-lookup upstream fetch timeout AND
+   * `routes/kegtron.ts`'s Pro import label-download timeout (default 5s for both) —
+   * tests only, same pattern as `wsPingIntervalMs` above / MdashClient's `timeoutMs`. */
   lookupTimeoutMs?: number;
-  /** Overrides `routes/lookup.ts`'s SSRF-guard DNS resolver — tests only; see
-   * `core/ssrfGuard.ts`. */
+  /** Overrides the remote-label-download SSRF guard's DNS resolver — tests only; see
+   * `core/ssrfGuard.ts`. Applies to `routes/kegtron.ts`'s Pro import (the only caller of
+   * `routes/lookup.ts`'s `downloadAndStoreLabel` since the Untappd import route it
+   * originally served was removed). */
   lookupResolveHost?: HostResolver;
-  /** Test-only escape hatch for `routes/lookup.ts`'s SSRF guard — see that file's
-   * `LookupRoutesOptions.allowInsecureHosts` doc comment. Never set by `index.ts`. */
+  /** Test-only escape hatch for that same SSRF guard — see `KegtronRoutesOptions.
+   * allowInsecureHosts`'s doc comment (`routes/kegtron.ts`). Never set by `index.ts`. */
   lookupAllowInsecureHosts?: boolean;
 }
 
@@ -144,12 +147,11 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering
   await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above
-  await lookupRoutes(app, dataDir, {
-    timeoutMs: opts.lookupTimeoutMs,
-    resolveHost: opts.lookupResolveHost,
-    allowInsecureHosts: opts.lookupAllowInsecureHosts,
-  }); // direct call — see encapsulation note above; must also run before staticRoutes,
-      // like every route module
+  await lookupRoutes(app, { timeoutMs: opts.lookupTimeoutMs });
+      // direct call — see encapsulation note above; must also run before staticRoutes,
+      // like every route module. No longer needs `dataDir` or the SSRF-guard options —
+      // its only label-download caller now is routes/kegtron.ts's Pro import above,
+      // which manages its own labels dir and already received those same options.
   await backupRoutes(app, dataDir);       // direct call — see encapsulation note above;
                                            // registered AFTER uploadsRoutes because its
                                            // restore handler relies on the @fastify/

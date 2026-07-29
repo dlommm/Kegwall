@@ -122,19 +122,28 @@ export async function crudRoutes(app: FastifyInstance) {
     return reply.code(204).send();
   });
 
+  // The 7 KegFill asset ids (keg-asset fill indicator feature) — kept in sync BY HAND
+  // with `src/web/lib/kegAssets.ts`'s `KEG_ASSET_IDS` and migration 005's CHECK
+  // constraint, same convention this file already uses for `status` enums vs. their
+  // SQL CHECKs. `null`/omitted means "auto-match by sizeMl" (see `resolveKegAsset`).
+  const kegTypeSchema = z.enum([
+    'half-barrel', 'quarter-barrel', 'sixth-barrel', 'fifty-liter', 'cornelius', 'slim-quarter', 'mini-keg',
+  ]).nullable().optional();
+
   // --- keg swap ---
   // `fromKegId` promotes an already-queued on-deck keg (see `listOnDeckForTap` /
   // `swapKeg`'s doc comment in db/kegs.ts, Task 1) instead of tapping a brand-new one —
-  // in that path `beerId`/`sizeMl`/`volStartMl` are ignored (the promoted keg keeps the
-  // values it was created with), so the refine below only requires them when `fromKegId`
-  // is absent. This mirrors `swapKeg`'s own runtime check but surfaces it as a clean 400
-  // instead of a raw thrown-from-the-transaction ValidationError with a route-agnostic
-  // message.
+  // in that path `beerId`/`sizeMl`/`volStartMl`/`kegType` are ignored (the promoted keg
+  // keeps the values it was created with), so the refine below only requires them when
+  // `fromKegId` is absent. This mirrors `swapKeg`'s own runtime check but surfaces it as
+  // a clean 400 instead of a raw thrown-from-the-transaction ValidationError with a
+  // route-agnostic message.
   const swapSchema = z.object({
     beerId: z.number().int().optional(),
     sizeMl: z.number().int().positive().optional(),
     volStartMl: z.number().int().positive().optional(),
     fromKegId: z.number().int().optional(),
+    kegType: kegTypeSchema,
   }).refine(
     (v) => v.fromKegId != null || (v.beerId != null && v.sizeMl != null && v.volStartMl != null),
     { message: 'beerId, sizeMl, and volStartMl are required unless fromKegId (promoting an on-deck keg) is given' },
@@ -153,6 +162,7 @@ export async function crudRoutes(app: FastifyInstance) {
       newBeerId: body.beerId,
       sizeMl: body.sizeMl,
       volStartMl: body.volStartMl,
+      kegType: body.kegType,
     });
     const ts = new Date().toISOString();
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts });
@@ -185,6 +195,7 @@ export async function crudRoutes(app: FastifyInstance) {
     beerId: z.number().int(), sizeMl: z.number().int().positive(),
     volStartMl: z.number().int().positive(), tapId: z.number().int().nullish(),
     status: z.enum(['on_deck']).optional(),
+    kegType: kegTypeSchema,
   }).refine((v) => v.status !== 'on_deck' || v.tapId != null, {
     message: 'tapId is required when queuing an on_deck keg',
   });

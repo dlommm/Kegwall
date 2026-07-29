@@ -14,9 +14,11 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   createBeer: vi.fn(),
   updateBeer: vi.fn(),
   uploadLabel: vi.fn(),
-  lookupUntappd: vi.fn().mockResolvedValue({ ok: false, status: 501, message: 'not configured' }),
   lookupBreweries: vi.fn().mockResolvedValue({ ok: true, data: [] }),
-  importUntappdLabel: vi.fn(),
+  // BeerForm's mount-time catalog.beer probe (empty-query 501 == not configured) — stub
+  // as "not configured" so the "Search catalog.beer" button never appears here; this
+  // test's own coverage is BeerForm.test.tsx's dedicated describe block.
+  lookupBeers: vi.fn().mockResolvedValue({ ok: false, status: 501, message: 'not configured' }),
 }));
 
 async function flush() {

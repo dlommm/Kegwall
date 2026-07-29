@@ -38,6 +38,7 @@ export interface WallConfigFormState {
   ticker: string;
   screensaverEnabled: boolean;
   screensaverStartAfterMinutes: number;
+  fillStyle: WallConfig['fillStyle'];
 }
 
 function emptyThemeOverrides(): Record<WallTokenKey, string> {
@@ -86,6 +87,7 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     ticker: config.ticker ?? '',
     screensaverEnabled: config.screensaver.enabled,
     screensaverStartAfterMinutes: config.screensaver.startAfterMinutes,
+    fillStyle: config.fillStyle,
   };
 }
 
@@ -136,6 +138,7 @@ export function formStateToConfigCandidate(
       enabled: form.screensaverEnabled,
       startAfterMinutes: form.screensaverStartAfterMinutes,
     },
+    fillStyle: form.fillStyle,
   };
   if (form.ticker.trim() !== '') candidate.ticker = form.ticker.trim();
   if (form.customCss !== '') candidate.customCss = form.customCss;

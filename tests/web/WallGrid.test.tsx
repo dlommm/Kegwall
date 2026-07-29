@@ -34,7 +34,7 @@ describe('WallGrid', () => {
   it('passes template/fields/units through to each TapCard', () => {
     render(
       <WallGrid
-        taps={[makeTap(1, { beer: { id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: null, description: null, labelImage: null, createdAt: '' }, keg: { id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', levelPct: 100, remainingMl: 19000 } })]}
+        taps={[makeTap(1, { beer: { id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: null, description: null, labelImage: null, createdAt: '' }, keg: { id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000 } })]}
         columns={2}
         template="compact"
         units="metric"
@@ -46,5 +46,25 @@ describe('WallGrid', () => {
   it('renders an empty grid without crashing when there are no taps', () => {
     render(<WallGrid taps={[]} columns={2} template="standard" units="us" />);
     expect(screen.queryAllByTestId('tap-card')).toHaveLength(0);
+  });
+
+  it("passes fillStyle 'keg' through to each TapCard, rendering KegFill", () => {
+    render(
+      <WallGrid
+        taps={[makeTap(1, {
+          beer: {
+            id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: null, description: null, labelImage: null, createdAt: '',
+          },
+          keg: {
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, levelPct: 100, remainingMl: 19000,
+          },
+        })]}
+        columns={2}
+        template="standard"
+        units="us"
+        fillStyle="keg"
+      />,
+    );
+    expect(screen.getByTestId('keg-fill')).toBeInTheDocument();
   });
 });

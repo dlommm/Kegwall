@@ -20,11 +20,15 @@ export interface BreweryLookupResult {
   state: string | null;
 }
 
-export interface UntappdLookupResult {
+/** catalog.beer's `/beer/search` mapped down to what the beers form's search sheet needs
+ * to fill in (name/brewery/style/abv/ibu/description) — see `routes/lookup.ts`'s
+ * `mapBeers`. catalog.beer has no label-art field at all (unlike the removed Untappd
+ * integration), so there is no `labelUrl`/label-import concept here. */
+export interface BeerLookupResult {
   name: string;
   brewery: string | null;
   style: string | null;
   abv: number | null;
   ibu: number | null;
-  labelUrl: string | null;
+  description: string | null;
 }

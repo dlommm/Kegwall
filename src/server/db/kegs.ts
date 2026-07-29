@@ -3,10 +3,18 @@ import { NotFoundError, ConflictError, ValidationError } from '../core/errors.js
 
 export type KegStatus = 'on_tap' | 'kicked' | 'archived' | 'on_deck';
 
+/** The 7 keg-asset ids KegFill (web) can render -- kept in sync BY HAND with
+ * `src/web/lib/kegAssets.ts`'s `KEG_ASSET_IDS` and migration 005's CHECK constraint (same
+ * convention already used for `KegStatus` vs. `kegs.status`'s CHECK). `Keg.kegType` mirrors
+ * the nullable `kegs.keg_type` column: `null` means "auto-match by sizeMl". */
+export type KegType =
+  | 'half-barrel' | 'quarter-barrel' | 'sixth-barrel' | 'fifty-liter'
+  | 'cornelius' | 'slim-quarter' | 'mini-keg';
+
 export interface Keg {
   id: number; beerId: number; tapId: number | null; sizeMl: number;
   volStartMl: number; volDispensedMl: number; dateTapped: string | null;
-  status: KegStatus; createdAt: string;
+  status: KegStatus; createdAt: string; kegType: KegType | null;
 }
 
 export interface Pour {
@@ -38,6 +46,7 @@ function rowToKeg(r: any): Keg {
     id: r.id, beerId: r.beer_id, tapId: r.tap_id, sizeMl: r.size_ml,
     volStartMl: r.vol_start_ml, volDispensedMl: r.vol_dispensed_ml,
     dateTapped: r.date_tapped, status: r.status, createdAt: r.created_at,
+    kegType: r.keg_type ?? null,
   };
 }
 
@@ -50,6 +59,9 @@ export function createKeg(db: Database.Database, input: {
    * to `WHERE status = 'on_tap'`) doesn't apply to it either, so any number of on_deck
    * kegs can share a tap_id. Promote one to on_tap via `swapKeg`'s `fromKegId`. */
   status?: 'on_tap' | 'on_deck';
+  /** Manual KegFill asset override (migration 005's `kegs.keg_type`). Omitted/`null`
+   * means "auto-match by sizeMl" — see `web/lib/kegAssets.ts`'s `resolveKegAsset`. */
+  kegType?: KegType | null;
 }): Keg {
   const status = input.status ?? 'on_tap';
   // Only swapKeg (which kicks the incumbent first, inside its own transaction)
@@ -62,10 +74,11 @@ export function createKeg(db: Database.Database, input: {
     throw new ConflictError(`tap ${input.tapId} already has an active keg`);
   }
   const res = db.prepare(`INSERT INTO kegs
-      (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, status, created_at, keg_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(input.beerId, input.tapId ?? null, input.sizeMl, input.volStartMl,
-      input.dateTapped ?? new Date().toISOString(), status, new Date().toISOString());
+      input.dateTapped ?? new Date().toISOString(), status, new Date().toISOString(),
+      input.kegType ?? null);
   return getKeg(db, Number(res.lastInsertRowid))!;
 }
 
@@ -163,10 +176,13 @@ export function swapKeg(db: Database.Database, input: {
   tapId: number;
   /** Promotes an already-queued on-deck keg to on_tap instead of creating a fresh row —
    * must belong to `tapId` and currently be status 'on_deck', or this 404s. When set,
-   * `newBeerId`/`sizeMl`/`volStartMl` are ignored (the promoted keg keeps the values it
-   * was created with). */
+   * `newBeerId`/`sizeMl`/`volStartMl`/`kegType` are ignored (the promoted keg keeps the
+   * values it was created with). */
   fromKegId?: number;
   newBeerId?: number; sizeMl?: number; volStartMl?: number;
+  /** Manual KegFill asset override for a freshly-tapped keg (ignored when promoting via
+   * `fromKegId` — see above). Omitted/`null` means "auto-match by sizeMl". */
+  kegType?: KegType | null;
 }): Keg {
   const tx = db.transaction(() => {
     db.prepare(`UPDATE kegs SET status = 'kicked' WHERE tap_id = ? AND status = 'on_tap'`)
@@ -186,10 +202,10 @@ export function swapKeg(db: Database.Database, input: {
       throw new ValidationError('newBeerId, sizeMl, and volStartMl are required unless promoting an on-deck keg via fromKegId');
     }
     const res = db.prepare(`INSERT INTO kegs
-        (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)`)
+        (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at, keg_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .run(input.newBeerId, input.tapId, input.sizeMl, input.volStartMl,
-        new Date().toISOString(), new Date().toISOString());
+        new Date().toISOString(), new Date().toISOString(), input.kegType ?? null);
     return Number(res.lastInsertRowid);
   });
   return getKeg(db, tx())!;

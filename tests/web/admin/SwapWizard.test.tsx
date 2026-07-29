@@ -17,9 +17,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   createBeer: vi.fn(),
   updateBeer: vi.fn(),
   uploadLabel: vi.fn(),
-  lookupUntappd: vi.fn().mockResolvedValue({ ok: false, status: 501, message: 'not configured' }),
   lookupBreweries: vi.fn().mockResolvedValue({ ok: true, data: [] }),
-  importUntappdLabel: vi.fn(),
 }));
 
 async function flush() {
@@ -40,7 +38,8 @@ function makeBeer(overrides: Partial<Beer> = {}): Beer {
 function makeKeg(overrides: Partial<Keg> = {}): Keg {
   return {
     id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0,
-    dateTapped: null, status: 'on_tap', createdAt: '2026-07-28T00:00:00.000Z', ...overrides,
+    dateTapped: null, status: 'on_tap', createdAt: '2026-07-28T00:00:00.000Z', kegType: null,
+    ...overrides,
   };
 }
 
@@ -118,6 +117,58 @@ describe('SwapWizard', () => {
     expect(onDone).toHaveBeenCalled();
     // no bound monitor -> no reset step -> the wizard closes itself
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe('keg type select (keg-asset fill indicator feature)', () => {
+    it("defaults the 'Keg type' select to Auto and omits kegType from the swap payload", async () => {
+      (swapTap as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 2, status: 'on_tap' }) });
+      const beer = makeBeer({ id: 5, name: 'Pilsner' });
+      render(
+        <SwapWizard tap={activeTap} beers={[beer]} kegs={[]} monitors={[]} onClose={vi.fn()} onDone={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByTestId('swap-wizard-kick-button'));
+      fireEvent.click(screen.getByTestId('beer-picker-option'));
+      expect(screen.getByTestId('swap-wizard-keg-type')).toHaveValue('auto');
+
+      fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
+      fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
+      fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+      await flush();
+
+      expect(swapTap).toHaveBeenCalledWith(1, { beerId: 5, sizeMl: 19000, volStartMl: 19000 });
+    });
+
+    it("an explicit 'Keg type' selection is sent as kegType on the swap payload", async () => {
+      (swapTap as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 2, status: 'on_tap' }) });
+      const beer = makeBeer({ id: 5, name: 'Pilsner' });
+      render(
+        <SwapWizard tap={activeTap} beers={[beer]} kegs={[]} monitors={[]} onClose={vi.fn()} onDone={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByTestId('swap-wizard-kick-button'));
+      fireEvent.click(screen.getByTestId('beer-picker-option'));
+
+      fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
+      fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
+      fireEvent.change(screen.getByTestId('swap-wizard-keg-type'), { target: { value: 'cornelius' } });
+      fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+      await flush();
+
+      expect(swapTap).toHaveBeenCalledWith(1, {
+        beerId: 5, sizeMl: 19000, volStartMl: 19000, kegType: 'cornelius',
+      });
+    });
+
+    it("offers all 7 keg-asset options plus Auto", () => {
+      const beer = makeBeer({ id: 5 });
+      render(
+        <SwapWizard tap={emptyTap} beers={[beer]} kegs={[]} monitors={[]} onClose={vi.fn()} onDone={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByTestId('beer-picker-option'));
+      const options = screen.getAllByTestId('swap-wizard-keg-type-option').map((o) => (o as HTMLOptionElement).value);
+      expect(options).toEqual([
+        'auto', 'half-barrel', 'quarter-barrel', 'sixth-barrel', 'fifty-liter', 'cornelius', 'slim-quarter', 'mini-keg',
+      ]);
+    });
   });
 
   it('defaults size/volume from the picked beer’s most recent keg', () => {

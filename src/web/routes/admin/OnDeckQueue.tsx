@@ -4,6 +4,7 @@ import type { Keg } from '../../../server/db/kegs.js';
 import { listOnDeck, createKeg, removeOnDeckKeg } from '../../lib/adminApi';
 import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
 import { BeerPicker } from './BeerPicker';
+import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
 interface OnDeckQueueProps {
   tapId: number;
@@ -35,6 +36,7 @@ export function OnDeckQueue({
   const [pickedBeer, setPickedBeer] = useState<Beer | null>(null);
   const [sizeMl, setSizeMl] = useState('');
   const [volStartMl, setVolStartMl] = useState('');
+  const [kegTypeSelect, setKegTypeSelect] = useState<KegTypeSelectValue>('auto');
   const [addError, setAddError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Keg | null>(null);
@@ -62,6 +64,7 @@ export function OnDeckQueue({
     setPickedBeer(null);
     setSizeMl('');
     setVolStartMl('');
+    setKegTypeSelect('auto');
     setAddError(null);
   }
 
@@ -70,6 +73,7 @@ export function OnDeckQueue({
     const last = kegs.find((k) => k.beerId === beer.id);
     setSizeMl(last ? String(last.sizeMl) : '');
     setVolStartMl(last ? String(last.volStartMl) : '');
+    setKegTypeSelect('auto');
   }
 
   async function handleAddSubmit() {
@@ -82,8 +86,11 @@ export function OnDeckQueue({
       return;
     }
     setSubmitting(true);
+    // 'auto' (the default) is never sent to the server -- omitting `kegType` entirely
+    // means "auto-match by sizeMl" server-side too (see kegs.ts's `createKeg`).
     const result = await createKeg({
       beerId: pickedBeer.id, sizeMl: size, volStartMl: start, tapId, status: 'on_deck',
+      ...(kegTypeSelect !== 'auto' ? { kegType: kegTypeSelect } : {}),
     });
     setSubmitting(false);
     if (result.ok) {
@@ -181,6 +188,20 @@ export function OnDeckQueue({
                     value={volStartMl}
                     onChange={(e) => setVolStartMl(e.target.value)}
                   />
+                </label>
+                <label className="admin-field">
+                  <span>Keg type</span>
+                  <select
+                    data-testid="on-deck-add-keg-type"
+                    value={kegTypeSelect}
+                    onChange={(e) => setKegTypeSelect(e.target.value as KegTypeSelectValue)}
+                  >
+                    {KEG_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} data-testid="on-deck-add-keg-type-option">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
               {addError && (

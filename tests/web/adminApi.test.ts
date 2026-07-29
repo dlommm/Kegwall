@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import {
   needsSetup, login, logout, getMe, setup,
   listBeers, createBeer, updateBeer, deleteBeer,
-  lookupBreweries, lookupUntappd, importUntappdLabel, uploadLabel,
+  lookupBreweries, uploadLabel,
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
@@ -232,30 +232,6 @@ describe('admin api client', () => {
     const result = await lookupBreweries('modern brew');
     expect(result.ok).toBe(true);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/lookup/breweries?q=modern%20brew', expect.any(Object));
-  });
-
-  it('lookupUntappd reports a typed 501 when Untappd is not configured', async () => {
-    mockFetchOnce(501, { error: 'not_configured', message: 'Untappd is not configured' });
-    const result = await lookupUntappd('citra');
-    expect(result).toEqual({ ok: false, status: 501, message: 'Untappd is not configured' });
-  });
-
-  it('lookupUntappd parses results when configured', async () => {
-    const hit = {
-      name: 'Citra IPA', brewery: 'Test Brewery', style: 'IPA', abv: 6.5, ibu: 60, labelUrl: 'https://x/label.png',
-    };
-    mockFetchOnce(200, [hit]);
-    const result = await lookupUntappd('citra');
-    expect(result).toEqual({ ok: true, data: [hit] });
-  });
-
-  it('importUntappdLabel POSTs the labelUrl and parses the stored path', async () => {
-    mockFetchOnce(201, { path: '/labels/abc.png' });
-    const result = await importUntappdLabel('https://x/label.png');
-    expect(result).toEqual({ ok: true, data: { path: '/labels/abc.png' } });
-    const call = (globalThis.fetch as Mock).mock.calls[0]!;
-    expect(call[0]).toBe('/api/lookup/untappd/import');
-    expect(JSON.parse(call[1].body)).toEqual({ labelUrl: 'https://x/label.png' });
   });
 
   it('uploadLabel sends a FormData body without forcing a JSON content-type header', async () => {
@@ -570,8 +546,8 @@ describe('admin api client', () => {
   const settings = {
     siteName: 'My Taproom', siteLogo: null, displayUnits: 'us', servingSizeMl: 473,
     kegtronApiKey: '••••ikey', kegtronBaseUrl: 'https://mdash.net',
-    openBreweryBaseUrl: 'https://api.openbrewerydb.org', untappdBaseUrl: 'https://api.untappd.com',
-    backfillCursors: {}, udpEnabled: false, bleDirectEnabled: false, mqtt: null, untappd: null,
+    openBreweryBaseUrl: 'https://api.openbrewerydb.org',
+    backfillCursors: {}, udpEnabled: false, bleDirectEnabled: false, mqtt: null,
     quietHours: null,
   };
 

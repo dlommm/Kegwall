@@ -27,6 +27,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
     expect(result.config.ticker).toBe(defaults.ticker);
     expect(result.config.customCss).toBe(defaults.customCss);
     expect(result.config.screensaver).toEqual(defaults.screensaver);
+    expect(result.config.fillStyle).toBe(defaults.fillStyle);
     // ...except `fields`: the schema's own default is `{}` (implicit "use the template's
     // defaults"), but the editor always shows every known toggle with a real value so an
     // admin can see and change each one — so it re-serializes as the standard template's
@@ -55,6 +56,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       },
       customCss: '.kegtron-theme-scope { letter-spacing: 0.05em; }',
       screensaver: { enabled: true, startAfterMinutes: 7 },
+      fillStyle: 'keg',
     };
     // Sanity: the fixture itself must be valid per the schema.
     expect(() => wallConfigSchema.parse(full)).not.toThrow();
@@ -140,5 +142,20 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
   it('formatZodIssue renders a root-level issue with no path prefix', () => {
     const issue = { path: [], message: 'Invalid input', code: 'custom' } as never;
     expect(formatZodIssue(issue)).toBe('Invalid input');
+  });
+
+  describe('fillStyle', () => {
+    it("defaultFormState's fillStyle is 'liquid'", () => {
+      expect(defaultFormState().fillStyle).toBe('liquid');
+    });
+
+    it("a form state with fillStyle 'keg' serializes and re-parses to 'keg'", () => {
+      const form = defaultFormState();
+      form.fillStyle = 'keg';
+      const result = parseWallConfigForm(form, []);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.fillStyle).toBe('keg');
+    });
   });
 });

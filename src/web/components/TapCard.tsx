@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { LiquidFill } from './LiquidFill';
+import { KegFill } from './KegFill';
 import { KickedBadge } from './KickedBadge';
 import { useRelativeTime } from '../lib/useRelativeTime';
 import type { VolumeUnits } from '../lib/units';
@@ -30,6 +31,12 @@ export interface TapCardProps {
   template?: CardTemplate;
   /** A wall's `config.fields` — per-field visibility overrides on top of the template default. */
   fields?: WallConfig['fields'];
+  /** A wall's `config.fillStyle` — `'liquid'` (default) renders the SRM-true `LiquidFill`;
+   * `'keg'` renders `KegFill`'s cutaway-keg cavity instead. Only takes effect for the
+   * `full`/`standard`/`minimal` templates — `compact`'s liquid swatch is too small for
+   * the keg cutaway art, so it always renders `LiquidFill` regardless (see the `isCompact`
+   * check below). */
+  fillStyle?: WallConfig['fillStyle'];
   /** Unit system for the ABV-adjacent pour readout. Defaults to `'us'`. */
   units?: VolumeUnits;
   className?: string;
@@ -43,9 +50,13 @@ export interface TapCardProps {
  * `KickedBadge`) rather than disappearing.
  */
 export function TapCard({
-  tap, template = 'standard', fields, units = 'us', className,
+  tap, template = 'standard', fields, fillStyle = 'liquid', units = 'us', className,
 }: TapCardProps) {
   const resolvedFields = useMemo(() => resolveFields(template, fields), [template, fields]);
+  // 'compact' never gets the keg cutaway art — its liquid swatch (28x40px, see
+  // index.css) is far too small to show anything of the photo, let alone the cavity
+  // overlay + percent number legibly (Menu/compact template design note, Task brief).
+  const useKegFill = fillStyle === 'keg' && template !== 'compact';
   // Always called (rules of hooks) even when there's no last pour to format — the hook
   // itself returns null and starts no interval in that case.
   const lastPourRelative = useRelativeTime(tap.lastPour?.ts ?? null);
@@ -83,16 +94,30 @@ export function TapCard({
       )}
 
       <div className="tap-card__liquid" data-testid="tap-card-liquid">
-        <LiquidFill
-          // A kicked keg reads as drained regardless of its last recorded level: showing
-          // real remaining volume on a keg that's off tap would misleadingly imply it's
-          // still pourable.
-          levelPct={isKicked ? 0 : keg.levelPct}
-          srm={beer.srm}
-          pouring={!isKicked && tap.pouring}
-          curServMl={tap.curServMl}
-          units={units}
-        />
+        {useKegFill ? (
+          <KegFill
+            // A kicked keg reads as drained regardless of its last recorded level: showing
+            // real remaining volume on a keg that's off tap would misleadingly imply it's
+            // still pourable.
+            levelPct={isKicked ? 0 : keg.levelPct}
+            sizeMl={keg.sizeMl}
+            kegType={keg.kegType}
+            pouring={!isKicked && tap.pouring}
+            curServMl={tap.curServMl}
+            units={units}
+          />
+        ) : (
+          <LiquidFill
+            // A kicked keg reads as drained regardless of its last recorded level: showing
+            // real remaining volume on a keg that's off tap would misleadingly imply it's
+            // still pourable.
+            levelPct={isKicked ? 0 : keg.levelPct}
+            srm={beer.srm}
+            pouring={!isKicked && tap.pouring}
+            curServMl={tap.curServMl}
+            units={units}
+          />
+        )}
         {/*
           The stamp is sized against this wrapper via `position: absolute; inset: 0`
           (see index.css) — fine at the full/standard/minimal liquid heights (8-10rem),
