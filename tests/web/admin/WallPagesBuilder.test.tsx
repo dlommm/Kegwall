@@ -4,9 +4,9 @@ import { WallPagesBuilder } from '../../../src/web/routes/admin/WallPagesBuilder
 import type { Tap } from '../../../src/server/db/taps';
 
 const taps: Tap[] = [
-  { id: 1, number: 1, name: 'Left', defaultDrinkerId: null },
-  { id: 2, number: 2, name: 'Right', defaultDrinkerId: null },
-  { id: 3, number: 3, name: null, defaultDrinkerId: null },
+  { id: 1, number: 1, name: 'Left', defaultDrinkerId: null, locationId: null },
+  { id: 2, number: 2, name: 'Right', defaultDrinkerId: null, locationId: null },
+  { id: 3, number: 3, name: null, defaultDrinkerId: null, locationId: null },
 ];
 
 describe('WallPagesBuilder', () => {

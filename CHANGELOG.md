@@ -60,6 +60,18 @@
   errors auto-creating an in-app notification. New Pourers page (11c first cut): pourer
   card grid with pours · volume · quality and an invite QR. Sidebar gains
   Pourers/Analytics/Logs; Stats is now labeled Analytics.
+- **Added:** Pour Wall overhaul Phase 5 — rotation, displays, locations. View rotation
+  (design 4a/4b): a per-wall playlist (Pour wall / Leaderboard, each with its own
+  seconds and on/off) cycling with the wall's transition, a playlist bar along the TV
+  bottom showing position, and a live pour ALWAYS interrupting back to the wall view;
+  walls with more than 6 taps auto-chunk into 6-per-page cycles on the overhaul looks.
+  Displays (design 7c): paired physical screens — an admin creates one on the new
+  Displays & locations page (minting a short pairing code), the TV opens `/display` and
+  types the code once, and from then on renders its assigned wall with optional
+  per-display look/takeover overrides; last-seen tracked per display. Locations (design
+  11a): first-class places with CRUD; monitors gain a friendly name + location, taps and
+  walls gain a location, and the admin sidebar's location switcher now scopes the
+  Dashboard/Taps tap lists (persisted per browser).
 
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new

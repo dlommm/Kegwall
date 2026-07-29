@@ -29,6 +29,9 @@ export interface TapState {
    * when the tap has no bound monitor or that monitor hasn't reported telemetry yet.
    * Feeds WallHeader's max-temp readout (see WallPage.tsx). */
   temp: number | null;
+  /** The tap's location (Pour Wall overhaul Phase 5, design 11a) — lets admin
+   * surfaces scope tap lists by the sidebar's location switcher. Null = unscoped. */
+  locationId: number | null;
 }
 
 export class StateManager {
@@ -164,6 +167,7 @@ export class StateManager {
         curServMl: live?.curServMl ?? null,
         monitorOnline: key ? this.online.get(key) ?? true : false,
         temp,
+        locationId: tap.locationId,
       };
     });
   }

@@ -14,6 +14,7 @@ import { kegtronRoutes } from './routes/kegtron.js';
 import { activityRoutes } from './routes/activity.js';
 import { statsRoutes } from './routes/stats.js';
 import { logsRoutes } from './routes/logs.js';
+import { placesDisplaysRoutes } from './routes/placesDisplays.js';
 import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
 import { backupRoutes } from './routes/backup.js';
@@ -146,6 +147,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await activityRoutes(app); // direct call — see encapsulation note above
   await statsRoutes(app);    // direct call — see encapsulation note above
   await logsRoutes(app);     // direct call — see encapsulation note above
+  await placesDisplaysRoutes(app); // direct call — see encapsulation note above
   await labelsStaticRoutes(app, dataDir); // direct call, before uploadsRoutes/staticRoutes —
                                            // see its doc comment for the decorateReply ordering
   await uploadsRoutes(app, dataDir);      // direct call — see encapsulation note above

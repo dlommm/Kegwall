@@ -482,6 +482,49 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
           </label>
 
           <fieldset className="wall-editor__section">
+            <legend>View rotation</legend>
+            <label className="wall-editor__checkbox">
+              <input
+                type="checkbox"
+                data-testid="wall-editor-rotation-enabled"
+                checked={form.viewRotationEnabled}
+                onChange={(e) => updateField('viewRotationEnabled', e.target.checked)}
+              />
+              Rotate through a playlist of views (a live pour always interrupts)
+            </label>
+            {form.viewRotationViews.map((view, i) => (
+              <div key={view.kind} className="wall-editor__rotation-view">
+                <label className="wall-editor__checkbox">
+                  <input
+                    type="checkbox"
+                    data-testid={`wall-editor-rotation-view-${view.kind}`}
+                    checked={view.enabled}
+                    onChange={(e) => {
+                      const views = form.viewRotationViews.map((v, j) => (j === i ? { ...v, enabled: e.target.checked } : v));
+                      updateField('viewRotationViews', views);
+                    }}
+                  />
+                  {view.kind === 'wall' ? 'Pour wall' : 'Leaderboard'}
+                </label>
+                <label className="admin-field">
+                  <span>Seconds</span>
+                  <input
+                    type="number"
+                    min={3}
+                    max={600}
+                    data-testid={`wall-editor-rotation-seconds-${view.kind}`}
+                    value={view.seconds}
+                    onChange={(e) => {
+                      const views = form.viewRotationViews.map((v, j) => (j === i ? { ...v, seconds: Number(e.target.value) } : v));
+                      updateField('viewRotationViews', views);
+                    }}
+                  />
+                </label>
+              </div>
+            ))}
+          </fieldset>
+
+          <fieldset className="wall-editor__section">
             <legend>Screensaver</legend>
             <label className="wall-editor__checkbox">
               <input

@@ -6,6 +6,11 @@ export interface Monitor {
   id: number; type: 'kegtron_pro' | 'kegtron_gen1'; identifier: string;
   serial: string | null; portIndex: number; tapId: number | null;
   lastSeen: string | null; meta: Record<string, unknown>;
+  /** Friendly display name ("Main kegerator", design 11a) shown over the raw
+   * serial/identifier; null = unnamed. */
+  name: string | null;
+  /** The location this monitor lives at (design 11a); null = unscoped. */
+  locationId: number | null;
 }
 
 function rowToMonitor(r: any): Monitor {
@@ -13,6 +18,8 @@ function rowToMonitor(r: any): Monitor {
     id: r.id, type: r.type, identifier: r.identifier, serial: r.serial,
     portIndex: r.port_index, tapId: r.tap_id, lastSeen: r.last_seen,
     meta: JSON.parse(r.meta),
+    name: r.name ?? null,
+    locationId: r.location_id ?? null,
   };
 }
 
@@ -66,6 +73,21 @@ export function sanitizeMonitor(m: Monitor): Monitor {
 export function listMonitors(db: Database.Database): Monitor[] {
   return db.prepare('SELECT * FROM monitors ORDER BY type, identifier, port_index')
     .all().map(rowToMonitor);
+}
+
+/** Friendly-name + location assignment (design 11a). */
+export function updateMonitorIdentity(db: Database.Database, monitorId: number, input: {
+  name?: string | null; locationId?: number | null;
+}): Monitor {
+  const existing = getMonitorById(db, monitorId);
+  if (!existing) throw new NotFoundError(`monitor ${monitorId}`);
+  db.prepare('UPDATE monitors SET name = ?, location_id = ? WHERE id = ?')
+    .run(
+      input.name === undefined ? existing.name : input.name,
+      input.locationId === undefined ? existing.locationId : input.locationId,
+      monitorId,
+    );
+  return getMonitorById(db, monitorId)!;
 }
 
 export function bindMonitorToTap(db: Database.Database, monitorId: number, tapId: number | null): Monitor {

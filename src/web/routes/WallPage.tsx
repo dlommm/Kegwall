@@ -1,8 +1,12 @@
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useWallData } from '../lib/useWallData';
+import { getDisplayView, getLeaderboard, type DisplayView, type LeaderboardResponse } from '../lib/api';
+import { useViewRotation } from '../lib/useViewRotation';
+import { PlaylistBar } from '../components/PlaylistBar';
+import { LeaderboardBoard } from '../components/LeaderboardBoard';
 import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { useBanners, type BannerKind } from '../lib/useBanners';
 import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
@@ -89,8 +93,28 @@ const PARTY_MODE_OVERRIDES: Record<string, string> = { '--accent': '#ff2fb0' };
  */
 export function WallPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
   const reducedMotion = usePrefersReducedMotion();
   const { queue, push, dismiss } = useBanners();
+
+  // Per-display overrides (design 7c): a paired display opens
+  // /wall/:slug?display=<id> — its stored look/theme/takeover overrides are
+  // fetched once and merged over the wall's own config below.
+  const displayId = searchParams.get('display');
+  const [displayOverrides, setDisplayOverrides] = useState<DisplayView['overrides'] | null>(null);
+  useEffect(() => {
+    if (!displayId) {
+      setDisplayOverrides(null);
+      return undefined;
+    }
+    let cancelled = false;
+    getDisplayView(Number(displayId)).then((result) => {
+      if (!cancelled && result.ok) setDisplayOverrides(result.data.overrides);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [displayId]);
 
   // Party mode's countdown-revert timer -- a ref (not state) because it's pure
   // bookkeeping for the effect below, not something a render needs to read.
@@ -122,11 +146,40 @@ export function WallPage() {
     wall, taps, units, stale, loading, error, notFound,
   } = useWallData(slug, { onMessage: handleWsMessage });
 
-  const config = wall?.config ?? null;
-  const pages = useMemo(
-    () => resolveWallPages(config?.pages ?? [], taps),
-    [config, taps],
-  );
+  const baseConfig = wall?.config ?? null;
+  // Per-display overrides (7c) merge over the wall's own config: look, theme
+  // id (keeping the wall's token overrides), and takeover style.
+  const config = useMemo(() => {
+    if (!baseConfig) return null;
+    if (!displayOverrides) return baseConfig;
+    return {
+      ...baseConfig,
+      look: (displayOverrides.look as typeof baseConfig.look | undefined) ?? baseConfig.look,
+      theme: displayOverrides.themeId
+        ? { ...baseConfig.theme, id: displayOverrides.themeId }
+        : baseConfig.theme,
+      takeover: displayOverrides.takeoverStyle
+        ? { ...baseConfig.takeover, style: displayOverrides.takeoverStyle as typeof baseConfig.takeover.style }
+        : baseConfig.takeover,
+    };
+  }, [baseConfig, displayOverrides]);
+
+  // Page cycling for >6 taps (design 1c/4): the overhaul looks are designed
+  // around 6 taps per screen — with no manual pages configured, larger tap
+  // sets auto-chunk into 6-per-page cycles.
+  const AUTO_PAGE_SIZE = 6;
+  const pages = useMemo(() => {
+    const configuredPages = config?.pages ?? [];
+    const look = config?.look ?? 'classic';
+    if (look !== 'classic' && configuredPages.length === 0 && taps.length > AUTO_PAGE_SIZE) {
+      const chunks: typeof taps[] = [];
+      for (let i = 0; i < taps.length; i += AUTO_PAGE_SIZE) {
+        chunks.push(taps.slice(i, i + AUTO_PAGE_SIZE));
+      }
+      return chunks;
+    }
+    return resolveWallPages(configuredPages, taps);
+  }, [config, taps]);
   // Max temp across every tap on the wall (not just the current rotating page) — a
   // site-wide readout, so it shouldn't flicker/change as pages rotate.
   const maxTempC = useMemo(() => {
@@ -141,6 +194,34 @@ export function WallPage() {
   // current rotating page) so a pour on another page still takes the screen over.
   const takeoverState = useTakeover(taps, config?.takeover);
   const takeoverStyle = config?.takeover?.style ?? 'off';
+
+  // View rotation (design 4a/4b): enabled playlist views cycle on their own
+  // timers; a live pour always interrupts back to the wall view.
+  const rotationViews = useMemo(
+    () => (config?.viewRotation?.enabled
+      ? config.viewRotation.views.filter((v) => v.enabled)
+      : []),
+    [config],
+  );
+  const anyPouring = taps.some((t) => t.pouring);
+  const rotationIndex = useViewRotation(rotationViews, anyPouring);
+  const currentViewKind = rotationViews[rotationIndex]?.kind ?? 'wall';
+  const [board, setBoard] = useState<LeaderboardResponse | null>(null);
+  useEffect(() => {
+    if (!rotationViews.some((v) => v.kind === 'leaderboard')) return undefined;
+    let cancelled = false;
+    const load = () => {
+      getLeaderboard('month').then((result) => {
+        if (!cancelled && result.ok) setBoard(result.data);
+      });
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [rotationViews]);
   const takeoverVisible = takeoverState.phase !== 'idle';
   // Spotlight (2b) isn't an overlay: the wall itself highlights the pouring row.
   const spotlightTapId = takeoverStyle === 'spotlight' && takeoverVisible
@@ -202,7 +283,20 @@ export function WallPage() {
         data-testid="wall-page-dimmable"
       >
         <ScreenCare screensaver={config.screensaver} taps={taps} title={title}>
-          {look === 'classic' ? (
+          {currentViewKind === 'leaderboard' ? (
+            <div
+              key={`view-${rotationIndex}`}
+              className={`wall-grid-transition wall-grid-transition--${transition} look-frame`}
+              data-testid="wall-page-content"
+              data-transition={transition}
+            >
+              {board ? (
+                <LeaderboardBoard data={board} units={units} title={title} />
+              ) : (
+                <p className="wall-rotation-loading" data-testid="wall-rotation-loading">Loading the leaderboard…</p>
+              )}
+            </div>
+          ) : look === 'classic' ? (
             <>
               <WallHeader
                 title={title}
@@ -263,6 +357,7 @@ export function WallPage() {
               tempC={maxTempC}
             />
           )}
+          <PlaylistBar views={rotationViews} activeIndex={rotationIndex} />
           <BannerLane queue={queue} onDismiss={dismiss} />
           {look === 'classic' && config.showQr && <QrOverlay url={menuUrl} />}
         </ScreenCare>

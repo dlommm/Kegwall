@@ -39,6 +39,7 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     curServMl: null,
     monitorOnline: true,
     temp: null,
+    locationId: null,
     ...overrides,
   };
 }

@@ -55,7 +55,7 @@ function makeBeer(overrides: Partial<Beer> = {}): Beer {
 
 function makeTap(overrides: Partial<Tap> = {}): Tap {
   return {
-    id: 1, number: 3, name: 'Left', defaultDrinkerId: null, ...overrides,
+    id: 1, number: 3, name: 'Left', defaultDrinkerId: null, locationId: null, ...overrides,
   };
 }
 

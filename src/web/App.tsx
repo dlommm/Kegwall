@@ -4,6 +4,7 @@ import { WallPage } from './routes/WallPage';
 import { MenuPage } from './routes/MenuPage';
 import { TabletPage } from './routes/TabletPage';
 import { BoardPage } from './routes/BoardPage';
+import { DisplayPage } from './routes/DisplayPage';
 
 // Phase 5 Task 0 (Phase 4 final review, "MUST FIX before/at start of Phase 5"): the
 // entire admin subtree — shell, all nine pages, and (transitively, via StatsPage's
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/menu" element={<MenuPage />} />
       <Route path="/tablet/:slug" element={<TabletPage />} />
       <Route path="/board" element={<BoardPage />} />
+      <Route path="/display" element={<DisplayPage />} />
 
       <Route
         path="/admin/*"

@@ -7,7 +7,7 @@ import type { Monitor } from '../../../src/server/db/monitors';
 function makeMonitor(id: number, identifier: string): Monitor {
   return {
     id, type: 'kegtron_pro', identifier, serial: null, portIndex: 0,
-    tapId: null, lastSeen: null, meta: {},
+    tapId: null, lastSeen: null, meta: {}, name: null, locationId: null,
   };
 }
 

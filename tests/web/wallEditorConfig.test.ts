@@ -48,6 +48,13 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       look: 'ledger',
       glyphMode: 'duotone',
       takeover: { style: 'dock', minMl: 120 },
+      viewRotation: {
+        enabled: true,
+        views: [
+          { kind: 'wall', seconds: 20, enabled: true },
+          { kind: 'leaderboard', seconds: 8, enabled: false },
+        ],
+      },
       cardTemplate: 'full',
       theme: { id: 'mono', overrides: { '--bg': '#111111', '--accent': '#ff0000' } },
       pages: [{ tapIds: [1, 2] }, { tapIds: [3] }],

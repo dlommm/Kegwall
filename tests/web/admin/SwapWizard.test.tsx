@@ -46,14 +46,14 @@ function makeKeg(overrides: Partial<Keg> = {}): Keg {
 function makeTap(overrides: Partial<TapState> = {}): TapState {
   return {
     tapId: 1, tapNumber: 1, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, temp: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, ...overrides,
   };
 }
 
 function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
   return {
     id: 9, type: 'kegtron_pro', identifier: 'device1', serial: 'SN1', portIndex: 0,
-    tapId: 1, lastSeen: null, meta: {}, ...overrides,
+    tapId: 1, lastSeen: null, meta: {}, name: null, locationId: null, ...overrides,
   };
 }
 

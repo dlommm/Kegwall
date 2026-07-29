@@ -56,6 +56,7 @@ describe('TapForm', () => {
   it('submits a valid create form with a null name and no default drinker when blank', async () => {
     const created: Tap = {
       id: 1, number: 3, name: null, defaultDrinkerId: null,
+    locationId: null,
     };
     (createTap as Mock).mockResolvedValue({ ok: true, data: created });
     const onSaved = vi.fn();
@@ -70,6 +71,7 @@ describe('TapForm', () => {
   it('pre-fills from the given tap in edit mode and PATCHes on submit', async () => {
     const tap: Tap = {
       id: 5, number: 2, name: 'Left', defaultDrinkerId: null,
+    locationId: null,
     };
     (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
     const onSaved = vi.fn();
@@ -86,6 +88,7 @@ describe('TapForm', () => {
   it('pre-fills the default-drinker picker from the given tap in edit mode, and submits a changed selection', async () => {
     const tap: Tap = {
       id: 5, number: 2, name: 'Left', defaultDrinkerId: 1,
+    locationId: null,
     };
     (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
     render(<TapForm mode="edit" tap={tap} onSaved={vi.fn()} onCancel={vi.fn()} />);

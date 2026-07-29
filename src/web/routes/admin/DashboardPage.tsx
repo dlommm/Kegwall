@@ -45,7 +45,7 @@ const ML_PER_PINT = 473.176;
  * activity feed on the right.
  */
 export function DashboardPage() {
-  const { units } = useAdminContext();
+  const { units, locationId } = useAdminContext();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
@@ -65,7 +65,9 @@ export function DashboardPage() {
     };
   }, []);
 
-  const { taps } = useTapStates(initialTaps);
+  const { taps: allTaps } = useTapStates(initialTaps);
+  // Sidebar location switcher (design 11a): scope the tap list; null = all.
+  const taps = locationId == null ? allTaps : allTaps.filter((t) => t.locationId === locationId);
 
   useEffect(() => {
     let cancelled = false;

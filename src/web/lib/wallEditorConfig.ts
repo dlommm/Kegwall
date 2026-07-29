@@ -24,6 +24,9 @@ export interface WallConfigFormState {
   glyphMode: WallConfig['glyphMode'];
   takeoverStyle: WallConfig['takeover']['style'];
   takeoverMinMl: number;
+  viewRotationEnabled: boolean;
+  /** The rotation playlist (design 4b), fixed order wall → leaderboard for now. */
+  viewRotationViews: WallConfig['viewRotation']['views'];
   cardTemplate: CardTemplate;
   themeId: string;
   /** Always has all 6 `WALL_TOKEN_KEYS`; `''` means "no override, inherit the theme's own value". */
@@ -81,6 +84,8 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     glyphMode: config.glyphMode,
     takeoverStyle: config.takeover.style,
     takeoverMinMl: config.takeover.minMl,
+    viewRotationEnabled: config.viewRotation.enabled,
+    viewRotationViews: config.viewRotation.views.map((v) => ({ ...v })),
     cardTemplate: config.cardTemplate,
     themeId: config.theme.id,
     themeOverrides,
@@ -135,6 +140,10 @@ export function formStateToConfigCandidate(
     look: form.look,
     glyphMode: form.glyphMode,
     takeover: { style: form.takeoverStyle, minMl: form.takeoverMinMl },
+    viewRotation: {
+      enabled: form.viewRotationEnabled,
+      views: form.viewRotationViews.map((v) => ({ ...v })),
+    },
     cardTemplate: form.cardTemplate,
     theme: {
       id: form.themeId,

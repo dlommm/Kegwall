@@ -19,6 +19,28 @@ export const wallConfigSchema = z.object({
     style: z.enum(['off', 'full', 'spotlight', 'split', 'dock', 'fill']).default('off'),
     minMl: z.number().min(0).default(60),
   }).default({ style: 'off', minMl: 60 }),
+  // View rotation (design 4a/4b): the TV cycles a playlist of views, each with
+  // its own seconds + on/off. Off by default so stored configs keep showing the
+  // plain wall. A live pour always interrupts (the wall view returns while any
+  // tap pours; overlay takeovers stack on top regardless). Playlist bar at the
+  // bottom shows position while rotating.
+  viewRotation: z.object({
+    enabled: z.boolean().default(false),
+    views: z.array(z.object({
+      kind: z.enum(['wall', 'leaderboard']),
+      seconds: z.number().int().min(3).max(600).default(15),
+      enabled: z.boolean().default(true),
+    })).default([
+      { kind: 'wall', seconds: 15, enabled: true },
+      { kind: 'leaderboard', seconds: 10, enabled: true },
+    ]),
+  }).default({
+    enabled: false,
+    views: [
+      { kind: 'wall', seconds: 15, enabled: true },
+      { kind: 'leaderboard', seconds: 10, enabled: true },
+    ],
+  }),
   cardTemplate: z.enum(['full', 'standard', 'compact', 'minimal']).default('standard'),
   theme: z.object({
     // 'midnight-slate' is the overhaul's flagship theme; existing walls all carry an

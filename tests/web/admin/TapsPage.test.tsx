@@ -35,7 +35,7 @@ vi.mock('../../../src/web/routes/admin/TapForm', () => ({
         type="button"
         data-testid="mock-tap-form-save"
         onClick={() => props.onSaved({
-          id: 1, number: 1, name: 'Saved', defaultDrinkerId: null,
+          id: 1, number: 1, name: 'Saved', defaultDrinkerId: null, locationId: null,
         })}
       >
         Save
@@ -89,7 +89,7 @@ async function flush() {
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
     tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, temp: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, temp: null, locationId: null, ...overrides,
   };
 }
 
@@ -192,7 +192,7 @@ describe('TapsPage', () => {
       taps: [makeTap(3, { tapNumber: 3, tapName: 'Right' })], stale: false, connected: true, reconnectCount: 0,
     });
     (listTaps as Mock).mockResolvedValue({
-      ok: true, data: [{ id: 3, number: 3, name: 'Right', defaultDrinkerId: 42 }],
+      ok: true, data: [{ id: 3, number: 3, name: 'Right', defaultDrinkerId: 42, locationId: null }],
     });
     renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');

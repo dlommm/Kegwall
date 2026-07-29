@@ -24,7 +24,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
   return {
     id, type: 'kegtron_pro', identifier: `dev-${id}`, serial: null, portIndex: 0,
-    tapId: null, lastSeen: null, meta: {}, ...overrides,
+    tapId: null, lastSeen: null, meta: {}, name: null, locationId: null, ...overrides,
   };
 }
 

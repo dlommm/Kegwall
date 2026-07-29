@@ -21,6 +21,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { label: 'Taps & kegs', path: '/admin/taps' },
   { label: 'Monitors', path: '/admin/monitors' },
   { label: 'Walls', path: '/admin/walls' },
+  { label: 'Displays', path: '/admin/displays' },
   { label: 'Automations', path: '/admin/automations' },
   { label: 'Pourers', path: '/admin/pourers' },
   { label: 'Analytics', path: '/admin/stats' },

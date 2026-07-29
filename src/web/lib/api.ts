@@ -177,6 +177,26 @@ export function disarmTablet(): Promise<ApiResult<TabletArmStatus>> {
   return request<TabletArmStatus>('/api/public/tablet/arm', { method: 'DELETE' });
 }
 
+// --- Pour Wall overhaul Phase 5: display pairing (design 7c) ----------------
+
+export interface DisplayView {
+  id: number;
+  name: string;
+  wallSlug: string | null;
+  overrides: { look?: string; themeId?: string; takeoverStyle?: string };
+}
+
+export function pairDisplay(code: string): Promise<ApiResult<DisplayView>> {
+  return request<DisplayView>('/api/public/display/pair', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+export function getDisplayView(id: number): Promise<ApiResult<DisplayView>> {
+  return request<DisplayView>(`/api/public/display/${id}`);
+}
+
 export function getLeaderboard(
   window: 'week' | 'month' | 'all' = 'month',
 ): Promise<ApiResult<LeaderboardResponse>> {

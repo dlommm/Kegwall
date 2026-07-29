@@ -35,6 +35,7 @@ function tapToPlainTap(tap: TapState, tapRows: Tap[]): Tap {
   return {
     id: tap.tapId, number: tap.tapNumber, name: tap.tapName,
     defaultDrinkerId: row?.defaultDrinkerId ?? null,
+    locationId: row?.locationId ?? null,
   };
 }
 
@@ -65,7 +66,7 @@ const KEG_TYPE_LABELS: Record<string, string> = {
  * queue's add/remove/promote controls are hidden the same way `canEdit` gates BeersPage.
  */
 export function TapsPage() {
-  const { me, units } = useAdminContext();
+  const { me, units, locationId } = useAdminContext();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [beers, setBeers] = useState<Beer[]>([]);
   const [kegs, setKegs] = useState<Keg[]>([]);
@@ -96,7 +97,9 @@ export function TapsPage() {
     };
   }, []);
 
-  const { taps } = useTapStates(initialTaps);
+  const { taps: allTaps } = useTapStates(initialTaps);
+  // Sidebar location switcher (design 11a): scope the tap list; null = all.
+  const taps = locationId == null ? allTaps : allTaps.filter((t) => t.locationId === locationId);
 
   // Beers/kegs/monitors/tapRows don't ride the /ws snapshot (only tap-level live state
   // does) — this reloads all four whenever `dataRefreshKey` is bumped (after a swap, a

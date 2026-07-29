@@ -648,3 +648,46 @@ export function getLogs(query: LogsQuery = {}): Promise<ApiResult<LogsResponse>>
   const qs = logsQueryString(query);
   return request(`/api/logs${qs ? `?${qs}` : ''}`);
 }
+
+// --- Pour Wall overhaul Phase 5: locations, monitor identity, displays ------
+
+export type { Location } from '../../server/db/locations.js';
+export type { Display, DisplayOverrides } from '../../server/db/displays.js';
+
+export function listLocations(): Promise<ApiResult<import('../../server/db/locations.js').Location[]>> {
+  return request('/api/locations');
+}
+
+export function createLocation(name: string): Promise<ApiResult<import('../../server/db/locations.js').Location>> {
+  return request('/api/locations', { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+export function deleteLocation(id: number): Promise<ApiResult<null>> {
+  return request(`/api/locations/${id}`, { method: 'DELETE' });
+}
+
+/** PATCH /api/monitors/:id/identity — friendly name + location (design 11a). */
+export function updateMonitorIdentity(id: number, input: {
+  name?: string | null; locationId?: number | null;
+}): Promise<ApiResult<Monitor>> {
+  return request(`/api/monitors/${id}/identity`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function listDisplays(): Promise<ApiResult<import('../../server/db/displays.js').Display[]>> {
+  return request('/api/displays');
+}
+
+export function createDisplay(input: { name: string; wallId?: number | null }): Promise<ApiResult<import('../../server/db/displays.js').Display>> {
+  return request('/api/displays', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateDisplay(id: number, input: {
+  name?: string; wallId?: number | null;
+  overrides?: import('../../server/db/displays.js').DisplayOverrides;
+}): Promise<ApiResult<import('../../server/db/displays.js').Display>> {
+  return request(`/api/displays/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function deleteDisplay(id: number): Promise<ApiResult<null>> {
+  return request(`/api/displays/${id}`, { method: 'DELETE' });
+}
