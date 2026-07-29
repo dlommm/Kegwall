@@ -3,12 +3,12 @@ import type {
   PoursByDay, HourHistogram, KegBurnStat, BeerVolumeStat, LeaderboardEntry, AnalyticsKpis,
 } from '../../../server/db/stats.js';
 import type { TelemetryPoint } from '../../../server/db/telemetry.js';
-import type { Monitor } from '../../../server/db/monitors.js';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
 } from '../../lib/adminApi';
 import { formatVolumeMl } from '../../lib/units';
+import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
 import { PoursChart } from './PoursChart';
 import { HourHistogramRow } from './HourHistogramRow';
 import { KegDepletionCards } from './KegDepletionCards';
@@ -43,7 +43,7 @@ export function StatsPage() {
   const [hours, setHours] = useState<HourHistogram[]>([]);
   const [kegs, setKegs] = useState<KegBurnStat[]>([]);
 
-  const [proMonitors, setProMonitors] = useState<Monitor[]>([]);
+  const [proDevices, setProDevices] = useState<{ monitorId: number; label: string }[]>([]);
   const [selectedMonitorId, setSelectedMonitorId] = useState<number | null>(null);
   const [temps, setTemps] = useState<TelemetryPoint[]>([]);
 
@@ -91,9 +91,13 @@ export function StatsPage() {
       if (kegsRes.ok) setKegs(kegsRes.data);
       if (leaderboardRes.ok) setLeaderboardRows(leaderboardRes.data);
       if (monitorsRes.ok) {
-        const pros = monitorsRes.data.filter((m) => m.type === 'kegtron_pro');
-        setProMonitors(pros);
-        setSelectedMonitorId(pros[0]?.id ?? null);
+        // One picker entry per physical DEVICE (a 4-port Kegtron is one temperature
+        // sensor, not four) — addressed by its anchor row's monitor id; the temps
+        // endpoint answers device-wide for any port row.
+        const devices = groupMonitors(monitorsRes.data.filter((m) => m.type === 'kegtron_pro'))
+          .map((g) => ({ monitorId: g.anchorId, label: deviceLabel(g) }));
+        setProDevices(devices);
+        setSelectedMonitorId(devices[0]?.monitorId ?? null);
       }
       const allOk = poursRes.ok && beersRes.ok && hoursRes.ok
         && kegsRes.ok && leaderboardRes.ok && monitorsRes.ok;
@@ -262,7 +266,7 @@ export function StatsPage() {
           <KegDepletionCards data={kegs} units={units} />
           <BeerVolumeChart data={beers} units={units} />
           <TempChart
-            data={temps} units={units} monitors={proMonitors}
+            data={temps} units={units} devices={proDevices}
             selectedMonitorId={selectedMonitorId} onSelectMonitor={setSelectedMonitorId}
           />
           <Leaderboard

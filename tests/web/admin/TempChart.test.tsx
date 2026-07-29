@@ -2,13 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TempChart, formatTimeLabel } from '../../../src/web/routes/admin/TempChart';
 import type { TelemetryPoint } from '../../../src/server/db/telemetry';
-import type { Monitor } from '../../../src/server/db/monitors';
 
-function makeMonitor(id: number, identifier: string): Monitor {
-  return {
-    id, type: 'kegtron_pro', identifier, serial: null, portIndex: 0,
-    tapId: null, lastSeen: null, meta: {}, name: null,
-  };
+function makeDevice(monitorId: number, label: string): { monitorId: number; label: string } {
+  return { monitorId, label };
 }
 
 function makeData(): TelemetryPoint[] {
@@ -22,7 +18,7 @@ describe('TempChart', () => {
   it('renders a temperature line + a humidity line from fixture data', () => {
     const { container } = render(
       <TempChart
-        data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
@@ -32,7 +28,7 @@ describe('TempChart', () => {
   it("gives the humidity series its own (second) Y axis — different scale/unit than temperature", () => {
     const { container } = render(
       <TempChart
-        data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
@@ -42,7 +38,7 @@ describe('TempChart', () => {
   it('labels temperature and humidity in a legend', () => {
     render(
       <TempChart
-        data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
@@ -54,7 +50,7 @@ describe('TempChart', () => {
 
   it('shows a "no monitor" empty state when there are no Pro monitors at all', () => {
     render(
-      <TempChart data={[]} units="metric" monitors={[]} selectedMonitorId={null} onSelectMonitor={vi.fn()} />,
+      <TempChart data={[]} units="metric" devices={[]} selectedMonitorId={null} onSelectMonitor={vi.fn()} />,
     );
     expect(screen.getByTestId('temp-chart-empty')).toHaveTextContent(/will appear/i);
   });
@@ -62,29 +58,29 @@ describe('TempChart', () => {
   it('shows a "no readings" empty state for a monitor with no telemetry yet', () => {
     render(
       <TempChart
-        data={[]} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        data={[]} units="metric" devices={[makeDevice(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
     expect(screen.getByTestId('temp-chart-no-data')).toBeInTheDocument();
   });
 
-  it('hides the monitor picker when there is only one Pro monitor', () => {
+  it('hides the device picker when there is only one Pro device', () => {
     render(
       <TempChart
-        data={makeData()} units="metric" monitors={[makeMonitor(1, 'dev-1')]}
+        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
     expect(screen.queryByTestId('temp-chart-monitor-select')).not.toBeInTheDocument();
   });
 
-  it('shows a monitor picker and calls onSelectMonitor when there are multiple Pro monitors', () => {
+  it('shows a device picker and calls onSelectMonitor when there are multiple Pro devices', () => {
     const onSelectMonitor = vi.fn();
     render(
       <TempChart
         data={makeData()} units="metric"
-        monitors={[makeMonitor(1, 'dev-1'), makeMonitor(2, 'dev-2')]}
+        devices={[makeDevice(1, 'dev-1'), makeDevice(2, 'dev-2')]}
         selectedMonitorId={1} onSelectMonitor={onSelectMonitor}
       />,
     );

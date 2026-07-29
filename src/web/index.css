@@ -2469,6 +2469,56 @@ h2.admin-field__label-text {
   font-size: 0.78rem;
 }
 
+/* One card per physical Kegtron device (monitors grouped by type+identifier);
+   the per-port bind/volume table nests inside. */
+.monitors-device-card {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.monitors-device-card__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.monitors-device-card__name {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.monitors-device-card__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-right: auto;
+}
+
+.monitors-device-card__rename {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitors-device-card__rename input {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
 /* The "Not bound" nudge — a visible affordance (not just quiet empty text), same warm-
    attention tint as `.beer-picker__notice`. */
 .monitors-row__unbound {

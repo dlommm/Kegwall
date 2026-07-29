@@ -2,12 +2,13 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { MonitorsPage } from '../../../src/web/routes/admin/MonitorsPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
   listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume, getMonitorWifiRssi,
+  updateMonitorIdentity,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { Monitor } from '../../../src/server/db/monitors';
@@ -21,6 +22,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getMonitorTelemetry: vi.fn(),
   resetKegtronVolume: vi.fn(),
   getMonitorWifiRssi: vi.fn(),
+  updateMonitorIdentity: vi.fn(),
 }));
 
 async function flush() {
@@ -63,7 +65,7 @@ beforeEach(() => {
 });
 
 describe('MonitorsPage', () => {
-  it('renders one row per monitor with a type badge, identifier/serial, port, and last-seen', async () => {
+  it('renders one CARD per physical device with a type badge, identifier/serial, and its port rows', async () => {
     (listMonitors as Mock).mockResolvedValue({
       ok: true,
       data: [
@@ -72,14 +74,61 @@ describe('MonitorsPage', () => {
       ],
     });
     renderAdminPage(<MonitorsPage />);
-    const rows = await screen.findAllByTestId('monitors-row');
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent('Kegtron Pro');
-    expect(rows[0]).toHaveTextContent('device-1');
-    expect(rows[0]).toHaveTextContent('SN1');
-    expect(rows[0]).toHaveTextContent('2');
-    expect(rows[1]).toHaveTextContent('Kegtron Gen 1');
-    expect(rows[1]).toHaveTextContent('aa:bb:cc');
+    const cards = await screen.findAllByTestId('monitors-device-card');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent('Kegtron Pro');
+    expect(cards[0]).toHaveTextContent('device-1');
+    expect(cards[0]).toHaveTextContent('SN1');
+    expect(within(cards[0]!).getByTestId('monitors-row-port')).toHaveTextContent('2');
+    expect(cards[1]).toHaveTextContent('Kegtron Gen 1');
+    expect(cards[1]).toHaveTextContent('aa:bb:cc');
+  });
+
+  it('groups a 4-port Kegtron into ONE card with four individually bindable port rows', async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true,
+      data: [0, 1, 2, 3].map((port) => makeMonitor(10 + port, {
+        type: 'kegtron_pro', identifier: 'device-big', serial: 'SN9', portIndex: port,
+      })),
+    });
+    renderAdminPage(<MonitorsPage />);
+    const cards = await screen.findAllByTestId('monitors-device-card');
+    expect(cards).toHaveLength(1);
+    const ports = within(cards[0]!).getAllByTestId('monitors-port-row');
+    expect(ports).toHaveLength(4);
+    expect(within(cards[0]!).getAllByTestId('monitors-row-bind')).toHaveLength(4);
+    // Device-level things said once, not per port.
+    expect(within(cards[0]!).getAllByTestId('monitors-card-expand')).toHaveLength(1);
+  });
+
+  it('renames the device via the identity route, addressed by the anchor (lowest-port) row', async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        makeMonitor(11, { identifier: 'device-big', portIndex: 1 }),
+        makeMonitor(10, { identifier: 'device-big', portIndex: 0 }),
+      ],
+    });
+    (updateMonitorIdentity as Mock).mockResolvedValue({ ok: true, data: makeMonitor(10, { name: 'Garage' }) });
+    renderAdminPage(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-device-card');
+
+    fireEvent.click(screen.getByTestId('monitors-card-rename'));
+    fireEvent.change(screen.getByTestId('monitors-card-rename-input'), { target: { value: 'Garage' } });
+    fireEvent.click(screen.getByTestId('monitors-card-rename-save'));
+    await flush();
+
+    expect(updateMonitorIdentity).toHaveBeenCalledWith(10, { name: 'Garage' });
+    expect(listMonitors).toHaveBeenCalledTimes(2); // initial load + post-rename refresh
+  });
+
+  it('shows the device friendly name as the card title when set', async () => {
+    (listMonitors as Mock).mockResolvedValue({
+      ok: true, data: [makeMonitor(1, { name: 'Main kegerator' })],
+    });
+    renderAdminPage(<MonitorsPage />);
+    const cards = await screen.findAllByTestId('monitors-device-card');
+    expect(within(cards[0]!).getByTestId('monitors-card-name')).toHaveTextContent('Main kegerator');
   });
 
   it('shows a quiet empty state with no monitors', async () => {
@@ -108,20 +157,21 @@ describe('MonitorsPage', () => {
       stale: false, connected: true, reconnectCount: 0,
     });
     renderAdminPage(<MonitorsPage />);
-    const rows = await screen.findAllByTestId('monitors-row');
-    expect(rows[0]).toHaveTextContent('Not bound');
-    expect(rows[1]).toHaveTextContent('Left');
-    expect(rows[1]).toHaveTextContent('481.8 oz');
+    const cards = await screen.findAllByTestId('monitors-device-card');
+    expect(cards[0]).toHaveTextContent('Not bound');
+    expect(cards[1]).toHaveTextContent('Left');
+    expect(cards[1]).toHaveTextContent('481.8 oz');
   });
 
-  it('a viewer sees a read-only table: no bind/unbind/reset controls, but can still open Pro details', async () => {
+  it('a viewer sees read-only cards: no rename/bind/unbind/reset controls, but can still open Pro details', async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
     renderAdminPage(<MonitorsPage />, adminContext('viewer'));
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
     expect(screen.queryByTestId('monitors-row-bind')).not.toBeInTheDocument();
     expect(screen.queryByTestId('monitors-row-unbind')).not.toBeInTheDocument();
     expect(screen.queryByTestId('monitors-row-reset')).not.toBeInTheDocument();
-    expect(screen.getByTestId('monitors-row-expand')).toBeInTheDocument();
+    expect(screen.queryByTestId('monitors-card-rename')).not.toBeInTheDocument();
+    expect(screen.getByTestId('monitors-card-expand')).toBeInTheDocument();
   });
 
   it('binding: opens the picker, submits the chosen tap, and refreshes the list', async () => {
@@ -132,7 +182,7 @@ describe('MonitorsPage', () => {
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { tapId: 5 }) });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
     fireEvent.click(screen.getByTestId('monitors-row-bind'));
     expect(screen.getByTestId('monitors-bind-picker')).toBeInTheDocument();
@@ -153,7 +203,7 @@ describe('MonitorsPage', () => {
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { tapId: null }) });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
     fireEvent.click(screen.getByTestId('monitors-row-unbind'));
     await flush();
@@ -169,7 +219,7 @@ describe('MonitorsPage', () => {
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: false, status: 0, message: 'Network error' });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
     fireEvent.click(screen.getByTestId('monitors-row-unbind'));
     await flush();
@@ -186,7 +236,7 @@ describe('MonitorsPage', () => {
     });
     (bindMonitor as Mock).mockResolvedValue({ ok: false, status: 400, message: 'Refers to a record that does not exist' });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
     fireEvent.click(screen.getByTestId('monitors-row-bind'));
     fireEvent.click(screen.getByTestId('monitors-bind-submit'));
@@ -199,8 +249,8 @@ describe('MonitorsPage', () => {
   it("a Gen 1 monitor has no Details/expand or reset control (no temp/humidity, not mdash-backed)", async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_gen1' })] });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
-    expect(screen.queryByTestId('monitors-row-expand')).not.toBeInTheDocument();
+    await screen.findAllByTestId('monitors-device-card');
+    expect(screen.queryByTestId('monitors-card-expand')).not.toBeInTheDocument();
     expect(screen.queryByTestId('monitors-row-reset')).not.toBeInTheDocument();
   });
 
@@ -214,9 +264,9 @@ describe('MonitorsPage', () => {
       ],
     });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     await flush();
 
     expect(getMonitorTelemetry).toHaveBeenCalledWith(1, 24);
@@ -228,9 +278,9 @@ describe('MonitorsPage', () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
     (getMonitorTelemetry as Mock).mockResolvedValue({ ok: true, data: [] });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     await flush();
 
     expect(screen.getByTestId('monitors-telemetry-empty')).toBeInTheDocument();
@@ -240,7 +290,7 @@ describe('MonitorsPage', () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(7, { type: 'kegtron_pro', identifier: 'device-7' })] });
     (resetKegtronVolume as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
     fireEvent.click(screen.getByTestId('monitors-row-reset'));
     const confirm = screen.getByTestId('monitors-reset-confirm');
@@ -258,7 +308,7 @@ describe('MonitorsPage', () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(7, { type: 'kegtron_pro' })] });
     (resetKegtronVolume as Mock).mockResolvedValue({ ok: false, status: 502, message: 'Failed to reset volume via mdash.net (status 503)' });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
     fireEvent.click(screen.getByTestId('monitors-row-reset'));
     fireEvent.click(screen.getByTestId('monitors-reset-confirm-button'));
@@ -280,9 +330,9 @@ describe('MonitorsPage', () => {
       data: [makeMonitor(1, { type: 'kegtron_pro', meta: { fw: '20200507', online: true } })],
     });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     await flush();
 
     expect(screen.getByTestId('monitors-device-firmware')).toHaveTextContent('20200507');
@@ -294,9 +344,9 @@ describe('MonitorsPage', () => {
       ok: true, data: [makeMonitor(1, { type: 'kegtron_pro', meta: {} })],
     });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     await flush();
 
     expect(screen.getByTestId('monitors-device-firmware')).toHaveTextContent('Unknown');
@@ -307,9 +357,9 @@ describe('MonitorsPage', () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
     (getMonitorWifiRssi as Mock).mockResolvedValue({ ok: true, data: { rssi: -52 } });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     fireEvent.click(screen.getByTestId('monitors-rssi-check'));
     await flush();
 
@@ -321,9 +371,9 @@ describe('MonitorsPage', () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
     (getMonitorWifiRssi as Mock).mockResolvedValue({ ok: false, status: 502, message: 'boom' });
     renderAdminPage(<MonitorsPage />);
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     fireEvent.click(screen.getByTestId('monitors-rssi-check'));
     await flush();
 
@@ -333,9 +383,9 @@ describe('MonitorsPage', () => {
   it('a viewer sees no "Check WiFi signal" control', async () => {
     (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { type: 'kegtron_pro' })] });
     renderAdminPage(<MonitorsPage />, adminContext('viewer'));
-    await screen.findAllByTestId('monitors-row');
+    await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-expand'));
+    fireEvent.click(screen.getByTestId('monitors-card-expand'));
     await flush();
 
     expect(screen.queryByTestId('monitors-rssi-check')).not.toBeInTheDocument();

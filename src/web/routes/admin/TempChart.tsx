@@ -2,15 +2,15 @@ import {
   CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { TelemetryPoint } from '../../../server/db/telemetry.js';
-import type { Monitor } from '../../../server/db/monitors.js';
 import { formatTempC, type VolumeUnits } from '../../lib/units';
 
 export interface TempChartProps {
   data: TelemetryPoint[];
   units: VolumeUnits;
-  /** Kegtron Pro monitors only — pre-filtered by the caller (`StatsPage`). A picker only
-   * renders when there's more than one, per the Task 9 plan. */
-  monitors: Monitor[];
+  /** One entry per physical Kegtron Pro DEVICE (StatsPage groups the per-port monitor
+   * rows) — `monitorId` is the device's anchor row, `label` its friendly name or
+   * identifier. A picker only renders when there's more than one device. */
+  devices: { monitorId: number; label: string }[];
   selectedMonitorId: number | null;
   onSelectMonitor: (id: number) => void;
 }
@@ -71,7 +71,7 @@ function TempTooltip({ active, payload, units }: {
  * monitor with no readings yet (transient, will fill in).
  */
 export function TempChart({
-  data, units, monitors, selectedMonitorId, onSelectMonitor,
+  data, units, devices, selectedMonitorId, onSelectMonitor,
 }: TempChartProps) {
   return (
     <div className="stats-chart" data-testid="temp-chart">
@@ -93,20 +93,20 @@ export function TempChart({
             Humidity
           </span>
         </div>
-        {monitors.length > 1 && (
+        {devices.length > 1 && (
           <select
             className="stats-chart__monitor-select"
             data-testid="temp-chart-monitor-select"
             value={selectedMonitorId ?? ''}
             onChange={(e) => onSelectMonitor(Number(e.target.value))}
           >
-            {monitors.map((m) => (
-              <option key={m.id} value={m.id}>{m.identifier}</option>
+            {devices.map((d) => (
+              <option key={d.monitorId} value={d.monitorId}>{d.label}</option>
             ))}
           </select>
         )}
       </div>
-      {monitors.length === 0 ? (
+      {devices.length === 0 ? (
         <p className="admin-page-quiet" data-testid="temp-chart-empty">
           No Kegtron Pro monitor bound yet — a temperature trend will appear here once one reports in.
         </p>
