@@ -107,6 +107,25 @@ describe('admin api client', () => {
     expect(call[1].method).toBe('POST');
   });
 
+  // Phase 5 Task 7: a real bug an actual browser round trip (Playwright's real Chromium
+  // `fetch`, not this mocked one) caught — every bodyless POST/DELETE (logout, ack, run,
+  // delete-*, etc.) unconditionally got `Content-Type: application/json` stamped on it
+  // with NO body, which Fastify's default JSON parser rejects
+  // (`FST_ERR_CTP_EMPTY_JSON_BODY`, statusCode 400 — mapped to an opaque 500 by this app's
+  // generic error handler, since it isn't one of the recognized error classes). No prior
+  // test caught this: every other `adminApi.test.ts` case here mocks `fetch` itself, so
+  // none of them ever exercised a real server's body-parsing behavior. Fixed in
+  // `request()`: the JSON content-type header is only set when a JSON body is actually
+  // being sent — a request with no body has no content type to declare in the first
+  // place, matching the FormData carve-out's own reasoning just above.
+  it('a bodyless POST (e.g. logout) sends no Content-Type header at all', async () => {
+    mockFetchOnce(200, { ok: true });
+    await logout();
+    const call = (globalThis.fetch as Mock).mock.calls[0]!;
+    expect(call[1].body).toBeUndefined();
+    expect(call[1].headers['Content-Type']).toBeUndefined();
+  });
+
   it('setup posts the first-admin payload and parses the created user', async () => {
     const user = {
       id: 1, username: 'dan', displayName: 'Dan', role: 'admin',
