@@ -4,12 +4,16 @@ import type { Tap } from '../../../server/db/taps.js';
 import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
 import type { Monitor } from '../../../server/db/monitors.js';
+import type { KegBurnStat } from '../../../server/db/stats.js';
 import {
   listBeers, listKegs, listMonitors, listTaps, deleteTap as deleteTapApi,
+  getActiveKegStats,
 } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
-import { srmToColor } from '../../lib/srm';
+import { formatWholeVolume } from '../../lib/lookData';
+import { matchKegType } from '../../lib/kegAssets';
+import { KegSilhouette } from '../../components/glyphs/KegSilhouette';
 import { TapForm } from './TapForm';
 import { SwapWizard } from './SwapWizard';
 import { OnDeckQueue } from './OnDeckQueue';
@@ -34,13 +38,24 @@ function tapToPlainTap(tap: TapState, tapRows: Tap[]): Tap {
   };
 }
 
-/** A tap's level pill fill color: the beer's real SRM tint, or a muted neutral once
- * kicked — matches DashboardPage's identical treatment (the one other place the liquid/
- * SRM language reappears in the admin UI, per the design direction). */
-function pillColor(isKicked: boolean, srm: number | null): string {
-  if (isKicked) return 'color-mix(in srgb, var(--text) 30%, transparent)';
-  return srmToColor(srm).liquid;
+/** "Kicks in ~N days at current pace" (design 5b) from a keg's projected kick
+ * date; null when there's no burn to project from. */
+function kickDaysLabel(stat: KegBurnStat | undefined, now: Date = new Date()): string | null {
+  if (!stat?.projectedKickDate) return null;
+  const kick = new Date(`${stat.projectedKickDate}T00:00:00`);
+  const days = Math.max(0, Math.round((kick.getTime() - now.getTime()) / (24 * 3600 * 1000)));
+  return `Kicks in ~${days} day${days === 1 ? '' : 's'} at current pace`;
 }
+
+const KEG_TYPE_LABELS: Record<string, string> = {
+  'half-barrel': 'Half barrel',
+  'quarter-barrel': 'Quarter barrel',
+  'sixth-barrel': 'Sixth barrel',
+  'fifty-liter': '50 L',
+  cornelius: 'Corny',
+  'slim-quarter': 'Slim quarter',
+  'mini-keg': 'Mini keg',
+};
 
 /**
  * `/admin/taps` (Task 5): the taps list (with a live level pill fed by the same `/ws`
@@ -62,6 +77,7 @@ export function TapsPage() {
   const [deleteState, setDeleteState] = useState<DeleteTapState | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [wizardState, setWizardState] = useState<WizardState | null>(null);
+  const [kegStats, setKegStats] = useState<KegBurnStat[]>([]);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -92,6 +108,8 @@ export function TapsPage() {
     listKegs().then((result) => { if (result.ok) setKegs(result.data); });
     listMonitors().then((result) => { if (result.ok) setMonitors(result.data); });
     listTaps().then((result) => { if (result.ok) setTapRows(result.data); });
+    // Depletion forecast for the "Kicks in ~N days" line (design 5b).
+    getActiveKegStats().then((result) => { if (result.ok) setKegStats(result.data); });
   }, []);
 
   useEffect(() => {
@@ -163,25 +181,45 @@ export function TapsPage() {
             const hasActiveKeg = tap.keg != null && tap.keg.status === 'on_tap';
             const levelPct = tap.keg && !isKicked ? tap.keg.levelPct : 0;
             const expanded = expandedTapId === tap.tapId;
+            const stat = tap.keg ? kegStats.find((s) => s.kegId === tap.keg!.id) : undefined;
+            const kegType = tap.keg ? tap.keg.kegType ?? matchKegType(tap.keg.sizeMl) : null;
+            const isLow = !isKicked && tap.keg != null && levelPct <= 15;
+            const ML_PER_PINT = 473.176;
             return (
               <li key={tap.tapId} className="taps-row" data-testid="taps-row" data-kicked={isKicked}>
                 <div className="taps-row__main">
-                  <span className="taps-row__number font-tabular">{tap.tapNumber}</span>
-                  <span className="taps-row__name">{tap.tapName ?? '—'}</span>
-                  <span className="taps-row__bar" aria-hidden="true">
-                    <span
-                      className="taps-row__fill"
-                      style={{
-                        width: `${Math.round(levelPct)}%`,
-                        backgroundColor: pillColor(isKicked, tap.beer?.srm ?? null),
-                      }}
-                    />
+                  <span className="taps-row__glyph" aria-hidden="true">
+                    <KegSilhouette levelPct={Math.round(levelPct)} kegType={kegType} width={78} />
                   </span>
-                  <span className="taps-row__beer">
-                    {tap.beer ? tap.beer.name : 'Empty'}
-                  </span>
-                  <span className="taps-row__status font-tabular" data-testid="taps-row-status">
-                    {isKicked ? 'Kicked' : tap.beer ? `${Math.round(levelPct)}%` : '—'}
+                  <span className="taps-row__info">
+                    <span className="taps-row__tap-line">
+                      <span className="taps-row__number font-tabular">{`TAP ${tap.tapNumber}`}</span>
+                      {tap.tapName && <span className="taps-row__name">{tap.tapName}</span>}
+                      {isLow && <span className="look-badge look-badge--low">ALMOST GONE</span>}
+                      {isKicked && <span className="look-badge look-badge--kicked">KICKED</span>}
+                    </span>
+                    <span className="taps-row__beer font-display">
+                      {tap.beer ? tap.beer.name : 'Empty'}
+                    </span>
+                    <span className="taps-row__meta">
+                      {[
+                        tap.beer?.style,
+                        tap.beer?.abv != null ? `${tap.beer.abv.toFixed(1)}%` : null,
+                        kegType ? KEG_TYPE_LABELS[kegType] : null,
+                      ].filter(Boolean).join(' · ')}
+                    </span>
+                    <span className="taps-row__status font-tabular" data-testid="taps-row-status">
+                      {isKicked
+                        ? 'Kicked'
+                        : tap.beer && tap.keg
+                          ? `${formatWholeVolume(tap.keg.remainingMl, units)} left · ≈ ${Math.round(tap.keg.remainingMl / ML_PER_PINT)} pints · ${Math.round(levelPct)}%`
+                          : '—'}
+                    </span>
+                    {stat && kickDaysLabel(stat) && (
+                      <span className="taps-row__forecast" data-testid="taps-row-forecast">
+                        {kickDaysLabel(stat)}
+                      </span>
+                    )}
                   </span>
                   <span className="taps-row__actions">
                     <button

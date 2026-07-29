@@ -13,6 +13,8 @@ import { StatsPage } from './StatsPage';
 import { PoursPage } from './PoursPage';
 import { AutomationsPage } from './AutomationsPage';
 import { NotificationsPage } from './NotificationsPage';
+import { LogsPage } from './LogsPage';
+import { PourersPage } from './PourersPage';
 
 /**
  * The entire `/admin/*` route subtree, as its own module — Phase 5 Task 0 (Phase 4 final
@@ -47,6 +49,8 @@ export default function AdminApp() {
         <Route path="pours" element={<PoursPage />} />
         <Route path="automations" element={<AutomationsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="logs" element={<LogsPage />} />
+        <Route path="pourers" element={<PourersPage />} />
       </Route>
     </Routes>
   );

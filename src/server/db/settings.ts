@@ -7,6 +7,9 @@ export const settingsSchema = z.object({
   siteLogo: z.string().nullable().default(null),
   displayUnits: z.enum(['us', 'metric']).default('us'),
   servingSizeMl: z.number().int().positive().default(473), // 16 oz
+  // Unified log stream retention (design 5d footer: "Retention: 30 days,
+  // configurable") — rows older than this are pruned at boot (see context.ts).
+  logRetentionDays: z.number().int().min(1).max(365).default(30),
   kegtronApiKey: z.string().nullable().default(null),
   // Hidden (not surfaced in any admin UI form — there is no dynamic settings-schema
   // renderer in this app to begin with) mdash.net REST base URL override. Exists purely

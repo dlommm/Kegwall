@@ -10,3 +10,4 @@ const app = await buildApp({
   startSources: true,
 });
 await app.listen({ port: Number(process.env.PORT ?? 8080), host: '0.0.0.0' });
+app.ctx.log.info('app', `Server started on port ${process.env.PORT ?? 8080}`);

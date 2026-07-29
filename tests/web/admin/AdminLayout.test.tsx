@@ -113,7 +113,7 @@ describe('AdminLayout', () => {
     expect(screen.queryByText('Users')).not.toBeInTheDocument();
     expect(screen.queryByText('Settings')).not.toBeInTheDocument();
     expect(screen.getByText('Monitors')).toBeInTheDocument();
-    expect(screen.getByText('Stats')).toBeInTheDocument();
+    expect(screen.getByText('Logs')).toBeInTheDocument();
   });
 
   it('shows the signed-in user\'s display name in a user chip', async () => {

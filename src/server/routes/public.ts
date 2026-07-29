@@ -60,6 +60,7 @@ export async function publicRoutes(app: FastifyInstance) {
       color: z.string().regex(AVATAR_COLOR_PATTERN).optional(),
     }).parse(req.body);
     const drinker = createDrinker(db, { displayName: body.name, avatarColor: body.color });
+    app.ctx.log.info('tablet', `New pourer registered — "${drinker.displayName}" (passwordless signup)`);
     reply.code(201);
     return { id: drinker.id, displayName: drinker.displayName, avatarColor: drinker.avatarColor };
   });
@@ -84,6 +85,7 @@ export async function publicRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'validation', message: 'No such pourer' });
     }
     const armed = app.ctx.tabletArm.arm(body.drinkerId);
+    app.ctx.log.info('tablet', `Tablet armed — "${drinker.displayName}" is up, next pour attributes to them`);
     return { armed: true, drinkerId: armed.drinkerId, expiresAt: new Date(armed.expiresAt).toISOString() };
   });
 
@@ -156,6 +158,7 @@ export async function publicRoutes(app: FastifyInstance) {
     }
     const pour = setPourDrinker(db, body.pourId, body.drinkerId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    app.ctx.log.info('pours', `Pour #${pour.id} claimed (${Math.round(pour.volumeMl)} mL) via the phone claim flow`);
     return pour;
   });
 }

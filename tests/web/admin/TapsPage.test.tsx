@@ -21,6 +21,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   listMonitors: vi.fn(),
   listTaps: vi.fn(),
   deleteTap: vi.fn(),
+  getActiveKegStats: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 vi.mock('../../../src/web/routes/admin/TapForm', () => ({

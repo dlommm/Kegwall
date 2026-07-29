@@ -33,6 +33,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     siteLogo: null,
     displayUnits: 'us',
     servingSizeMl: 473,
+    logRetentionDays: 30,
     kegtronApiKey: null,
     kegtronBaseUrl: 'https://mdash.net',
     openBreweryBaseUrl: 'https://api.openbrewerydb.org',

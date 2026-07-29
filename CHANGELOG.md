@@ -42,6 +42,24 @@
   superlatives (most pours / smoothest pour / biggest pour). Phone QR claim flow now
   matches design 3b: 10-minute claim window (was 15), inline name-only "join & claim"
   signup, and "your phone remembers you" (localStorage) for one-tap claims.
+- **Added:** Pour Wall overhaul Phase 4 — admin overhaul. New shell per design 5a: 230 px
+  sidebar (brand + site name, a location-switcher slot, nav with copper active state and
+  3 px left border, appearance picker, avatar user chip) and a 62 px topbar (page title,
+  ⌘K quick-nav search, notification bell, "View wall ↗"). Three admin looks selectable
+  like wall themes: Midnight Slate (default dark), Workshop (light) and Console
+  (terminal green, IBM Plex Mono). Dashboard rebuilt to design 5a: four stat cards
+  (Today's pours, On tap with almost-gone/kicked, Keg room temp, Sources healthy) over
+  live tap rows with real SRM swatches + status-colored level bars, a KEGTRON sensor
+  mini-card, source health, and the activity feed. Taps & kegs page becomes keg cards
+  (design 5b): keg-type silhouette glyph, badges, style · ABV · keg type, remaining
+  oz/pints, and a "Kicks in ~N days at current pace" forecast. New unified Logs page
+  (design 5d) backed by a new `logs` table and `LogService`: one stream for
+  app/kegtron/wall/tablet/sensors/automations/pours events with source + level filter
+  chips (live warn/error counts), search, time ranges, a 2 s live tail, expandable error
+  details, JSON/CSV export, configurable retention (default 30 days, pruned at boot) and
+  errors auto-creating an in-app notification. New Pourers page (11c first cut): pourer
+  card grid with pours · volume · quality and an invite QR. Sidebar gains
+  Pourers/Analytics/Logs; Stats is now labeled Analytics.
 
 - **Removed:** the Untappd integration (beer search/lookup and label-art import, plus its
   Settings → Integrations credentials fields) — Untappd's v4 API no longer grants new

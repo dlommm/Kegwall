@@ -25,6 +25,11 @@ import '@fontsource/barlow/600.css';
 import '@fontsource/barlow-condensed/500.css';
 import '@fontsource/barlow-condensed/600.css';
 import '@fontsource/barlow-condensed/700.css';
+// IBM Plex Mono — the Console admin look (8i) and the Terminal/Departures wall
+// looks (8d/8f).
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource/ibm-plex-mono/600.css';
 
 const container = document.getElementById('root');
 if (!container) {

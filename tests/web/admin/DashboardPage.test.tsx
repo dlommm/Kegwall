@@ -139,10 +139,10 @@ describe('DashboardPage', () => {
     expect(screen.getByTestId('dashboard-pour-volume')).toHaveTextContent('1000 mL');
   });
 
-  it('shows the alerts placeholder with a zero count and a quiet note', async () => {
+  it('shows the On tap stat card with almost-gone/kicked counts', async () => {
     renderAdminPage(<DashboardPage />);
-    expect(await screen.findByTestId('dashboard-alert-count')).toHaveTextContent('0');
-    expect(screen.getByTestId('dashboard-alert-note')).toHaveTextContent('Alerts arrive in a later update');
+    expect(await screen.findByTestId('dashboard-card-on-tap')).toHaveTextContent('ON TAP');
+    expect(screen.getByTestId('dashboard-on-tap-note')).toHaveTextContent('0 almost gone · 0 kicked');
   });
 
   it('renders a healthy, an unhealthy, and an unconfigured source badge distinctly', async () => {
@@ -157,10 +157,8 @@ describe('DashboardPage', () => {
     renderAdminPage(<DashboardPage />);
     const rows = await screen.findAllByTestId('dashboard-source-row');
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveTextContent('Healthy');
-    expect(rows[0]).toHaveTextContent('polling ok');
-    expect(rows[1]).toHaveTextContent('Unhealthy');
-    expect(rows[1]).toHaveTextContent('no packets');
+    expect(rows[0]).toHaveTextContent('OK');
+    expect(rows[1]).toHaveTextContent('Down');
     expect(rows[2]).toHaveTextContent('Not set up');
   });
 
@@ -178,7 +176,7 @@ describe('DashboardPage', () => {
     await flush();
     const rows = screen.getAllByTestId('dashboard-source-row');
     expect(rows[0]).toHaveTextContent('5 min ago');
-    expect(rows[1]).toHaveTextContent('No events yet');
+    expect(rows[1]).not.toHaveTextContent('min ago');
   });
 
   it('fetches the activity feed and renders it as prose, newest-relevant fields first', async () => {

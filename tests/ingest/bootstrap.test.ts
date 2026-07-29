@@ -10,6 +10,7 @@ import { SettingsStore } from '../../src/server/db/settings.js';
 import { EventBus } from '../../src/server/core/events.js';
 import { StateManager } from '../../src/server/core/state.js';
 import { TabletArmRegistry } from '../../src/server/core/tabletArm.js';
+import { LogService } from '../../src/server/core/logService.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
 import { registerConfiguredSources } from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
@@ -33,7 +34,10 @@ function makeCtx(): AppContext {
   state.start();
   const sources = new SourceManager(bus);
   const engine = new AutomationEngine({ db, bus, settings, state });
-  return { db, bus, settings, state, sources, engine, tabletArm: new TabletArmRegistry() };
+  return {
+    db, bus, settings, state, sources, engine,
+    tabletArm: new TabletArmRegistry(), log: new LogService(db, bus),
+  };
 }
 
 describe('registerConfiguredSources', () => {
