@@ -21,7 +21,15 @@ const TELEMETRY_HOURS = 24;
 const TYPE_LABELS: Record<Monitor['type'], string> = {
   kegtron_pro: 'Kegtron Pro',
   kegtron_gen1: 'Kegtron Gen 1',
+  govee_sensor: 'Govee sensor',
 };
+
+/** `meta.deviceName` — the sensor's name in Govee's own app, stamped at discovery.
+ * Read defensively like `monitorFirmware` (meta is untyped JSON). */
+function goveeDeviceName(monitor: Monitor): string | null {
+  const name = monitor.meta.deviceName;
+  return typeof name === 'string' && name.length > 0 ? name : null;
+}
 
 type BindState = { monitor: Monitor; deviceName: string; tapId: string; error: string | null };
 type ResetState = { monitor: Monitor; deviceName: string; result: 'idle' | 'done' | 'error'; error: string | null };
@@ -285,14 +293,21 @@ export function MonitorsPage() {
 
       {status === 'loaded' && devices.map((group) => {
         const isPro = group.type === 'kegtron_pro';
+        const isGovee = group.type === 'govee_sensor';
         const anchor = group.ports[0]!;
+        const isDisabled = !anchor.enabled;
         const expanded = expandedDeviceKey === group.key;
         const telemetry = telemetryByDevice[group.key];
         const rssi = rssiByDevice[group.key];
         const renaming = renameState?.group.key === group.key ? renameState : null;
         const lastSeen = deviceLastSeen(group);
         return (
-          <article className="monitors-device-card" data-testid="monitors-device-card" data-device-type={group.type} key={group.key}>
+          <article
+            className={`monitors-device-card${isDisabled ? ' monitors-device-card--disabled' : ''}`}
+            data-testid="monitors-device-card"
+            data-device-type={group.type}
+            key={group.key}
+          >
             <header className="monitors-device-card__header">
               <span
                 className={`monitors-type-badge monitors-type-badge--${group.type}`}
@@ -349,6 +364,11 @@ export function MonitorsPage() {
               )}
               <span className="monitors-device-card__meta">
                 <span data-testid="monitors-card-identifier">{group.identifier}</span>
+                {isGovee && goveeDeviceName(anchor) && (
+                  <span className="monitors-row__quiet" data-testid="monitors-card-govee-name">
+                    {goveeDeviceName(anchor)}
+                  </span>
+                )}
                 {group.serial && (
                   <span className="monitors-row__quiet" data-testid="monitors-card-serial">{group.serial}</span>
                 )}
@@ -356,7 +376,23 @@ export function MonitorsPage() {
                   {lastSeen ? formatRelativeTime(lastSeen) : 'Never seen'}
                 </span>
               </span>
-              {isPro && (
+              {isDisabled && (
+                <span className="look-badge look-badge--kicked" data-testid="monitors-card-disabled-badge">
+                  DISABLED
+                </span>
+              )}
+              {canEdit && isGovee && (
+                <button
+                  type="button"
+                  data-testid="monitors-card-toggle-enabled"
+                  onClick={() => {
+                    void updateMonitorIdentity(group.anchorId, { enabled: isDisabled }).then(loadMonitors);
+                  }}
+                >
+                  {isDisabled ? 'Enable' : 'Disable'}
+                </button>
+              )}
+              {(isPro || isGovee) && (
                 <button
                   type="button"
                   data-testid="monitors-card-expand"
@@ -367,8 +403,9 @@ export function MonitorsPage() {
               )}
             </header>
 
-            {expanded && isPro && (
+            {expanded && (isPro || isGovee) && (
               <div data-testid="monitors-card-details">
+                {isPro && (
                 <div className="monitors-device-info" data-testid="monitors-device-info">
                   <span className="monitors-device-info__item" data-testid="monitors-device-firmware">
                     Firmware: {monitorFirmware(anchor) ?? 'Unknown'}
@@ -400,6 +437,7 @@ export function MonitorsPage() {
                     <span role="alert" data-testid="monitors-rssi-error">{rssi.error}</span>
                   )}
                 </div>
+                )}
                 {(!telemetry || telemetry.status === 'loading') && (
                   <p data-testid="monitors-telemetry-loading">Loading readings…</p>
                 )}
@@ -453,6 +491,7 @@ export function MonitorsPage() {
               </div>
             )}
 
+            {!isGovee && (
             <table className="admin-table monitors-table" data-testid="monitors-port-table">
               <thead>
                 <tr>
@@ -522,6 +561,7 @@ export function MonitorsPage() {
                 })}
               </tbody>
             </table>
+            )}
           </article>
         );
       })}

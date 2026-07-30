@@ -3,13 +3,20 @@ import type { SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
 
 /**
- * Govee ambient sensors (Phase 6): polls the Govee cloud OpenAPI (~60s, per
- * the handoff) for every hygrometer/thermometer on the account and emits a
- * `sensor_reading` per device. Sensor display names come from the
- * `govee.names` settings map (free text — FRONT/MIDDLE/BACK...), falling back
- * to the Govee device name. Temperatures arrive in Fahrenheit from the API
- * and are normalized to Celsius (the app's storage/wire convention — display
- * conversion happens at the edge like everywhere else).
+ * Govee ambient sensors (Phase 6, made first-class monitors later): polls the Govee
+ * cloud OpenAPI (~60s) for every hygrometer/thermometer on the account. Each device
+ * becomes a real `monitors` row (`type: 'govee_sensor'`, portIndex 0) via a
+ * `device_discovered` emit (cached — only new/changed devices emit, since the
+ * StateManager handler broadcasts a full ws snapshot per emit), and every reading is
+ * emitted BOTH as `telemetry` (persisted to the telemetry table by StateManager, so
+ * Analytics charts it like any Kegtron device) and as `sensor_reading` (the in-memory
+ * registry behind the wall header chips). Display name preference: the monitors row's
+ * device-level `name` (set on the admin Monitors page), else Govee's own deviceName.
+ *
+ * Disabled sensors (monitors.enabled = 0, toggled in the admin) are looked up per
+ * poll via the injected `sensorMonitor` callback and skipped ENTIRELY — no state
+ * request leaves the box for them. Temperatures arrive in Fahrenheit and are
+ * normalized to Celsius (the app's storage/wire convention).
  *
  * Self-skips when no API key is configured (same idiom as the Kegtron cloud
  * source) so registering it unconditionally is safe.
@@ -20,6 +27,12 @@ const DEFAULT_POLL_MS = 60_000;
 interface GoveeSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
+  /** Per-poll lookup of the sensor's monitors row (enabled flag + admin-set name);
+   * null when no row exists yet (first sighting — treated as enabled). Injected as a
+   * db query from bootstrap.ts so the source itself stays db-free and unit-testable,
+   * and so an enable/disable takes effect on the very next poll with no source
+   * restart. */
+  sensorMonitor: (identifier: string) => { enabled: boolean; name: string | null } | null;
   pollMs?: number;
 }
 
@@ -36,10 +49,16 @@ export class GoveeSource implements Source {
 
   private stopped = false;
 
+  /** identifier -> deviceName/sku signature of already-announced devices, so
+   * `device_discovered` (and its ws-snapshot broadcast) fires once per device, not
+   * once per poll. Cleared on start() so a source rebuild re-announces. */
+  private discovered = new Map<string, string>();
+
   constructor(private opts: GoveeSourceOptions) {}
 
   async start(): Promise<void> {
     this.stopped = false;
+    this.discovered.clear();
     const config = this.opts.settings.get('govee');
     if (!config?.apiKey) {
       this.status(false, 'No Govee API key configured', { unconfigured: true });
@@ -81,21 +100,42 @@ export class GoveeSource implements Source {
       const body = await devicesRes.json() as { data?: GoveeDevice[] };
       const devices = body.data ?? [];
       let readings = 0;
+      let disabled = 0;
       for (const device of devices) {
+        const ref = { type: 'govee_sensor' as const, identifier: device.device, portIndex: 0 };
+        const signature = `${device.deviceName ?? ''}\u0000${device.sku ?? ''}`;
+        if (this.discovered.get(device.device) !== signature) {
+          this.discovered.set(device.device, signature);
+          this.opts.bus.emit('device_discovered', {
+            monitor: ref, meta: { deviceName: device.deviceName, sku: device.sku },
+          });
+        }
+        // bus.emit is synchronous, so the monitors row exists before this lookup even
+        // on the first-ever poll.
+        const mon = this.opts.sensorMonitor(device.device);
+        if (mon && !mon.enabled) {
+          disabled += 1;
+          continue; // no state request at all for a disabled sensor
+        }
         const reading = await this.readDevice(base, config.apiKey, device);
         if (this.stopped) return;
         if (reading) {
           readings += 1;
+          const ts = new Date().toISOString();
+          this.opts.bus.emit('telemetry', {
+            monitor: ref, temp: reading.tempC, humidity: reading.humidity, ts,
+          });
           this.opts.bus.emit('sensor_reading', {
             sensorId: device.device,
-            name: config.names[device.device] ?? device.deviceName ?? device.device,
+            name: mon?.name ?? (device.deviceName || device.device),
             tempC: reading.tempC,
             humidity: reading.humidity,
-            ts: new Date().toISOString(),
+            ts,
           });
         }
       }
-      this.status(true, `${readings} sensor(s), next poll in ${Math.round((this.opts.pollMs ?? DEFAULT_POLL_MS) / 1000)}s`);
+      const disabledNote = disabled > 0 ? `, ${disabled} disabled` : '';
+      this.status(true, `${readings} sensor(s)${disabledNote}, next poll in ${Math.round((this.opts.pollMs ?? DEFAULT_POLL_MS) / 1000)}s`);
     } catch (err) {
       this.status(false, err instanceof Error ? err.message : 'Govee poll failed');
     }

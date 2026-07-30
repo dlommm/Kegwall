@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Added:** Govee sensors are first-class devices now. Each discovered sensor becomes
+  a real monitor row: a card on the Monitors page (rename, Enable/Disable — disabling
+  stops its cloud polling entirely and drops its wall chip, while the card stays for
+  re-enabling), readings persisted to the telemetry store, and a per-sensor
+  temperature/humidity chart in Analytics next to the Kegtron devices. The wall-chip
+  endpoint hides disabled sensors. **Removed:** the internal `govee.names` settings
+  map (it never had a UI) — sensor names now live on the Monitors page.
+- **Added:** hidden taps. A per-tap "Hide from wall & menu" toggle (Taps admin) drops
+  the tap from the public wall, QR menu, and Home Assistant (existing entities are
+  tombstoned automatically) while it stays in the admin with a HIDDEN badge — for
+  multi-port Kegtrons with fewer kegs than ports.
+
 ## v0.6.0 — 2026-07-29
 
 The last hand-cut release: from here on, releases are automated — conventional commits

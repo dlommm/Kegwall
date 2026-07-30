@@ -10,7 +10,7 @@ export interface MonitorDeviceGroup<M extends Monitor = Monitor> {
   key: string;
   type: Monitor['type'];
   identifier: string;
-  /** Device friendly name — identical on every port row (see updateMonitorDeviceName). */
+  /** Device friendly name — identical on every port row (see updateMonitorDeviceIdentity). */
   name: string | null;
   /** First non-null serial across ports (Gen 1 / UDP-synthetic rows have none). */
   serial: string | null;

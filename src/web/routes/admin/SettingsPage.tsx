@@ -567,10 +567,10 @@ function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
 }
 
 /** Govee ambient sensors (Pour Wall Phase 6): API key (masked like catalog.beer)
- * + the beer auto-import toggle (design 6g) in one compact block. Sensor names
- * come from the Govee app's own device names; per-sensor renames live in the
- * `govee.names` map (free text) via the same PATCH. Saving the key restarts
- * sources (`govee` is a SOURCE_RESTART_KEY) so polling starts immediately. */
+ * + the beer auto-import toggle (design 6g) in one compact block. Discovered
+ * sensors appear on the Monitors page, where per-sensor rename and enable/disable
+ * live. Saving the key restarts sources (`govee` is a SOURCE_RESTART_KEY) so
+ * polling starts immediately. */
 function GoveeBlock({ settings, onSaved }: GroupProps) {
   const cfg = settings.govee;
   const [replacing, setReplacing] = useState(false);
@@ -588,7 +588,7 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
     setSubmitting(true);
     const patch: Partial<Settings> = {};
     if (replacing && newKey.trim() !== '') {
-      patch.govee = { apiKey: newKey.trim(), names: cfg?.names ?? {} };
+      patch.govee = { apiKey: newKey.trim() };
     }
     if (autoImport !== settings.autoImportBeers) patch.autoImportBeers = autoImport;
     const result = await patchSettings(patch);
@@ -611,7 +611,8 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
       <h3 className="channels-group__block-title">Govee sensors &amp; auto-import</h3>
       <p className="admin-page-quiet">
         Govee cloud API key for ambient temp/humidity sensors (polled ~60s; chips show on the
-        wall header + dashboard). Sensor names come from the Govee app.
+        wall header). Discovered sensors appear on the Monitors page — rename or
+        enable/disable them there; charts live in Analytics.
       </p>
       <MaskedSecretField
         label="Govee API key"

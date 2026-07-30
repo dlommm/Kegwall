@@ -39,6 +39,13 @@ export class SensorRegistry {
     return [...this.readings.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** Drops a sensor's cached reading — called when the admin disables it, so its wall
+   * chip dies immediately instead of lingering until restart (the poller stops
+   * feeding disabled sensors, so nothing repopulates it). */
+  remove(sensorId: string): void {
+    this.readings.delete(sensorId);
+  }
+
   private checkSpread(): void {
     const temps = this.list().map((r) => r.tempC).filter((t): t is number => t != null);
     if (temps.length < 2) return;

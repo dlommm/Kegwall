@@ -93,8 +93,14 @@ export function StatsPage() {
       if (monitorsRes.ok) {
         // One picker entry per physical DEVICE (a 4-port Kegtron is one temperature
         // sensor, not four) — addressed by its anchor row's monitor id; the temps
-        // endpoint answers device-wide for any port row.
-        const devices = groupMonitors(monitorsRes.data.filter((m) => m.type === 'kegtron_pro'))
+        // endpoint answers device-wide for any port row. Govee sensors chart too
+        // (disabled ones don't); Kegtron devices sort first so a new Govee sensor
+        // doesn't silently steal the default chart ('govee_sensor' < 'kegtron_pro'
+        // lexically in the listMonitors ordering).
+        const chartable = monitorsRes.data.filter((m) =>
+          m.type === 'kegtron_pro' || (m.type === 'govee_sensor' && m.enabled));
+        const devices = groupMonitors(chartable)
+          .sort((a, b) => Number(a.type === 'govee_sensor') - Number(b.type === 'govee_sensor'))
           .map((g) => ({ monitorId: g.anchorId, label: deviceLabel(g) }));
         setProDevices(devices);
         setSelectedMonitorId(devices[0]?.monitorId ?? null);

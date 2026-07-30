@@ -3,12 +3,16 @@ import type { MonitorRef } from '../core/events.js';
 import { NotFoundError } from '../core/errors.js';
 
 export interface Monitor {
-  id: number; type: 'kegtron_pro' | 'kegtron_gen1'; identifier: string;
+  id: number; type: 'kegtron_pro' | 'kegtron_gen1' | 'govee_sensor'; identifier: string;
   serial: string | null; portIndex: number; tapId: number | null;
   lastSeen: string | null; meta: Record<string, unknown>;
   /** Friendly display name ("Main kegerator") — device-level: every port row of a
    * physical device carries the same name; null = unnamed. */
   name: string | null;
+  /** Device-level on/off. Today only Govee sensors ever get disabled (the poller
+   * skips them and their wall chips disappear, while the row stays for the admin to
+   * re-enable); Kegtron rows are always enabled. */
+  enabled: boolean;
 }
 
 function rowToMonitor(r: any): Monitor {
@@ -17,6 +21,7 @@ function rowToMonitor(r: any): Monitor {
     portIndex: r.port_index, tapId: r.tap_id, lastSeen: r.last_seen,
     meta: JSON.parse(r.meta),
     name: r.name ?? null,
+    enabled: !!r.enabled,
   };
 }
 
@@ -72,17 +77,20 @@ export function listMonitors(db: Database.Database): Monitor[] {
     .all().map(rowToMonitor);
 }
 
-/** Sets the DEVICE-level friendly name: the addressed monitor row identifies the
- * physical device, and every port row sharing its (type, identifier) gets the same
- * name — a device is one unit no matter how many ports it has. Returns the
- * addressed row. */
-export function updateMonitorDeviceName(
-  db: Database.Database, monitorId: number, name: string | null,
+/** Sets DEVICE-level identity: the addressed monitor row identifies the physical
+ * device, and every port row sharing its (type, identifier) gets the same name /
+ * enabled state — a device is one unit no matter how many ports it has. Omitted
+ * fields keep their stored values. Returns the addressed row. */
+export function updateMonitorDeviceIdentity(
+  db: Database.Database, monitorId: number,
+  patch: { name?: string | null; enabled?: boolean },
 ): Monitor {
   const existing = getMonitorById(db, monitorId);
   if (!existing) throw new NotFoundError(`monitor ${monitorId}`);
-  db.prepare('UPDATE monitors SET name = ? WHERE type = ? AND identifier = ?')
-    .run(name, existing.type, existing.identifier);
+  const name = patch.name === undefined ? existing.name : patch.name;
+  const enabled = patch.enabled === undefined ? existing.enabled : patch.enabled;
+  db.prepare('UPDATE monitors SET name = ?, enabled = ? WHERE type = ? AND identifier = ?')
+    .run(name, enabled ? 1 : 0, existing.type, existing.identifier);
   return getMonitorById(db, monitorId)!;
 }
 

@@ -108,7 +108,7 @@ export function TempChart({
       </div>
       {devices.length === 0 ? (
         <p className="admin-page-quiet" data-testid="temp-chart-empty">
-          No Kegtron Pro monitor bound yet — a temperature trend will appear here once one reports in.
+          No temperature source yet — a trend appears once a Kegtron Pro or Govee sensor reports in.
         </p>
       ) : data.length === 0 ? (
         <p className="admin-page-quiet" data-testid="temp-chart-no-data">

@@ -1,7 +1,7 @@
 export interface MonitorRef {
-  type: 'kegtron_pro' | 'kegtron_gen1';
-  identifier: string; // Pro: mdash device id; Gen 1: MAC lowercase
-  portIndex: number;
+  type: 'kegtron_pro' | 'kegtron_gen1' | 'govee_sensor';
+  identifier: string; // Pro: mdash device id; Gen 1: MAC lowercase; Govee: device id
+  portIndex: number; // Govee sensors are always port 0 (single-sensor devices)
 }
 
 /** Canonical `(type, identifier, portIndex)` string key for a `MonitorRef` -- the single

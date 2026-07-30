@@ -37,7 +37,19 @@ export function registerConfiguredSources(ctx: AppContext): void {
   ctx.sources.register(new KegtronCloudSource({ bus: ctx.bus, settings: ctx.settings }));
 
   // Govee ambient sensors (Phase 6) — same always-register/self-skip idiom as cloud.
-  ctx.sources.register(new GoveeSource({ bus: ctx.bus, settings: ctx.settings }));
+  // The sensorMonitor callback is read PER POLL (not at construction), so a sensor
+  // enabled/disabled in the admin takes effect on the next poll without a restart.
+  ctx.sources.register(new GoveeSource({
+    bus: ctx.bus,
+    settings: ctx.settings,
+    sensorMonitor: (identifier) => {
+      const r = ctx.db.prepare(
+        `SELECT enabled, name FROM monitors
+          WHERE type = 'govee_sensor' AND identifier = ? AND port_index = 0`,
+      ).get(identifier) as { enabled: number; name: string | null } | undefined;
+      return r ? { enabled: !!r.enabled, name: r.name } : null;
+    },
+  }));
 
   const isCloudHealthy = (): boolean =>
     ctx.sources.status().find((s) => s.name === 'kegtron_cloud')?.healthy ?? false;

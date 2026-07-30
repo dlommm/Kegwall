@@ -5,30 +5,38 @@ import {
   listDisplays, createDisplay, updateDisplay, deleteDisplay, getDisplay,
   getDisplayByCode, touchDisplay,
 } from '../db/displays.js';
-import { updateMonitorDeviceName, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
+import { updateMonitorDeviceIdentity, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
 import { NotFoundError } from '../core/errors.js';
 
 /**
- * Monitor device naming + displays with pairing (design 7c).
+ * Monitor device identity (name + enabled) + displays with pairing (design 7c).
  */
 export async function placesDisplaysRoutes(app: FastifyInstance) {
   const db = app.ctx.db;
   const viewer = { preHandler: requireRole('viewer') };
   const editor = { preHandler: requireRole('editor') };
 
-  // --- Monitor device name --------------------------------------------------
+  // --- Monitor device identity ----------------------------------------------
 
-  // Renames the whole physical DEVICE: every port row sharing the addressed
-  // monitor's (type, identifier) gets the name (see updateMonitorDeviceName).
+  // Applies to the whole physical DEVICE: every port row sharing the addressed
+  // monitor's (type, identifier) gets the name/enabled state (see
+  // updateMonitorDeviceIdentity). Disabling a Govee sensor also evicts its cached
+  // wall-chip reading so the chip disappears immediately.
   app.patch('/api/monitors/:id/identity', editor, async (req) => {
     const id = z.coerce.number().int().parse((req.params as any).id);
     const body = z.object({
       name: z.string().trim().max(60).nullable().optional(),
+      enabled: z.boolean().optional(),
     }).parse(req.body);
-    if (!getMonitorById(db, id)) throw new NotFoundError(`monitor ${id}`);
-    const name = body.name === undefined ? getMonitorById(db, id)!.name
+    const existing = getMonitorById(db, id);
+    if (!existing) throw new NotFoundError(`monitor ${id}`);
+    const name = body.name === undefined ? undefined
       : (body.name === '' ? null : body.name);
-    return sanitizeMonitor(updateMonitorDeviceName(db, id, name));
+    const updated = updateMonitorDeviceIdentity(db, id, { name, enabled: body.enabled });
+    if (body.enabled === false && existing.type === 'govee_sensor') {
+      app.ctx.sensors.remove(existing.identifier);
+    }
+    return sanitizeMonitor(updated);
   });
 
   // --- Displays (7c) --------------------------------------------------------

@@ -47,12 +47,12 @@ export const settingsSchema = z.object({
   // Pour Wall overhaul Phase 6 (design 6g): auto-cache beers the Kegtron device
   // reports that the local library doesn't know — see core/beerAutoImport.ts.
   autoImportBeers: z.boolean().default(true),
-  // Govee ambient sensors (Phase 6): cloud API key + free-text per-sensor names
-  // (deviceId -> "FRONT"/"MIDDLE"/"BACK"...). Same nullable-object + masked-apiKey
-  // idiom as `catalogBeer` above.
+  // Govee ambient sensors (Phase 6): cloud API key. Same nullable-object +
+  // masked-apiKey idiom as `catalogBeer` above. Per-sensor names/enable now live on
+  // the sensors' `monitors` rows (admin Monitors page); the old `names` map is
+  // silently stripped from stored JSON by zod's default unknown-key handling.
   govee: z.object({
     apiKey: z.string().min(1),
-    names: z.record(z.string(), z.string()).default({}),
   }).nullable().default(null),
   // Hidden, test-injectable base URL — same pattern as catalogBeerBaseUrl.
   goveeBaseUrl: z.string().default('https://openapi.api.govee.com'),

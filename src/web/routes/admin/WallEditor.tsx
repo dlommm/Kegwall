@@ -145,7 +145,9 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
     Promise.all([listMonitors(), getWallDevices(wall.id)]).then(([monitorsRes, devicesRes]) => {
       if (cancelled) return;
       if (monitorsRes.ok && devicesRes.ok) {
-        setDeviceGroups(groupMonitors(monitorsRes.data));
+        // Govee sensors are monitors too now, but they measure rooms, not kegs —
+        // never wall-assignable (wall_devices' CHECK is kegtron-only anyway).
+        setDeviceGroups(groupMonitors(monitorsRes.data.filter((m) => m.type !== 'govee_sensor')));
         setSelectedDeviceKeys(new Set(devicesRes.data.map((d) => `${d.type}:${d.identifier}`)));
         setDevicesStatus('loaded');
       } else {
@@ -227,8 +229,8 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
     setErrors(null);
     setSaving(true);
     const deviceRefs: WallDeviceRef[] = deviceGroups
-      .filter((g) => selectedDeviceKeys.has(g.key))
-      .map((g) => ({ type: g.type, identifier: g.identifier }));
+      .filter((g) => selectedDeviceKeys.has(g.key) && g.type !== 'govee_sensor')
+      .map((g) => ({ type: g.type as WallDeviceRef['type'], identifier: g.identifier }));
     const devicesResult = await setWallDevices(currentWall.id, deviceRefs);
     if (!devicesResult.ok) {
       setSaving(false);

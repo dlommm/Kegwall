@@ -30,7 +30,15 @@ export async function featurePackRoutes(app: FastifyInstance) {
 
   // --- Ambient sensors (Govee) ---------------------------------------------
 
-  app.get('/api/public/sensors', async () => app.ctx.sensors.list());
+  // Exclusion filter (not include-only): a sensor whose monitors row hasn't been
+  // created yet still lists, while a disabled row hides even a stale registry entry
+  // left from before the disable (e.g. restart-then-disable-before-first-poll).
+  app.get('/api/public/sensors', async () => {
+    const disabled = new Set((db.prepare(
+      `SELECT identifier FROM monitors WHERE type = 'govee_sensor' AND enabled = 0`,
+    ).all() as { identifier: string }[]).map((r) => r.identifier));
+    return app.ctx.sensors.list().filter((r) => !disabled.has(r.sensorId));
+  });
 
   // --- Rate-after-claim (6a) -----------------------------------------------
 
