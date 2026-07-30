@@ -1,0 +1,63 @@
+# Kegtron Pro BLE capture firmware (ESPHome) — PHASE 1 of the Pro-over-BLE fallback.
+#
+# Purpose: dump the RAW advertisement bytes Kegtron Pro devices (KT-220/KT-420)
+# broadcast, so the (undocumented) payload layout can be reverse-engineered against
+# known keg values. This config only LISTENS — BLE advertisements are connectionless
+# broadcasts; nothing pairs, nothing connects, the Kegtron can't even tell.
+#
+# Usage (any ESP32 dev board, ~$6):
+#   1. pip install esphome
+#   2. Create esp32/secrets.yaml (gitignored) with:
+#        wifi_ssid: "YourSSID"
+#        wifi_password: "yourpass"
+#   3. esphome run esp32/kegtron-pro-capture.yaml   (plug the board in via USB)
+#   4. Put the board near the kegerator, watch the log stream — every line tagged
+#      [kegtron] is one advertisement with its manufacturer data as hex.
+#   5. Collect a few minutes of lines (ideally: idle, then during a pour) and save
+#      them — that's the input for writing the parser. Idle keg values to match
+#      against are visible in the Kegtron app (keg size / volume dispensed in mL).
+#
+# Active scanning matters: Kegtron devices put their payload in the SCAN RESPONSE
+# half of the advertisement (documented for Gen 1; the Pro behaves the same way per
+# the Kegtron mobile app's own scan logs), and only active scanners request it.
+esphome:
+  name: kegtron-capture
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+  # USB serial logging works standalone; WiFi below is for `esphome logs` over the
+  # network once the board sits at the kegerator away from your computer.
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: true # required — Kegtron payloads ride the scan response
+    interval: 320ms
+    window: 300ms
+  on_ble_advertise:
+    - then:
+        - lambda: |-
+            std::string name = x.get_name();
+            // Pro names look like "Kegtron-010016" (dash); Gen 1 uses "Kegtron " —
+            // capture anything Kegtron-branded, the prefix disambiguates later.
+            if (name.rfind("Kegtron", 0) != 0) return;
+            std::string out;
+            char buf[4];
+            for (auto &md : x.get_manufacturer_datas()) {
+              out += " mfr_uuid=" + md.uuid.to_string() + " mfr_hex=";
+              for (auto b : md.data) { snprintf(buf, sizeof(buf), "%02x", b); out += buf; }
+            }
+            for (auto &sd : x.get_service_datas()) {
+              out += " svc_uuid=" + sd.uuid.to_string() + " svc_hex=";
+              for (auto b : sd.data) { snprintf(buf, sizeof(buf), "%02x", b); out += buf; }
+            }
+            ESP_LOGI("kegtron", "name=%s addr=%s rssi=%d%s",
+                     name.c_str(), x.address_str().c_str(), x.get_rssi(), out.c_str());

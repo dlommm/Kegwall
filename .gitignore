@@ -6,3 +6,4 @@ dist/
 *.db-shm
 test-results/
 playwright-report/
+esp32/secrets.yaml
