@@ -241,7 +241,7 @@ export async function featurePackRoutes(app: FastifyInstance) {
     return {
       inDocker,
       hint: inDocker
-        ? 'Running in Docker. Kegtron UDP broadcasts do not cross the default bridge network — run the container with --network host (Linux) so port 20200 broadcasts reach it.'
+        ? 'Running in Docker. Kegtron UDP multicast (239.50.50.50:50505) does not cross the default bridge network — run the container with --network host (Linux) so the packets reach it.'
         : 'Not containerized — UDP broadcasts reach this process directly.',
     };
   });

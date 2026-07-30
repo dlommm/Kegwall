@@ -13,11 +13,14 @@
 #   - Update: re-pull and recreate, e.g. `docker compose pull && docker compose up -d`
 #     from this file's directory, or Compose Manager's "Update Stack".
 #
-# HOST networking on purpose: Kegtron's local UDP pour broadcasts (port 20200) do
-# NOT cross Docker's default bridge network — on bridge, the app's connection doctor
-# reports exactly that and live sub-second pour updates never arrive. With
-# network_mode: host the app listens on the Unraid host's own interfaces, so the
-# broadcasts reach it (and direct BLE would too). Consequences:
+# HOST networking on purpose: Kegtron's local UDP pour stream (multicast
+# 239.50.50.50, port 50505) does NOT cross Docker's default bridge network — on
+# bridge, the app's connection doctor reports exactly that and live sub-second pour
+# updates never arrive. With network_mode: host the app joins the multicast group on
+# the Unraid host's own interfaces, so the packets reach it (and direct BLE would
+# too). Remember it also needs BOTH of: the "Listen for Kegtron UDP broadcasts"
+# toggle in Settings -> Sources (off by default), and UDP streaming enabled on the
+# Kegtron device itself; multicast never crosses VLANs. Consequences:
 #   - No `ports:` mapping (invalid with host networking): the UI is at
 #     http://<unraid-ip>:8080 directly. If 8080 collides with another container on
 #     the host, override with `- PORT=8081` (or similar) under environment.
