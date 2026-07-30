@@ -13,19 +13,24 @@
 #   - Update: re-pull and recreate, e.g. `docker compose pull && docker compose up -d`
 #     from this file's directory, or Compose Manager's "Update Stack".
 #
-# Bridge networking is fine for MQTT-based ingest and the Kegtron cloud API. If
-# this container must receive Kegtron Cloud's UDP broadcast directly (sub-second
-# pour updates) or scan BLE itself, switch to host networking: comment out the
-# `ports:` block and add `network_mode: host` — see
-# ../docs/install/docker.md#networking for the tradeoffs.
+# HOST networking on purpose: Kegtron's local UDP pour broadcasts (port 20200) do
+# NOT cross Docker's default bridge network — on bridge, the app's connection doctor
+# reports exactly that and live sub-second pour updates never arrive. With
+# network_mode: host the app listens on the Unraid host's own interfaces, so the
+# broadcasts reach it (and direct BLE would too). Consequences:
+#   - No `ports:` mapping (invalid with host networking): the UI is at
+#     http://<unraid-ip>:8080 directly. If 8080 collides with another container on
+#     the host, override with `- PORT=8081` (or similar) under environment.
+#   - If you DON'T need live UDP pours (cloud polling + MQTT only), bridge works:
+#     replace `network_mode: host` with a `ports: ["8080:8080"]` block.
+# See ../docs/install/docker.md#networking for the full tradeoffs.
 
 services:
   kegwall:
     image: ghcr.io/dlommm/kegwall:latest
     container_name: kegwall
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    network_mode: host
     volumes:
       - /mnt/user/appdata/kegwall:/data
     # Uncomment together with the watchtower service below to opt this container
