@@ -30,12 +30,23 @@ esp32:
 
 logger:
   level: INFO
-  # USB serial logging works standalone; WiFi below is for `esphome logs` over the
-  # network once the board sits at the kegerator away from your computer.
 
+# WiFi so the board can live at the kegerator: logs stream over the network
+# (`esphome logs`), reflashes go OTA, and the built-in web UI serves the live log —
+# raw Kegtron hex visible in any browser at http://kegtron-capture.local (or the
+# board's IP). Credentials live in the gitignored esp32/secrets.yaml.
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+
+api:
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+  version: 3
 
 esp32_ble_tracker:
   scan_parameters:
