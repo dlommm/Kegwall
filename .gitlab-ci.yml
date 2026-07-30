@@ -98,3 +98,17 @@ semantic-release:
   script:
     - npm ci --cache .npm --prefer-offline
     - npx semantic-release
+    # The release commit carries [skip ci] (so pushing it back doesn't re-run this
+    # pipeline), but GitLab ALSO skips the pipeline of a tag pointing at a [skip ci]
+    # commit — which would leave every release without its Docker image. API-created
+    # pipelines ignore the skip marker, so when semantic-release just tagged HEAD,
+    # kick the tag pipeline explicitly.
+    - |
+      TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+      if [ -n "$TAG" ]; then
+        echo "Triggering image pipeline for $TAG"
+        curl -sf -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipeline?ref=$TAG" > /dev/null
+      else
+        echo "No release cut this run — no tag pipeline to trigger"
+      fi
