@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kegwall</string>
+    <string name="setup_title">Kegwall tablet</string>
+    <string name="setup_hint">http://192.168.1.50:8080/tablet/main</string>
+    <string name="setup_help">Enter your wall\'s tablet URL — find it in the Kegwall admin under Taps (the /tablet/&lt;wall-slug&gt; page). Tap the top-left corner 5 times later to come back here.</string>
+    <string name="setup_save">Start kiosk</string>
+    <string name="error_retrying">Can\'t reach the Kegwall server — retrying…</string>
+    <string name="error_change_url">Change URL</string>
+</resources>

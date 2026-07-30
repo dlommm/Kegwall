@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- usesCleartextTraffic: the whole point of this app is a LAN, plain-HTTP,
+         self-hosted server (docs/install/docker.md documents the no-TLS-by-design
+         choice) — without this flag Android 9+ WebViews refuse http:// outright. -->
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
+        android:supportsRtl="true">
+
+        <!-- configChanges: a kiosk WebView must survive rotation/keyboard without an
+             Activity recreate — a recreate reloads the page and would drop an armed
+             pourer's in-flight tablet session. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
