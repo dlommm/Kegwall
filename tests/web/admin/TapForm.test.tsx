@@ -55,7 +55,7 @@ describe('TapForm', () => {
 
   it('submits a valid create form with a null name and no default drinker when blank', async () => {
     const created: Tap = {
-      id: 1, number: 3, name: null, defaultDrinkerId: null,
+      id: 1, number: 3, name: null, defaultDrinkerId: null, hidden: false,
     };
     (createTap as Mock).mockResolvedValue({ ok: true, data: created });
     const onSaved = vi.fn();
@@ -63,13 +63,36 @@ describe('TapForm', () => {
     fireEvent.change(screen.getByTestId('tap-form-number'), { target: { value: '3' } });
     fireEvent.click(screen.getByTestId('tap-form-submit'));
     await flush();
-    expect(createTap).toHaveBeenCalledWith({ number: 3, name: null, defaultDrinkerId: null });
+    expect(createTap).toHaveBeenCalledWith({ number: 3, name: null, defaultDrinkerId: null, hidden: false });
     expect(onSaved).toHaveBeenCalledWith(created);
+  });
+
+  it('checking "Hide from wall & menu" sends hidden: true, and an already-hidden tap pre-checks it', async () => {
+    (createTap as Mock).mockResolvedValue({
+      ok: true, data: { id: 2, number: 4, name: null, defaultDrinkerId: null, hidden: true },
+    });
+    render(<TapForm mode="create" tap={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('tap-form-number'), { target: { value: '4' } });
+    fireEvent.click(screen.getByTestId('tap-form-hidden'));
+    fireEvent.click(screen.getByTestId('tap-form-submit'));
+    await flush();
+    expect(createTap).toHaveBeenCalledWith({ number: 4, name: null, defaultDrinkerId: null, hidden: true });
+
+    render(
+      <TapForm
+        mode="edit"
+        tap={{ id: 2, number: 4, name: null, defaultDrinkerId: null, hidden: true }}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const boxes = screen.getAllByTestId('tap-form-hidden');
+    expect(boxes[boxes.length - 1]).toBeChecked();
   });
 
   it('pre-fills from the given tap in edit mode and PATCHes on submit', async () => {
     const tap: Tap = {
-      id: 5, number: 2, name: 'Left', defaultDrinkerId: null,
+      id: 5, number: 2, name: 'Left', defaultDrinkerId: null, hidden: false,
     };
     (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
     const onSaved = vi.fn();
@@ -79,13 +102,13 @@ describe('TapForm', () => {
     fireEvent.change(screen.getByTestId('tap-form-name'), { target: { value: 'Right' } });
     fireEvent.click(screen.getByTestId('tap-form-submit'));
     await flush();
-    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Right', defaultDrinkerId: null });
+    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Right', defaultDrinkerId: null, hidden: false });
     expect(onSaved).toHaveBeenCalledWith(tap);
   });
 
   it('pre-fills the default-drinker picker from the given tap in edit mode, and submits a changed selection', async () => {
     const tap: Tap = {
-      id: 5, number: 2, name: 'Left', defaultDrinkerId: 1,
+      id: 5, number: 2, name: 'Left', defaultDrinkerId: 1, hidden: false,
     };
     (updateTap as Mock).mockResolvedValue({ ok: true, data: tap });
     render(<TapForm mode="edit" tap={tap} onSaved={vi.fn()} onCancel={vi.fn()} />);
@@ -95,7 +118,7 @@ describe('TapForm', () => {
     fireEvent.change(screen.getByTestId('tap-form-default-drinker'), { target: { value: '2' } });
     fireEvent.click(screen.getByTestId('tap-form-submit'));
     await flush();
-    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Left', defaultDrinkerId: 2 });
+    expect(updateTap).toHaveBeenCalledWith(5, { number: 2, name: 'Left', defaultDrinkerId: 2, hidden: false });
   });
 
   it('the default-drinker picker offers "No default" plus every drinker', async () => {

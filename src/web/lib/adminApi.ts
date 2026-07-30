@@ -250,13 +250,13 @@ export function listTaps(): Promise<ApiResult<Tap[]>> {
 }
 
 export function createTap(
-  input: { number: number; name?: string | null; defaultDrinkerId?: number | null },
+  input: { number: number; name?: string | null; defaultDrinkerId?: number | null; hidden?: boolean },
 ): Promise<ApiResult<Tap>> {
   return request('/api/taps', { method: 'POST', body: JSON.stringify(input) });
 }
 
 export function updateTap(
-  id: number, input: { number?: number; name?: string | null; defaultDrinkerId?: number | null },
+  id: number, input: { number?: number; name?: string | null; defaultDrinkerId?: number | null; hidden?: boolean },
 ): Promise<ApiResult<Tap>> {
   return request(`/api/taps/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
@@ -679,10 +679,11 @@ export function getLogs(query: LogsQuery = {}): Promise<ApiResult<LogsResponse>>
 
 export type { Display, DisplayOverrides } from '../../server/db/displays.js';
 
-/** PATCH /api/monitors/:id/identity — renames the whole physical DEVICE (every
- * port row sharing the addressed monitor's type+identifier gets the name). */
+/** PATCH /api/monitors/:id/identity — device-level identity: every port row sharing
+ * the addressed monitor's type+identifier gets the name/enabled state. Disabling a
+ * Govee sensor stops its polling and removes its wall chip. */
 export function updateMonitorIdentity(id: number, input: {
-  name?: string | null;
+  name?: string | null; enabled?: boolean;
 }): Promise<ApiResult<Monitor>> {
   return request(`/api/monitors/${id}/identity`, { method: 'PATCH', body: JSON.stringify(input) });
 }

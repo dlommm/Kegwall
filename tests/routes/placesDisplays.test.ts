@@ -59,6 +59,30 @@ describe('monitor device name', () => {
     });
     expect(missing.statusCode).toBe(404);
   });
+
+  it('disabling a Govee sensor persists device-wide, evicts its wall chip, and re-enables', async () => {
+    const db = app.ctx.db;
+    const sensor = upsertMonitor(db, { type: 'govee_sensor', identifier: 'AA:BB', portIndex: 0 });
+    app.ctx.bus.emit('sensor_reading', {
+      sensorId: 'AA:BB', name: 'Keg room', tempC: 4, humidity: 50, ts: new Date().toISOString(),
+    });
+    expect((await app.inject({ method: 'GET', url: '/api/public/sensors' })).json()).toHaveLength(1);
+
+    const disabled = await app.inject({
+      method: 'PATCH', url: `/api/monitors/${sensor.id}/identity`,
+      payload: { enabled: false }, cookies,
+    });
+    expect(disabled.json().enabled).toBe(false);
+    // The chip endpoint is empty immediately — registry entry evicted AND the
+    // disabled monitor row excluded.
+    expect((await app.inject({ method: 'GET', url: '/api/public/sensors' })).json()).toEqual([]);
+
+    const enabled = await app.inject({
+      method: 'PATCH', url: `/api/monitors/${sensor.id}/identity`,
+      payload: { enabled: true }, cookies,
+    });
+    expect(enabled.json().enabled).toBe(true);
+  });
 });
 
 describe('displays (design 7c)', () => {

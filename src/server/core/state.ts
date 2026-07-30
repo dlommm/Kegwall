@@ -25,6 +25,10 @@ export interface TapState {
   pouring: boolean;
   curServMl: number | null;
   monitorOnline: boolean;
+  /** Hidden taps stay in this (admin-consumed) snapshot but are filtered off every
+   * public surface: the wall payload's allowedTapIds excludes them server-side, the
+   * wall/menu clients re-filter live snapshots, and the HA publisher skips them. */
+  hidden: boolean;
   /** The bound monitor's most recent telemetry temperature reading (Celsius), or `null`
    * when the tap has no bound monitor or that monitor hasn't reported telemetry yet.
    * Feeds WallHeader's max-temp readout (see WallPage.tsx). */
@@ -145,7 +149,9 @@ export class StateManager {
     });
 
     this.bus.on('telemetry', (e) => {
-      const mon = getMonitorByRef(this.db, e.monitor) ?? upsertMonitor(this.db, e.monitor);
+      // Unconditional upsert (not get-or-create): Govee discovery emits are cached to
+      // one per device, so this is what keeps a sensor row's last_seen fresh.
+      const mon = upsertMonitor(this.db, e.monitor);
       recordTelemetrySampled(this.db, mon.id, e.temp, e.humidity, e.ts);
     });
 
@@ -207,6 +213,7 @@ export class StateManager {
         pouring: live?.pouring ?? false,
         curServMl: live?.curServMl ?? null,
         monitorOnline: key ? this.online.get(key) ?? true : false,
+        hidden: tap.hidden,
         temp,
         avgRating: avgRatingRow?.avg != null ? Math.round(avgRatingRow.avg * 10) / 10 : null,
         nextUpBeerName: nextUpRow?.name ?? null,

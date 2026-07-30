@@ -54,6 +54,23 @@ describe('useWallData', () => {
     expect(result.current.taps.map((t) => t.tapId)).toEqual([1, 3]);
   });
 
+  it('drops hidden taps from every snapshot, independently of allowedTapIds — a tap '
+    + 'hidden mid-session leaves the wall on the next ws snapshot', async () => {
+    const wall = { slug: 'main', name: 'Main', config: {} };
+    (getWall as Mock).mockResolvedValue({
+      ok: true, data: { wall, taps: [], allowedTapIds: [1, 2], units: 'us' },
+    });
+    (useTapStates as Mock).mockReturnValue({
+      ...baseTapStatesResult,
+      taps: [{ tapId: 1, hidden: false }, { tapId: 2, hidden: true }],
+    });
+
+    const { result } = renderHook(() => useWallData('main'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.taps.map((t) => t.tapId)).toEqual([1]);
+  });
+
   it('an empty allowedTapIds is strict — the wall shows nothing', async () => {
     const wall = { slug: 'main', name: 'Main', config: {} };
     (getWall as Mock).mockResolvedValue({

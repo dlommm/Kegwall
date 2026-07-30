@@ -184,6 +184,21 @@ describe('GET /api/stats/temps', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('serves a Govee sensor row\'s telemetry — the Analytics chart path works for govee devices', async () => {
+    app.ctx.bus.emit('telemetry', {
+      monitor: { type: 'govee_sensor', identifier: 'AA:BB', portIndex: 0 },
+      temp: 4.5, humidity: 51, ts: new Date().toISOString(),
+    });
+    const list = await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies });
+    const sensor = (list.json() as any[]).find((m) => m.identifier === 'AA:BB');
+    const res = await app.inject({
+      method: 'GET', url: `/api/stats/temps?monitorId=${sensor.id}`, cookies: adminCookies,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveLength(1);
+    expect(res.json()[0]).toMatchObject({ temp: 4.5, humidity: 51 });
+  });
+
   it('400s when monitorId is missing', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/stats/temps', cookies: adminCookies });
     expect(res.statusCode).toBe(400);

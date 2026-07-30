@@ -44,6 +44,7 @@ function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
     lastSeen: '2026-07-27T23:00:00.000Z',
     meta: {},
     name: null,
+    enabled: true,
     ...overrides,
   };
 }
@@ -51,7 +52,7 @@ function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
     tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, temp: null, avgRating: null, nextUpBeerName: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, ...overrides,
   };
 }
 
@@ -120,6 +121,73 @@ describe('MonitorsPage', () => {
 
     expect(updateMonitorIdentity).toHaveBeenCalledWith(10, { name: 'Garage' });
     expect(listMonitors).toHaveBeenCalledTimes(2); // initial load + post-rename refresh
+  });
+
+  describe('Govee sensor cards', () => {
+    function makeGovee(overrides: Partial<Monitor> = {}): Monitor {
+      return makeMonitor(30, {
+        type: 'govee_sensor', identifier: 'AA:BB', serial: null,
+        meta: { deviceName: 'Keg room H5179', sku: 'H5179' }, ...overrides,
+      });
+    }
+
+    it('renders a card with the Govee type badge and app-name subtitle, and NO port table / bind / reset', async () => {
+      (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeGovee()] });
+      renderAdminPage(<MonitorsPage />);
+      const cards = await screen.findAllByTestId('monitors-device-card');
+      expect(cards[0]).toHaveTextContent('Govee sensor');
+      expect(within(cards[0]!).getByTestId('monitors-card-govee-name')).toHaveTextContent('Keg room H5179');
+      expect(screen.queryByTestId('monitors-port-table')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('monitors-row-bind')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('monitors-row-reset')).not.toBeInTheDocument();
+      // Details (telemetry sparkline) IS offered; WiFi/firmware are Kegtron-only.
+      expect(screen.getByTestId('monitors-card-expand')).toBeInTheDocument();
+    });
+
+    it('expanding a Govee card fetches telemetry but shows no Pro-only device info', async () => {
+      (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeGovee()] });
+      (getMonitorTelemetry as Mock).mockResolvedValue({
+        ok: true,
+        data: [
+          { ts: '2026-07-29T20:00:00.000Z', temp: 3.9, humidity: 52 },
+          { ts: '2026-07-29T21:00:00.000Z', temp: 4.1, humidity: 53 },
+        ],
+      });
+      renderAdminPage(<MonitorsPage />);
+      await screen.findAllByTestId('monitors-device-card');
+
+      fireEvent.click(screen.getByTestId('monitors-card-expand'));
+      await flush();
+
+      expect(getMonitorTelemetry).toHaveBeenCalledWith(30, 24);
+      expect(screen.getByTestId('monitors-sparkline-temp')).toBeInTheDocument();
+      expect(screen.queryByTestId('monitors-device-info')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('monitors-rssi-check')).not.toBeInTheDocument();
+    });
+
+    it('Disable/Enable round-trips through the identity route; a disabled card stays visible with a badge', async () => {
+      (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeGovee()] });
+      (updateMonitorIdentity as Mock).mockResolvedValue({ ok: true, data: makeGovee({ enabled: false }) });
+      renderAdminPage(<MonitorsPage />);
+      await screen.findAllByTestId('monitors-device-card');
+
+      expect(screen.queryByTestId('monitors-card-disabled-badge')).not.toBeInTheDocument();
+      (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeGovee({ enabled: false })] });
+      fireEvent.click(screen.getByTestId('monitors-card-toggle-enabled'));
+      await flush();
+
+      expect(updateMonitorIdentity).toHaveBeenCalledWith(30, { enabled: false });
+      const cards = screen.getAllByTestId('monitors-device-card');
+      expect(within(cards[0]!).getByTestId('monitors-card-disabled-badge')).toHaveTextContent('DISABLED');
+      expect(screen.getByTestId('monitors-card-toggle-enabled')).toHaveTextContent('Enable');
+    });
+
+    it('a viewer sees no Disable control on a Govee card', async () => {
+      (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeGovee()] });
+      renderAdminPage(<MonitorsPage />, adminContext('viewer'));
+      await screen.findAllByTestId('monitors-device-card');
+      expect(screen.queryByTestId('monitors-card-toggle-enabled')).not.toBeInTheDocument();
+    });
   });
 
   it('shows the device friendly name as the card title when set', async () => {

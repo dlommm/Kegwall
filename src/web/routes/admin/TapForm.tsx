@@ -23,6 +23,7 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
   const [defaultDrinkerId, setDefaultDrinkerId] = useState(
     tap?.defaultDrinkerId != null ? String(tap.defaultDrinkerId) : '',
   );
+  const [hidden, setHidden] = useState(tap?.hidden ?? false);
   const [drinkers, setDrinkers] = useState<PublicDrinker[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
       number: Number(number.trim()),
       name: name.trim() || null,
       defaultDrinkerId: defaultDrinkerId === '' ? null : Number(defaultDrinkerId),
+      hidden,
     };
     setSubmitting(true);
     const result = mode === 'edit' && tap
@@ -119,6 +121,16 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
               <option key={d.id} value={d.id}>{d.displayName}</option>
             ))}
           </select>
+        </label>
+
+        <label className="admin-field admin-field--checkbox">
+          <input
+            type="checkbox"
+            data-testid="tap-form-hidden"
+            checked={hidden}
+            onChange={(e) => setHidden(e.target.checked)}
+          />
+          <span>Hide from wall &amp; menu (tap stays here for later)</span>
         </label>
       </div>
 

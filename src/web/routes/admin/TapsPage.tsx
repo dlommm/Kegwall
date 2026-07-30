@@ -36,6 +36,7 @@ function tapToPlainTap(tap: TapState, tapRows: Tap[]): Tap {
   return {
     id: tap.tapId, number: tap.tapNumber, name: tap.tapName,
     defaultDrinkerId: row?.defaultDrinkerId ?? null,
+    hidden: row?.hidden ?? false,
   };
 }
 
@@ -201,6 +202,9 @@ export function TapsPage() {
                       {tap.tapName && <span className="taps-row__name">{tap.tapName}</span>}
                       {isLow && <span className="look-badge look-badge--low">ALMOST GONE</span>}
                       {isKicked && <span className="look-badge look-badge--kicked">KICKED</span>}
+                      {tap.hidden && (
+                        <span className="look-badge look-badge--kicked" data-testid="taps-row-hidden">HIDDEN</span>
+                      )}
                       {cleanings.find((c) => c.tapId === tap.tapId)?.due && (
                         <span className="look-badge look-badge--low" data-testid="taps-row-cleaning-due">CLEANING DUE</span>
                       )}

@@ -69,6 +69,20 @@ describe('taps repo', () => {
     expect(updateTap(db, withDefault.id, { name: 'Renamed' }).defaultDrinkerId).toBe(drinker.id);
   });
 
+  it('defaults hidden to false, toggles via createTap/updateTap, and survives omitted updates', () => {
+    const tap = createTap(db, { number: 8 });
+    expect(tap.hidden).toBe(false);
+
+    const hiddenTap = createTap(db, { number: 9, hidden: true });
+    expect(hiddenTap.hidden).toBe(true);
+    expect(getTap(db, hiddenTap.id)!.hidden).toBe(true);
+
+    expect(updateTap(db, tap.id, { hidden: true }).hidden).toBe(true);
+    expect(updateTap(db, tap.id, { hidden: false }).hidden).toBe(false);
+    // omitting the field on an update leaves the stored value untouched
+    expect(updateTap(db, hiddenTap.id, { name: 'Renamed' }).hidden).toBe(true);
+  });
+
   it('refuses to delete a tap with a bound monitor, with a message naming what blocks it', () => {
     const tap = createTap(db, { number: 5 });
     db.prepare(`INSERT INTO monitors (type, identifier, port_index, tap_id, meta) VALUES (?, ?, ?, ?, '{}')`)

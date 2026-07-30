@@ -44,7 +44,10 @@ export const E2E_BEERS = [
 const KEG_SIZE_ML = 19000;
 const DISPENSED_ML = [3200, 9500, 1100, 18200] as const;
 
-export const E2E_MONITORS: { pro: MonitorRef; gen1: MonitorRef } = {
+export const E2E_MONITORS: {
+  pro: MonitorRef & { type: 'kegtron_pro' };
+  gen1: MonitorRef & { type: 'kegtron_gen1' };
+} = {
   pro: { type: 'kegtron_pro', identifier: 'e2e-device-1', portIndex: 0 },
   gen1: { type: 'kegtron_gen1', identifier: 'aa:bb:cc:dd:ee:e2', portIndex: 0 },
 };

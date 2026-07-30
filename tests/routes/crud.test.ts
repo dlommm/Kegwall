@@ -425,6 +425,23 @@ describe('crud routes', () => {
     expect(patch2.json().kegtronApiKey).toBe('••••y456');
   });
 
+  it('refuses to bind a Govee sensor to a tap', async () => {
+    app.ctx.bus.emit('device_discovered', {
+      monitor: { type: 'govee_sensor', identifier: 'AA:BB', portIndex: 0 },
+    });
+    const tap = (await app.inject({
+      method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 77 },
+    })).json();
+    const monitors = (await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies })).json();
+    const sensor = monitors.find((m: any) => m.identifier === 'AA:BB');
+    const res = await app.inject({
+      method: 'POST', url: `/api/monitors/${sensor.id}/bind`, cookies: adminCookies,
+      payload: { tapId: tap.id },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toContain('Govee');
+  });
+
   it('serves the device-reported keg config on /api/monitors as deviceKeg', async () => {
     app.ctx.bus.emit('volume_update', {
       monitor: { type: 'kegtron_pro', identifier: 'device1', portIndex: 0 },
@@ -792,6 +809,51 @@ describe('crud routes', () => {
         method: 'GET', url: `/api/monitors/${monitorId}/telemetry?hours=abc`, cookies: adminCookies,
       });
       expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe('taps: hidden flag', () => {
+    it('defaults false, round-trips via POST/PATCH, and excludes the tap from wall allowedTapIds', async () => {
+      const created = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 41 },
+      })).json();
+      expect(created.hidden).toBe(false);
+
+      const patched = (await app.inject({
+        method: 'PATCH', url: `/api/taps/${created.id}`, cookies: adminCookies,
+        payload: { hidden: true },
+      })).json();
+      expect(patched.hidden).toBe(true);
+
+      // Bind a device port to it, assign the device to a wall — the hidden tap must
+      // still not appear in the wall's allowed set.
+      app.ctx.bus.emit('device_discovered', {
+        monitor: { type: 'kegtron_pro', identifier: 'hidden-dev', portIndex: 0 },
+      });
+      const monitors = (await app.inject({ method: 'GET', url: '/api/monitors', cookies: adminCookies })).json();
+      const mon = monitors.find((m: any) => m.identifier === 'hidden-dev');
+      await app.inject({
+        method: 'POST', url: `/api/monitors/${mon.id}/bind`, cookies: adminCookies,
+        payload: { tapId: created.id },
+      });
+      const wall = (await app.inject({
+        method: 'POST', url: '/api/walls', cookies: adminCookies,
+        payload: { slug: 'hiddenwall', name: 'H', config: {} },
+      })).json();
+      await app.inject({
+        method: 'PUT', url: `/api/walls/${wall.id}/devices`, cookies: adminCookies,
+        payload: { devices: [{ type: 'kegtron_pro', identifier: 'hidden-dev' }] },
+      });
+      const payload = (await app.inject({ method: 'GET', url: '/api/public/wall/hiddenwall' })).json();
+      expect(payload.allowedTapIds).toEqual([]);
+
+      // Un-hide: the tap joins the wall's allowed set.
+      await app.inject({
+        method: 'PATCH', url: `/api/taps/${created.id}`, cookies: adminCookies,
+        payload: { hidden: false },
+      });
+      const after = (await app.inject({ method: 'GET', url: '/api/public/wall/hiddenwall' })).json();
+      expect(after.allowedTapIds).toEqual([created.id]);
     });
   });
 

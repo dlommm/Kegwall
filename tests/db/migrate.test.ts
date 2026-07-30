@@ -31,7 +31,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 11 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 13 });
     db2.close();
   });
 
@@ -57,7 +57,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql',
     ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
@@ -91,7 +91,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -178,7 +178,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql',
     ]);
     db.close();
   });
@@ -207,7 +207,7 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -314,6 +314,43 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(monitor.name).toBe('Main kegerator');
     // The three tables still accept writes (no dangling REFERENCES from the drop order).
     expect(() => upgraded.prepare(`INSERT INTO taps (number) VALUES (2)`).run()).not.toThrow();
+    upgraded.close();
+  });
+
+  it('012 rebuilds monitors (type CHECK + enabled) preserving ids, bindings and telemetry joins', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const raw = new Database(join(dir, 'app.db'));
+    const now = new Date().toISOString();
+    raw.exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
+    for (const f of ['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql',
+      '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql',
+      '011_wall_devices.sql']) {
+      raw.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+      raw.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)').run(f, now);
+    }
+    raw.prepare(`INSERT INTO taps (number) VALUES (1)`).run();
+    raw.prepare(`INSERT INTO monitors (id, type, identifier, port_index, tap_id, name, meta)
+      VALUES (7, 'kegtron_pro', 'dev1', 0, 1, 'Garage', '{}')`).run();
+    raw.prepare(`INSERT INTO telemetry (monitor_id, ts, temp, humidity) VALUES (7, ?, 4.2, 50)`).run(now);
+    raw.close();
+
+    const upgraded = openDb(dir);
+    const mon = upgraded.prepare(`SELECT * FROM monitors WHERE id = 7`).get() as any;
+    expect(mon).toMatchObject({ type: 'kegtron_pro', identifier: 'dev1', tap_id: 1, name: 'Garage', enabled: 1 });
+    const joined = upgraded.prepare(
+      `SELECT t.temp FROM telemetry t JOIN monitors m ON m.id = t.monitor_id WHERE m.identifier = 'dev1'`,
+    ).get() as any;
+    expect(joined.temp).toBe(4.2);
+    // The widened CHECK accepts govee_sensor and still rejects junk.
+    expect(() => upgraded.prepare(`INSERT INTO monitors (type, identifier, port_index, meta)
+      VALUES ('govee_sensor', 'AA:BB', 0, '{}')`).run()).not.toThrow();
+    expect(() => upgraded.prepare(`INSERT INTO monitors (type, identifier, port_index, meta)
+      VALUES ('bogus', 'x', 0, '{}')`).run()).toThrow();
+    // UNIQUE(type, identifier, port_index) still enforced.
+    expect(() => upgraded.prepare(`INSERT INTO monitors (type, identifier, port_index, meta)
+      VALUES ('kegtron_pro', 'dev1', 0, '{}')`).run()).toThrow();
+    expect(upgraded.pragma('foreign_key_check')).toEqual([]);
     upgraded.close();
   });
 

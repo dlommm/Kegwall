@@ -47,7 +47,9 @@ export function MenuPage() {
     };
   }, []);
 
-  const { taps } = useTapStates(initialTaps);
+  const { taps: allTaps } = useTapStates(initialTaps);
+  // Hidden taps never render on the public menu (they stay admin-only).
+  const taps = allTaps.filter((t) => !t.hidden);
 
   return (
     <ThemeProvider className="menu-page">

@@ -209,6 +209,19 @@ describe('HaPublisherSource against a real broker', () => {
   });
 
   describe('discovery payloads (HA MQTT discovery format)', () => {
+    it('publishes NO entities for a hidden tap', async () => {
+      seedTap(1);
+      const beer = createBeer(db, { name: 'Hidden Ale' });
+      const hiddenTap = createTap(db, { number: 2, hidden: true });
+      createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: hiddenTap.id });
+
+      await subscribeAll();
+      source = await makeSource();
+      await vi.waitFor(() => expect(byTopicSuffix('/config').length).toBeGreaterThanOrEqual(5));
+
+      expect(byTopicSuffix(`kegtron_tap_${hiddenTap.id}/level/config`)).toHaveLength(0);
+    });
+
     it('publishes 5 retained discovery configs per tap (4 sensors + 1 binary_sensor)', async () => {
       const { tapId } = seedTap(1);
       await subscribeAll();

@@ -53,11 +53,11 @@ beforeEach(() => {
     data: [
       {
         id: 10, type: 'kegtron_pro', identifier: 'dev1', serial: 'SN1', portIndex: 0,
-        tapId: 1, lastSeen: null, meta: {}, name: null, deviceKeg: null,
+        tapId: 1, lastSeen: null, meta: {}, name: null, enabled: true, deviceKeg: null,
       },
       {
         id: 11, type: 'kegtron_pro', identifier: 'dev1', serial: 'SN1', portIndex: 1,
-        tapId: 2, lastSeen: null, meta: {}, name: null, deviceKeg: null,
+        tapId: 2, lastSeen: null, meta: {}, name: null, enabled: true, deviceKeg: null,
       },
     ],
   });

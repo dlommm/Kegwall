@@ -1633,6 +1633,13 @@
   grid-column: 1 / -1;
 }
 
+.admin-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: end;
+}
+
 .admin-field input[type='text'],
 .admin-field textarea,
 .brewery-autocomplete input,
@@ -2480,6 +2487,11 @@ h2.admin-field__label-text {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Disabled (Govee) sensors stay listed for re-enabling, just visibly muted. */
+.monitors-device-card--disabled {
+  opacity: 0.55;
 }
 
 .monitors-device-card__header {

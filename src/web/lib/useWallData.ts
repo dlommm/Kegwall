@@ -93,9 +93,13 @@ export function useWallData(
   // resolution, the auto-chunk path, takeover, max-temp, and the tablet's pouring
   // detection all read this hook's taps.
   const taps = useMemo(() => {
-    if (allowedTapIds == null) return liveTaps;
+    // `hidden` is also filtered here (not just via allowedTapIds): a tap hidden while
+    // the wall is open drops off on the very NEXT ws snapshot, without waiting for
+    // the wall payload (and its allowedTapIds) to be refetched on reconnect.
+    const visible = liveTaps.filter((t) => !t.hidden);
+    if (allowedTapIds == null) return visible;
     const allowed = new Set(allowedTapIds);
-    return liveTaps.filter((t) => allowed.has(t.tapId));
+    return visible.filter((t) => allowed.has(t.tapId));
   }, [liveTaps, allowedTapIds]);
 
   useEffect(() => {

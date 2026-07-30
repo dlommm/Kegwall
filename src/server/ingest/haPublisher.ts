@@ -387,7 +387,9 @@ export class HaPublisherSource implements Source {
 
   private publishCycle(cfg: MqttConfig): void {
     if (!this.client?.connected) return;
-    const tapStates = this.state.getTapStates();
+    // Hidden taps get no HA entities; hiding one changes the discovery signature,
+    // so the existing tombstone pass clears its retained configs automatically.
+    const tapStates = this.state.getTapStates().filter((t) => !t.hidden);
     const monitors = boundProDeviceAnchors(this.db);
 
     const sig = discoverySignature(tapStates, monitors);

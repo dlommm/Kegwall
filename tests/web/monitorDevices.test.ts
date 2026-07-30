@@ -5,7 +5,7 @@ import type { Monitor } from '../../src/server/db/monitors';
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
   return {
     id, type: 'kegtron_pro', identifier: 'dev1', serial: null, portIndex: 0,
-    tapId: null, lastSeen: null, meta: {}, name: null, ...overrides,
+    tapId: null, lastSeen: null, meta: {}, name: null, enabled: true, ...overrides,
   };
 }
 

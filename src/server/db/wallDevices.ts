@@ -28,13 +28,15 @@ export function setWallDevices(
   return listWallDevices(db, wallId);
 }
 
-/** The tap ids a wall may show: DISTINCT bound taps across every port of the wall's
- * assigned devices. STRICT by design — a wall with no assigned devices gets `[]`
- * (shows nothing), not "all taps". */
+/** The tap ids a wall may show: DISTINCT bound, NON-HIDDEN taps across every port of
+ * the wall's assigned devices. STRICT by design — a wall with no assigned devices
+ * gets `[]` (shows nothing), not "all taps". Hidden taps (taps.hidden) are excluded
+ * here so the wall payload AND the client's ws re-filter drop them in one place. */
 export function allowedTapIdsForWall(db: Database.Database, wallId: number): number[] {
   return (db.prepare(
     `SELECT DISTINCT m.tap_id id FROM wall_devices wd
        JOIN monitors m ON m.type = wd.monitor_type AND m.identifier = wd.monitor_identifier
+       JOIN taps t ON t.id = m.tap_id AND t.hidden = 0
       WHERE wd.wall_id = ? AND m.tap_id IS NOT NULL ORDER BY m.tap_id`)
     .all(wallId) as { id: number }[]).map((r) => r.id);
 }

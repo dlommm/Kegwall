@@ -59,6 +59,17 @@ describe('wallDevices', () => {
     expect(allowedTapIdsForWall(db, wallId)).toEqual([tap1, tap2]);
   });
 
+  it('allowedTapIdsForWall excludes hidden taps', () => {
+    const tap1 = createTap(db, { number: 1 }).id;
+    const tap2 = createTap(db, { number: 2, hidden: true }).id;
+    const a0 = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'a', portIndex: 0 });
+    const a1 = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'a', portIndex: 1 });
+    bindMonitorToTap(db, a0.id, tap1);
+    bindMonitorToTap(db, a1.id, tap2);
+    setWallDevices(db, wallId, [{ type: 'kegtron_pro', identifier: 'a' }]);
+    expect(allowedTapIdsForWall(db, wallId)).toEqual([tap1]);
+  });
+
   it('a device can be assigned to multiple walls at once', () => {
     db.prepare(`INSERT INTO walls (slug, name, config) VALUES ('second', 'Second', '{}')`).run();
     const wall2 = (db.prepare(`SELECT id FROM walls WHERE slug = 'second'`).get() as any).id;

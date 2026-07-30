@@ -7,19 +7,23 @@ export interface Tap {
    * record for this tap when the pour would otherwise land unclaimed (see
    * core/state.ts). `null` means no default — the existing behavior. Phase 5 Task 0. */
   defaultDrinkerId: number | null;
+  /** Hidden taps disappear from every public surface (wall, menu, HA) but stay
+   * visible in the admin — for ports with no keg configured yet. */
+  hidden: boolean;
 }
 
 function rowToTap(r: any): Tap {
   return {
     id: r.id, number: r.number, name: r.name, defaultDrinkerId: r.default_drinker_id,
+    hidden: !!r.hidden,
   };
 }
 
 export function createTap(db: Database.Database, input: {
-  number: number; name?: string | null; defaultDrinkerId?: number | null;
+  number: number; name?: string | null; defaultDrinkerId?: number | null; hidden?: boolean;
 }): Tap {
-  const res = db.prepare('INSERT INTO taps (number, name, default_drinker_id) VALUES (?, ?, ?)')
-    .run(input.number, input.name ?? null, input.defaultDrinkerId ?? null);
+  const res = db.prepare('INSERT INTO taps (number, name, default_drinker_id, hidden) VALUES (?, ?, ?, ?)')
+    .run(input.number, input.name ?? null, input.defaultDrinkerId ?? null, input.hidden ? 1 : 0);
   return getTap(db, Number(res.lastInsertRowid))!;
 }
 
@@ -33,15 +37,16 @@ export function listTaps(db: Database.Database): Tap[] {
 }
 
 export function updateTap(db: Database.Database, id: number, input: {
-  number?: number; name?: string | null; defaultDrinkerId?: number | null;
+  number?: number; name?: string | null; defaultDrinkerId?: number | null; hidden?: boolean;
 }): Tap {
   const existing = getTap(db, id);
   if (!existing) throw new NotFoundError(`tap ${id}`);
-  db.prepare('UPDATE taps SET number = ?, name = ?, default_drinker_id = ? WHERE id = ?')
+  db.prepare('UPDATE taps SET number = ?, name = ?, default_drinker_id = ?, hidden = ? WHERE id = ?')
     .run(
       input.number ?? existing.number,
       input.name === undefined ? existing.name : input.name,
       input.defaultDrinkerId === undefined ? existing.defaultDrinkerId : input.defaultDrinkerId,
+      (input.hidden === undefined ? existing.hidden : input.hidden) ? 1 : 0,
       id,
     );
   return getTap(db, id)!;

@@ -27,7 +27,7 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     lastPour: null,
     pouring: false,
     curServMl: null,
-    monitorOnline: true,
+    monitorOnline: true, hidden: false,
     temp: null,
     avgRating: null,
     nextUpBeerName: null,
@@ -65,6 +65,19 @@ describe('MenuPage', () => {
     });
     renderMenu();
     expect(await screen.findByTestId('menu-page-site-name')).toHaveTextContent('The Keg Cave');
+  });
+
+  it('never renders a hidden tap on the public menu', async () => {
+    (getMenu as Mock).mockResolvedValue({
+      ok: true, data: { siteName: 'The Keg Cave', taps: [], units: 'us' },
+    });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(1), { ...makeTap(2), hidden: true }],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    renderMenu();
+    const cards = await screen.findAllByTestId('tap-card');
+    expect(cards).toHaveLength(1);
   });
 
   it('renders one compact tap card per tap, seeded from getMenu', async () => {

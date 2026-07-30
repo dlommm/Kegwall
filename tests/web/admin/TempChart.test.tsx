@@ -52,7 +52,7 @@ describe('TempChart', () => {
     render(
       <TempChart data={[]} units="metric" devices={[]} selectedMonitorId={null} onSelectMonitor={vi.fn()} />,
     );
-    expect(screen.getByTestId('temp-chart-empty')).toHaveTextContent(/will appear/i);
+    expect(screen.getByTestId('temp-chart-empty')).toHaveTextContent(/trend appears/i);
   });
 
   it('shows a "no readings" empty state for a monitor with no telemetry yet', () => {

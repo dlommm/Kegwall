@@ -148,6 +148,21 @@ describe('sensor registry (Govee, Phase 6)', () => {
     bus.emit('sensor_reading', { sensorId: 'b', name: 'BACK', tempC: 3.0, humidity: 58, ts: 't5' });
     expect(warn).toHaveBeenCalledTimes(2);
   });
+
+  it('remove() drops a sensor immediately (the disable path), and it stays gone until it reports again', () => {
+    const log = new LogService(db, bus);
+    const registry = new SensorRegistry(bus, log);
+    registry.attach();
+
+    bus.emit('sensor_reading', { sensorId: 'a', name: 'FRONT', tempC: 1.0, humidity: 60, ts: 't1' });
+    bus.emit('sensor_reading', { sensorId: 'b', name: 'BACK', tempC: 1.2, humidity: 58, ts: 't1' });
+    registry.remove('a');
+    expect(registry.list().map((r) => r.sensorId)).toEqual(['b']);
+
+    // A fresh reading (sensor re-enabled → poller feeds it again) restores it.
+    bus.emit('sensor_reading', { sensorId: 'a', name: 'FRONT', tempC: 1.1, humidity: 60, ts: 't2' });
+    expect(registry.list()).toHaveLength(2);
+  });
 });
 
 describe('session mode (design 6c)', () => {

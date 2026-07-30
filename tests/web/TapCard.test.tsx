@@ -65,7 +65,7 @@ function makeTap(overrides: Partial<TapState> = {}): TapState {
     lastPour: { ts: '2026-07-28T11:56:00.000Z', volumeMl: 450 },
     pouring: false,
     curServMl: null,
-    monitorOnline: true,
+    monitorOnline: true, hidden: false,
     temp: null,
     avgRating: null,
     nextUpBeerName: null,

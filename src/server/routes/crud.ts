@@ -101,6 +101,8 @@ export async function crudRoutes(app: FastifyInstance) {
     // Phase 5 Task 0: the drinker StateManager stamps onto an otherwise-unclaimed
     // pour_completed record for this tap (see core/state.ts). `null` clears it.
     defaultDrinkerId: z.number().int().nullish(),
+    // Hidden taps vanish from wall/menu/HA but stay in the admin (see db/taps.ts).
+    hidden: z.boolean().optional(),
   });
   app.get('/api/taps', viewer, async () => listTaps(db));
   app.post('/api/taps', editor, async (req, reply) => {
@@ -270,7 +272,14 @@ export async function crudRoutes(app: FastifyInstance) {
   })));
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);
-    const mon = bindMonitorToTap(db, Number((req.params as any).id), body.tapId);
+    const id = Number((req.params as any).id);
+    // Govee sensors measure the room, not a keg line — binding one to a tap would
+    // feed nonsense into pour attribution. The UI never offers it; guard the API too.
+    const target = getMonitorById(db, id);
+    if (target?.type === 'govee_sensor') {
+      throw new ValidationError('a Govee sensor cannot be bound to a tap');
+    }
+    const mon = bindMonitorToTap(db, id, body.tapId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return sanitizeMonitor(mon);
   });
