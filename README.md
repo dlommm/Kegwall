@@ -148,12 +148,21 @@ No separate server build step — the server runs its TypeScript source directly
 [docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md](docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md)
 for the full architecture writeup.
 
-## Continuous integration
+## Continuous integration & automated releases
 
 [`.gitlab-ci.yml`](.gitlab-ci.yml) runs typecheck, the unit suite, and the web build on
-every push. Pushing a `v*` tag additionally builds the multi-arch (amd64 + arm64) image,
-pushes it to the container registry as both `X.Y.Z` and `latest` (`latest` never moves on
-a prerelease tag), and creates a GitLab Release for the tag.
+every push. Releases are fully automated: pushes to `main` run
+[semantic-release](https://semantic-release.gitbook.io/) (config in
+[`.releaserc.json`](.releaserc.json)), which reads
+[conventional commit](https://www.conventionalcommits.org/) messages to pick the next
+version (`fix:` → patch, `feat:` → minor, `BREAKING CHANGE:`/`!` → major), updates
+`CHANGELOG.md` + `package.json`, pushes the `vX.Y.Z` tag, and creates a GitLab Release
+with generated notes. The tag pipeline then builds the multi-arch (amd64 + arm64) image
+and pushes it to the container registry as both `X.Y.Z` and `latest` (`latest` never
+moves on a prerelease tag). Merging a `feat:`/`fix:` commit is the entire release
+process — commit messages are the release notes, so write them accordingly. The
+semantic-release job is gated on a `GITLAB_TOKEN` CI/CD variable (project access token,
+Maintainer role, `api` + `write_repository` scopes).
 
 ## Running from source (without Docker)
 

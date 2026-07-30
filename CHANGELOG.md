@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 — 2026-07-29
+
+The last hand-cut release: from here on, releases are automated — conventional commits
+on main drive semantic-release (version, changelog entry, tag, GitLab release), and the
+tag pipeline publishes the registry image as the version tag + `latest`.
 
 - **Added:** Kegtron devices are now first-class. Monitor ports group into physical
   devices everywhere: the admin Monitors page shows one card per device (editable

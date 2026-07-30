@@ -1,11 +1,20 @@
-# Kegwall — GitLab CI/CD.
+# Kegwall — GitLab CI/CD. The release cycle is FULLY AUTOMATED:
 #
-# Two pipelines:
 #   - Every branch push: `test` (typecheck + unit suite + web build). The Playwright
 #     E2E suite is NOT run here — it needs browser downloads and a display stack the
 #     shared runner may not have; run `npm run test:e2e` locally before releasing.
-#   - Every `v*` tag push: `test`, then `release-image` (multi-arch Docker build pushed
-#     to this project's container registry), then `release` (a GitLab Release entry).
+#   - Every push to main additionally runs `semantic-release` (gated on the
+#     $GITLAB_TOKEN CI variable — see that job's comment): conventional commit
+#     messages decide the next version (fix -> patch, feat -> minor, a
+#     "BREAKING CHANGE:" footer or "!" -> major), CHANGELOG.md and package.json are
+#     updated and committed back ([skip ci]), the vX.Y.Z tag is pushed, and a GitLab
+#     Release with generated notes is created. Commits that warrant no release
+#     (docs/chore/test) simply produce no release.
+#   - Every `v*` tag push (i.e. what semantic-release just created): `test`, then
+#     `release-image` — the multi-arch Docker build pushed to this project's registry.
+#
+# So: merge a feat/fix to main -> a version, changelog entry, GitLab release, and
+# registry image (version tag + latest) all appear with no manual steps.
 #
 # Registry: $CI_REGISTRY_IMAGE resolves to ghcr.io/dlommm/kegwall on this
 # instance — no hardcoded registry hostname needed, and $CI_REGISTRY_USER /
@@ -65,15 +74,27 @@ release-image:
       esac
       docker buildx build --platform linux/amd64,linux/arm64 --push $TAGS -f Dockerfile .
 
-release:
+# Automated release cut (see header). Gated on $GITLAB_TOKEN — a project access token
+# (Settings -> Access tokens, role Maintainer, scopes api + write_repository) stored as
+# a masked CI/CD variable named GITLAB_TOKEN. Until that variable exists this job simply
+# never runs, so the pipeline stays green out of the box. semantic-release's own
+# "chore(release): ... [skip ci]" commit doesn't retrigger CI, so no loops.
+semantic-release:
   stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  image: node:22
   rules:
-    - if: '$CI_COMMIT_TAG =~ /^v/'
-  needs: [release-image]
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null && $GITLAB_TOKEN'
+  needs: [test]
+  variables:
+    # semantic-release needs the full history + tags to find the last release;
+    # GitLab's default shallow clone would hide them.
+    GIT_DEPTH: "0"
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
   script:
-    - echo "Creating GitLab Release for $CI_COMMIT_TAG"
-  release:
-    tag_name: '$CI_COMMIT_TAG'
-    name: 'Kegwall $CI_COMMIT_TAG'
-    description: 'Container image: `$CI_REGISTRY_IMAGE:latest` (also tagged with this version). Full notes in [CHANGELOG.md](CHANGELOG.md).'
+    - npm ci --cache .npm --prefer-offline
+    - npx semantic-release

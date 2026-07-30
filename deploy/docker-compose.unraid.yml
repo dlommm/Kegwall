@@ -28,7 +28,24 @@ services:
       - "8080:8080"
     volumes:
       - /mnt/user/appdata/kegwall:/data
+    # Uncomment together with the watchtower service below to opt this container
+    # into automatic updates:
+    # labels:
+    #   - com.centurylinklabs.watchtower.enable=true
     environment:
       - NODE_ENV=production
       # PORT, DATA_DIR and WEB_DIR are set by the image itself; override only
       # if you know you need to (see ../docs/install/docker.md).
+
+  # Optional: fully automated updates. Watchtower polls the registry and recreates
+  # kegwall whenever a new :latest lands (releases are automated from git — see
+  # .gitlab-ci.yml — so with this enabled, merged code reaches this box on its own).
+  # Uncomment to enable; the label scoping means ONLY kegwall auto-updates, not every
+  # container on the host. Remove the label + --label-enable to watch everything.
+  # watchtower:
+  #   image: containrrr/watchtower:latest
+  #   container_name: kegwall-watchtower
+  #   restart: unless-stopped
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: --label-enable --interval 300 --cleanup
