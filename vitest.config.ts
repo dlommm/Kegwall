@@ -34,6 +34,12 @@ const MQTT_BROKER_TEST_FILES = [
 
 export default defineConfig({
   test: {
+    // 30s (vs the 5s default): the shared CI runner also builds multi-arch Docker
+    // images, sometimes concurrently with a test job, and under that CPU starvation
+    // real-I/O tests (websockets, MQTT brokers, on-disk SQLite) intermittently blow a
+    // 5s budget — two releases died on two DIFFERENT such flakes. Assertion failures
+    // still fail immediately; only genuinely hung tests report slower.
+    testTimeout: 30_000,
     projects: [
       {
         extends: true,
