@@ -1124,10 +1124,14 @@ describe('action dispatch', () => {
       makeEngine().start();
       bus.emit('pour_completed', { monitor: REF, volumeMl: 355, durationMs: 1, source: 'cloud', ts: NOW });
       await engine!.flush();
-      await new Promise((resolve) => setTimeout(resolve, 50));
 
       try {
-        expect(received).toContainEqual({ topic: 'kegtron/test', payload: '355' });
+        // Poll rather than sleep-a-fixed-50ms: the broker→subscriber delivery races a
+        // fixed sleep on a slow CI runner (real intermittent failure on the shared one).
+        await vi.waitFor(
+          () => expect(received).toContainEqual({ topic: 'kegtron/test', payload: '355' }),
+          { timeout: 5000 },
+        );
       } finally {
         await new Promise<void>((resolve) => sub.end(true, {}, () => resolve()));
       }
