@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.7.0](https://github.com/dlommm/Kegwall/compare/v0.6.0...v0.7.0) (2026-07-30)
+
 ## Unreleased
 
 - **Added:** Govee sensors are first-class devices now. Each discovered sensor becomes
