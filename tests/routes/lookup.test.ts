@@ -47,7 +47,7 @@ async function listenUpstream(): Promise<string> {
       return { error: 'boom' };
     }
     if (q === 'Timeout') {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 4000));
       return [];
     }
     if (q === 'Legacy') {
@@ -78,7 +78,7 @@ async function listenUpstream(): Promise<string> {
       return { error: 'boom' };
     }
     if (q === 'Timeout') {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 4000));
       return { object: 'list', data: [] };
     }
     if (q === 'BadJson') {
@@ -145,7 +145,7 @@ async function listenUpstream(): Promise<string> {
   });
 
   upstream.get('/images/slow', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 4000));
     return PNG_BYTES;
   });
 
@@ -160,11 +160,13 @@ beforeEach(async () => {
   seenBeerAuthHeader = undefined;
   upstreamUrl = await listenUpstream();
 
-  // Short timeout override (a la wsPingIntervalMs/MdashClient.timeoutMs) so the timeout
-  // test below runs in milliseconds instead of the real 5s production default.
+  // Timeout override (a la wsPingIntervalMs/MdashClient.timeoutMs) so the timeout
+  // tests run fast without the real 5s production default. NOT tighter than 1500ms:
+  // the shared CI runner also builds Docker images/APKs concurrently, and a 100ms
+  // budget made HAPPY-path fetches flake with 502s (v0.11.0 tag pipeline, job 457).
   app = await buildApp({
     dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')),
-    lookupTimeoutMs: 100,
+    lookupTimeoutMs: 1500,
   });
   app.ctx.settings.set('openBreweryBaseUrl', upstreamUrl);
   app.ctx.settings.set('catalogBeerBaseUrl', upstreamUrl);
@@ -344,7 +346,7 @@ describe('GET /api/lookup/beers', () => {
       });
       const elapsed = Date.now() - start;
       expect(res.statusCode).toBe(502);
-      expect(elapsed).toBeLessThan(500);
+      expect(elapsed).toBeLessThan(3500);
     });
 
     it('degrades gracefully (502, not a raw 500) when the upstream service returns malformed JSON', async () => {
@@ -429,7 +431,7 @@ describe('GET /api/lookup/breweries', () => {
     });
     const elapsed = Date.now() - start;
     expect(res.statusCode).toBe(502);
-    expect(elapsed).toBeLessThan(500);
+    expect(elapsed).toBeLessThan(3500);
   });
 
   it('degrades gracefully (502, not a raw 500) when the upstream service returns malformed JSON', async () => {
@@ -500,12 +502,12 @@ describe('downloadAndStoreLabel', () => {
   it('502s (fails closed within the timeout) when the download hangs', async () => {
     const start = Date.now();
     const result = await downloadAndStoreLabel(labelsDir, `${upstreamUrl}/images/slow`, {
-      timeoutMs: 100, allowInsecureHosts: true,
+      timeoutMs: 1500, allowInsecureHosts: true,
     });
     const elapsed = Date.now() - start;
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(502);
-    expect(elapsed).toBeLessThan(500);
+    expect(elapsed).toBeLessThan(3500);
   });
 
   // ---------------------------------------------------------------------------
