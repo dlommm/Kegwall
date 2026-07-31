@@ -3258,6 +3258,38 @@ h2.admin-field__label-text {
  * saves independently; masked secret fields (`.masked-secret`) share one small "Replace"
  * affordance component across Kegtron/Sources/Integrations.
  */
+/* Settings tab bar — the page outgrew one long scroll (see SettingsPage.tsx). */
+.settings-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  overflow-x: auto;
+}
+
+.settings-tabs__tab {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-tabs__tab:hover,
+.settings-tabs__tab:focus-visible {
+  color: var(--text);
+}
+
+.settings-tabs__tab--active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
 .settings-groups {
   display: flex;
   flex-direction: column;

@@ -1534,9 +1534,35 @@ type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'channels' | 'updat
  * and so discard any unsaved draft in, the SIBLING SourcesGroup on every catalog.beer
  * save, even though catalog.beer shares nothing with `mqtt`).
  */
+type SettingsTabId = 'general' | 'sources' | 'integrations' | 'system';
+
+const SETTINGS_TABS: { id: SettingsTabId; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'sources', label: 'Sources' },
+  { id: 'integrations', label: 'Integrations' },
+  { id: 'system', label: 'System' },
+];
+
+/** Initial tab from ?tab=<id> — plain URLSearchParams (not useSearchParams) on
+ * purpose: this page has no other router needs, and the param is written back via
+ * history.replaceState so tab switches never create history entries to back-button
+ * through. */
+function initialTab(): SettingsTabId {
+  const requested = new URLSearchParams(window.location.search).get('tab');
+  return SETTINGS_TABS.some((t) => t.id === requested) ? requested as SettingsTabId : 'general';
+}
+
 export function SettingsPage() {
   const [status, setStatus] = useState<PageStatus>('loading');
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [tab, setTab] = useState<SettingsTabId>(initialTab);
+
+  function selectTab(next: SettingsTabId) {
+    setTab(next);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', next);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params}`);
+  }
   const [siteVersion, setSiteVersion] = useState(0);
   const [kegtronVersion, setKegtronVersion] = useState(0);
   const [mqttVersion, setMqttVersion] = useState(0);
@@ -1608,12 +1634,35 @@ export function SettingsPage() {
         </p>
       )}
 
-      <div className="settings-groups">
+      {/* Tab bar — the page outgrew one long scroll. Every panel stays MOUNTED
+          (inactive ones get the `hidden` attribute) so unsaved drafts survive tab
+          switches and the version-counter remount keys keep their exact semantics;
+          only visibility changes. ?tab=<id> deep-links (docs say "Settings →
+          System" in a dozen places) without coupling this page to the router. */}
+      <nav className="settings-tabs" role="tablist" aria-label="Settings sections" data-testid="settings-tabs">
+        {SETTINGS_TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={`settings-tabs__tab${tab === id ? ' settings-tabs__tab--active' : ''}`}
+            data-testid={`settings-tab-${id}`}
+            onClick={() => selectTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="settings-groups" hidden={tab !== 'general'} data-testid="settings-panel-general">
         <SiteGroup
           key={`site-${siteVersion}`}
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('site', updated, patch)}
         />
+      </div>
+      <div className="settings-groups" hidden={tab !== 'sources'} data-testid="settings-panel-sources">
         <KegtronGroup
           key={`kegtron-${kegtronVersion}`}
           settings={settings}
@@ -1624,6 +1673,8 @@ export function SettingsPage() {
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
         />
+      </div>
+      <div className="settings-groups" hidden={tab !== 'integrations'} data-testid="settings-panel-integrations">
         <IntegrationsGroup
           key={`integrations-${mqttVersion}-${catalogBeerVersion}`}
           settings={settings}
@@ -1634,6 +1685,8 @@ export function SettingsPage() {
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('channels', updated, patch)}
         />
+      </div>
+      <div className="settings-groups" hidden={tab !== 'system'} data-testid="settings-panel-system">
         <SystemGroup
           key={`system-${updatesVersion}`}
           settings={settings}

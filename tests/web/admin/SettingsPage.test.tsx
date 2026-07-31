@@ -67,6 +67,9 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Tab clicks write ?tab= via history.replaceState and jsdom's URL persists across
+  // tests — reset so every test starts on the default tab.
+  window.history.replaceState(null, '', '/');
 });
 
 describe('SettingsPage', () => {
@@ -670,6 +673,8 @@ describe('SettingsPage', () => {
       });
       render(<SettingsPage />);
       await screen.findByTestId('settings-group-system');
+      // Role queries respect the hidden attribute — reveal the System tab first.
+      fireEvent.click(screen.getByTestId('settings-tab-system'));
 
       fireEvent.click(screen.getByTestId('settings-system-check'));
       await flush();
@@ -710,6 +715,40 @@ describe('SettingsPage', () => {
       await flush();
 
       expect(screen.getByTestId('settings-system-update-error')).toHaveTextContent('pick a mode first');
+    });
+  });
+
+  describe('tabs', () => {
+    it('defaults to General, hides the other panels, and switching reveals them', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-tabs');
+
+      expect(screen.getByTestId('settings-panel-general')).toBeVisible();
+      expect(screen.getByTestId('settings-panel-system')).not.toBeVisible();
+      // Hidden, but still MOUNTED — drafts and version-counter keys survive.
+      expect(screen.getByTestId('settings-group-system')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('settings-tab-system'));
+      expect(screen.getByTestId('settings-panel-system')).toBeVisible();
+      expect(screen.getByTestId('settings-panel-general')).not.toBeVisible();
+      expect(screen.getByTestId('settings-tab-system')).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('writes ?tab= into the URL and honors it as the initial tab', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      const { unmount } = render(<SettingsPage />);
+      await screen.findByTestId('settings-tabs');
+      fireEvent.click(screen.getByTestId('settings-tab-sources'));
+      expect(window.location.search).toContain('tab=sources');
+      unmount();
+
+      // Fresh mount with the param present → starts on that tab.
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-tabs');
+      expect(screen.getByTestId('settings-panel-sources')).toBeVisible();
+      expect(screen.getByTestId('settings-panel-general')).not.toBeVisible();
+      window.history.replaceState(null, '', window.location.pathname);
     });
   });
 
