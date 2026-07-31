@@ -281,8 +281,20 @@ describe('GET /api/system/urls', () => {
     expect(body.port).toBe(8123);
     expect(typeof body.hostname).toBe('string');
     expect(Array.isArray(body.addresses)).toBe(true);
-    // Neither KEGWALL_INSTALL nor /.dockerenv exist in the test env.
-    expect(body.install).toBe('unknown');
+    // 'unknown' on bare-metal dev machines, 'docker' when the suite itself runs in a
+    // container (the CI runner does — /.dockerenv exists there). Never 'native'
+    // without the env var, which the next test covers deterministically.
+    expect(['unknown', 'docker']).toContain(body.install);
+  });
+
+  it("reports install 'native' when KEGWALL_INSTALL=native (set by the Pi installer's unit)", async () => {
+    process.env.KEGWALL_INSTALL = 'native';
+    try {
+      const res = await app.inject({ method: 'GET', url: '/api/system/urls', cookies: adminCookies });
+      expect(res.json().install).toBe('native');
+    } finally {
+      delete process.env.KEGWALL_INSTALL;
+    }
   });
 });
 
