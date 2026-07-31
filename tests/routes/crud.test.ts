@@ -305,6 +305,21 @@ describe('crud routes', () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  it('PATCH /api/walls/:id emits state_changed(walls) so open kiosks refetch config', async () => {
+    const created = (await app.inject({
+      method: 'POST', url: '/api/walls', cookies: adminCookies,
+      payload: { slug: 'livewall', name: 'Live', config: {} },
+    })).json();
+    const events: { scope: string }[] = [];
+    app.ctx.bus.on('state_changed', (e) => events.push(e));
+    const res = await app.inject({
+      method: 'PATCH', url: `/api/walls/${created.id}`, cookies: adminCookies,
+      payload: { name: 'Live Renamed' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(events).toEqual([expect.objectContaining({ scope: 'walls' })]);
+  });
+
   describe('wall devices (device→wall scoping)', () => {
     async function makeWall(slug: string): Promise<number> {
       return (await app.inject({
@@ -327,7 +342,8 @@ describe('crud routes', () => {
       });
       expect(put.statusCode).toBe(200);
       expect(put.json()).toEqual([{ type: 'kegtron_pro', identifier: 'dev1' }]);
-      expect(events).toHaveLength(1);
+      // scope 'walls': open wall clients refetch config/allowedTapIds on this push.
+      expect(events).toEqual([expect.objectContaining({ scope: 'walls' })]);
 
       const get = await app.inject({
         method: 'GET', url: `/api/walls/${wallId}/devices`, cookies: adminCookies,

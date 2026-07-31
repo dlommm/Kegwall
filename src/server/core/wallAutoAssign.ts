@@ -33,7 +33,8 @@ export function attachWallAutoAssign(db: Database.Database, bus: EventBus, log: 
     if (empty.length === 0) return;
     for (const wallId of empty) addWallDevice(db, wallId, ref);
     log.info('app', `Auto-assigned new Kegtron device ${ref.type}:${ref.identifier} to wall(s) ${empty.join(', ')} — adjust in Walls → edit`);
-    bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    // 'walls': assignment changes allowedTapIdsForWall — open wall clients refetch.
+    bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
   };
 
   bus.on('device_online', (e) => consider(e.monitor));

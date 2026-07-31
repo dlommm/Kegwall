@@ -40,6 +40,10 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
       // so broadcasting this to every socket (not just admin-page ones -- there's no
       // per-connection routing here) is harmless for non-admin listeners.
       broadcast(JSON.stringify({ type: 'notifications', unackedCount: unackedCount(app.ctx.db) }));
+    } else if (e.scope === 'walls') {
+      // Wall config/device-assignment edits: tells open wall clients to refetch their
+      // wall payload (config + allowedTapIds + units) — useWallData.ts handles it.
+      broadcast(JSON.stringify({ type: 'walls_changed' }));
     }
     // scope 'sources' is intentionally not relayed over this feed (unchanged from before
     // wall_banner/wall_theme_override/notifications existed).

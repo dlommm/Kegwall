@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
 import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { getWall } from './api';
@@ -31,7 +33,10 @@ export interface UseWallDataResult {
 /**
  * Fetches a wall's config + initial tap snapshot via `getWall`, then hands live updates off
  * to `useTapStates`. Config doesn't ride the WS snapshot (only taps do), so we re-fetch it
- * whenever the socket reconnects — a cheap way to pick up wall edits made while disconnected.
+ * whenever the socket reconnects (picks up edits made while disconnected) AND whenever the
+ * server pushes `{type:'walls_changed'}` (any wall/config/device-assignment edit — see
+ * ws.ts). The push is what keeps a kiosk TV current: it stays connected for weeks and
+ * would otherwise never see a config change until someone power-cycled it.
  */
 export function useWallData(
   slug: string | undefined,
@@ -82,9 +87,21 @@ export function useWallData(
     };
   }, [slug]);
 
+  // Bumped on every walls_changed push; drives the refetch effect below alongside
+  // reconnectCount.
+  const [wallsVersion, setWallsVersion] = useState(0);
+  const externalOnMessage = useRef(options.onMessage);
+  externalOnMessage.current = options.onMessage;
+  const handleMessage = useCallback((msg: unknown) => {
+    if ((msg as { type?: string } | null)?.type === 'walls_changed') {
+      setWallsVersion((v) => v + 1);
+    }
+    externalOnMessage.current?.(msg);
+  }, []);
+
   const {
     taps: liveTaps, stale, connected, reconnectCount,
-  } = useTapStates(initialTaps, { onMessage: options.onMessage });
+  } = useTapStates(initialTaps, { onMessage: handleMessage });
 
   // The /ws snapshot is GLOBAL (every tap in the install, no per-wall routing — see
   // routes/ws.ts), and useTapStates overwrites the REST-seeded list with it within
@@ -103,9 +120,10 @@ export function useWallData(
   }, [liveTaps, allowedTapIds]);
 
   useEffect(() => {
-    // reconnectCount is 0 on the initial mount (useTapStates only increments it after a
-    // prior successful open), so this only fires on genuine reconnects, never on mount.
-    if (!slug || reconnectCount === 0) return;
+    // Both counters are 0 on the initial mount (useTapStates only increments
+    // reconnectCount after a prior successful open; wallsVersion only moves on a
+    // server push), so this fires on genuine reconnects/pushes, never on mount.
+    if (!slug || (reconnectCount === 0 && wallsVersion === 0)) return;
 
     let cancelled = false;
     getWall(slug).then((result) => {
@@ -128,7 +146,7 @@ export function useWallData(
     // `slug` intentionally omitted from deps: a slug change is already handled by the
     // effect above, which fetches immediately — re-running this one too would double-fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reconnectCount]);
+  }, [reconnectCount, wallsVersion]);
 
   return {
     wall, taps, units, stale, connected, loading, error, notFound,

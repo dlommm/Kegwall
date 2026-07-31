@@ -206,17 +206,20 @@ describe('useWallData', () => {
   // Phase 5 Task 4: WallPage subscribes to WS banner/theme_override messages by handing
   // an onMessage callback down through useWallData -> useTapStates, so there's still only
   // ONE socket for the whole wall page.
-  it('threads an onMessage option through to useTapStates unchanged', async () => {
+  it('threads an onMessage option through to useTapStates (wrapped, but delivering every message)', async () => {
     (getWall as Mock).mockResolvedValue({
       ok: true, data: { wall: { slug: 'main', name: 'Main', config: {} }, taps: [] },
     });
-    const onMessage = () => {};
+    const seen: unknown[] = [];
 
-    renderHook(() => useWallData('main', { onMessage }));
+    renderHook(() => useWallData('main', { onMessage: (m) => seen.push(m) }));
 
     await waitFor(() => expect(useTapStates).toHaveBeenCalled());
-    const lastCall = (useTapStates as Mock).mock.calls.at(-1)!;
-    expect(lastCall[1]).toMatchObject({ onMessage });
+    // No longer the SAME function reference — useWallData wraps it to intercept
+    // walls_changed — but every message still reaches the caller.
+    const { onMessage: wrapped } = (useTapStates as Mock).mock.calls.at(-1)![1];
+    wrapped({ type: 'banner', text: 'x', kind: 'info' });
+    expect(seen).toEqual([{ type: 'banner', text: 'x', kind: 'info' }]);
   });
 
   it('refetches when the slug changes', async () => {
@@ -235,5 +238,29 @@ describe('useWallData', () => {
     rerender({ slug: 'patio' });
     await waitFor(() => expect(result.current.wall).toEqual(wallPatio));
     expect(getWall).toHaveBeenCalledWith('patio');
+  });
+
+  it('refetches wall config on a walls_changed push and forwards other messages untouched', async () => {
+    const wall1 = { slug: 'main', name: 'Main', config: { theme: { id: 'taproom' } } };
+    const wall2 = { slug: 'main', name: 'Main Edited', config: { theme: { id: 'dive' } } };
+    (getWall as Mock)
+      .mockResolvedValueOnce({ ok: true, data: { wall: wall1, taps: [] } })
+      .mockResolvedValueOnce({ ok: true, data: { wall: wall2, taps: [] } });
+
+    const seen: unknown[] = [];
+    const { result } = renderHook(() => useWallData('main', { onMessage: (m) => seen.push(m) }));
+    await waitFor(() => expect(result.current.wall).toEqual(wall1));
+
+    // The hook wraps options.onMessage before handing it to useTapStates — grab the
+    // wrapper the mock received and feed it messages like the real socket would.
+    const { onMessage } = (useTapStates as Mock).mock.calls.at(-1)![1];
+    onMessage({ type: 'banner', text: 'hi', kind: 'info' });
+    expect(seen).toEqual([{ type: 'banner', text: 'hi', kind: 'info' }]);
+
+    onMessage({ type: 'walls_changed' });
+    await waitFor(() => expect(result.current.wall).toEqual(wall2));
+    expect(getWall).toHaveBeenCalledTimes(2);
+    // walls_changed is forwarded too — downstream listeners may ignore it.
+    expect(seen).toHaveLength(2);
   });
 });

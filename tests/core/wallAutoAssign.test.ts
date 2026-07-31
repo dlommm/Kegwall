@@ -81,15 +81,15 @@ describe('attachWallAutoAssign', () => {
     expect(listWallDevices(db, wall)).toEqual([{ type: 'kegtron_pro', identifier: 'dev-old' }]);
   });
 
-  it('emits state_changed(taps) when it assigns, and stays quiet when idle', () => {
+  it('emits state_changed(walls) when it assigns, and stays quiet when idle', () => {
     createWall('main');
     attach();
     const scopes: string[] = [];
     bus.on('state_changed', (e) => scopes.push(e.scope));
     bus.emit('device_online', { monitor: pro('dev-1'), ts: TS });
-    expect(scopes).toEqual(['taps']);
+    expect(scopes).toEqual(['walls']);
     // Second online for the now-assigned device: no further writes, no event.
     bus.emit('device_online', { monitor: pro('dev-1'), ts: TS });
-    expect(scopes).toEqual(['taps']);
+    expect(scopes).toEqual(['walls']);
   });
 });

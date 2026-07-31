@@ -131,6 +131,16 @@ describe('/ws', () => {
     ws.close();
   });
 
+  it('relays a state_changed(scope:"walls") event as {type:"walls_changed"}', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws);
+    const next = nextMessage(ws);
+    app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
+    const msg = await next;
+    expect(msg).toEqual({ type: 'walls_changed' });
+    ws.close();
+  });
+
   it('a state_changed(scope:"sources") event does not broadcast anything (ignored, same as before)', async () => {
     const ws = new WebSocket(url);
     await nextMessage(ws);

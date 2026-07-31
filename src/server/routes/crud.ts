@@ -281,6 +281,8 @@ export async function crudRoutes(app: FastifyInstance) {
     }
     const mon = bindMonitorToTap(db, id, body.tapId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    // Bindings feed allowedTapIdsForWall — open wall clients must refetch too.
+    app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     return sanitizeMonitor(mon);
   });
 
@@ -365,20 +367,21 @@ export async function crudRoutes(app: FastifyInstance) {
     db.prepare('UPDATE walls SET slug = ?, name = ?, config = ? WHERE id = ?')
       .run(body.slug ?? existing.slug, body.name ?? existing.name,
         JSON.stringify(config), id);
-    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     return { id, slug: body.slug ?? existing.slug, name: body.name ?? existing.name, config };
   });
   app.delete('/api/walls/:id', editor, async (req, reply) => {
     // wall_devices rows go with it via ON DELETE CASCADE (migration 011).
     db.prepare('DELETE FROM walls WHERE id = ?').run(Number((req.params as any).id));
+    app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     return reply.code(204).send();
   });
 
   // --- wall devices (device→wall scoping) ---
   // A wall shows only taps bound to ports of its assigned devices; no devices = no
   // taps (strict). The assignment propagates to TVs the way wall-config edits do:
-  // the PUT emits state_changed now, and the resolved allowedTapIds ride the
-  // /api/public/wall payload, refetched by clients on WS reconnect/refresh.
+  // the PUT emits state_changed (scope 'walls') now, and the resolved allowedTapIds
+  // ride the /api/public/wall payload, refetched by open clients on walls_changed.
   const wallDevicesBody = z.object({
     devices: z.array(z.object({
       type: z.enum(['kegtron_pro', 'kegtron_gen1']),
@@ -404,7 +407,7 @@ export async function crudRoutes(app: FastifyInstance) {
       if (!known) throw new ValidationError(`unknown device ${d.type}:${d.identifier}`);
     }
     const stored = setWallDevices(db, id, devices);
-    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     return stored;
   });
 
@@ -472,6 +475,10 @@ export async function crudRoutes(app: FastifyInstance) {
       await app.ctx.sources.stopAll();
       registerConfiguredSources(app.ctx);
       await app.ctx.sources.startAll();
+    }
+    // displayUnits (and siteName) ride the wall payload — nudge open wall clients.
+    if (requestedKeys.has('displayUnits') || requestedKeys.has('siteName')) {
+      app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     }
     return app.ctx.settings.masked();
   });
