@@ -39,6 +39,8 @@ export interface UseTapStatesResult {
 interface SnapshotMessage {
   type: 'snapshot';
   taps: TapState[];
+  /** The server's app version (ws.ts stamps it) — drives the kiosk auto-reload. */
+  version?: string;
 }
 
 function isSnapshotMessage(value: unknown): value is SnapshotMessage {
@@ -80,6 +82,9 @@ export function useTapStates(
   const [stale, setStale] = useState(false);
   const [connected, setConnected] = useState(false);
   const [reconnectCount, setReconnectCount] = useState(0);
+  // First server version seen this page-load — survives socket reconnects on purpose
+  // (the reload must fire on version CHANGE, which only happens across reconnects).
+  const serverVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +128,19 @@ export function useTapStates(
         }
         if (isSnapshotMessage(parsed)) {
           setLiveTaps(parsed.taps);
+          // Kiosk auto-reload: a wall TV's browser never reloads on its own, so an
+          // app update would leave it running the pre-update JS bundle forever
+          // (missing every client-side feature/fix from then on). The server stamps
+          // its version into each snapshot; when it CHANGES mid-session (server
+          // restarted on a new release), reload once to pick up the new bundle.
+          // First-seen version is the baseline — never reloads on initial connect.
+          if (parsed.version) {
+            if (serverVersionRef.current && parsed.version !== serverVersionRef.current) {
+              window.location.reload();
+              return;
+            }
+            serverVersionRef.current = parsed.version;
+          }
         }
         onMessageRef.current?.(parsed);
       };

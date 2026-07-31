@@ -18,8 +18,11 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
 
   const clients = new Set<import('ws').WebSocket>();
 
+  // `version` rides every snapshot so long-lived kiosk clients can detect an app
+  // update (server restarted on a new release) and reload themselves — otherwise a
+  // wall TV keeps running the pre-update JS bundle forever. See useTapStates.ts.
   const snapshot = () =>
-    JSON.stringify({ type: 'snapshot', taps: app.ctx.state.getTapStates() });
+    JSON.stringify({ type: 'snapshot', taps: app.ctx.state.getTapStates(), version: app.ctx.version });
 
   /** Sends `msg` to every currently-connected client (skipping any not `OPEN` -- a socket
    * mid-close/error shouldn't throw the broadcast off for the rest). Shared by every
