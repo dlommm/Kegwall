@@ -7,3 +7,4 @@ dist/
 test-results/
 playwright-report/
 esp32/secrets.yaml
+.DS_Store
