@@ -33,7 +33,7 @@ test:
   stage: test
   # Full (non-slim) node image: ships python3/make/g++, which better-sqlite3's
   # native build needs during `npm ci`.
-  image: node:22
+  image: node:24
   cache:
     key:
       files:
@@ -125,7 +125,7 @@ release-image:
 # "chore(release): ... [skip ci]" commit doesn't retrigger CI, so no loops.
 semantic-release:
   stage: release
-  image: node:22
+  image: node:24
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null && $GITLAB_TOKEN'
   needs: [test]

@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-install.sh \
 #     | sudo bash -s -- [--dir /opt/kegwall] [--port 8080] [--with-ble] [--wall-slug main]
 #
-# Installs: Node 22 (NodeSource) + build toolchain, a `kegwall` system user, the app
+# Installs: Node 24 (NodeSource) + build toolchain, a `kegwall` system user, the app
 # checked out at its LATEST RELEASE TAG under --dir, and three systemd units:
 #   kegwall.service          the server
 #   kegwall-update.service   oneshot updater (fetch latest tag, rebuild, restart)
@@ -43,8 +43,8 @@ done
 echo "==> Installing packages"
 apt-get update -qq
 apt-get install -y -qq curl git ca-certificates python3 make g++
-if ! command -v node >/dev/null || [ "$(node -e 'console.log(process.versions.node.split(".")[0])')" -lt 22 ]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+if ! command -v node >/dev/null || [ "$(node -e 'console.log(process.versions.node.split(".")[0])')" -lt 24 ]; then
+  curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y -qq nodejs
 fi
 if [ "$WITH_BLE" -eq 1 ]; then

@@ -17,7 +17,7 @@
 # ingest): it's listed under package.json's `optionalDependencies` precisely
 # because its transitive native binding (bluetooth-hci-socket -> usb, which
 # needs libusb headers) is not guaranteed to compile on every
-# platform/arch this image targets — the node:22-slim base has no libusb-dev,
+# platform/arch this image targets — the node:24-slim base has no libusb-dev,
 # and cross-building e.g. linux/arm64 on an amd64 builder (or vice versa) can
 # fail outright. `npm ci` is documented to treat a failed OPTIONAL dependency
 # as non-fatal, but to not bet the whole image build on that behavior being
@@ -36,7 +36,7 @@
 # below to run `vite build` (needs vite/@vitejs/plugin-react/tailwindcss,
 # all devDependencies).
 ########################################################################
-FROM node:22-slim AS deps
+FROM node:24-slim AS deps
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -78,7 +78,7 @@ RUN npm run build
 # Stage 3: runtime — production-only deps + server source, no build
 # toolchain, non-root user.
 ########################################################################
-FROM node:22-slim AS runtime
+FROM node:24-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \
@@ -98,16 +98,29 @@ ENV NODE_ENV=production \
 # better-sqlite3 bundles PREBUILT binaries for common platform/arch pairs
 # (node_modules/better-sqlite3/prebuilds/*.node) and prefers one of those
 # over compiling from source whenever a matching file is present — found the
-# hard way in local testing: its linux-arm64 prebuild was built against a
-# newer glibc (2.38) than node:22-slim's Debian bookworm ships (2.36),
-# so the container crashed at startup with `dlopen` ERR_DLOPEN_FAILED
+# hard way in local testing (on node:22-slim/bookworm): its linux-arm64
+# prebuild was built against a newer glibc (2.38) than the base image shipped
+# (2.36), so the container crashed at startup with `dlopen` ERR_DLOPEN_FAILED
 # ("GLIBC_2.38 not found") despite `npm ci` itself reporting success. This
 # is exactly why the build toolchain above exists — force a real from-source
 # compile against THIS image's actual glibc, instead of trusting whichever
 # prebuild happens to be bundled: delete the bundled prebuilds (so
 # `lib/binding.js`'s prebuild lookup can't find one — see that file, it
 # prefers a prebuild unconditionally when present, even next to a freshly
-# built binary) and `npm rebuild` to compile fresh.
+# built binary) and compile fresh.
+#
+# Why direct node-gyp and not `npm rebuild better-sqlite3 --build-from-source`:
+# better-sqlite3 has no explicit install script (it ships prebuilds instead).
+# npm 10 (node 22) would still run the IMPLICIT `node-gyp rebuild` that
+# binding.gyp packages get — that's what made this block work historically.
+# npm 11 (node 24) gates install scripts behind allowScripts and silently
+# SKIPS that implicit step, exiting 0 with "rebuilt successfully" while
+# compiling nothing — the image then crashes at startup with MODULE_NOT_FOUND
+# because the prebuilds are already deleted. Invoking npm's own bundled
+# node-gyp directly sidesteps script gating deterministically; the smoke-test
+# `node -e` below fails the BUILD if the binary is ever missing again. The
+# obj.target/.deps intermediates and the test extension are stripped to keep
+# the layer lean.
 COPY package.json package-lock.json ./
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 \
@@ -115,7 +128,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       g++ \
     && (npm ci --omit=dev || npm ci --omit=dev --omit=optional) \
     && rm -rf node_modules/better-sqlite3/prebuilds \
-    && npm rebuild better-sqlite3 --build-from-source \
+    && (cd node_modules/better-sqlite3 \
+        && node /usr/local/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js rebuild \
+        && rm -rf build/Release/obj.target build/Release/.deps build/Release/test_extension.node) \
+    && node -e "require('better-sqlite3')(':memory:').exec('select 1')" \
     && apt-get purge -y --auto-remove python3 make g++ \
     && rm -rf /var/lib/apt/lists/* /root/.npm
 
@@ -143,7 +159,7 @@ USER node
 VOLUME /data
 EXPOSE 8080
 
-# curl isn't present on node:22-slim; use Node's built-in fetch instead so the
+# curl isn't present on node:24-slim; use Node's built-in fetch instead so the
 # healthcheck doesn't need an extra apt package.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"

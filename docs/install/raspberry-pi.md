@@ -51,7 +51,7 @@ Flags: `--dir /opt/kegwall` (install location; data in `<dir>/data`), `--port 80
 (also boot this Pi's display into a fullscreen wall — the server-behind-the-TV
 setup).
 
-What it installs: Node 22 (NodeSource) + build toolchain, a `kegwall` system user,
+What it installs: Node 24 (NodeSource) + build toolchain, a `kegwall` system user,
 the app checked out at its **latest release tag**, and three systemd units —
 `kegwall.service` (the server), `kegwall-update.service` + `kegwall-update.path`
 (the self-updater: the admin UI's Update button writes a trigger file into the data
