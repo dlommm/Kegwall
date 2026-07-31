@@ -82,5 +82,11 @@
   },
   "optionalDependencies": {
     "@abandonware/noble": "^1.9.2-26"
+  },
+  "overrides": {
+    "tar": "^7.5.22",
+    "brace-expansion": "^5.0.9",
+    "glob": "^13.0.6",
+    "minimatch": "^10.2.6"
   }
 }
