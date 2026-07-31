@@ -142,10 +142,20 @@ sudo -u kegwall npm ci || sudo -u kegwall npm ci --omit=optional
 sudo -u kegwall npm run build
 sudo -u kegwall mkdir -p "$DIR/data"
 
-if [ "$WITH_BLE" -eq 1 ]; then
-  # BLE scanning needs raw-socket capability on the node binary. NOTE: a Node
-  # upgrade replaces the binary — re-run this setcap afterwards.
-  setcap cap_net_raw+eip "$(readlink -f "$(command -v node)")"
+# Capability grants on the node binary (one setcap, not systemd AmbientCapabilities:
+# file capabilities CLEAR ambient ones at exec, so with BLE's cap_net_raw present an
+# ambient bind grant would be silently dropped — one mechanism covers every combo):
+#   cap_net_raw           BLE scanning (raw HCI socket)
+#   cap_net_bind_service  ports below 1024 (e.g. plain http://pi/ on port 80) — the
+#                         kegwall user can't bind them otherwise and the server
+#                         crash-loops with EACCES
+# NOTE: a Node upgrade replaces the binary — re-run this script (or the setcap)
+# afterwards.
+NODE_CAPS=""
+[ "$WITH_BLE" -eq 1 ] && NODE_CAPS="cap_net_raw"
+[ "$PORT" -lt 1024 ] && NODE_CAPS="${NODE_CAPS:+$NODE_CAPS,}cap_net_bind_service"
+if [ -n "$NODE_CAPS" ]; then
+  setcap "${NODE_CAPS}+eip" "$(readlink -f "$(command -v node)")"
 fi
 
 echo "==> Installing systemd units"
