@@ -9,6 +9,8 @@ const pkg = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
 ) as { version: string };
 
+const port = Number(process.env.PORT ?? 8080);
+
 const app = await buildApp({
   dataDir: process.env.DATA_DIR ?? './data',
   // @fastify/static (see routes/static.ts) requires an absolute root path — resolve
@@ -17,6 +19,7 @@ const app = await buildApp({
   webDir: resolve(process.env.WEB_DIR ?? './dist/web'),
   startSources: true,
   version: pkg.version,
+  port,
 });
-await app.listen({ port: Number(process.env.PORT ?? 8080), host: '0.0.0.0' });
-app.ctx.log.info('app', `Server started on port ${process.env.PORT ?? 8080}`);
+await app.listen({ port, host: '0.0.0.0' });
+app.ctx.log.info('app', `Server started on port ${port}`);

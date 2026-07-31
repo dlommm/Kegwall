@@ -28,6 +28,31 @@ export function setWallDevices(
   return listWallDevices(db, wallId);
 }
 
+/** Walls with zero assigned devices — the auto-assign targets (core/wallAutoAssign.ts). */
+export function wallsWithNoDevices(db: Database.Database): number[] {
+  return (db.prepare(
+    `SELECT w.id FROM walls w
+      WHERE NOT EXISTS (SELECT 1 FROM wall_devices wd WHERE wd.wall_id = w.id)
+      ORDER BY w.id`)
+    .all() as { id: number }[]).map((r) => r.id);
+}
+
+/** True when this device is already assigned to ANY wall — an explicit assignment
+ * anywhere disables auto-assign for the device (core/wallAutoAssign.ts). */
+export function deviceAssignedAnywhere(db: Database.Database, ref: WallDeviceRef): boolean {
+  return db.prepare(
+    'SELECT 1 FROM wall_devices WHERE monitor_type = ? AND monitor_identifier = ? LIMIT 1')
+    .get(ref.type, ref.identifier) !== undefined;
+}
+
+/** Append one device to one wall (auto-assign path — setWallDevices's replace-set
+ * semantics would clobber concurrent admin edits here). */
+export function addWallDevice(db: Database.Database, wallId: number, ref: WallDeviceRef): void {
+  db.prepare(
+    'INSERT OR IGNORE INTO wall_devices (wall_id, monitor_type, monitor_identifier) VALUES (?, ?, ?)')
+    .run(wallId, ref.type, ref.identifier);
+}
+
 /** The tap ids a wall may show: DISTINCT bound, NON-HIDDEN taps across every port of
  * the wall's assigned devices. STRICT by design — a wall with no assigned devices
  * gets `[]` (shows nothing), not "all taps". Hidden taps (taps.hidden) are excluded

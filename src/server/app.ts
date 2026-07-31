@@ -20,7 +20,7 @@ import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
 import { backupRoutes } from './routes/backup.js';
 import { channelsRoutes } from './routes/channels.js';
-import { systemRoutes } from './routes/system.js';
+import { systemRoutes, type SystemRoutesOptions } from './routes/system.js';
 import { automationsRoutes } from './routes/automations.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
@@ -91,6 +91,13 @@ export interface AppOptions {
   /** Overrides routes/system.ts's update-check + watchtower-trigger fetch timeouts —
    * tests only, same pattern as `lookupTimeoutMs`. */
   updateTimeoutMs?: number;
+  /** The HTTP listen port — index.ts passes the resolved PORT so GET /api/system/urls
+   * can compose reachable URLs. Deliberately a systemRoutes option, not ctx state:
+   * nothing else in the app needs to know its own port. */
+  port?: number;
+  /** Test-only override for the stats endpoint's vcgencmd throttle reader — see
+   * `SystemRoutesOptions.readThrottle`. Never set by index.ts. */
+  readThrottle?: SystemRoutesOptions['readThrottle'];
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
@@ -170,7 +177,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                                            // restore handler relies on the @fastify/
                                            // multipart decorators uploadsRoutes registers
                                            // (see backup.ts's doc comment on MAX_RESTORE_BYTES)
-  await systemRoutes(app, dataDir, { updateTimeoutMs: opts.updateTimeoutMs });
+  await systemRoutes(app, dataDir, {
+    updateTimeoutMs: opts.updateTimeoutMs, port: opts.port, readThrottle: opts.readThrottle,
+  });
                                            // direct call — see encapsulation note above;
                                            // needs the resolved dataDir (native-mode
                                            // update trigger file), same as backupRoutes

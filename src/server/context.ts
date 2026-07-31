@@ -8,6 +8,7 @@ import { LogService } from './core/logService.js';
 import { SensorRegistry } from './core/sensorRegistry.js';
 import { attachBeerAutoImport } from './core/beerAutoImport.js';
 import { attachMilestones } from './core/milestones.js';
+import { attachWallAutoAssign } from './core/wallAutoAssign.js';
 import { SessionRegistry } from './core/sessionMode.js';
 import { SourceManager } from './ingest/manager.js';
 import { registerConfiguredSources } from './ingest/bootstrap.js';
@@ -73,6 +74,7 @@ export function createContext(dataDir: string, version = '0.0.0-dev'): AppContex
   sensors.attach();
   attachBeerAutoImport(db, bus, settings, log);
   attachMilestones(db, bus);
+  attachWallAutoAssign(db, bus, log);
   const sources = new SourceManager(bus);
   // Constructed here (cheap: no I/O) but NOT started — `engine.start()` can dispatch
   // real actions (an `app_startup` rule's webhook/mqtt/SMTP/etc), so it's called

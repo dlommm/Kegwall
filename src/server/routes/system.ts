@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import os from 'node:os';
 import { requireRole } from './auth.js';
+import { readHostStats, readThrottle, type ThrottleFlags } from '../core/hostStats.js';
 
 /**
  * System routes: the running version, the update check (against the project's own
@@ -42,6 +44,11 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 export interface SystemRoutesOptions {
   /** Test-only override for the update-check and watchtower-trigger fetch timeouts. */
   updateTimeoutMs?: number;
+  /** The HTTP listen port (index.ts's resolved PORT) — feeds GET /api/system/urls. */
+  port?: number;
+  /** Test-only override for the vcgencmd throttle reader, so the undervoltage
+   * warn-once path is exercisable on machines without vcgencmd. */
+  readThrottle?: () => Promise<ThrottleFlags | null>;
 }
 
 export async function systemRoutes(
@@ -144,5 +151,88 @@ export async function systemRoutes(
       mode: 'native',
       message: 'Update requested — the Pi installer’s updater applies it in the background and restarts the server.',
     });
+  });
+
+  // ---- Host monitoring + OS-level actions (Pi monitoring epic) ----
+
+  // Warn-once-per-process undervoltage latch — the source_status `lastHealthy` dedupe
+  // idiom collapsed to one boolean. A server restart re-warns; that's intentional (a
+  // persistent power problem SHOULD renotify after a crash-restart cycle).
+  let undervoltWarned = false;
+  const readThrottleFlags = opts.readThrottle ?? readThrottle;
+
+  app.get('/api/system/stats', viewer, async () => {
+    const stats = await readHostStats(dataDir);
+    const throttle = opts.readThrottle ? await readThrottleFlags() : stats.throttle;
+    if (throttle && (throttle.undervoltedNow || throttle.undervoltedSinceBoot) && !undervoltWarned) {
+      undervoltWarned = true;
+      app.ctx.log.warn('app', 'Undervoltage detected — this Pi is not getting enough power. Use the official power supply; undervoltage corrupts SD cards and causes random crashes.');
+    }
+    return {
+      ...stats,
+      throttle,
+      // Debian drops this file when an installed update needs a reboot.
+      rebootRequired: existsSync('/var/run/reboot-required'),
+      // Whether the OS-level buttons (reboot, OS update) can work at all — they ride
+      // the native install's trigger-file units.
+      osManaged: app.ctx.settings.get('updates')?.mode === 'native',
+    };
+  });
+
+  // Admin-only: enumerates the host's LAN addresses (topology stays behind auth).
+  // The CLIENT composes page URLs from these — this endpoint stays dumb on purpose.
+  app.get('/api/system/urls', admin, async () => {
+    const addresses: string[] = [];
+    for (const ifaces of Object.values(os.networkInterfaces())) {
+      for (const iface of ifaces ?? []) {
+        if (iface.family === 'IPv4' && !iface.internal) addresses.push(iface.address);
+      }
+    }
+    // KEGWALL_INSTALL is set by pi-install.sh's systemd unit; /.dockerenv is the
+    // container tell. The wizard uses this to preselect the right update mode.
+    const install = process.env.KEGWALL_INSTALL === 'native' ? 'native'
+      : existsSync('/.dockerenv') ? 'docker'
+        : 'unknown';
+    return { port: opts.port ?? 8080, hostname: os.hostname(), addresses, install };
+  });
+
+  // Both OS actions clone the native update's trigger-file mechanism: the app writes a
+  // file into DATA_DIR, a root systemd path unit (pi-install.sh) reacts. Each action
+  // has its OWN trigger + unit pair — no content multiplexing, each root script stays
+  // auditable in one screenful. The fixed token contents are validated by regex on the
+  // root side; they are the entire protocol.
+  app.post('/api/system/os-update', admin, async (_req, reply) => {
+    if (app.ctx.settings.get('updates')?.mode !== 'native') {
+      return reply.code(409).send({
+        error: 'conflict',
+        message: 'OS updates are only available on the native Pi install.',
+      });
+    }
+    const osUpdates = app.ctx.settings.get('osUpdates');
+    if (!osUpdates || osUpdates.mode === 'off') {
+      return reply.code(409).send({
+        error: 'conflict',
+        message: 'Turn on OS updates in Settings → System first.',
+      });
+    }
+    // 'run-reboot' vs 'run' carries the autoReboot setting to the root script, which
+    // cannot read app settings itself.
+    writeFileSync(join(dataDir, 'os-update-requested'), osUpdates.autoReboot ? 'run-reboot' : 'run');
+    app.ctx.log.info('app', `OS update trigger file written (auto-reboot ${osUpdates.autoReboot ? 'on' : 'off'})`);
+    return reply.code(202).send({
+      message: 'OS update started in the background — apt output lands in the journal (journalctl -u kegwall-os-update).',
+    });
+  });
+
+  app.post('/api/system/reboot', admin, async (_req, reply) => {
+    if (app.ctx.settings.get('updates')?.mode !== 'native') {
+      return reply.code(409).send({
+        error: 'conflict',
+        message: 'Rebooting from the UI is only available on the native Pi install.',
+      });
+    }
+    writeFileSync(join(dataDir, 'reboot-requested'), 'reboot');
+    app.ctx.log.warn('app', 'Reboot requested from the admin UI');
+    return reply.code(202).send({ message: 'Rebooting — the wall goes dark for a minute or two.' });
   });
 }

@@ -44,6 +44,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     updateCheckBaseUrl: 'https://github.com',
     updateCheckProjectPath: 'dlomm/kegwall',
     updates: null,
+    osUpdates: null,
     kegtronApiKey: null,
     kegtronBaseUrl: 'https://mdash.net',
     openBreweryBaseUrl: 'https://api.openbrewerydb.org',

@@ -69,6 +69,16 @@ export const settingsSchema = z.object({
     watchtowerUrl: z.string().url().optional(),
     watchtowerToken: z.string().min(1).optional(),
   }).nullable().default(null),
+  // OS (apt) updates — native Pi installs only (the UI hides this unless
+  // updates.mode is 'native'). `manual` arms the "Update OS now" button; `auto`
+  // additionally relies on unattended-upgrades provisioned by pi-install.sh.
+  // autoReboot travels as the trigger file's CONTENT ('run-reboot' vs 'run',
+  // routes/system.ts) because the root-side updater script can't read app
+  // settings. No secrets here — the masking machinery below does not apply.
+  osUpdates: z.object({
+    mode: z.enum(['off', 'manual', 'auto']),
+    autoReboot: z.boolean().default(false),
+  }).nullable().default(null),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.

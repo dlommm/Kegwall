@@ -220,3 +220,127 @@ describe('POST /api/system/update', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe('GET /api/system/stats', () => {
+  it('requires auth and answers viewers with the full deterministic shape', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/system/stats' })).statusCode).toBe(401);
+    const res = await app.inject({ method: 'GET', url: '/api/system/stats', cookies: viewerCookies });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.cpu.cores).toBeGreaterThan(0);
+    expect(body.memory.totalBytes).toBeGreaterThan(0);
+    expect(body.disk).not.toBeNull(); // dataDir is a real tmp dir on a real volume
+    expect(body.uptimeSec).toBeGreaterThan(0);
+    expect(body.rebootRequired).toBe(false); // no /var/run/reboot-required on dev/CI
+    expect(body.osManaged).toBe(false); // updates unset
+    // vcgencmd is absent on dev Macs and CI runners — nulls, never errors.
+    if (process.platform !== 'linux') {
+      expect(body.throttle).toBeNull();
+      expect(body.watts).toBeNull();
+    }
+  });
+
+  it('flips osManaged with the updates mode', async () => {
+    app.ctx.settings.set('updates', { mode: 'native' });
+    const res = await app.inject({ method: 'GET', url: '/api/system/stats', cookies: viewerCookies });
+    expect(res.json().osManaged).toBe(true);
+  });
+
+  it('warns about undervoltage exactly once per process', async () => {
+    await app.close();
+    app = await buildApp({
+      dataDir,
+      version: '1.2.3',
+      readThrottle: async () => ({
+        undervoltedNow: false, freqCappedNow: false, throttledNow: false,
+        undervoltedSinceBoot: true, freqCappedSinceBoot: false, throttledSinceBoot: false,
+      }),
+    });
+    adminCookies = await login('admin', 'hunter22');
+    await app.inject({ method: 'GET', url: '/api/system/stats', cookies: adminCookies });
+    await app.inject({ method: 'GET', url: '/api/system/stats', cookies: adminCookies });
+    const warns = app.ctx.db.prepare(
+      "SELECT COUNT(*) c FROM logs WHERE level = 'warn' AND message LIKE 'Undervoltage%'",
+    ).get() as { c: number };
+    expect(warns.c).toBe(1);
+    // And the flags surface to the client.
+    const res = await app.inject({ method: 'GET', url: '/api/system/stats', cookies: adminCookies });
+    expect(res.json().throttle.undervoltedSinceBoot).toBe(true);
+  });
+});
+
+describe('GET /api/system/urls', () => {
+  it('is admin-only and echoes the configured port', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/system/urls', cookies: viewerCookies })).statusCode).toBe(403);
+    await app.close();
+    app = await buildApp({ dataDir, version: '1.2.3', port: 8123 });
+    adminCookies = await login('admin', 'hunter22');
+    const res = await app.inject({ method: 'GET', url: '/api/system/urls', cookies: adminCookies });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.port).toBe(8123);
+    expect(typeof body.hostname).toBe('string');
+    expect(Array.isArray(body.addresses)).toBe(true);
+    // Neither KEGWALL_INSTALL nor /.dockerenv exist in the test env.
+    expect(body.install).toBe('unknown');
+  });
+});
+
+describe('POST /api/system/os-update', () => {
+  it('409s unless updates mode is native AND osUpdates is enabled', async () => {
+    // updates unset entirely
+    let res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().message).toContain('native');
+
+    // watchtower is not native
+    app.ctx.settings.set('updates', { mode: 'watchtower', watchtowerUrl: 'http://127.0.0.1:1', watchtowerToken: 'x' });
+    res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(409);
+
+    // native but osUpdates off/unset
+    app.ctx.settings.set('updates', { mode: 'native' });
+    res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().message).toContain('Settings');
+    app.ctx.settings.set('osUpdates', { mode: 'off', autoReboot: false });
+    res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("writes 'run' or 'run-reboot' per the autoReboot setting", async () => {
+    app.ctx.settings.set('updates', { mode: 'native' });
+    app.ctx.settings.set('osUpdates', { mode: 'manual', autoReboot: false });
+    let res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(202);
+    expect(readFileSync(join(dataDir, 'os-update-requested'), 'utf8')).toBe('run');
+
+    app.ctx.settings.set('osUpdates', { mode: 'auto', autoReboot: true });
+    res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(202);
+    expect(readFileSync(join(dataDir, 'os-update-requested'), 'utf8')).toBe('run-reboot');
+  });
+
+  it('is admin-only', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/system/os-update', cookies: viewerCookies, payload: {} });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('POST /api/system/reboot', () => {
+  it('409s outside native mode and writes the reboot trigger inside it', async () => {
+    let res = await app.inject({ method: 'POST', url: '/api/system/reboot', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(existsSync(join(dataDir, 'reboot-requested'))).toBe(false);
+
+    app.ctx.settings.set('updates', { mode: 'native' });
+    res = await app.inject({ method: 'POST', url: '/api/system/reboot', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(202);
+    expect(readFileSync(join(dataDir, 'reboot-requested'), 'utf8')).toBe('reboot');
+  });
+
+  it('is admin-only', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/system/reboot', cookies: viewerCookies, payload: {} });
+    expect(res.statusCode).toBe(403);
+  });
+});
