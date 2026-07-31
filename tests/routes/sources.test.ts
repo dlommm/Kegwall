@@ -29,7 +29,7 @@ describe('sources routes', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(Array.isArray(body)).toBe(true);
-    expect(body).toHaveLength(6);
+    expect(body).toHaveLength(7);
     for (const entry of body) {
       expect(entry).toHaveProperty('name');
       expect(entry).toHaveProperty('registered');

@@ -304,6 +304,7 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
   const mqtt = settings.mqtt;
   const [udpEnabled, setUdpEnabled] = useState(settings.udpEnabled);
   const [bleDirectEnabled, setBleDirectEnabled] = useState(settings.bleDirectEnabled);
+  const [proBleEnabled, setProBleEnabled] = useState(settings.proBleEnabled);
   const [mqttUrl, setMqttUrl] = useState(mqtt?.url ?? '');
   const [mqttUsername, setMqttUsername] = useState(mqtt?.username ?? '');
   const [mqttPrefix, setMqttPrefix] = useState(mqtt?.gen1TopicPrefix ?? MQTT_DEFAULTS.gen1TopicPrefix);
@@ -314,11 +315,12 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
 
   const udpDirty = udpEnabled !== settings.udpEnabled;
   const bleDirty = bleDirectEnabled !== settings.bleDirectEnabled;
+  const proBleDirty = proBleEnabled !== settings.proBleEnabled;
   const mqttDirty = mqttUrl !== (mqtt?.url ?? '')
     || mqttUsername !== (mqtt?.username ?? '')
     || mqttPrefix !== (mqtt?.gen1TopicPrefix ?? MQTT_DEFAULTS.gen1TopicPrefix)
     || (passwordReplacing && newPassword.trim() !== '');
-  const dirty = udpDirty || bleDirty || mqttDirty;
+  const dirty = udpDirty || bleDirty || proBleDirty || mqttDirty;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -332,6 +334,7 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
     const patch: Partial<Settings> = {};
     if (udpDirty) patch.udpEnabled = udpEnabled;
     if (bleDirty) patch.bleDirectEnabled = bleDirectEnabled;
+    if (proBleDirty) patch.proBleEnabled = proBleEnabled;
     if (mqttDirty) {
       patch.mqtt = {
         url: mqttUrl.trim(),
@@ -378,6 +381,19 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
         />
         <span>Listen for Kegtron Gen 1 Bluetooth adverts directly</span>
       </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          data-testid="settings-sources-pro-ble"
+          checked={proBleEnabled}
+          onChange={(e) => setProBleEnabled(e.target.checked)}
+        />
+        <span>Listen for Kegtron Pro Bluetooth adverts (pour fallback — no live pours)</span>
+      </label>
+      <p className="admin-page-quiet settings-toggle__note">
+        Pros only report over Bluetooth at the END of a pour — live pour progress still needs UDP.
+      </p>
 
       <div className="settings-group__grid">
         <label className="admin-field">

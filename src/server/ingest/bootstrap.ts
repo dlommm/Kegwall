@@ -1,11 +1,13 @@
 import type { AppContext } from '../context.js';
-import { reconcileProMonitor } from '../db/monitors.js';
+import { reconcileProMonitor, reconcileProMonitorByBleName } from '../db/monitors.js';
 import { KegtronCloudSource } from './kegtron/cloudSource.js';
 import { KegtronUdpSource } from './kegtron/udpSource.js';
+import { KegtronProBleSource } from './kegtron/proBleSource.js';
 import { GoveeSource } from './govee/goveeSource.js';
 import { Gen1MqttSource } from './gen1/mqttSource.js';
 import { Gen1BleSource } from './gen1/bleSource.js';
 import { PourSynthesizer } from './gen1/pourSynth.js';
+import { BleScanner } from './ble/scanner.js';
 import { HaPublisherSource } from './haPublisher.js';
 
 // ---------------------------------------------------------------------------
@@ -91,9 +93,29 @@ export function registerConfiguredSources(ctx: AppContext): void {
     }));
   }
 
+  // BOTH BLE sources (Gen 1 direct + Pro adverts) must share ONE noble scanner —
+  // noble is a process-wide singleton, and independent lifecycles meant one source's
+  // stop() could strip the other's discover listener (see ble/scanner.ts's header).
+  // Constructed only when at least one BLE source is enabled; refcounted acquire/
+  // release inside the sources handles actual scan start/stop.
+  const bleScanner = (settings.bleDirectEnabled || settings.proBleEnabled)
+    ? new BleScanner() : undefined;
+
   if (settings.bleDirectEnabled) {
     ctx.sources.register(new Gen1BleSource({
-      bus: ctx.bus, settings: ctx.settings, bleActiveMacs, synth: sharedSynth,
+      bus: ctx.bus, settings: ctx.settings, bleActiveMacs, synth: sharedSynth, scanner: bleScanner,
+    }));
+  }
+
+  if (settings.proBleEnabled) {
+    ctx.sources.register(new KegtronProBleSource({
+      bus: ctx.bus,
+      settings: ctx.settings,
+      scanner: bleScanner,
+      // Same monitor-identity reconciliation story as UDP's `reconcile` above, except
+      // the BLE advert has no serial — only the local name's serial-tail suffix (see
+      // db/monitors.ts's reconcileProMonitorByBleName).
+      reconcile: (nameSuffix, portIndex) => reconcileProMonitorByBleName(ctx.db, nameSuffix, portIndex),
     }));
   }
 

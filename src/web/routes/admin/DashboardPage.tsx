@@ -22,6 +22,7 @@ const SOURCE_LABELS: Record<SourceStatus['name'], string> = {
   kegtron_udp: 'Kegtron UDP',
   gen1_mqtt: 'Gen 1 MQTT',
   gen1_ble: 'Gen 1 BLE',
+  pro_ble: 'Pro BLE',
   mqtt_publisher: 'MQTT publisher',
   govee: 'Govee gateway',
 };

@@ -139,3 +139,38 @@ export function reconcileProMonitor(
   ).get(serialNum, portIndex) as { identifier: string } | undefined;
   return row ? { type: 'kegtron_pro', identifier: row.identifier, portIndex } : null;
 }
+
+/**
+ * BLE-name variant of `reconcileProMonitor` above, for the Pro BLE advert source
+ * (ingest/kegtron/proBleSource.ts). A Pro's BLE advertisement carries NO serial —
+ * the only device-level handle is its local name `Kegtron-XXXXXX` (see
+ * docs/kegtron/pro-ble-format.md). The XXXXXX suffix is hypothesized to be the tail
+ * of the cloud serial (e.g. name `Kegtron-011234` for serial `2001011234`), so this
+ * matches `serial LIKE '%suffix'` and only trusts an UNAMBIGUOUS hit:
+ *
+ *  - exactly one matching identifier → that ref (cloud's mdash id, or the UDP
+ *    fallback `udp:{serial}` row — either way the SAME row other sources use, so
+ *    PourDeduper can collapse cross-source duplicates of one physical pour);
+ *  - zero or multiple matches → null; the caller falls back to `ble:{mac}` (the
+ *    `udp:{serialNum}` precedent) so a cloudless BLE-only setup still surfaces a
+ *    bindable monitor.
+ *
+ * Self-referential `ble:` rows are excluded so the fallback identifier can never
+ * "reconcile" to itself on a later restart.
+ */
+export function reconcileProMonitorByBleName(
+  db: Database.Database, nameSuffix: string, portIndex: number,
+): MonitorRef | null {
+  if (!nameSuffix) return null;
+  const rows = db.prepare(
+    `SELECT DISTINCT identifier FROM monitors
+      WHERE type = 'kegtron_pro' AND port_index = ?
+        AND serial LIKE ? AND identifier NOT LIKE 'ble:%'`,
+  ).all(portIndex, `%${nameSuffix}`) as { identifier: string }[];
+  if (rows.length === 1) return { type: 'kegtron_pro', identifier: rows[0]!.identifier, portIndex };
+  // Two rows can legitimately coexist for one device (cloud id + udp: fallback created
+  // before cloud discovery) — prefer the cloud row when it's the only non-udp one.
+  const cloudRows = rows.filter((r) => !r.identifier.startsWith('udp:'));
+  if (cloudRows.length === 1) return { type: 'kegtron_pro', identifier: cloudRows[0]!.identifier, portIndex };
+  return null;
+}

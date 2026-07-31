@@ -19,5 +19,5 @@ import type { Settings } from '../db/settings.js';
  * web tsconfig's program and broken typecheck there.
  */
 export const SOURCE_RESTART_KEYS: readonly (keyof Settings)[] = [
-  'kegtronApiKey', 'udpEnabled', 'mqtt', 'bleDirectEnabled', 'govee',
+  'kegtronApiKey', 'udpEnabled', 'mqtt', 'bleDirectEnabled', 'proBleEnabled', 'govee',
 ];

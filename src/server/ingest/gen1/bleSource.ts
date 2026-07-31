@@ -2,10 +2,11 @@ import type { EventBus, MonitorRef } from '../../core/events.js';
 import type { SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
 import { PourSynthesizer } from './pourSynth.js';
+import { BleScanner, type NobleLike, type NoblePeripheral } from '../ble/scanner.js';
 // noble.d.ts (co-located in this directory) supplies an ambient ```declare module
-// '@abandonware/noble'``` fallback for the dynamic import below -- it needs no explicit
-// import here; TypeScript picks up ambient .d.ts files automatically from tsconfig's
-// "include" globs (see that file's header comment for why it exists).
+// '@abandonware/noble'``` fallback for the scanner's dynamic import -- it needs no
+// explicit import here; TypeScript picks up ambient .d.ts files automatically from
+// tsconfig's "include" globs (see that file's header comment for why it exists).
 
 // ---------------------------------------------------------------------------
 // Gen 1 (KT-100/KT-200) DIRECT BLE source -- scans for Kegtron manufacturer-data
@@ -98,25 +99,6 @@ export function decodeKegtronAdvert(manufacturerData: Buffer): DecodedKegtronAdv
   };
 }
 
-/** Minimal slice of `@abandonware/noble`'s public API actually used here -- see
- * noble.d.ts's header comment for why bleSource.ts doesn't rely on the package's own
- * (or any) shipped TypeScript types. */
-interface NobleLike {
-  state: string;
-  on(event: string, listener: (...args: any[]) => void): void;
-  startScanningAsync(serviceUUIDs?: string[], allowDuplicates?: boolean): Promise<void>;
-  stopScanningAsync(): Promise<void>;
-  removeAllListeners(event?: string): void;
-}
-
-interface NoblePeripheral {
-  id?: string;
-  address?: string;
-  advertisement?: { manufacturerData?: Buffer };
-}
-
-const DEFAULT_IMPORT_TIMEOUT_MS = 8_000;
-
 export interface Gen1BleSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
@@ -139,7 +121,7 @@ export interface Gen1BleSourceOptions {
    * hardware/permissions (brief: "no real BLE in CI"). Also how the "adapter/native
    * dep unavailable" and "import hangs" failure paths are tested without depending on
    * this exact sandbox's install state. Production default: a real
-   * `await import('@abandonware/noble')`. */
+   * `await import('@abandonware/noble')`. Ignored when `scanner` is supplied. */
   nobleFactory?: () => Promise<NobleLike>;
   /** Bounds how long start() will wait for the noble module to load before giving up
    * and marking the source unhealthy. Production default 8000ms. Empirically, a bare
@@ -150,8 +132,13 @@ export interface Gen1BleSourceOptions {
    * SourceManager.startAll() awaits each source's start() in turn, so a hung start()
    * here would also block every source registered after it from ever starting).
    * Test-only override, same additive-optional-constructor-knob precedent used
-   * throughout this codebase. */
+   * throughout this codebase. Ignored when `scanner` is supplied. */
   importTimeoutMs?: number;
+  /** The shared BLE scanner (ble/scanner.ts) — bootstrap passes ONE instance to every
+   * BLE source so noble is imported/scanned once and one source's stop() can't kill
+   * the other's discover subscription. Omitted (tests, single-source setups): the
+   * source constructs a private scanner from nobleFactory/importTimeoutMs above. */
+  scanner?: BleScanner;
 }
 
 /** Lowercase colon-separated MAC when `address` looks like one. macOS's CoreBluetooth
@@ -175,10 +162,9 @@ export class Gen1BleSource implements Source {
   private readonly bleActiveMacs: Map<string, number>;
   private readonly synth: PourSynthesizer;
   private readonly ownsSynth: boolean;
-  private readonly nobleFactory: (() => Promise<NobleLike>) | undefined;
-  private readonly importTimeoutMs: number;
+  private readonly scanner: BleScanner;
 
-  private noble: NobleLike | null = null;
+  private releaseScanner: (() => Promise<void>) | null = null;
   private readonly discovered = new Set<string>();
   private stopped = true;
 
@@ -188,8 +174,9 @@ export class Gen1BleSource implements Source {
     this.bleActiveMacs = opts.bleActiveMacs ?? new Map();
     this.ownsSynth = opts.synth === undefined;
     this.synth = opts.synth ?? new PourSynthesizer(opts.bus);
-    this.nobleFactory = opts.nobleFactory;
-    this.importTimeoutMs = opts.importTimeoutMs ?? DEFAULT_IMPORT_TIMEOUT_MS;
+    this.scanner = opts.scanner ?? new BleScanner({
+      nobleFactory: opts.nobleFactory, importTimeoutMs: opts.importTimeoutMs,
+    });
   }
 
   async start(): Promise<void> {
@@ -199,78 +186,34 @@ export class Gen1BleSource implements Source {
       return;
     }
 
-    let noble: NobleLike;
     try {
-      noble = await this.loadNobleWithTimeout();
+      this.releaseScanner = await this.scanner.acquire({
+        onPeripheral: (peripheral) => this.handleDiscover(peripheral),
+        onAdapter: (healthy, detail) => { if (!this.stopped) this.emitStatus(healthy, detail); },
+      });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       this.emitStatus(false, detail);
       return;
     }
-    if (this.stopped) return; // stop() ran while the import/timeout race was in flight
-
-    this.noble = noble;
-    this.emitStatus(false, `waiting for Bluetooth adapter (state: ${noble.state})`);
-    noble.on('stateChange', (state: string) => this.handleStateChange(state));
-    noble.on('discover', (peripheral: NoblePeripheral) => this.handleDiscover(peripheral));
-    if (noble.state === 'poweredOn') this.handleStateChange('poweredOn');
+    if (this.stopped) {
+      // stop() ran while the import/timeout race was in flight
+      const release = this.releaseScanner;
+      this.releaseScanner = null;
+      await release();
+    }
   }
 
   async stop(): Promise<void> {
     this.stopped = true;
     this.discovered.clear();
     if (this.ownsSynth) this.synth.dispose();
-    const noble = this.noble;
-    this.noble = null;
-    if (noble) {
-      try {
-        await noble.stopScanningAsync();
-      } catch {
-        // best-effort -- nothing further to do if the adapter is already gone
-      }
-      noble.removeAllListeners('discover');
-      noble.removeAllListeners('stateChange');
-    }
+    const release = this.releaseScanner;
+    this.releaseScanner = null;
+    if (release) await release();
   }
 
-  // -- noble loading ------------------------------------------------------------------
-
-  private loadNobleWithTimeout(): Promise<NobleLike> {
-    const load = this.nobleFactory ? this.nobleFactory() : this.importRealNoble();
-    let timer: ReturnType<typeof setTimeout>;
-    const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        reject(new Error(
-          `@abandonware/noble import timed out after ${this.importTimeoutMs}ms (missing native dependency or no Bluetooth adapter available?)`,
-        ));
-      }, this.importTimeoutMs);
-    });
-    return Promise.race([load, timeout]).finally(() => clearTimeout(timer));
-  }
-
-  private async importRealNoble(): Promise<NobleLike> {
-    // Dynamic import ONLY -- never a static `import ... from '@abandonware/noble'` --
-    // per the brief: it's an optionalDependency that may not be installed at all.
-    const mod: any = await import('@abandonware/noble');
-    return (mod.default ?? mod) as NobleLike;
-  }
-
-  // -- noble event handling -------------------------------------------------------------
-
-  private handleStateChange(state: string): void {
-    if (this.stopped || !this.noble) return;
-    if (state === 'poweredOn') {
-      this.emitStatus(true, 'scanning for Kegtron Gen 1 adverts');
-      void this.noble.startScanningAsync([], true).catch((err) => {
-        if (!this.stopped) {
-          const detail = err instanceof Error ? err.message : String(err);
-          this.emitStatus(false, `startScanning failed: ${detail}`);
-        }
-      });
-    } else {
-      this.emitStatus(false, `adapter state: ${state}`);
-    }
-  }
+  // -- advert handling ------------------------------------------------------------------
 
   private handleDiscover(peripheral: NoblePeripheral): void {
     if (this.stopped) return;

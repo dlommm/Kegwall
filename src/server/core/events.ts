@@ -32,7 +32,7 @@ export interface EventMap {
   device_online: { monitor: MonitorRef; ts: string };
   device_offline: { monitor: MonitorRef; ts: string };
   source_status: {
-    source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'mqtt_publisher' | 'govee';
+    source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'pro_ble' | 'mqtt_publisher' | 'govee';
     healthy: boolean; detail: string; ts: string;
     /** True when unhealthy only because the source was never CONFIGURED (no API key
      * set, etc). LogService logs this as a warn, not an error — a fresh install with

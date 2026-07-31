@@ -54,6 +54,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     backfillCursors: {},
     udpEnabled: false,
     bleDirectEnabled: false,
+    proBleEnabled: false,
     mqtt: null,
     quietHours: null,
     alertChannels: {},

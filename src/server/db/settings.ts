@@ -92,6 +92,10 @@ export const settingsSchema = z.object({
   backfillCursors: z.record(z.string(), z.string()).default({}),
   udpEnabled: z.boolean().default(false),
   bleDirectEnabled: z.boolean().default(false),
+  // Kegtron Pro BLE advert listener (ingest/kegtron/proBleSource.ts) — the pour
+  // FALLBACK when UDP can't cross VLANs. End-of-pour only (see
+  // docs/kegtron/pro-ble-format.md); live pours stay UDP.
+  proBleEnabled: z.boolean().default(false),
   mqtt: z
     .object({
       url: z.string(),            // e.g. mqtt://host:1883 or mqtts://
