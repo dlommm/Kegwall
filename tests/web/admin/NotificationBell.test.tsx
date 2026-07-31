@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import {
   act, fireEvent, render, screen,
 } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { NotificationBell } from '../../../src/web/routes/admin/NotificationBell';
 import {
   getUnackedCount, listNotifications, ackNotification, ackAllNotifications,

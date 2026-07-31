@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { LeaderboardEntry } from '../../../server/db/stats.js';
 import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
 

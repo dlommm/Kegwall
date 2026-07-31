@@ -2,7 +2,7 @@ import {
   describe, expect, it, vi, afterEach,
 } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import App from '../../src/web/App';
 
 // Smoke test: proves the jsdom test harness (vitest project + @testing-library/react

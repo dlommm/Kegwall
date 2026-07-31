@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { pairDisplay, getDisplayView } from '../lib/api';
 
 const STORAGE_KEY = 'kegtron.display';

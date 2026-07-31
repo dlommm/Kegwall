@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import {
   fireEvent, render, screen, waitFor,
 } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { AdminLayout } from '../../../src/web/routes/admin/AdminLayout';
 import { useAdminContext } from '../../../src/web/routes/admin/useAdminContext';
 

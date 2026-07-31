@@ -1,7 +1,7 @@
 import {
   useCallback, useEffect, useRef, useState,
 } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { useWallData } from '../lib/useWallData';
 import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { ThemeProvider } from '../themes/ThemeProvider';

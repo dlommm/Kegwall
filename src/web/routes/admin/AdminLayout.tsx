@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Navigate, NavLink, Outlet, useLocation, useNavigate,
-} from 'react-router-dom';
+} from 'react-router';
 import type { User } from '../../../server/db/users.js';
 import { getMe, logout, listWalls, getSystemVersion } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';

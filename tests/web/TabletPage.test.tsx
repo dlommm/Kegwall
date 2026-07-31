@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import {
   act, fireEvent, render, screen,
 } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { TabletPage, POURER_COLORS } from '../../src/web/routes/TabletPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import {

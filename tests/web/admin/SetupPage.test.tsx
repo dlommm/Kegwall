@@ -3,7 +3,7 @@ import {
 } from 'vitest';
 import type { Mock } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { SetupPage } from '../../../src/web/routes/admin/SetupPage';
 import { needsSetup, setup } from '../../../src/web/lib/adminApi';
 

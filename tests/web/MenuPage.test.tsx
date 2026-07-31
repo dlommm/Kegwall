@@ -3,7 +3,7 @@ import {
 } from 'vitest';
 import type { Mock } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router';
 import { MenuPage } from '../../src/web/routes/MenuPage';
 import { getMenu } from '../../src/web/lib/api';
 import { useTapStates } from '../../src/web/lib/useTapStates';

@@ -1,7 +1,7 @@
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 import { useWallData } from '../lib/useWallData';
 import {
   getDisplayView, getLeaderboard, getSensors,

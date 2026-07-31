@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { Leaderboard } from '../../../src/web/routes/admin/Leaderboard';
 import type { LeaderboardEntry } from '../../../src/server/db/stats';
 

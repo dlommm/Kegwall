@@ -3,7 +3,7 @@ import {
 } from 'vitest';
 import type { Mock } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router';
 import { WallPage } from '../../src/web/routes/WallPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import { usePrefersReducedMotion } from '../../src/web/lib/usePrefersReducedMotion';

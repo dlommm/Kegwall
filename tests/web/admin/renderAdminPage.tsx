@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
-import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import type { AdminOutletContext } from '../../../src/web/routes/admin/useAdminContext';
 
 const DEFAULT_ME: AdminOutletContext['me'] = {

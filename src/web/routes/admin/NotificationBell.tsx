@@ -1,7 +1,7 @@
 import {
   useCallback, useEffect, useRef, useState,
 } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { Notification } from '../../../server/db/notificationsRepo.js';
 import {
   getUnackedCount, listNotifications, ackNotification, ackAllNotifications,
