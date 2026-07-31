@@ -122,6 +122,10 @@ if ! command -v node >/dev/null || [ "$(node -e 'console.log(process.versions.no
 fi
 if [ "$WITH_BLE" -eq 1 ]; then
   apt-get install -y -qq bluetooth bluez libbluetooth-dev libudev-dev
+  # A soft-rfkill'd or disabled adapter reports state poweredOff to the scanner and
+  # nothing ever scans — make sure it's actually on (idempotent, harmless if it was).
+  rfkill unblock bluetooth 2>/dev/null || true
+  systemctl enable --now bluetooth 2>/dev/null || true
 fi
 
 echo "==> Creating kegwall user + checkout"
