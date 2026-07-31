@@ -18,6 +18,7 @@ function renderSetupPage() {
       <Routes>
         <Route path="/admin/setup" element={<SetupPage />} />
         <Route path="/admin/login" element={<div data-testid="login-route" />} />
+        <Route path="/admin/welcome" element={<div data-testid="welcome-route" />} />
         <Route path="/admin" element={<div data-testid="admin-route" />} />
       </Routes>
     </MemoryRouter>,
@@ -69,7 +70,7 @@ describe('SetupPage', () => {
     expect(setup).not.toHaveBeenCalled();
   });
 
-  it('creates the account and navigates to /admin on success', async () => {
+  it('creates the account and hands off to the /admin/welcome wizard on success', async () => {
     (setup as Mock).mockResolvedValue({
       ok: true,
       data: {
@@ -79,7 +80,7 @@ describe('SetupPage', () => {
     renderSetupPage();
     await fillForm();
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
-    expect(await screen.findByTestId('admin-route')).toBeInTheDocument();
+    expect(await screen.findByTestId('welcome-route')).toBeInTheDocument();
     expect(setup).toHaveBeenCalledWith({ username: 'dan', displayName: 'Dan', password: 'hunter222' });
   });
 

@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPage } from '../../../src/web/routes/admin/SettingsPage';
 import {
   getSettings, patchSettings, uploadLabel, testChannel, checkForUpdates, triggerUpdate,
+  triggerOsUpdate,
 } from '../../../src/web/lib/adminApi';
 import type { Settings } from '../../../src/server/db/settings';
 
@@ -18,6 +19,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   checkForUpdates: vi.fn(),
   triggerUpdate: vi.fn(),
   pollSystemVersion: vi.fn().mockResolvedValue(null),
+  triggerOsUpdate: vi.fn(),
 }));
 
 vi.mock('../../../src/web/routes/admin/BackupPanel', () => ({
@@ -707,6 +709,77 @@ describe('SettingsPage', () => {
       await flush();
 
       expect(screen.getByTestId('settings-system-update-error')).toHaveTextContent('pick a mode first');
+    });
+  });
+
+  describe('System group (OS updates block)', () => {
+    it('is hidden entirely unless the SAVED update mode is native', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-system');
+      await flush();
+      expect(screen.queryByTestId('settings-system-os')).not.toBeInTheDocument();
+
+      // Flipping the (unsaved) select must NOT reveal it.
+      fireEvent.change(screen.getByTestId('settings-system-mode'), { target: { value: 'native' } });
+      expect(screen.queryByTestId('settings-system-os')).not.toBeInTheDocument();
+    });
+
+    it('saving PATCHes only the osUpdates key', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ updates: { mode: 'native' } }),
+      });
+      (patchSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({
+          updates: { mode: 'native' },
+          osUpdates: { mode: 'manual', autoReboot: true },
+        }),
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-system-os');
+
+      fireEvent.change(screen.getByTestId('settings-system-os-mode'), { target: { value: 'manual' } });
+      fireEvent.click(screen.getByTestId('settings-system-os-autoreboot'));
+      fireEvent.click(screen.getByTestId('settings-system-os-save'));
+      await flush();
+
+      expect(patchSettings).toHaveBeenCalledWith({ osUpdates: { mode: 'manual', autoReboot: true } });
+    });
+
+    it('Update OS now: disabled while off/dirty, two-step confirm calls triggerOsUpdate', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({
+          updates: { mode: 'native' },
+          osUpdates: { mode: 'manual', autoReboot: false },
+        }),
+      });
+      (triggerOsUpdate as Mock).mockResolvedValue({
+        ok: true, data: { message: 'OS update started in the background' },
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-system-os');
+      await flush();
+
+      fireEvent.click(screen.getByTestId('settings-system-os-update'));
+      expect(triggerOsUpdate).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('settings-system-os-update-confirm'));
+      await flush();
+
+      expect(triggerOsUpdate).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('settings-system-os-started')).toHaveTextContent('background');
+    });
+
+    it('shows the unattended-upgrades hint only in auto mode', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ updates: { mode: 'native' } }),
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-system-os');
+      expect(screen.queryByTestId('settings-system-os-auto-hint')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByTestId('settings-system-os-mode'), { target: { value: 'auto' } });
+      expect(screen.getByTestId('settings-system-os-auto-hint')).toBeInTheDocument();
     });
   });
 });

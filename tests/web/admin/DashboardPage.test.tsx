@@ -7,7 +7,8 @@ import { DashboardPage } from '../../../src/web/routes/admin/DashboardPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
-  getActivity, getSources, getPoursSince,
+  getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
+  type SystemStats,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { SourceStatus } from '../../../src/server/ingest/manager';
@@ -21,6 +22,9 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getActivity: vi.fn(),
   getSources: vi.fn(),
   getPoursSince: vi.fn(),
+  getSystemStats: vi.fn(),
+  listWalls: vi.fn(),
+  triggerReboot: vi.fn(),
 }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
@@ -61,6 +65,21 @@ function makePour(overrides: Partial<Pour> = {}): Pour {
   };
 }
 
+function makeStats(overrides: Partial<SystemStats> = {}): SystemStats {
+  return {
+    cpu: { loadPct: 12, cores: 4 },
+    memory: { totalBytes: 8 * 1024 ** 3, availableBytes: 6 * 1024 ** 3, usedPct: 25 },
+    disk: { totalBytes: 64 * 1024 ** 3, availableBytes: 32 * 1024 ** 3, usedPct: 50 },
+    uptimeSec: 3600,
+    cpuTempC: null,
+    throttle: null,
+    watts: null,
+    rebootRequired: false,
+    osManaged: false,
+    ...overrides,
+  };
+}
+
 async function flush() {
   await act(async () => {
     await Promise.resolve();
@@ -77,6 +96,9 @@ describe('DashboardPage', () => {
     (getActivity as Mock).mockResolvedValue({ ok: true, data: [] });
     (getSources as Mock).mockResolvedValue({ ok: true, data: [] });
     (getPoursSince as Mock).mockResolvedValue({ ok: true, data: [] });
+    (getSystemStats as Mock).mockResolvedValue({ ok: true, data: makeStats() });
+    (listWalls as Mock).mockResolvedValue({ ok: true, data: [{ id: 1, slug: 'main', name: 'Main', config: {} }] });
+    (triggerReboot as Mock).mockResolvedValue({ ok: true, data: { message: 'Rebooting' } });
   });
 
   afterEach(() => {
@@ -232,5 +254,80 @@ describe('DashboardPage', () => {
     expect(getSources).toHaveBeenCalledTimes(2);
     expect(getActivity).toHaveBeenCalledTimes(2);
     expect(getPoursSince).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders the SERVER card with CPU/RAM/disk, hiding watts when null', async () => {
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    const note = screen.getByTestId('dashboard-server-note');
+    expect(note).toHaveTextContent('CPU 12% · RAM 25% · disk 50%');
+    expect(note).not.toHaveTextContent('W');
+    // No SoC temp off-Pi → CPU% is the primary value.
+    expect(screen.getByTestId('dashboard-server-primary')).toHaveTextContent('12%');
+  });
+
+  it('shows temp as the primary value and watts in the note when the host reports them', async () => {
+    (getSystemStats as Mock).mockResolvedValue({
+      ok: true, data: makeStats({ cpuTempC: 52.3, watts: 6.4 }),
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-server-primary')).toHaveTextContent('126');
+    expect(screen.getByTestId('dashboard-server-note')).toHaveTextContent('6.4 W');
+  });
+
+  it('shows the red undervoltage banner on the sticky since-boot flag', async () => {
+    (getSystemStats as Mock).mockResolvedValue({
+      ok: true,
+      data: makeStats({
+        throttle: {
+          undervoltedNow: false, freqCappedNow: false, throttledNow: false,
+          undervoltedSinceBoot: true, freqCappedSinceBoot: false, throttledSinceBoot: false,
+        },
+      }),
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    const banner = screen.getByTestId('dashboard-undervolt-banner');
+    expect(banner).toHaveTextContent('Power problem');
+    expect(banner).toHaveTextContent('since it booted');
+  });
+
+  it('reboot banner: two-step confirm calls triggerReboot, and the button is absent when not osManaged', async () => {
+    (getSystemStats as Mock).mockResolvedValue({
+      ok: true, data: makeStats({ rebootRequired: true, osManaged: true }),
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-reboot-banner')).toBeInTheDocument();
+    expect(triggerReboot).not.toHaveBeenCalled();
+    screen.getByTestId('dashboard-reboot-button').click();
+    await flush();
+    screen.getByTestId('dashboard-reboot-confirm').click();
+    await flush();
+    expect(triggerReboot).toHaveBeenCalledTimes(1);
+  });
+
+  it('reboot banner without osManaged shows no button at all', async () => {
+    (getSystemStats as Mock).mockResolvedValue({
+      ok: true, data: makeStats({ rebootRequired: true, osManaged: false }),
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-reboot-banner')).toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-reboot-button')).not.toBeInTheDocument();
+  });
+
+  it('shows the finish-setup hint only while no wall exists', async () => {
+    (listWalls as Mock).mockResolvedValue({ ok: true, data: [] });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-setup-hint')).toHaveTextContent('Finish setting up');
+  });
+
+  it('hides the finish-setup hint once a wall exists', async () => {
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.queryByTestId('dashboard-setup-hint')).not.toBeInTheDocument();
   });
 });

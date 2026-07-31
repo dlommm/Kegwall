@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router';
 import { LoginPage } from './LoginPage';
 import { SetupPage } from './SetupPage';
+import { WelcomePage } from './WelcomePage';
 import { AdminLayout } from './AdminLayout';
 import { DashboardPage } from './DashboardPage';
 import { BeersPage } from './BeersPage';
@@ -39,6 +40,10 @@ export default function AdminApp() {
           three together. */}
       <Route path="login" element={<LoginPage />} />
       <Route path="setup" element={<SetupPage />} />
+      {/* /welcome also sits outside AdminLayout: it's the chrome-free first-run wizard
+          SetupPage hands off to. It DOES run authenticated (setup just set the session
+          cookie) — adminApi's 401 redirect bounces logged-out visitors to login. */}
+      <Route path="welcome" element={<WelcomePage />} />
       <Route element={<AdminLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="beers" element={<BeersPage />} />

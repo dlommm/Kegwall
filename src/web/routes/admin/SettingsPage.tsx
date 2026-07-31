@@ -7,7 +7,8 @@ import type { Settings } from '../../../server/db/settings.js';
 import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
 import {
   getSettings, patchSettings, uploadLabel, testChannel,
-  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, type UpdateCheck,
+  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, triggerOsUpdate,
+  type UpdateCheck,
 } from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
 
@@ -933,7 +934,131 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
           </p>
         )}
       </form>
+
+      {/* OS updates — NATIVE installs only (the trigger-file units only exist there);
+          Docker/watchtower admins never see this block. Gated on the SAVED mode so
+          merely flipping the select above doesn't flash it in and out. */}
+      {savedMode === 'native' && <OsUpdatesBlock settings={settings} onSaved={onSaved} />}
     </section>
+  );
+}
+
+/** The "Operating system" block inside SystemGroup: apt-update mode (off / manual /
+ * unattended-upgrades) + auto-reboot, and the "Update OS now" trigger with an inline
+ * two-step confirm (the software-update idiom above — NOT BackupPanel's typed-word
+ * gate, which destructive restore alone has earned). */
+function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
+  const cfg = settings.osUpdates;
+  const [osMode, setOsMode] = useState<'off' | 'manual' | 'auto'>(cfg?.mode ?? 'off');
+  const [autoReboot, setAutoReboot] = useState(cfg?.autoReboot ?? false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [run, setRun] = useState<
+    { state: 'idle' } | { state: 'confirming' } | { state: 'started'; message: string } | { state: 'failed'; message: string }
+  >({ state: 'idle' });
+
+  const savedOsMode = cfg?.mode ?? 'off';
+  const dirty = osMode !== savedOsMode || autoReboot !== (cfg?.autoReboot ?? false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!dirty) return;
+    setError(null);
+    setSubmitting(true);
+    const patch: Partial<Settings> = { osUpdates: { mode: osMode, autoReboot } };
+    const result = await patchSettings(patch);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    onSaved(result.data, patch);
+  }
+
+  async function runOsUpdate() {
+    const result = await triggerOsUpdate();
+    setRun(result.ok
+      ? { state: 'started', message: result.data.message }
+      : { state: 'failed', message: result.message });
+  }
+
+  return (
+    <form className="channels-group__block" data-testid="settings-system-os" onSubmit={handleSubmit}>
+      <h3 className="channels-group__block-title">Operating system</h3>
+      <p className="admin-page-quiet">
+        Keeps Raspberry Pi OS itself (apt packages, security fixes) updated — separate
+        from Kegwall updates above.
+      </p>
+      <label className="admin-field">
+        <span>OS updates</span>
+        <select
+          data-testid="settings-system-os-mode"
+          value={osMode}
+          onChange={(e) => setOsMode(e.target.value as 'off' | 'manual' | 'auto')}
+        >
+          <option value="off">Off</option>
+          <option value="manual">Manual — update from here</option>
+          <option value="auto">Automatic — unattended-upgrades</option>
+        </select>
+      </label>
+      {osMode === 'auto' && (
+        <p className="admin-page-quiet" data-testid="settings-system-os-auto-hint">
+          Automatic mode relies on unattended-upgrades set up by the Pi installer —
+          re-run scripts/pi-install.sh (or see the Raspberry Pi docs) if it wasn&rsquo;t
+          enabled at install time.
+        </p>
+      )}
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          data-testid="settings-system-os-autoreboot"
+          checked={autoReboot}
+          onChange={(e) => setAutoReboot(e.target.checked)}
+        />
+        <span>Reboot automatically when an update requires it</span>
+      </label>
+      {error && (
+        <p className="beer-form__notice" role="alert" data-testid="settings-system-os-error">{error}</p>
+      )}
+      <button
+        type="submit"
+        className="beer-form__submit"
+        disabled={!dirty || submitting}
+        data-testid="settings-system-os-save"
+      >
+        {submitting ? 'Saving…' : 'Save changes'}
+      </button>
+
+      <div className="doctor-row__actions">
+        {run.state === 'confirming' ? (
+          <button
+            type="button"
+            data-testid="settings-system-os-update-confirm"
+            onClick={runOsUpdate}
+          >
+            Confirm — apt runs in the background; if a reboot is needed and auto-reboot
+            is on, the Pi reboots immediately and the wall goes dark for ~1–2 minutes
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="settings-system-os-update"
+            disabled={savedOsMode === 'off' || dirty}
+            onClick={() => setRun({ state: 'confirming' })}
+          >
+            Update OS now
+          </button>
+        )}
+      </div>
+      {run.state === 'started' && (
+        <p className="admin-page-quiet" data-testid="settings-system-os-started">{run.message}</p>
+      )}
+      {run.state === 'failed' && (
+        <p className="beer-form__notice" role="alert" data-testid="settings-system-os-run-error">
+          {run.message}
+        </p>
+      )}
+    </form>
   );
 }
 

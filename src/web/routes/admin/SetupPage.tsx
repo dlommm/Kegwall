@@ -57,7 +57,9 @@ export function SetupPage() {
     const result = await setup({ username, displayName, password });
     setSubmitting(false);
     if (result.ok) {
-      navigate('/admin', { replace: true });
+      // Fresh install → straight into the guided first-run wizard (the session cookie
+      // from POST /api/auth/setup is already set, so /admin/welcome runs authed).
+      navigate('/admin/welcome', { replace: true });
       return;
     }
     setServerError(result.message);

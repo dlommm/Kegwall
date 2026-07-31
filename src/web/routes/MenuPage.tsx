@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import type { TapState } from '../../server/core/state.js';
 import { getMenu } from '../lib/api';
 import { useTapStates } from '../lib/useTapStates';
@@ -86,6 +87,12 @@ export function MenuPage() {
             <PassportCard />
             <ClaimSheet />
           </>
+
+          <footer className="menu-page__footer">
+            <Link to="/admin" className="menu-page__admin-link" data-testid="menu-admin-link">
+              ⚙ Admin
+            </Link>
+          </footer>
         </main>
       )}
     </ThemeProvider>

@@ -67,6 +67,16 @@ describe('MenuPage', () => {
     expect(await screen.findByTestId('menu-page-site-name')).toHaveTextContent('The Keg Cave');
   });
 
+  it('shows a discreet admin link in the footer', async () => {
+    (getMenu as Mock).mockResolvedValue({
+      ok: true, data: { siteName: 'The Keg Cave', taps: [], units: 'us' },
+    });
+    renderMenu();
+    const link = await screen.findByTestId('menu-admin-link');
+    expect(link).toHaveTextContent('Admin');
+    expect(link).toHaveAttribute('href', '/admin');
+  });
+
   it('never renders a hidden tap on the public menu', async () => {
     (getMenu as Mock).mockResolvedValue({
       ok: true, data: { siteName: 'The Keg Cave', taps: [], units: 'us' },

@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { SourceStatus } from '../../../server/ingest/manager.js';
 import type { ActivityEvent } from '../../../server/db/activity.js';
+import { Link } from 'react-router';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
-import { getActivity, getSources, getPoursSince } from '../../lib/adminApi';
+import {
+  getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
+  type SystemStats,
+} from '../../lib/adminApi';
 import { formatActivityText } from '../../lib/activityText';
 import { formatTempC, formatVolumeMl } from '../../lib/units';
 import { levelStatus } from '../../lib/lookData';
@@ -16,6 +20,10 @@ import { useAdminContext } from './useAdminContext';
  * no push channel for any of these (unlike taps, which ride the existing `/ws` snapshot
  * via `useTapStates` below). */
 const POLL_INTERVAL_MS = 60_000;
+
+/** Host stats poll their own (faster) clock — a separate effect so the activity/
+ * sources/pours traffic isn't tripled just to keep CPU% fresh. */
+const STATS_POLL_MS = 20_000;
 
 const SOURCE_LABELS: Record<SourceStatus['name'], string> = {
   kegtron_cloud: 'Kegtron cloud',
@@ -53,6 +61,10 @@ export function DashboardPage() {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [pourCount, setPourCount] = useState(0);
   const [pourVolumeMl, setPourVolumeMl] = useState(0);
+  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [wallCount, setWallCount] = useState<number | null>(null);
+  const [rebootConfirming, setRebootConfirming] = useState(false);
+  const [rebooting, setRebooting] = useState(false);
 
   // Initial taps snapshot comes from the same public menu payload MenuPage/WallPage use
   // (live updates then ride useTapStates' own /ws subscription below).
@@ -93,6 +105,39 @@ export function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      getSystemStats().then((result) => {
+        if (!cancelled && result.ok) setStats(result.data);
+      });
+    };
+    poll();
+    const id = setInterval(poll, STATS_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  // One-shot: drives the "finish setting up" hint while no wall exists yet.
+  useEffect(() => {
+    let cancelled = false;
+    listWalls().then((result) => {
+      if (!cancelled && result.ok) setWallCount(result.data.length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleReboot() {
+    setRebooting(true);
+    await triggerReboot();
+    // No poll-for-recovery machinery: the server is about to drop the connection; the
+    // admin watches the wall come back. Button stays disabled for this page's life.
+  }
+
   const onTap = taps.filter((t) => t.beer && t.keg);
   const kicked = onTap.filter((t) => t.keg!.status === 'kicked').length;
   const almostGone = onTap.filter((t) => t.keg!.status !== 'kicked' && t.keg!.levelPct <= 15).length;
@@ -101,8 +146,59 @@ export function DashboardPage() {
   const registered = sources.filter((s) => s.registered);
   const healthy = registered.filter((s) => s.healthy);
 
+  const undervolted = stats?.throttle
+    && (stats.throttle.undervoltedNow || stats.throttle.undervoltedSinceBoot);
+
   return (
     <section data-testid="admin-dashboard-page" className="dashboard">
+      {wallCount === 0 && (
+        <div className="dashboard-banner dashboard-banner--info" data-testid="dashboard-setup-hint">
+          <span>No tap wall yet — finish the guided setup to create one.</span>
+          <Link to="/admin/welcome" className="dashboard-banner__action">Finish setting up →</Link>
+        </div>
+      )}
+
+      {undervolted && (
+        <div className="dashboard-banner dashboard-banner--danger" role="alert" data-testid="dashboard-undervolt-banner">
+          <strong>Power problem:</strong>
+          {' '}
+          {stats!.throttle!.undervoltedNow
+            ? 'this Pi isn’t getting enough power right now.'
+            : 'this Pi hasn’t had enough power at some point since it booted.'}
+          {' '}
+          Use the official power supply — undervoltage corrupts SD cards and causes random crashes.
+        </div>
+      )}
+
+      {stats?.rebootRequired && (
+        <div className="dashboard-banner dashboard-banner--warn" data-testid="dashboard-reboot-banner">
+          <span>An OS update is waiting for a reboot.</span>
+          {stats.osManaged && !rebootConfirming && (
+            <button
+              type="button"
+              className="dashboard-banner__action"
+              onClick={() => setRebootConfirming(true)}
+              data-testid="dashboard-reboot-button"
+            >
+              Reboot now
+            </button>
+          )}
+          {stats.osManaged && rebootConfirming && (
+            <button
+              type="button"
+              className="dashboard-banner__action dashboard-banner__action--confirm"
+              onClick={handleReboot}
+              disabled={rebooting}
+              data-testid="dashboard-reboot-confirm"
+            >
+              {rebooting
+                ? 'Rebooting…'
+                : 'Confirm — the wall goes dark for ~1–2 minutes; pours during the reboot are lost unless they sync back from Kegtron cloud'}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="dashboard__stats">
         <div className="dashboard-stat" data-testid="dashboard-card-pours">
           <span className="dashboard-stat__label">TODAY&rsquo;S POURS</span>
@@ -137,6 +233,20 @@ export function DashboardPage() {
             <span className="dashboard-stat__sub"> healthy</span>
           </span>
         </div>
+        {stats && (
+          <div className="dashboard-stat" data-testid="dashboard-card-server">
+            <span className="dashboard-stat__label">SERVER</span>
+            <span className="dashboard-stat__value font-display font-tabular" data-testid="dashboard-server-primary">
+              {stats.cpuTempC != null ? formatTempC(stats.cpuTempC, units) : `${stats.cpu.loadPct}%`}
+              {stats.cpuTempC == null && <span className="dashboard-stat__sub"> CPU</span>}
+            </span>
+            <span className="dashboard-stat__note" data-testid="dashboard-server-note">
+              {`CPU ${stats.cpu.loadPct}% · RAM ${stats.memory.usedPct}%`}
+              {stats.disk ? ` · disk ${stats.disk.usedPct}%` : ''}
+              {stats.watts != null ? ` · ${stats.watts} W` : ''}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="dashboard__body">

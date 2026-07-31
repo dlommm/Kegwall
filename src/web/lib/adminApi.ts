@@ -784,3 +784,46 @@ export async function pollSystemVersion(): Promise<string | null> {
     return null;
   }
 }
+
+// --- System: host stats, install URLs, OS actions (Pi monitoring epic) --------
+// Shapes mirror routes/system.ts but are defined HERE (the UpdateCheck precedent):
+// importing types from a routes file would drag Fastify's module augmentation into
+// tsconfig.web.json's program — see this file's header comment.
+
+export interface SystemStats {
+  cpu: { loadPct: number; cores: number };
+  memory: { totalBytes: number; availableBytes: number; usedPct: number };
+  disk: { totalBytes: number; availableBytes: number; usedPct: number } | null;
+  uptimeSec: number;
+  cpuTempC: number | null;
+  throttle: {
+    undervoltedNow: boolean; freqCappedNow: boolean; throttledNow: boolean;
+    undervoltedSinceBoot: boolean; freqCappedSinceBoot: boolean; throttledSinceBoot: boolean;
+  } | null;
+  watts: number | null;
+  rebootRequired: boolean;
+  osManaged: boolean;
+}
+
+export function getSystemStats(): Promise<ApiResult<SystemStats>> {
+  return request('/api/system/stats');
+}
+
+export interface SystemUrls {
+  port: number;
+  hostname: string;
+  addresses: string[];
+  install: 'native' | 'docker' | 'unknown';
+}
+
+export function getSystemUrls(): Promise<ApiResult<SystemUrls>> {
+  return request('/api/system/urls');
+}
+
+export function triggerOsUpdate(): Promise<ApiResult<{ message: string }>> {
+  return request('/api/system/os-update', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function triggerReboot(): Promise<ApiResult<{ message: string }>> {
+  return request('/api/system/reboot', { method: 'POST', body: JSON.stringify({}) });
+}
