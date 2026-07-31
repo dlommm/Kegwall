@@ -31,6 +31,10 @@ export interface AppContext {
   sensors: SensorRegistry;
   /** The tablet's group-tab session (Phase 6, design 6c) — see core/sessionMode.ts. */
   session: SessionRegistry;
+  /** The running app version (package.json, read once at boot by index.ts). Tests and
+   * direct createContext callers get '0.0.0-dev'. Feeds GET /api/system/version and
+   * the update-check comparison. */
+  version: string;
 }
 
 /**
@@ -54,7 +58,7 @@ function pruneStaleRows(db: Database.Database): void {
   }
 }
 
-export function createContext(dataDir: string): AppContext {
+export function createContext(dataDir: string, version = '0.0.0-dev'): AppContext {
   const db = openDb(dataDir);
   pruneStaleRows(db);
   const bus = new EventBus();
@@ -76,7 +80,7 @@ export function createContext(dataDir: string): AppContext {
   // option, not unconditionally like `state.start()` above. See automation/engine.ts's
   // top doc comment, point 6.
   const engine = new AutomationEngine({ db, bus, settings, state });
-  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry() };
+  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry(), version };
   // Registers whatever the current settings call for (Task 8's bootstrap.ts) — does NOT
   // start them; that's gated behind `buildApp()`'s `startSources` option (see app.ts /
   // index.ts) so tests never accidentally spin up real network/BLE/MQTT connections.

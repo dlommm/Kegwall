@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPage } from '../../../src/web/routes/admin/SettingsPage';
 import {
-  getSettings, patchSettings, uploadLabel, testChannel,
+  getSettings, patchSettings, uploadLabel, testChannel, checkForUpdates, triggerUpdate,
 } from '../../../src/web/lib/adminApi';
 import type { Settings } from '../../../src/server/db/settings';
 
@@ -14,6 +14,10 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   patchSettings: vi.fn(),
   uploadLabel: vi.fn(),
   testChannel: vi.fn(),
+  getSystemVersion: vi.fn().mockResolvedValue({ ok: true, data: { version: '0.0.0-test' } }),
+  checkForUpdates: vi.fn(),
+  triggerUpdate: vi.fn(),
+  pollSystemVersion: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../../src/web/routes/admin/BackupPanel', () => ({
@@ -37,6 +41,9 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     autoImportBeers: true,
     govee: null,
     goveeBaseUrl: 'https://openapi.api.govee.com',
+    updateCheckBaseUrl: 'https://github.com',
+    updateCheckProjectPath: 'dlomm/kegwall',
+    updates: null,
     kegtronApiKey: null,
     kegtronBaseUrl: 'https://mdash.net',
     openBreweryBaseUrl: 'https://api.openbrewerydb.org',
@@ -604,6 +611,100 @@ describe('SettingsPage', () => {
       await flush();
 
       expect(screen.getByTestId('settings-channels-ntfy-test-result')).toHaveTextContent('not configured yet');
+    });
+  });
+
+  describe('System group (in-app updates)', () => {
+    it('renders the card with the version, off-mode hint, and a disabled Update button', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-system');
+      await flush();
+
+      expect(screen.getByTestId('settings-system-version')).toHaveTextContent('v0.0.0-test');
+      expect(screen.getByTestId('settings-system-off-hint')).toBeInTheDocument();
+      expect(screen.getByTestId('settings-system-update')).toBeDisabled();
+      // Watchtower fields hidden while mode is off.
+      expect(screen.queryByTestId('settings-system-watchtower-url')).not.toBeInTheDocument();
+    });
+
+    it('watchtower mode reveals url + masked token, and saving PATCHes the updates key', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      (patchSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({
+          updates: { mode: 'watchtower', watchtowerUrl: 'http://127.0.0.1:8090', watchtowerToken: '••••cdef' },
+        }),
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-system');
+
+      fireEvent.change(screen.getByTestId('settings-system-mode'), { target: { value: 'watchtower' } });
+      fireEvent.change(screen.getByTestId('settings-system-watchtower-url'), {
+        target: { value: 'http://127.0.0.1:8090' },
+      });
+      fireEvent.click(screen.getByTestId('settings-system-watchtower-token-replace'));
+      fireEvent.change(screen.getByTestId('settings-system-watchtower-token-input'), {
+        target: { value: 'abcdef' },
+      });
+      fireEvent.click(screen.getByTestId('settings-system-save'));
+      await flush();
+
+      expect(patchSettings).toHaveBeenCalledWith({
+        updates: { mode: 'watchtower', watchtowerUrl: 'http://127.0.0.1:8090', watchtowerToken: 'abcdef' },
+      });
+    });
+
+    it('check-for-updates runs and shows the available-version line with a notes link', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ updates: { mode: 'native' } }),
+      });
+      (checkForUpdates as Mock).mockResolvedValue({
+        ok: true,
+        data: { ok: true, current: '0.0.0-test', latest: '9.0.0', updateAvailable: true, notesUrl: 'https://x/releases/v9.0.0' },
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-system');
+
+      fireEvent.click(screen.getByTestId('settings-system-check'));
+      await flush();
+
+      expect(screen.getByTestId('settings-system-check-result')).toHaveTextContent('v9.0.0 available');
+      expect(screen.getByRole('link', { name: /release notes/i })).toHaveAttribute('href', 'https://x/releases/v9.0.0');
+    });
+
+    it('Update now needs the two-step confirm, then triggers and shows the updating banner', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ updates: { mode: 'native' } }),
+      });
+      (triggerUpdate as Mock).mockResolvedValue({ ok: true, data: { mode: 'native' } });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-system');
+      await flush();
+
+      fireEvent.click(screen.getByTestId('settings-system-update'));
+      expect(triggerUpdate).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('settings-system-update-confirm'));
+      await flush();
+
+      expect(triggerUpdate).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('settings-system-updating')).toBeInTheDocument();
+    });
+
+    it('a trigger failure (e.g. mode not configured server-side) surfaces the message', async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ updates: { mode: 'native' } }),
+      });
+      (triggerUpdate as Mock).mockResolvedValue({ ok: false, status: 409, message: 'pick a mode first' });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-system');
+      await flush();
+
+      fireEvent.click(screen.getByTestId('settings-system-update'));
+      fireEvent.click(screen.getByTestId('settings-system-update-confirm'));
+      await flush();
+
+      expect(screen.getByTestId('settings-system-update-error')).toHaveTextContent('pick a mode first');
     });
   });
 });

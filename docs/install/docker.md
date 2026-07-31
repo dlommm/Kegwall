@@ -134,6 +134,11 @@ directory name, e.g. `deploy_kegtron-data` when run from `deploy/`.)
 
 ## Updating
 
+In-app: with a Watchtower sidecar in HTTP-API mode (see the commented block in
+`deploy/docker-compose.unraid.yml` or the ready-made `deploy/docker-compose.pi.yml`),
+**Settings → System → Update now** pulls and swaps the container in the background —
+no shell needed. Manual:
+
 ```sh
 cd deploy
 docker compose pull   # only if you switched to the published registry image

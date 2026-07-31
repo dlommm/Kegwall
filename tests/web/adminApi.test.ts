@@ -19,6 +19,7 @@ import {
   listAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
   runAutomation, listAutomationTemplates, createFromTemplate, listAutomationChannels,
   listNotifications, getUnackedCount, ackNotification, ackAllNotifications, testChannel,
+  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -813,5 +814,35 @@ describe('admin api client', () => {
     const call = (globalThis.fetch as Mock).mock.calls[0]!;
     expect(call[0]).toBe('/api/channels/ntfy/test');
     expect(call[1].method).toBe('POST');
+  });
+
+  it('getSystemVersion GETs, checkForUpdates and triggerUpdate POST the system routes', async () => {
+    mockFetchOnce(200, { version: '1.2.3' });
+    await getSystemVersion();
+    expect((globalThis.fetch as Mock).mock.calls[0]![0]).toBe('/api/system/version');
+
+    mockFetchOnce(200, { ok: true, current: '1.2.3', latest: '1.3.0', updateAvailable: true, notesUrl: 'x' });
+    await checkForUpdates();
+    let call = (globalThis.fetch as Mock).mock.calls[1]!;
+    expect(call[0]).toBe('/api/system/update-check');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].body).toBe('{}');
+
+    mockFetchOnce(202, { mode: 'native' });
+    await triggerUpdate('1.3.0');
+    call = (globalThis.fetch as Mock).mock.calls[2]!;
+    expect(call[0]).toBe('/api/system/update');
+    expect(JSON.parse(call[1].body)).toEqual({ version: '1.3.0' });
+  });
+
+  it('pollSystemVersion swallows every failure as null (raw fetch, no 401 redirect)', async () => {
+    (globalThis.fetch as Mock).mockRejectedValueOnce(new Error('down'));
+    expect(await pollSystemVersion()).toBeNull();
+
+    mockFetchOnce(401, { message: 'nope' });
+    expect(await pollSystemVersion()).toBeNull();
+
+    mockFetchOnce(200, { version: '1.3.0' });
+    expect(await pollSystemVersion()).toBe('1.3.0');
   });
 });

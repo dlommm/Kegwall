@@ -56,6 +56,19 @@ export const settingsSchema = z.object({
   }).nullable().default(null),
   // Hidden, test-injectable base URL — same pattern as catalogBeerBaseUrl.
   goveeBaseUrl: z.string().default('https://openapi.api.govee.com'),
+  // Hidden, test-injectable update-check source (routes/system.ts): the GitLab
+  // instance + project whose Releases feed defines "latest version".
+  updateCheckBaseUrl: z.string().default('https://github.com'),
+  updateCheckProjectPath: z.string().default('dlomm/kegwall'),
+  // In-app update trigger (Settings → System). `watchtower` posts to a Watchtower
+  // sidecar's HTTP API (Docker installs); `native` writes a trigger file that the Pi
+  // installer's systemd path unit picks up (bare-metal installs). The token is a
+  // masked secret (all four masking pieces below).
+  updates: z.object({
+    mode: z.enum(['off', 'watchtower', 'native']),
+    watchtowerUrl: z.string().url().optional(),
+    watchtowerToken: z.string().min(1).optional(),
+  }).nullable().default(null),
   // Persisted per-device servings-backfill high-water mark: mdash device id ->
   // ISO-ish UTC "end" timestamp of the last successful backfill for that device (see
   // cloudSource.ts's `runBackfill`). NOT a secret — plain bookkeeping, no masking.
@@ -170,6 +183,9 @@ function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[
   if (key === 'govee' && value && typeof value === 'object' && isMaskedString((value as any).apiKey)) {
     throw new ValidationError('govee.apiKey looks like a masked display value; refusing to store it');
   }
+  if (key === 'updates' && value && typeof value === 'object' && isMaskedString((value as any).watchtowerToken)) {
+    throw new ValidationError('updates.watchtowerToken looks like a masked display value; refusing to store it');
+  }
   if (key === 'alertChannels' && value && typeof value === 'object') {
     const ac = value as Record<string, any>;
     if (ac.pushover && isMaskedString(ac.pushover.token)) {
@@ -234,6 +250,9 @@ export class SettingsStore {
     if (out.govee && isMaskedString(out.govee.apiKey)) {
       out.govee = { ...out.govee, apiKey: this.get('govee')?.apiKey ?? '' };
     }
+    if (out.updates && isMaskedString(out.updates.watchtowerToken)) {
+      out.updates = { ...out.updates, watchtowerToken: this.get('updates')?.watchtowerToken };
+    }
     if (out.alertChannels) {
       const stored = this.get('alertChannels');
       const ac = { ...out.alertChannels };
@@ -274,6 +293,12 @@ export class SettingsStore {
     }
     if (s.govee?.apiKey) {
       s.govee.apiKey = '••••' + s.govee.apiKey.slice(-4);
+    }
+    if (s.updates?.watchtowerToken) {
+      // Last-4 on purpose (not the bare-mask password style): the admin CHOSE this
+      // token themselves in the compose file, and the tail lets them confirm the two
+      // copies match.
+      s.updates.watchtowerToken = '••••' + s.updates.watchtowerToken.slice(-4);
     }
     if (s.alertChannels.pushover?.token) {
       s.alertChannels.pushover.token = '••••' + s.alertChannels.pushover.token.slice(-4);

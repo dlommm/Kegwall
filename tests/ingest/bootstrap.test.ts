@@ -40,7 +40,7 @@ function makeCtx(): AppContext {
   return {
     db, bus, settings, state, sources, engine,
     tabletArm: new TabletArmRegistry(), log,
-    sensors: new SensorRegistry(bus, log), session: new SessionRegistry(),
+    sensors: new SensorRegistry(bus, log), session: new SessionRegistry(), version: '0.0.0-dev',
   };
 }
 

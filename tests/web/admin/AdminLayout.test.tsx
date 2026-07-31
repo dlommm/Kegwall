@@ -65,9 +65,14 @@ describe('AdminLayout', () => {
     // which takes priority for the NEXT call only); this default catches every fetch
     // AFTER that — i.e. the units fetch — so it resolves instead of leaving the mock
     // returning `undefined` (an unhandled rejection reading `.ok` off it).
-    (globalThis.fetch as Mock).mockResolvedValue({
-      ok: true, status: 200, statusText: 'OK', json: async () => ({ siteName: 'Test', taps: [], units: 'us' }),
-    } as Response);
+    (globalThis.fetch as Mock).mockImplementation(async (url: string) => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => (String(url).includes('/api/system/version')
+        ? { version: '9.9.9' }
+        : { siteName: 'Test', taps: [], units: 'us' }),
+    } as Response));
     assignMock = vi.fn();
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -95,6 +100,12 @@ describe('AdminLayout', () => {
     expect(screen.getByText('Users')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Beers')).toBeInTheDocument();
+  });
+
+  it('shows the running version in the sidebar footer', async () => {
+    mockFetchOnce(200, user({ role: 'admin' }));
+    renderLayout();
+    expect(await screen.findByTestId('admin-nav-version')).toHaveTextContent('v9.9.9');
   });
 
   it('hides Users and Settings for an editor', async () => {

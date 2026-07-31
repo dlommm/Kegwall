@@ -3,7 +3,7 @@ import {
   Navigate, NavLink, Outlet, useLocation, useNavigate,
 } from 'react-router-dom';
 import type { User } from '../../../server/db/users.js';
-import { getMe, logout, listWalls } from '../../lib/adminApi';
+import { getMe, logout, listWalls, getSystemVersion } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import type { VolumeUnits } from '../../lib/units';
 import { ThemeProvider } from '../../themes/ThemeProvider';
@@ -54,6 +54,7 @@ export function AdminLayout() {
   const [firstWallSlug, setFirstWallSlug] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [adminThemeId, setAdminThemeId] = useState<AdminThemeId>(() => loadAdminThemeId());
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +90,9 @@ export function AdminLayout() {
       if (!cancelled && result.ok && result.data.length > 0) {
         setFirstWallSlug(result.data[0]!.slug);
       }
+    });
+    getSystemVersion().then((result) => {
+      if (!cancelled && result.ok) setAppVersion(result.data.version);
     });
     return () => {
       cancelled = true;
@@ -178,6 +182,11 @@ export function AdminLayout() {
             ))}
           </ul>
           <div className="admin-nav__footer">
+            {appVersion && (
+              <span className="admin-nav__version font-tabular" data-testid="admin-nav-version">
+                v{appVersion}
+              </span>
+            )}
             <label className="admin-nav__appearance">
               <span className="admin-nav__appearance-label">Appearance</span>
               <select

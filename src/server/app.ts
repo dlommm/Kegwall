@@ -20,6 +20,7 @@ import { uploadsRoutes } from './routes/uploads.js';
 import { lookupRoutes } from './routes/lookup.js';
 import { backupRoutes } from './routes/backup.js';
 import { channelsRoutes } from './routes/channels.js';
+import { systemRoutes } from './routes/system.js';
 import { automationsRoutes } from './routes/automations.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
@@ -84,11 +85,17 @@ export interface AppOptions {
   /** Test-only escape hatch for that same SSRF guard — see `KegtronRoutesOptions.
    * allowInsecureHosts`'s doc comment (`routes/kegtron.ts`). Never set by `index.ts`. */
   lookupAllowInsecureHosts?: boolean;
+  /** The running app version — index.ts reads it from package.json at boot. Tests
+   * default to '0.0.0-dev'. Surfaces on GET /api/system/version + the update check. */
+  version?: string;
+  /** Overrides routes/system.ts's update-check + watchtower-trigger fetch timeouts —
+   * tests only, same pattern as `lookupTimeoutMs`. */
+  updateTimeoutMs?: number;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
-  app.decorate('ctx', opts.context ?? createContext(opts.dataDir ?? './data'));
+  app.decorate('ctx', opts.context ?? createContext(opts.dataDir ?? './data', opts.version));
   // Always torn down on close, even if startSources was never set — registering a
   // source (which createContext() always does) without ever starting it is a safe
   // no-op for every source's stop() (see e.g. cloudSource.ts's stop()), so this hook
@@ -163,6 +170,10 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                                            // restore handler relies on the @fastify/
                                            // multipart decorators uploadsRoutes registers
                                            // (see backup.ts's doc comment on MAX_RESTORE_BYTES)
+  await systemRoutes(app, dataDir, { updateTimeoutMs: opts.updateTimeoutMs });
+                                           // direct call — see encapsulation note above;
+                                           // needs the resolved dataDir (native-mode
+                                           // update trigger file), same as backupRoutes
   await channelsRoutes(app);              // direct call — see encapsulation note above;
                                            // Phase 5 Task 2's send-test endpoint, reads
                                            // settings.alertChannels (already registered by

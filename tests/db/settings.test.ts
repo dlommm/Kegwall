@@ -291,4 +291,25 @@ describe('SettingsStore', () => {
       expect(sanitized.alertChannels?.discord).toBeNull();
     });
   });
+
+  describe('updates.watchtowerToken (System card secret)', () => {
+    it('masked() shows last-4; a mode/url edit round-tripping the masked token keeps the stored real one', () => {
+      store.set('updates', {
+        mode: 'watchtower', watchtowerUrl: 'http://127.0.0.1:8090', watchtowerToken: 'supersecret-abcd',
+      });
+      expect(store.masked().updates?.watchtowerToken).toBe('••••abcd');
+
+      const sanitized = store.sanitizePatch({
+        updates: { mode: 'watchtower', watchtowerUrl: 'http://127.0.0.1:9999', watchtowerToken: '••••abcd' },
+      });
+      expect(sanitized.updates?.watchtowerToken).toBe('supersecret-abcd');
+      expect(sanitized.updates?.watchtowerUrl).toBe('http://127.0.0.1:9999');
+    });
+
+    it('set() refuses to store a masked token verbatim', () => {
+      expect(() => store.set('updates', {
+        mode: 'watchtower', watchtowerUrl: 'http://127.0.0.1:8090', watchtowerToken: '••••abcd',
+      })).toThrow(/masked/);
+    });
+  });
 });

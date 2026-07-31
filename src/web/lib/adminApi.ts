@@ -748,3 +748,39 @@ export function doctorEnv(): Promise<ApiResult<{ inDocker: boolean; hint: string
 export function doctorGovee(): Promise<ApiResult<{ ok: boolean; detail: string; sensorCount?: number }>> {
   return request('/api/doctor/govee', { method: 'POST', body: JSON.stringify({}) });
 }
+
+// --- System: version + in-app updates (Settings → System) --------------------
+
+export function getSystemVersion(): Promise<ApiResult<{ version: string }>> {
+  return request('/api/system/version');
+}
+
+export type UpdateCheck =
+  | { ok: true; current: string; latest: string; updateAvailable: boolean; notesUrl: string }
+  | { ok: false; current: string; message: string };
+
+export function checkForUpdates(): Promise<ApiResult<UpdateCheck>> {
+  return request('/api/system/update-check', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function triggerUpdate(version?: string): Promise<ApiResult<{ mode: 'watchtower' | 'native'; message?: string }>> {
+  return request('/api/system/update', {
+    method: 'POST', body: JSON.stringify(version ? { version } : {}),
+  });
+}
+
+/** Version poller for the update-in-progress screen. Deliberately a RAW fetch, NOT
+ * `request()`: during the restart window the server can answer with anything (401
+ * from a half-up process, 502 from a proxy, connection refused), and `request()`'s
+ * 401 handling would hard-redirect the admin to the login page mid-update. Every
+ * failure here just means "still restarting" → null. */
+export async function pollSystemVersion(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/system/version', { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    const body = await res.json() as { version?: string };
+    return typeof body.version === 'string' ? body.version : null;
+  } catch {
+    return null;
+  }
+}

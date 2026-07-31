@@ -1,0 +1,55 @@
+# Kegwall — Raspberry Pi Docker Compose file (pull-only; the registry image is
+# multi-arch, so a Pi 4/5 pulls linux/arm64 automatically).
+#
+#   mkdir -p ~/kegwall && cd ~/kegwall
+#   curl -fsSLO https://raw.githubusercontent.com/dlommm/Kegwall/main/deploy/docker-compose.pi.yml
+#   openssl rand -hex 16     # generate a Watchtower API token, paste it below
+#   docker compose -f docker-compose.pi.yml up -d
+#
+# Then open http://<pi-ip>:8080 → Settings → System → mode "Docker — Watchtower
+# sidecar", URL http://127.0.0.1:8090, and the SAME token — that wires up the
+# in-app "Update now" button.
+#
+# Topology trick worth understanding: kegwall runs with HOST networking (Kegtron's
+# UDP multicast 239.50.50.50:50505 doesn't cross Docker's bridge — and a Pi at the
+# kegerator is usually bought exactly for those live pours). The Watchtower sidecar
+# stays on the default BRIDGE network with its HTTP API published to loopback only
+# (127.0.0.1:8090) — the app reaches it there, nothing off-box can, and the sidecar
+# still controls host-networked containers via docker.sock.
+#
+# Data lives in ./data next to this file (bind mount, not a named volume) — trivial
+# to back up or carry to another box. Note label images live here too and are NOT
+# inside backup downloads (.db) — copy the directory when migrating.
+
+services:
+  kegwall:
+    image: ghcr.io/dlommm/kegwall:latest
+    container_name: kegwall
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./data:/data
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    environment:
+      - NODE_ENV=production
+      # UI port is 8080 on the host (host networking, no ports: mapping possible).
+      # Override with - PORT=8081 if something else owns 8080 on this Pi.
+
+  # Watchtower in HTTP-API mode: updates happen ONLY when the app asks (the admin
+  # UI's "Update now" button) — no background polling. To ALSO poll periodically,
+  # add: WATCHTOWER_HTTP_API_PERIODIC_POLLS=true under environment and
+  # --interval 300 to the command.
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: kegwall-watchtower
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8080" # loopback only — never exposed off-box
+    environment:
+      # Generate with: openssl rand -hex 16 — and paste the SAME value into
+      # Settings → System in the Kegwall admin UI.
+      - WATCHTOWER_HTTP_API_TOKEN=change-me
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --http-api-update --label-enable --cleanup

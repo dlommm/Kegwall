@@ -5,7 +5,10 @@ import type { Settings } from '../../../server/db/settings.js';
 // type import of db/settings.ts) and why it replaces what used to be a hand-duplicated
 // local copy of this same constant.
 import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
-import { getSettings, patchSettings, uploadLabel, testChannel } from '../../lib/adminApi';
+import {
+  getSettings, patchSettings, uploadLabel, testChannel,
+  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, type UpdateCheck,
+} from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
 
 /**
@@ -650,6 +653,274 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
   );
 }
 
+
+/** Update-in-progress state machine — see the block comment in `SystemGroup`. */
+type UpdatePhase =
+  | { phase: 'idle' }
+  | { phase: 'confirming' }
+  | { phase: 'triggering' }
+  | { phase: 'waiting'; startedVersion: string; deadline: number }
+  | { phase: 'success'; newVersion: string }
+  | { phase: 'timedOut' }
+  | { phase: 'failed'; message: string };
+
+const UPDATE_POLL_MS = 3_000;
+const UPDATE_DEADLINE_MS = 5 * 60_000;
+
+/**
+ * Settings → System: the in-app update card. One form holds both the update-mode
+ * config (off / Watchtower / native — see routes/system.ts for what each does) and
+ * the check/apply actions, so the "don't update while the config draft is dirty"
+ * gate needs no cross-component plumbing.
+ *
+ * The apply flow is an inline two-step confirm (click → "Confirm — restarts
+ * briefly" → click), deliberately NOT BackupPanel's typed-word gate: restore
+ * destroys data irreversibly and earned that friction; an update is non-destructive.
+ * After a 202 the server is expected to DIE mid-update, so progress is watched by
+ * polling the version endpoint raw (`pollSystemVersion` — request()'s 401 redirect
+ * would eject the admin mid-restart) until the reported version CHANGES, with a
+ * 5-minute deadline. A page reload during the wait intentionally forgets the state —
+ * the admin just sees the new version in the sidebar footer.
+ */
+function SystemGroup({ settings, onSaved }: GroupProps) {
+  const cfg = settings.updates;
+  const [mode, setMode] = useState<'off' | 'watchtower' | 'native'>(cfg?.mode ?? 'off');
+  const [url, setUrl] = useState(cfg?.watchtowerUrl ?? '');
+  const [replacing, setReplacing] = useState(false);
+  const [newToken, setNewToken] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [version, setVersion] = useState<string | null>(null);
+  const [check, setCheck] = useState<{ state: 'idle' } | { state: 'running' } | { state: 'done'; result: UpdateCheck }>({ state: 'idle' });
+  const [update, setUpdate] = useState<UpdatePhase>({ phase: 'idle' });
+
+  useEffect(() => {
+    let cancelled = false;
+    getSystemVersion().then((result) => {
+      if (!cancelled && result.ok) setVersion(result.data.version);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The waiting poller: every 3s, raw-fetch the version; null (server down mid-swap)
+  // is expected and ignored; a CHANGED version is success; the deadline trips the
+  // timed-out warning.
+  useEffect(() => {
+    if (update.phase !== 'waiting') return undefined;
+    const timer = setInterval(() => {
+      void pollSystemVersion().then((v) => {
+        setUpdate((u) => {
+          if (u.phase !== 'waiting') return u;
+          if (v && v !== u.startedVersion) {
+            setVersion(v);
+            return { phase: 'success', newVersion: v };
+          }
+          if (Date.now() > u.deadline) return { phase: 'timedOut' };
+          return u;
+        });
+      });
+    }, UPDATE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [update.phase]);
+
+  const dirty = mode !== (cfg?.mode ?? 'off')
+    || (mode === 'watchtower' && url.trim() !== (cfg?.watchtowerUrl ?? ''))
+    || (replacing && newToken.trim() !== '');
+  const busy = update.phase === 'triggering' || update.phase === 'waiting';
+  const savedMode = cfg?.mode ?? 'off';
+  const canUpdate = savedMode !== 'off' && !dirty && !busy;
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!dirty || busy) return;
+    setError(null);
+    setSubmitting(true);
+    const patch: Partial<Settings> = {
+      updates: mode === 'off' ? { mode } : {
+        mode,
+        ...(mode === 'watchtower' ? {
+          watchtowerUrl: url.trim() || undefined,
+          // A still-masked token round-trips through sanitizePatch's swap-back.
+          watchtowerToken: replacing && newToken.trim() !== '' ? newToken.trim() : cfg?.watchtowerToken,
+        } : {}),
+      },
+    };
+    const result = await patchSettings(patch);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setReplacing(false);
+    setNewToken('');
+    onSaved(result.data, patch);
+  }
+
+  async function runCheck() {
+    setCheck({ state: 'running' });
+    const result = await checkForUpdates();
+    setCheck({
+      state: 'done',
+      result: result.ok ? result.data : { ok: false, current: version ?? '?', message: result.message },
+    });
+  }
+
+  async function runUpdate() {
+    setUpdate({ phase: 'triggering' });
+    const startedVersion = version ?? '0.0.0';
+    const result = await triggerUpdate(
+      check.state === 'done' && check.result.ok ? check.result.latest : undefined,
+    );
+    if (!result.ok) {
+      setUpdate({ phase: 'failed', message: result.message });
+      return;
+    }
+    setUpdate({ phase: 'waiting', startedVersion, deadline: Date.now() + UPDATE_DEADLINE_MS });
+  }
+
+  return (
+    <section className="settings-group" data-testid="settings-group-system">
+      <h2 className="settings-group__title font-display">System</h2>
+
+      <form className="channels-group__block" data-testid="settings-system-updates" onSubmit={handleSubmit}>
+        <h3 className="channels-group__block-title">Software update</h3>
+        <p className="admin-page-quiet">
+          Current version: <span className="font-tabular" data-testid="settings-system-version">{version ? `v${version}` : '…'}</span>
+        </p>
+        <label className="admin-field">
+          <span>Update mode</span>
+          <select
+            data-testid="settings-system-mode"
+            value={mode}
+            disabled={busy}
+            onChange={(e) => setMode(e.target.value as 'off' | 'watchtower' | 'native')}
+          >
+            <option value="off">Off (update manually)</option>
+            <option value="watchtower">Docker — Watchtower sidecar</option>
+            <option value="native">Bare metal — Pi installer</option>
+          </select>
+        </label>
+        {mode === 'watchtower' && (
+          <>
+            <label className="admin-field">
+              <span>Watchtower URL</span>
+              <input
+                type="text"
+                data-testid="settings-system-watchtower-url"
+                placeholder="http://127.0.0.1:8090"
+                value={url}
+                disabled={busy}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+            </label>
+            <MaskedSecretField
+              label="Watchtower API token (must match WATCHTOWER_HTTP_API_TOKEN in your compose file)"
+              testId="settings-system-watchtower-token"
+              maskedValue={cfg?.watchtowerToken}
+              replacing={replacing}
+              value={newToken}
+              onStartReplace={() => { setReplacing(true); setNewToken(''); }}
+              onCancelReplace={() => { setReplacing(false); setNewToken(''); }}
+              onChangeValue={setNewToken}
+            />
+          </>
+        )}
+        {mode === 'native' && (
+          <p className="admin-page-quiet">
+            Requires the Pi installer&rsquo;s updater units (scripts/pi-install.sh) — the
+            update runs in the background and restarts the server when done.
+          </p>
+        )}
+        {error && (
+          <p className="beer-form__notice" role="alert" data-testid="settings-system-error">{error}</p>
+        )}
+        <button
+          type="submit"
+          className="beer-form__submit"
+          disabled={!dirty || submitting || busy}
+          data-testid="settings-system-save"
+        >
+          {submitting ? 'Saving…' : 'Save changes'}
+        </button>
+
+        <h3 className="channels-group__block-title">Check &amp; apply</h3>
+        <div className="doctor-row__actions">
+          <button
+            type="button"
+            data-testid="settings-system-check"
+            disabled={check.state === 'running' || busy}
+            onClick={runCheck}
+          >
+            {check.state === 'running' ? 'Checking…' : 'Check for updates'}
+          </button>
+          {update.phase === 'confirming' ? (
+            <button
+              type="button"
+              data-testid="settings-system-update-confirm"
+              onClick={runUpdate}
+            >
+              Confirm — server will restart briefly
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="settings-system-update"
+              disabled={!canUpdate}
+              onClick={() => setUpdate({ phase: 'confirming' })}
+            >
+              Update now
+            </button>
+          )}
+        </div>
+        {check.state === 'done' && (
+          <p className="admin-page-quiet" data-testid="settings-system-check-result">
+            {check.result.ok
+              ? check.result.updateAvailable
+                ? (
+                  <>
+                    v{check.result.latest} available —{' '}
+                    <a href={check.result.notesUrl} target="_blank" rel="noreferrer">Release notes ↗</a>
+                  </>
+                )
+                : `Up to date (v${check.result.current})`
+              : check.result.message}
+          </p>
+        )}
+        {savedMode === 'off' && (
+          <p className="admin-page-quiet" data-testid="settings-system-off-hint">
+            Pick an update mode above (and save) to enable one-click updates.
+          </p>
+        )}
+        {update.phase === 'waiting' && (
+          <p className="beer-form__notice" data-testid="settings-system-updating">
+            Updating… this can take a few minutes on a Pi. Don&rsquo;t close the tab.
+          </p>
+        )}
+        {update.phase === 'success' && (
+          <p className="admin-page-quiet" data-testid="settings-system-updated">
+            Updated to v{update.newVersion} ✓
+          </p>
+        )}
+        {update.phase === 'timedOut' && (
+          <p className="beer-form__notice" role="alert" data-testid="settings-system-update-timeout">
+            The update didn&rsquo;t finish within 5 minutes — it may still be in progress.
+            Check the Connection doctor or your container/journal logs. (Native mode
+            requires the Pi installer&rsquo;s updater units.)
+          </p>
+        )}
+        {update.phase === 'failed' && (
+          <p className="beer-form__notice" role="alert" data-testid="settings-system-update-error">
+            {update.message}
+          </p>
+        )}
+      </form>
+    </section>
+  );
+}
+
 interface IntegrationsGroupProps {
   settings: Settings;
   /** For the HA block only — routes to the SHARED `mqtt` version counter (same as
@@ -1079,7 +1350,7 @@ function ChannelsGroup({ settings, onSaved }: GroupProps) {
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
-type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'channels';
+type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'channels' | 'updates';
 
 /**
  * `/admin/settings` (Task 8, admin-only route — same "no role branching needed" situation
@@ -1107,6 +1378,7 @@ export function SettingsPage() {
   const [kegtronVersion, setKegtronVersion] = useState(0);
   const [mqttVersion, setMqttVersion] = useState(0);
   const [catalogBeerVersion, setCatalogBeerVersion] = useState(0);
+  const [updatesVersion, setUpdatesVersion] = useState(0);
   const [notice, setNotice] = useState<'saved' | 'restarted' | null>(null);
 
   const load = useCallback(() => {
@@ -1119,6 +1391,7 @@ export function SettingsPage() {
         setKegtronVersion((v) => v + 1);
         setMqttVersion((v) => v + 1);
         setCatalogBeerVersion((v) => v + 1);
+        setUpdatesVersion((v) => v + 1);
       } else {
         setStatus('error');
       }
@@ -1132,6 +1405,7 @@ export function SettingsPage() {
   function handleGroupSaved(group: GroupId, updated: Settings, patch: Partial<Settings>) {
     setSettings(updated);
     if (group === 'site') setSiteVersion((v) => v + 1);
+    else if (group === 'updates') setUpdatesVersion((v) => v + 1);
     else if (group === 'kegtron') setKegtronVersion((v) => v + 1);
     else if (group === 'mqtt') setMqttVersion((v) => v + 1);
     else if (group === 'catalogBeer') setCatalogBeerVersion((v) => v + 1);
@@ -1196,6 +1470,11 @@ export function SettingsPage() {
         <ChannelsGroup
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('channels', updated, patch)}
+        />
+        <SystemGroup
+          key={`system-${updatesVersion}`}
+          settings={settings}
+          onSaved={(updated, patch) => handleGroupSaved('updates', updated, patch)}
         />
         <BackupPanel />
       </div>
