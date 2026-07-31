@@ -19,6 +19,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   checkForUpdates: vi.fn(),
   triggerUpdate: vi.fn(),
   pollSystemVersion: vi.fn().mockResolvedValue(null),
+  pollUpdateStatus: vi.fn().mockResolvedValue(null),
   triggerOsUpdate: vi.fn(),
 }));
 

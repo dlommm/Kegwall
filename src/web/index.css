@@ -1822,7 +1822,10 @@ h2.admin-field__label-text {
 }
 
 .beer-form__submit:disabled {
-  opacity: 0.6;
+  /* NOT opacity-only: dark label on a dimmed accent turns illegible (found on the
+   * Settings → System save button). Muted fill + dim-but-readable label instead. */
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: color-mix(in srgb, var(--text) 55%, transparent);
   cursor: default;
 }
 
@@ -5970,6 +5973,40 @@ h2.admin-field__label-text {
 /* Dashboard banners — setup hint (info), reboot pending (warn), undervoltage
  * (danger). Stacked above the stat grid; the action is a link or inline-confirm
  * button on the right. */
+/* Settings action rows — secondary buttons like "Check for updates" / "Update now" /
+ * "Update OS now". These previously borrowed .doctor-row__actions, which has no CSS
+ * of its own (the Doctor page styles buttons via its .doctor-row PARENT), so in
+ * Settings the buttons rendered as bare glued-together text. */
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.settings-actions button {
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  color: var(--text);
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.settings-actions button:hover:not(:disabled),
+.settings-actions button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-actions button:disabled {
+  color: color-mix(in srgb, var(--text) 35%, transparent);
+  cursor: default;
+}
+
 .dashboard-banner {
   display: flex;
   flex-wrap: wrap;

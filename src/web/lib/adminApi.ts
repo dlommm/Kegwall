@@ -827,3 +827,18 @@ export function triggerOsUpdate(): Promise<ApiResult<{ message: string }>> {
 export function triggerReboot(): Promise<ApiResult<{ message: string }>> {
   return request('/api/system/reboot', { method: 'POST', body: JSON.stringify({}) });
 }
+
+/** Native-update phase poller for the updating banner — RAW fetch for the same
+ * reason as pollSystemVersion above: mid-restart failures (or the brief window
+ * where the new process is up but the session re-auth hasn't settled) must read
+ * as "no phase info", never as a login redirect. */
+export async function pollUpdateStatus(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/system/update-status', { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    const body = await res.json() as { phase?: string | null };
+    return typeof body.phase === 'string' && body.phase !== '' ? body.phase : null;
+  } catch {
+    return null;
+  }
+}

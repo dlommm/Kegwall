@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import os from 'node:os';
 import { requireRole } from './auth.js';
@@ -151,6 +151,28 @@ export async function systemRoutes(
       mode: 'native',
       message: 'Update requested — the Pi installer’s updater applies it in the background and restarts the server.',
     });
+  });
+
+  // Native-update progress: the root-side updater (kegwall-update.sh) writes its
+  // current phase into DATA_DIR/update-status (fetching → installing → building →
+  // restarting, or "failed: …" after a rollback). This runs on the OLD server
+  // process — it keeps serving until the updater's final restart — so the UI can
+  // show real progress instead of a mute "updating…" banner. The updater removes
+  // the file when done; a fresh boot also clears any stale leftover below.
+  try {
+    if (existsSync(join(dataDir, 'update-status'))) {
+      // Stale from a crashed updater run — status is only meaningful mid-update.
+      writeFileSync(join(dataDir, 'update-status'), '');
+    }
+  } catch { /* read-only data dir in some tests — harmless */ }
+
+  app.get('/api/system/update-status', viewer, async () => {
+    try {
+      const phase = readFileSync(join(dataDir, 'update-status'), 'utf8').trim();
+      return { phase: phase || null };
+    } catch {
+      return { phase: null };
+    }
   });
 
   // ---- Host monitoring + OS-level actions (Pi monitoring epic) ----

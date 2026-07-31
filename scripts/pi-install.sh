@@ -192,6 +192,11 @@ cat > /usr/local/bin/kegwall-update.sh <<UPDATER
 set -euo pipefail
 DIR="$DIR"
 TRIGGER="\$DIR/data/update-requested"
+# Progress file — GET /api/system/update-status reads it so the admin UI can show
+# WHICH phase the background update is in instead of a mute "updating…" banner.
+# Written world-readable by root, read by the (still-running, old) server process.
+STATUS="\$DIR/data/update-status"
+status() { echo "\$1" > "\$STATUS"; chmod 644 "\$STATUS"; }
 
 [ -f "\$TRIGGER" ] || exit 0
 REQ=\$(cat "\$TRIGGER")
@@ -200,6 +205,7 @@ REQ=\$(cat "\$TRIGGER")
 rm -f "\$TRIGGER"
 
 cd "\$DIR"
+status fetching
 sudo -u kegwall git fetch --tags origin
 
 if [ "\$REQ" = "latest" ]; then
@@ -219,6 +225,7 @@ echo "kegwall-update: updating \$PREV -> \$TAG"
 
 rollback() {
   echo "kegwall-update: FAILED — rolling back to \$PREV" >&2
+  status "failed: rolled back to the previous version — see journalctl -u kegwall-update"
   sudo -u kegwall git checkout --force "\$PREV" || true
   sudo -u kegwall npm ci || sudo -u kegwall npm ci --omit=optional || true
   # The running process still serves the old in-memory version either way; the
@@ -229,10 +236,14 @@ trap rollback ERR
 # --force handles any dirty tree. NEVER 'git clean' here: \$DIR/data (the SQLite
 # database and label images) lives INSIDE the checkout and clean -fd would delete it.
 sudo -u kegwall git checkout --force "\$TAG"
+status installing
 sudo -u kegwall npm ci || sudo -u kegwall npm ci --omit=optional
+status building
 sudo -u kegwall npm run build
 trap - ERR
+status restarting
 systemctl restart kegwall
+rm -f "\$STATUS"
 echo "kegwall-update: done — now on \$TAG"
 UPDATER
 chmod +x /usr/local/bin/kegwall-update.sh

@@ -2,7 +2,7 @@ import {
   describe, it, expect, beforeEach, afterEach,
 } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -354,5 +354,33 @@ describe('POST /api/system/reboot', () => {
   it('is admin-only', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/system/reboot', cookies: viewerCookies, payload: {} });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('GET /api/system/update-status', () => {
+  it('reports null with no status file, the phase while one exists, and null again for empty', async () => {
+    let res = await app.inject({ method: 'GET', url: '/api/system/update-status', cookies: viewerCookies });
+    expect(res.json()).toEqual({ phase: null });
+
+    writeFileSync(join(dataDir, 'update-status'), 'installing\n');
+    res = await app.inject({ method: 'GET', url: '/api/system/update-status', cookies: viewerCookies });
+    expect(res.json()).toEqual({ phase: 'installing' });
+
+    writeFileSync(join(dataDir, 'update-status'), '');
+    res = await app.inject({ method: 'GET', url: '/api/system/update-status', cookies: viewerCookies });
+    expect(res.json()).toEqual({ phase: null });
+  });
+
+  it('clears a stale status file left by a crashed updater at boot', async () => {
+    writeFileSync(join(dataDir, 'update-status'), 'building');
+    await app.close();
+    app = await buildApp({ dataDir, version: '1.2.3' });
+    viewerCookies = await login('view', 'hunter22');
+    const res = await app.inject({ method: 'GET', url: '/api/system/update-status', cookies: viewerCookies });
+    expect(res.json()).toEqual({ phase: null });
+  });
+
+  it('requires auth', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/system/update-status' })).statusCode).toBe(401);
   });
 });

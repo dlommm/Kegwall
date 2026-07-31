@@ -7,7 +7,8 @@ import type { Settings } from '../../../server/db/settings.js';
 import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
 import {
   getSettings, patchSettings, uploadLabel, testChannel,
-  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, triggerOsUpdate,
+  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, pollUpdateStatus,
+  triggerOsUpdate,
   type UpdateCheck,
 } from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
@@ -682,6 +683,15 @@ type UpdatePhase =
   | { phase: 'failed'; message: string };
 
 const UPDATE_POLL_MS = 3_000;
+
+/** Human labels for the native updater's phase file (kegwall-update.sh writes
+ * fetching/installing/building/restarting; anything else falls back to generic). */
+const UPDATE_PHASE_LABELS: Record<string, string> = {
+  fetching: 'downloading the release',
+  installing: 'installing dependencies (the long step)',
+  building: 'building the interface',
+  restarting: 'restarting the server',
+};
 const UPDATE_DEADLINE_MS = 5 * 60_000;
 
 /**
@@ -711,6 +721,9 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
   const [version, setVersion] = useState<string | null>(null);
   const [check, setCheck] = useState<{ state: 'idle' } | { state: 'running' } | { state: 'done'; result: UpdateCheck }>({ state: 'idle' });
   const [update, setUpdate] = useState<UpdatePhase>({ phase: 'idle' });
+  // The native updater's current phase (update-status file), shown inside the
+  // updating banner; null = no info (watchtower, restart window).
+  const [updatePhaseDetail, setUpdatePhaseDetail] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -724,10 +737,15 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
 
   // The waiting poller: every 3s, raw-fetch the version; null (server down mid-swap)
   // is expected and ignored; a CHANGED version is success; the deadline trips the
-  // timed-out warning.
+  // timed-out warning. Alongside it, the native updater's phase file
+  // (GET /api/system/update-status) feeds the live progress line — null there just
+  // means "no phase info" (watchtower mode, restart window, older installer).
   useEffect(() => {
     if (update.phase !== 'waiting') return undefined;
     const timer = setInterval(() => {
+      void pollUpdateStatus().then((phase) => {
+        setUpdatePhaseDetail(phase);
+      });
       void pollSystemVersion().then((v) => {
         setUpdate((u) => {
           if (u.phase !== 'waiting') return u;
@@ -786,6 +804,7 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
   }
 
   async function runUpdate() {
+    setUpdatePhaseDetail(null);
     setUpdate({ phase: 'triggering' });
     const startedVersion = version ?? '0.0.0';
     const result = await triggerUpdate(
@@ -864,7 +883,7 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
         </button>
 
         <h3 className="channels-group__block-title">Check &amp; apply</h3>
-        <div className="doctor-row__actions">
+        <div className="settings-actions">
           <button
             type="button"
             data-testid="settings-system-check"
@@ -913,7 +932,10 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
         )}
         {update.phase === 'waiting' && (
           <p className="beer-form__notice" data-testid="settings-system-updating">
-            Updating… this can take a few minutes on a Pi. Don&rsquo;t close the tab.
+            {updatePhaseDetail?.startsWith('failed')
+              ? `Update ${updatePhaseDetail}`
+              : `Updating — ${UPDATE_PHASE_LABELS[updatePhaseDetail ?? ''] ?? 'working in the background'}…
+                 This can take a few minutes on a Pi. Don’t close the tab.`}
           </p>
         )}
         {update.phase === 'success' && (
@@ -1029,7 +1051,7 @@ function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
 
-      <div className="doctor-row__actions">
+      <div className="settings-actions">
         {run.state === 'confirming' ? (
           <button
             type="button"
