@@ -41,6 +41,7 @@ test:
     paths:
       - .npm/
   script:
+    - bash -n scripts/*.sh
     - npm ci --cache .npm --prefer-offline
     - npm run typecheck
     - npm test

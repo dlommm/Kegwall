@@ -150,6 +150,15 @@ The named volume is untouched by an image rebuild/pull — your data persists ac
 upgrades. Database schema migrations run automatically on server startup
 (`src/server/db/migrate.ts`).
 
+## Host monitoring in Docker
+
+The admin dashboard's SERVER card works in a container too, with caveats: CPU/RAM
+figures come from `/proc` and describe the **host** (not the container's cgroup
+limits), disk describes the volume holding `/data`, and SoC temperature / throttle
+flags / watts read as unavailable (`vcgencmd` doesn't exist in the image). The
+OS-update and reboot controls are hidden entirely — they're native-Pi-install
+features (systemd trigger units).
+
 ## See also
 
 - [docs/install/raspberry-pi.md](raspberry-pi.md) — Docker or bare-metal on a Pi, plus
