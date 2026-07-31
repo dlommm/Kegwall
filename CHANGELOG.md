@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.13.0](https://github.com/dlommm/Kegwall/compare/v0.12.0...v0.13.0) (2026-07-31)
+
 ## [0.12.0](https://github.com/dlommm/Kegwall/compare/v0.11.3...v0.12.0) (2026-07-31)
 
 ## [0.11.3](https://github.com/dlommm/Kegwall/compare/v0.11.2...v0.11.3) (2026-07-31)
