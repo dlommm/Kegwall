@@ -96,6 +96,12 @@ export interface FacePipelineOptions {
   intervalMs?: number;
   /** Self-stop after this long without a single detected face. */
   noFaceStopMs?: number;
+  /** Aborting before the pipeline finishes starting (camera acquisition and model load,
+   * run concurrently) stops any camera stream that already came up, skips starting the
+   * interval, and resolves `null` — the same "feature unavailable" contract a denied/
+   * missing camera already has, since a caller that aborted mid-start no longer wants
+   * the disposer it would otherwise get. */
+  signal?: AbortSignal;
   /** Test seam — defaults to `navigator.mediaDevices.getUserMedia`. */
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   /** Test seam — defaults to `loadHuman`. */
@@ -115,17 +121,18 @@ export interface FacePipelineOptions {
  * pins the camera open indefinitely.
  *
  * Resolves `null` — never rejects — when there's no camera or permission is denied,
- * mirroring `startCameraMotion`'s "feature simply isn't available" contract.
- * `getUserMedia` is awaited before any DOM element is created. `stopped` guards the
- * one race this fixed `Promise<(() => void) | null>` interface can actually produce:
- * an in-flight `computeEmbeddingFn` call resolving after the disposer already ran (via
- * `noFaceStopMs`, a match, or a caller's own stop) — that tick's result is dropped
- * instead of touching state or firing a second `onCandidate`. (A caller wanting to
- * cancel a still-pending `startFacePipeline()` call itself — e.g. an unmounting
- * component — needs its own outer `disposed` flag plus a `.then((stop) =>
- * disposed && stop?.())`, the same pattern `TabletPage.tsx` uses around
- * `startCameraMotion`; there's no cancellation token in this signature to do it from
- * inside.)
+ * mirroring `startCameraMotion`'s "feature simply isn't available" contract. Camera
+ * acquisition and model load are independent, so they run concurrently (`Promise.all`)
+ * rather than sequentially: the window during which a live camera stream exists but no
+ * disposer has been handed back yet is `max(getUserMedia, loadHumanFn)`, not their sum.
+ * `opts.signal` covers cancelling that window — an `abort` while either is still pending
+ * stops the stream's tracks the instant it fires (via an `abort` listener, not only once
+ * the pending await returns), skips starting the interval, and resolves `null`; an
+ * already-aborted `signal` short-circuits before `getUserMedia` is even called. `stopped`
+ * separately guards the one race this covers *after* a normal start: an in-flight
+ * `computeEmbeddingFn` call resolving after the disposer already ran (via `noFaceStopMs`,
+ * a match, `signal` abort, or a caller's own stop) — that tick's result is dropped
+ * instead of touching state or firing a second `onCandidate`.
  */
 export async function startFacePipeline(
   opts: FacePipelineOptions,
@@ -141,15 +148,49 @@ export async function startFacePipeline(
     ),
     loadHumanFn = loadHuman,
     computeEmbeddingFn = computeEmbedding,
+    signal,
   } = opts;
 
+  if (signal?.aborted) return null;
+
+  // `liveStream` is populated the instant getUserMedia resolves — independent of
+  // whether loadHumanFn has finished — so an abort that fires while the model is still
+  // loading stops tracks right away via the listener below, rather than waiting for
+  // both awaits to settle.
+  let liveStream: MediaStream | undefined;
+  const stopLiveStream = () => liveStream?.getTracks().forEach((track) => track.stop());
+  signal?.addEventListener('abort', stopLiveStream, { once: true });
+
+  const getUserMediaPromise = getUserMedia({
+    video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT },
+    audio: false,
+  }).then((s) => {
+    liveStream = s;
+    if (signal?.aborted) s.getTracks().forEach((track) => track.stop());
+    return s;
+  });
+  const loadHumanPromise = loadHumanFn().then((h) => {
+    if (signal?.aborted) stopLiveStream();
+    return h;
+  });
+
   let stream: MediaStream;
+  let human: unknown;
   try {
-    stream = await getUserMedia({
-      video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT },
-      audio: false,
-    });
+    [stream, human] = await Promise.all([getUserMediaPromise, loadHumanPromise]);
   } catch {
+    signal?.removeEventListener('abort', stopLiveStream);
+    // Whichever of the two rejected, don't leave the other's eventual settlement as a
+    // dangling unhandled rejection, and release any stream that did come up.
+    getUserMediaPromise.catch(() => {});
+    loadHumanPromise.catch(() => {});
+    stopLiveStream();
+    return null;
+  }
+
+  signal?.removeEventListener('abort', stopLiveStream);
+  if (signal?.aborted) {
+    stream.getTracks().forEach((track) => track.stop());
     return null;
   }
 
@@ -162,8 +203,6 @@ export async function startFacePipeline(
   // ends immediately) just means frames stay blank, same as cameraMotion.ts's identical
   // fire-and-forget play().
   video.play()?.catch(() => {});
-
-  const human = await loadHumanFn();
 
   let stopped = false;
   let sinceLastFaceMs = 0;

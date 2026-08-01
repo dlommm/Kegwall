@@ -83,4 +83,42 @@ describe('startFacePipeline', () => {
     expect(track.stop).toHaveBeenCalled();
     vi.useRealTimers();
   });
+
+  it('aborting while the model is still loading stops the camera immediately and never starts', async () => {
+    const { stream, track } = fakeStream();
+    const controller = new AbortController();
+    let resolveHuman: (h: unknown) => void = () => {};
+    const loadHumanFn = () => new Promise((resolve) => { resolveHuman = resolve; });
+    const onCandidate = vi.fn();
+    const pipelinePromise = startFacePipeline({
+      getEnrolled: () => enrolled, threshold: 0.6, onCandidate,
+      getUserMedia: () => Promise.resolve(stream),
+      loadHumanFn, signal: controller.signal,
+    });
+    // Flush the microtasks that resolve getUserMedia and hand the live stream to the
+    // pipeline's internal bookkeeping — loadHumanFn is still deliberately pending.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(track.stop).not.toHaveBeenCalled();
+
+    controller.abort();
+    expect(track.stop).toHaveBeenCalled(); // stopped the instant abort fires, not later
+
+    resolveHuman({});
+    const stop = await pipelinePromise;
+    expect(stop).toBeNull();
+    expect(onCandidate).not.toHaveBeenCalled();
+  });
+
+  it('an already-aborted signal resolves null without ever touching the camera', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const getUserMedia = vi.fn();
+    const stop = await startFacePipeline({
+      getEnrolled: () => enrolled, threshold: 0.6, onCandidate: () => {},
+      getUserMedia, loadHumanFn: async () => ({}), signal: controller.signal,
+    });
+    expect(stop).toBeNull();
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
 });
