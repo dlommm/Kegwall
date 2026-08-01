@@ -9,6 +9,8 @@ import { SensorRegistry } from './core/sensorRegistry.js';
 import { attachBeerAutoImport } from './core/beerAutoImport.js';
 import { attachMilestones } from './core/milestones.js';
 import { attachWallAutoAssign } from './core/wallAutoAssign.js';
+import { attachPresence } from './core/presenceAttach.js';
+import { PresenceRegistry } from './core/presence.js';
 import { SessionRegistry } from './core/sessionMode.js';
 import { SourceManager } from './ingest/manager.js';
 import { registerConfiguredSources } from './ingest/bootstrap.js';
@@ -34,6 +36,9 @@ export interface AppContext {
   sensors: SensorRegistry;
   /** The tablet's group-tab session (Phase 6, design 6c) — see core/sessionMode.ts. */
   session: SessionRegistry;
+  /** Per-wall display-power presence tracking: screensaver/active/off states, wired to
+   * pour events and walls_changed broadcasts. See core/presence.ts. */
+  presence: PresenceRegistry;
   /** The running app version (package.json, read once at boot by index.ts). Tests and
    * direct createContext callers get '0.0.0-dev'. Feeds GET /api/system/version and
    * the update-check comparison. */
@@ -79,6 +84,7 @@ export function createContext(dataDir: string, version = '0.0.0-dev'): AppContex
   attachBeerAutoImport(db, bus, settings, log);
   attachMilestones(db, bus);
   attachWallAutoAssign(db, bus, log);
+  const presence = attachPresence(db, bus);
   const sources = new SourceManager(bus);
   // Constructed here (cheap: no I/O) but NOT started — `engine.start()` can dispatch
   // real actions (an `app_startup` rule's webhook/mqtt/SMTP/etc), so it's called
@@ -86,7 +92,7 @@ export function createContext(dataDir: string, version = '0.0.0-dev'): AppContex
   // option, not unconditionally like `state.start()` above. See automation/engine.ts's
   // top doc comment, point 6.
   const engine = new AutomationEngine({ db, bus, settings, state });
-  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry(), version };
+  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry(), presence, version };
   // Registers whatever the current settings call for (Task 8's bootstrap.ts) — does NOT
   // start them; that's gated behind `buildApp()`'s `startSources` option (see app.ts /
   // index.ts) so tests never accidentally spin up real network/BLE/MQTT connections.

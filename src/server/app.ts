@@ -118,6 +118,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
     // device_offline/state_changed events) while the engine could still be reacting to
     // them. stop() is synchronous and safe even if start() was never called.
     app.ctx.engine.stop();
+    app.ctx.presence.stop();
     await app.ctx.sources.stopAll();
   });
   if (opts.startSources) {
