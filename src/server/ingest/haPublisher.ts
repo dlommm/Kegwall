@@ -373,6 +373,7 @@ export class HaPublisherSource implements Source {
     }));
     this.unsubs.push(this.bus.on('pour_completed', (e) => this.relayPour(e)));
     this.unsubs.push(this.bus.on('alert_fired', (e) => this.relayAlert(e)));
+    this.unsubs.push(this.bus.on('display_power_changed', (e) => this.relayDisplayPower(e)));
   }
 
   /** Trailing-edge coalescing window -- see header comment, point 4. */
@@ -498,6 +499,12 @@ export class HaPublisherSource implements Source {
       tapId: e.tapId ?? null, ts: e.ts,
     };
     this.client.publish(`${this.cfg.appTopicPrefix}/event/alert`, JSON.stringify(payload));
+  }
+
+  private relayDisplayPower(e: EventMap['display_power_changed']): void {
+    if (!this.cfg || !this.client?.connected) return;
+    const payload = { wall: e.wallSlug, state: e.state, ts: e.ts };
+    this.client.publish(`${this.cfg.appTopicPrefix}/event/display_power`, JSON.stringify(payload));
   }
 
   private emitStatus(healthy: boolean, detail: string): void {

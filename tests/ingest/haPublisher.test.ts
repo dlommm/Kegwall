@@ -620,6 +620,26 @@ describe('HaPublisherSource against a real broker', () => {
       const payload = json(byTopic('kegwall/event/alert')[0]!);
       expect(payload).toMatchObject({ tap: null, beer: null, tapId: 999999 });
     });
+
+    it('relays display_power_changed to <appTopicPrefix>/event/display_power, non-retained', async () => {
+      await subscribeAll();
+      source = await makeSource();
+      await vi.waitFor(() => expect(statusEvents.some((s) => s.healthy)).toBe(true));
+      received = [];
+
+      const ts = new Date().toISOString();
+      bus.emit('display_power_changed', {
+        wallId: 1, wallSlug: 'main', state: 'off', ts,
+      });
+
+      await vi.waitFor(() => expect(byTopic('kegwall/event/display_power')).toHaveLength(1));
+      const msg = byTopic('kegwall/event/display_power')[0]!;
+      expect(json(msg)).toEqual({ wall: 'main', state: 'off', ts });
+
+      // Non-retention proof: a client subscribing AFTER the fact receives nothing.
+      const late = await lateSubscribeCollect('kegwall/event/display_power', 100);
+      expect(late).toHaveLength(0);
+    });
   });
 
   describe('teardown', () => {
