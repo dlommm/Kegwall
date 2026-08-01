@@ -94,6 +94,7 @@ export function deleteUser(db: Database.Database, id: number): void {
   }
   const tx = db.transaction(() => {
     db.prepare('UPDATE pours SET drinker_id = NULL WHERE drinker_id = ?').run(id);
+    db.prepare('DELETE FROM face_embeddings WHERE drinker_id = ?').run(id); // cascade face sign-in data
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
   });
