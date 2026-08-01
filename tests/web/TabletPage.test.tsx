@@ -835,5 +835,196 @@ describe('TabletPage (design 3a)', () => {
         expect(screen.getByTestId('tablet-grid')).toBeInTheDocument();
       });
     });
+
+    // Fix round 1, F1: a stale `startFaceEnrollment` resolution (settling AFTER the
+    // attempt it belongs to was cancelled or superseded) must never touch `enrollState`
+    // -- reproduced by the reviewer via a deferred `getUserMedia` that resolves only
+    // after Cancel has already fired.
+    describe('stale-attempt currency (fix round 1, F1)', () => {
+      it('cancelling before getUserMedia resolves does not reopen the panel when it settles later', async () => {
+        let resolveGetUserMedia: ((stream: MediaStream) => void) | undefined;
+        const { stream, track } = fakeMediaStream();
+        const getUserMedia = vi.fn().mockImplementation(() => new Promise((resolve) => {
+          resolveGetUserMedia = resolve;
+        }));
+        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        await armViaGrid();
+
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await flush(); // let the effect kick off startFaceEnrollment -- getUserMedia now pending
+
+        fireEvent.click(screen.getByTestId('face-enroll-cancel'));
+        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument(); // back to idle
+
+        // The deferred getUserMedia now settles LATE, after the cancel.
+        await act(async () => {
+          resolveGetUserMedia?.(stream);
+          await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+        });
+
+        // Must still be idle -- no stale resolution reopening the panel in 'retry' or
+        // 'camera-error'.
+        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument();
+        expect(screen.queryByTestId('face-enroll-panel')).toBeNull();
+        expect(track.stop).toHaveBeenCalled(); // the late stream is still released, though
+      });
+
+      it('cancel-then-restart: a stale first attempt cannot clobber the live second attempt', async () => {
+        let resolveFirst: ((stream: MediaStream) => void) | undefined;
+        const first = fakeMediaStream();
+        const second = fakeMediaStream();
+        const getUserMedia = vi.fn()
+          .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+          .mockResolvedValueOnce(second.stream);
+        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        await armViaGrid();
+
+        fireEvent.click(screen.getByTestId('face-enroll-start')); // attempt 1 -- stuck on getUserMedia
+        await flush();
+        fireEvent.click(screen.getByTestId('face-enroll-cancel')); // cancel attempt 1
+        fireEvent.click(screen.getByTestId('face-enroll-start')); // attempt 2 -- starts fresh
+
+        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
+        await waitFor(() => expect(video.srcObject).toBe(second.stream)); // attempt 2's own stream
+
+        // The stale first attempt's getUserMedia now settles LATE -- must not clobber
+        // attempt 2's live state.
+        await act(async () => {
+          resolveFirst?.(first.stream);
+          await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+        });
+
+        expect(screen.getByTestId('face-enroll-panel')).toBeInTheDocument();
+        expect(video.srcObject).toBe(second.stream); // unclobbered -- still attempt 2's stream
+        expect(first.track.stop).toHaveBeenCalled(); // the stale attempt released ITS OWN camera
+        expect(screen.queryByTestId('face-enroll-camera-error')).toBeNull();
+        expect(screen.queryByTestId('face-enroll-retry')).toBeNull();
+      });
+    });
+
+    // Fix round 1, F2: a "done" state must mean the server actually has the embedding,
+    // not just that a face was detected locally.
+    describe('save verification (fix round 1, F2)', () => {
+      it('every save failing shows save-failed, not done', async () => {
+        vi.useFakeTimers();
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]); // a face every tick
+        (enrollFace as Mock).mockResolvedValue({ ok: false, status: 500, message: 'nope' }); // every save fails
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+
+        expect(screen.getByTestId('face-enroll-save-failed')).toBeInTheDocument();
+        expect(screen.getByText('Couldn’t save — try again')).toBeInTheDocument();
+        expect(screen.queryByTestId('face-enroll-delete')).toBeNull(); // not done
+        // The "Try again" button IS present here too (shared with 'retry' -- same
+        // handler, honest copy is carried by the message above, not the button), but
+        // the dishonest "No face found" copy specifically must not be.
+        expect(screen.getByTestId('face-enroll-retry')).toBeInTheDocument();
+        expect(screen.queryByText('No face found — try again')).toBeNull();
+        expect(track.stop).toHaveBeenCalled();
+        vi.useRealTimers();
+      });
+
+      it('a partial success (1-of-3 attempts failing) still reaches done at the timeout', async () => {
+        vi.useFakeTimers();
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock)
+          .mockResolvedValueOnce([1, 0, 0]) // tick 1: a face
+          .mockResolvedValueOnce([1, 0, 0]) // tick 2: a face
+          .mockResolvedValueOnce([1, 0, 0]) // tick 3: a face
+          .mockResolvedValue(null); // tick 4+: no more faces -- can't reach 3 successes
+        (enrollFace as Mock)
+          .mockResolvedValueOnce({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } }) // tick 1 saves
+          .mockResolvedValueOnce({ ok: false, status: 500, message: 'nope' }) // tick 2 fails
+          .mockResolvedValue({ ok: true, data: { id: 2, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } }); // tick 3 saves
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+
+        // 2 of 3 attempts saved (captured=2, never reached the 3-target) -- the 15s
+        // timeout still lands on 'done' since partial success is acceptable success.
+        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
+        expect(enrollFace).toHaveBeenCalledTimes(3);
+        expect(track.stop).toHaveBeenCalled();
+        vi.useRealTimers();
+      });
+
+      it('enrolls three captures and posts them still passes when every save succeeds (no regression)', async () => {
+        vi.useFakeTimers();
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
+        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+        expect(enrollFace).toHaveBeenCalledTimes(3);
+        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
+        vi.useRealTimers();
+      });
+    });
+
+    // Fix round 1, F3: a genuinely unavailable camera/model can never be fixed by
+    // "try again" the way a no-face timeout can -- the panel must say so honestly
+    // instead of reusing 'retry's "No face found" copy.
+    describe('camera/model unavailable (fix round 1, F3)', () => {
+      it('a rejecting getUserMedia shows camera-error, not retry', async () => {
+        const getUserMedia = vi.fn().mockRejectedValue(new Error('permission denied'));
+        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await flush();
+
+        expect(screen.getByTestId('face-enroll-camera-error')).toBeInTheDocument();
+        expect(screen.getByText('Camera unavailable — check the tablet’s camera permission')).toBeInTheDocument();
+        expect(screen.queryByTestId('face-enroll-retry')).toBeNull();
+        expect(screen.queryByTestId('face-enroll-save-failed')).toBeNull();
+
+        fireEvent.click(screen.getByTestId('face-enroll-cancel'));
+        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument();
+      });
+    });
+
+    // Fix round 1, Minor: a failed delete must not silently claim success.
+    describe('delete failure handling (fix round 1, Minor)', () => {
+      it('a failed delete leaves the done-state panel open instead of closing it', async () => {
+        vi.useFakeTimers();
+        const { stream } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
+        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument(); // done state reached
+        vi.useRealTimers();
+
+        (deleteFaces as Mock).mockResolvedValue({ ok: false, status: 500, message: 'nope' });
+        fireEvent.click(screen.getByTestId('face-enroll-delete'));
+        await waitFor(() => expect(deleteFaces).toHaveBeenCalledWith(PourerFixture.id));
+        await flush();
+
+        // Still in the done-state panel -- did NOT silently revert to idle/"Add my face".
+        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
+        expect(screen.queryByTestId('face-enroll-start')).toBeNull();
+      });
+    });
   });
 });

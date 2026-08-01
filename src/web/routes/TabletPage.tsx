@@ -81,13 +81,21 @@ interface FaceEnrollOptions {
    * faceRecognition.ts's pipeline/motion detector, this loop needs a VISIBLE feed, so
    * it attaches to a caller-owned element instead of creating its own offscreen one. */
   video: HTMLVideoElement;
-  /** Fired once the 3rd embedding has been captured and POSTed. The camera is already
-   * released by the time this fires. */
+  /** Fired once at least one embedding has been captured AND successfully saved
+   * (`enrollFace` resolved `.ok`) -- either because all 3 were reached, or because the
+   * 15s budget ran out with 1 or 2 successful saves already banked (fix round 1, F2:
+   * partial success still counts -- a save shown as "done" must actually be saved).
+   * The camera is already released by the time this fires. */
   onCaptured: () => void;
-  /** Fired when `FACE_ENROLL_TIMEOUT_MS` elapses without reaching the target (or the
-   * camera/model never came up at all). The camera is already released by the time
-   * this fires too. */
+  /** Fired when `FACE_ENROLL_TIMEOUT_MS` elapses having NEVER detected a face at all
+   * (every tick's `computeEmbedding` returned null) -- distinct from `onSaveFailed`
+   * below (fix round 1, F2). The camera is already released by the time this fires. */
   onTimeout: () => void;
+  /** Fired when `FACE_ENROLL_TIMEOUT_MS` elapses having detected at least one face but
+   * with zero successful `enrollFace` saves (every POST failed) -- distinct from
+   * `onTimeout` so the panel can show an honest "couldn't save" rather than "no face
+   * found" (fix round 1, F2). The camera is already released by the time this fires. */
+  onSaveFailed: () => void;
   /** Mirrors faceRecognition.ts's `startFacePipeline` `signal` contract: aborting
    * before the camera/model are ready closes whichever came up first instead of
    * leaving a live stream nobody's watching. */
@@ -108,22 +116,29 @@ interface FaceEnrollOptions {
  * the shared `@vladmandic/human` singleton (`loadHuman` memoizes it there, so this is
  * instant after the first pipeline/enrollment run in a session). Every
  * `FACE_ENROLL_INTERVAL_MS` it runs `computeEmbedding`: a null frame (no face) doesn't
- * count against the budget and the loop just tries again next tick, but a non-null
- * frame is immediately POSTed via `enrollFace` (fire-and-forget -- a dropped POST isn't
- * individually retried, matching this file's other public-mutation call sites, e.g.
- * `disarmTablet`) and counts toward the 3-capture target. The loop stops and releases
- * the camera itself the instant either outcome is reached (`onCaptured` or
- * `onTimeout`) -- callers never need to separately dispose a *finished* run; the
- * returned disposer exists purely for the "ended early" paths (Cancel, a screen change
- * away from 'armed', or unmount -- all handled by TabletPage's effect below).
+ * count against the budget and the loop just tries again next tick. A non-null frame
+ * is AWAITED through `enrollFace` (fix round 1, F2: a save that never reached the
+ * server must never be reported as "done") -- only a `.ok` POST counts toward the
+ * 3-capture target; a failed POST isn't individually retried (matching this file's
+ * other public-mutation call sites, e.g. `disarmTablet`'s fire-and-forget), but doesn't
+ * poison the run either -- the loop just keeps ticking on cadence, same as a null
+ * frame. The loop stops and releases the camera itself the instant any outcome is
+ * reached (`onCaptured`, `onTimeout`, or `onSaveFailed`) -- callers never need to
+ * separately dispose a *finished* run; the returned disposer exists purely for the
+ * "ended early" paths (Cancel, a screen change away from 'armed', or unmount -- all
+ * handled by TabletPage's effect below).
  *
  * Resolves `null` — mirroring `startFacePipeline`/`startCameraMotion` — when the
- * camera is unavailable/denied or `signal` was already aborted; the panel treats that
- * the same as a same-tick timeout (lands on the retry affordance).
+ * camera/model is genuinely unavailable (a real `getUserMedia`/`loadHuman` failure) OR
+ * when `signal` was aborted mid-start. The caller (TabletPage's effect) is responsible
+ * for telling these apart: an abort it itself requested (Cancel, unmount, a screen
+ * change) must never be treated as a camera error -- see that effect's "currency"
+ * check (fix round 1, F1) for how it does that without this function needing to encode
+ * "why" in its return value.
  */
 async function startFaceEnrollment(opts: FaceEnrollOptions): Promise<(() => void) | null> {
   const {
-    drinkerId, video, onCaptured, onTimeout, signal,
+    drinkerId, video, onCaptured, onTimeout, onSaveFailed, signal,
     getUserMedia = (constraints: MediaStreamConstraints) => (
       navigator.mediaDevices.getUserMedia(constraints)
     ),
@@ -174,7 +189,8 @@ async function startFaceEnrollment(opts: FaceEnrollOptions): Promise<(() => void
   video.play()?.catch(() => {});
 
   let stopped = false;
-  let captured = 0;
+  let captured = 0; // successful (`.ok`) saves -- NOT just non-null embeddings (F2)
+  let sawFace = false; // true once ANY tick detected a face, success or not (F2)
   let elapsedMs = 0;
 
   const dispose = () => {
@@ -185,21 +201,27 @@ async function startFaceEnrollment(opts: FaceEnrollOptions): Promise<(() => void
 
   const tick = () => {
     if (stopped) return;
-    void computeEmbedding(human, video).then((embedding) => {
+    void computeEmbedding(human, video).then(async (embedding) => {
       if (stopped) return; // disposed while this detect pass was in flight
       if (embedding) {
-        captured += 1;
-        void enrollFace(drinkerId, embedding);
-        if (captured >= FACE_ENROLL_TARGET) {
-          dispose();
-          onCaptured();
-          return;
+        sawFace = true;
+        const result = await enrollFace(drinkerId, embedding);
+        if (stopped) return; // disposed while this save was in flight
+        if (result.ok) {
+          captured += 1;
+          if (captured >= FACE_ENROLL_TARGET) {
+            dispose();
+            onCaptured();
+            return;
+          }
         }
       }
       elapsedMs += FACE_ENROLL_INTERVAL_MS;
       if (elapsedMs >= FACE_ENROLL_TIMEOUT_MS) {
         dispose();
-        onTimeout();
+        if (captured > 0) onCaptured(); // partial success (1 or 2 of 3) still counts
+        else if (sawFace) onSaveFailed(); // detected a face, but every save failed
+        else onTimeout(); // never detected a face at all
       }
     });
   };
@@ -420,7 +442,9 @@ export function TabletPage() {
   // `enrollDisposeRef` mirror the face pipeline's own refs above for the identical
   // reason -- an in-flight `startFaceEnrollment` start (camera/model still loading)
   // needs a way to be cancelled before it resolves, not just after.
-  const [enrollState, setEnrollState] = useState<'idle' | 'capturing' | 'retry' | 'done'>('idle');
+  const [enrollState, setEnrollState] = useState<
+    'idle' | 'capturing' | 'retry' | 'save-failed' | 'camera-error' | 'done'
+  >('idle');
   const enrollVideoRef = useRef<HTMLVideoElement | null>(null);
   const enrollControllerRef = useRef<AbortController | null>(null);
   const enrollDisposeRef = useRef<(() => void) | null>(null);
@@ -437,10 +461,24 @@ export function TabletPage() {
    * camera-release contract across every path that can end a capture early -- Cancel,
    * a screen change away from 'armed' (see the reset effect below), and component
    * unmount all just change/remove `enrollState`, which this cleanup responds to
-   * identically. A capture that finishes on its own (3rd capture, or the 15s timeout)
-   * has ALREADY released the camera by the time it calls `setEnrollState` -- this
-   * cleanup running for that transition is a harmless no-op (`enrollDisposeRef.current`
-   * is already null by then). */
+   * identically. A capture that finishes on its own (3rd capture, the 15s timeout, or
+   * a save failure) has ALREADY released the camera by the time it calls
+   * `setEnrollState` -- this cleanup running for that transition is a harmless no-op
+   * (`enrollDisposeRef.current` is already null by then).
+   *
+   * Fix round 1 (F1): the `.then()` below checks CURRENCY -- `enrollControllerRef.current
+   * === controller` -- before touching any state, not just before clearing the ref. The
+   * cleanup below ALSO clears `enrollControllerRef.current` (not just aborts) the moment
+   * a capture is cancelled/superseded. Together these close a race the reviewer
+   * reproduced: cancelling before `getUserMedia` resolves let the eventually-settling
+   * (aborted) call's `.then()` still run `setEnrollState('camera-error')` and silently
+   * reopen a panel the user had already closed -- and, worse, a cancel-then-immediately-
+   * retry could let that same stale `.then()` clobber the SECOND attempt's live state.
+   * With the ref cleared on cancel, a stale `.then()` always finds `enrollControllerRef
+   * .current !== controller` and bails before calling `setEnrollState` at all -- it can
+   * still `dispose()` a stray disposer that arrived late (releasing whatever camera it
+   * acquired), but it never touches state that might belong to a newer attempt (or to
+   * the deliberately-idle state the user asked for). */
   useEffect(() => {
     if (enrollState !== 'capturing') return undefined;
     const video = enrollVideoRef.current;
@@ -460,13 +498,28 @@ export function TabletPage() {
         enrollDisposeRef.current = null;
         setEnrollState('retry');
       },
+      onSaveFailed: () => {
+        enrollDisposeRef.current = null;
+        setEnrollState('save-failed');
+      },
     }).then((dispose) => {
-      if (enrollControllerRef.current === controller) enrollControllerRef.current = null;
+      if (enrollControllerRef.current !== controller) {
+        // Superseded by a cancel or a newer attempt before this one settled -- release
+        // a disposer if one arrived anyway (aborted mid-flight after acquiring a
+        // stream), but never touch `enrollState`: it either belongs to whatever the
+        // CURRENT attempt is doing now, or to the idle state the user asked for.
+        dispose?.();
+        return;
+      }
+      enrollControllerRef.current = null;
       if (!dispose) {
-        // Camera unavailable/denied -- nothing ever started capturing. Land on the
-        // same "try again" affordance a mid-capture timeout would show, rather than
-        // leaving the panel stuck on a dead preview.
-        setEnrollState('retry');
+        // Still current, and no disposer -- `controller.abort()` is only ever called
+        // from this effect's own cleanup, which clears `enrollControllerRef` first, so
+        // reaching here with the ref still matching means this was NOT a deliberate
+        // cancel. It can only be a genuine camera/model failure (F3) -- land on an
+        // honest, distinct state rather than "No face found", which a denied camera
+        // could never resolve by retrying the same way a no-face timeout can.
+        setEnrollState('camera-error');
         return;
       }
       enrollDisposeRef.current = dispose;
@@ -474,6 +527,7 @@ export function TabletPage() {
 
     return () => {
       controller.abort();
+      if (enrollControllerRef.current === controller) enrollControllerRef.current = null;
       enrollDisposeRef.current?.();
       enrollDisposeRef.current = null;
     };
@@ -508,11 +562,16 @@ export function TabletPage() {
    * still shows no faces for a moment); in the outer row it's already 'idle', so the
    * extra `setEnrollState` call is a no-op. Deliberately doesn't hand-patch `faces`
    * itself -- the server's DELETE broadcasts `faces_changed`, and `loadFaces` above
-   * already refetches on that, same as enrollment's own POSTs do. */
+   * already refetches on that, same as enrollment's own POSTs do.
+   *
+   * Fix round 1 (Minor): only close back to 'idle' on a successful delete -- a failed
+   * request (network error, server 500) must leave the panel exactly as it was (still
+   * showing "Remove my face data" so the user can just tap it again) rather than
+   * silently claiming the removal happened. */
   async function handleDeleteFace() {
     if (armedDrinkerId === null) return;
-    await deleteFaces(armedDrinkerId);
-    setEnrollState('idle');
+    const result = await deleteFaces(armedDrinkerId);
+    if (result.ok) setEnrollState('idle');
   }
 
   // Page-root wake-tap throttle (Task 10): a `useRef` timestamp guard, not state — this
@@ -947,6 +1006,55 @@ export function TabletPage() {
                             Cancel
                           </button>
                         </div>
+                      </>
+                    )}
+                    {/* Fix round 1 (F2): distinct from 'retry' above -- at least one
+                        face WAS detected here, but every `enrollFace` save failed, so
+                        "No face found" would be dishonest. Reuses the same retry
+                        affordance/handler ("Try again" -> back to 'capturing'), just
+                        with copy that says what actually went wrong. */}
+                    {enrollState === 'save-failed' && (
+                      <>
+                        <span className="face-enroll__hint" role="alert" data-testid="face-enroll-save-failed">
+                          Couldn&rsquo;t save — try again
+                        </span>
+                        <div className="face-enroll__actions">
+                          <button
+                            type="button"
+                            className="tablet-cta"
+                            data-testid="face-enroll-retry"
+                            onClick={handleRetryEnroll}
+                          >
+                            Try again
+                          </button>
+                          <button
+                            type="button"
+                            className="tablet-secondary"
+                            data-testid="face-enroll-cancel"
+                            onClick={handleCancelEnroll}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {/* Fix round 1 (F3): the camera/model never came up at all -- unlike
+                        'retry', tapping "Try again" here can't fix a denied permission,
+                        so a single honest dismissal is the whole affordance (the user
+                        can always tap "Add my face" again from idle once it's fixed). */}
+                    {enrollState === 'camera-error' && (
+                      <>
+                        <span className="face-enroll__hint" role="alert" data-testid="face-enroll-camera-error">
+                          Camera unavailable — check the tablet&rsquo;s camera permission
+                        </span>
+                        <button
+                          type="button"
+                          className="tablet-secondary"
+                          data-testid="face-enroll-cancel"
+                          onClick={handleCancelEnroll}
+                        >
+                          Close
+                        </button>
                       </>
                     )}
                     {enrollState === 'done' && (
