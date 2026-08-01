@@ -1026,5 +1026,82 @@ describe('TabletPage (design 3a)', () => {
         expect(screen.queryByTestId('face-enroll-start')).toBeNull();
       });
     });
+
+    // Fix round 2: the 15s budget must be a WALL-CLOCK deadline, not an accumulator
+    // that only advances when a tick's `enrollFace` POST completes -- `api.ts`'s
+    // `request()` has no fetch timeout, so a hung POST could otherwise pin the camera
+    // open indefinitely. Ticks are also single-flight: a slow-but-resolving POST must
+    // never let a second `computeEmbedding`/`enrollFace` round-trip start on top of it.
+    describe('wall-clock budget & single-flight ticks (fix round 2)', () => {
+      it('a hung enrollFace POST does not block the wall-clock deadline', async () => {
+        vi.useFakeTimers();
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]); // a face every tick
+        (enrollFace as Mock).mockImplementation(() => new Promise(() => {})); // never resolves
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+
+        // Without a wall-clock deadline, this would hang forever (the accumulator only
+        // advanced when a tick's POST resolved) -- advancing past 15s must still reach
+        // a terminal state even though the very first POST never settles.
+        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+
+        // A face WAS detected (sawFace) but the save never completed (captured stays
+        // 0) -- honest "couldn't save", not "no face found".
+        expect(screen.getByTestId('face-enroll-save-failed')).toBeInTheDocument();
+        expect(track.stop).toHaveBeenCalled();
+        // Single-flight also means only the FIRST tick's round-trip ever started --
+        // every later 700ms tick saw `inFlight` still true (the hung POST) and skipped.
+        expect(enrollFace).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+      });
+
+      it('slow-but-resolving POSTs (1500ms each) never overlap, and the session still terminates within budget', async () => {
+        vi.useFakeTimers();
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]); // a face every tick
+
+        let inFlightCount = 0;
+        let maxInFlight = 0;
+        (enrollFace as Mock).mockImplementation(() => {
+          inFlightCount += 1;
+          maxInFlight = Math.max(maxInFlight, inFlightCount);
+          return new Promise((resolve) => {
+            // A real `setTimeout` here is the SAME fake-timer-controlled clock `vi
+            // .advanceTimersByTimeAsync` below drives -- this is how the mock
+            // simulates network latency deterministically under fake timers.
+            setTimeout(() => {
+              inFlightCount -= 1;
+              resolve({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+            }, 1_500);
+          });
+        });
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+
+        // Single-flight: never more than 1 concurrent enrollFace call, even though
+        // 700ms ticks fire far more often than the 1500ms round-trip completes.
+        expect(maxInFlight).toBeLessThanOrEqual(1);
+        // Exactly 3 sequential round-trips (each ~1500ms) are enough to reach the
+        // target well inside the 15s budget -- if the single-flight guard were
+        // missing, overlapping ticks would have produced many more than 3 calls by
+        // 16s (ticks fire every 700ms, so up to ~22 would have started).
+        expect(enrollFace).toHaveBeenCalledTimes(3);
+        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument(); // done
+        expect(track.stop).toHaveBeenCalled();
+        vi.useRealTimers();
+      });
+    });
   });
 });

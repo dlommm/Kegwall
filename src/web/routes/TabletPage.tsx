@@ -70,10 +70,13 @@ function isFacesChangedMessage(msg: unknown): msg is { type: 'faces_changed' } {
 }
 
 /** Task 8 (face sign-in, Plan B): the armed screen's on-tablet enrollment capture --
- * cadence and budget straight from this task's brief. */
+ * cadence and budget straight from this task's brief. `FACE_ENROLL_BUDGET_MS` (fix
+ * round 2 rename, was `FACE_ENROLL_TIMEOUT_MS`) is a WALL-CLOCK deadline, not an
+ * accumulator of completed ticks -- see `startFaceEnrollment`'s `deadline`/`finish`
+ * below for why that distinction matters. */
 const FACE_ENROLL_TARGET = 3;
 const FACE_ENROLL_INTERVAL_MS = 700;
-const FACE_ENROLL_TIMEOUT_MS = 15_000;
+const FACE_ENROLL_BUDGET_MS = 15_000;
 
 interface FaceEnrollOptions {
   drinkerId: number;
@@ -87,14 +90,16 @@ interface FaceEnrollOptions {
    * partial success still counts -- a save shown as "done" must actually be saved).
    * The camera is already released by the time this fires. */
   onCaptured: () => void;
-  /** Fired when `FACE_ENROLL_TIMEOUT_MS` elapses having NEVER detected a face at all
-   * (every tick's `computeEmbedding` returned null) -- distinct from `onSaveFailed`
-   * below (fix round 1, F2). The camera is already released by the time this fires. */
+  /** Fired when the `FACE_ENROLL_BUDGET_MS` wall-clock deadline passes having NEVER
+   * detected a face at all (every tick's `computeEmbedding` returned null) -- distinct
+   * from `onSaveFailed` below (fix round 1, F2). The camera is already released by the
+   * time this fires. */
   onTimeout: () => void;
-  /** Fired when `FACE_ENROLL_TIMEOUT_MS` elapses having detected at least one face but
-   * with zero successful `enrollFace` saves (every POST failed) -- distinct from
-   * `onTimeout` so the panel can show an honest "couldn't save" rather than "no face
-   * found" (fix round 1, F2). The camera is already released by the time this fires. */
+  /** Fired when the `FACE_ENROLL_BUDGET_MS` wall-clock deadline passes having detected
+   * at least one face but with zero successful `enrollFace` saves (every POST failed)
+   * -- distinct from `onTimeout` so the panel can show an honest "couldn't save"
+   * rather than "no face found" (fix round 1, F2). The camera is already released by
+   * the time this fires. */
   onSaveFailed: () => void;
   /** Mirrors faceRecognition.ts's `startFacePipeline` `signal` contract: aborting
    * before the camera/model are ready closes whichever came up first instead of
@@ -122,11 +127,27 @@ interface FaceEnrollOptions {
  * 3-capture target; a failed POST isn't individually retried (matching this file's
  * other public-mutation call sites, e.g. `disarmTablet`'s fire-and-forget), but doesn't
  * poison the run either -- the loop just keeps ticking on cadence, same as a null
- * frame. The loop stops and releases the camera itself the instant any outcome is
- * reached (`onCaptured`, `onTimeout`, or `onSaveFailed`) -- callers never need to
- * separately dispose a *finished* run; the returned disposer exists purely for the
- * "ended early" paths (Cancel, a screen change away from 'armed', or unmount -- all
- * handled by TabletPage's effect below).
+ * frame.
+ *
+ * Fix round 2: the `FACE_ENROLL_BUDGET_MS` deadline is wall-clock (`Date.now()` at
+ * start + the budget, enforced by its OWN `setTimeout`), not an accumulator of
+ * completed ticks -- `api.ts`'s `request()` has no fetch timeout, so a hung
+ * `enrollFace` POST could otherwise stall the tick that would have advanced the clock
+ * and pin the camera open indefinitely. That same `setTimeout` is also the only thing
+ * that can end a run with a POST still in flight; the existing `stopped` flag makes
+ * that in-flight POST's eventual (possibly very late) resolution a no-op. Ticks are
+ * additionally single-flight (`inFlight`): a tick that fires while the previous
+ * `computeEmbedding`/`enrollFace` round-trip is still pending skips entirely rather
+ * than starting a second one on top -- the wall-clock deadline keeps running
+ * regardless, so a slow round-trip still can't extend the session, but it does mean
+ * the server can never receive more than one concurrent (and, in steady state, more
+ * than `FACE_ENROLL_TARGET`) `enrollFace` POST per run.
+ *
+ * The loop stops and releases the camera itself the instant any outcome is reached
+ * (`onCaptured`, `onTimeout`, or `onSaveFailed`) -- callers never need to separately
+ * dispose a *finished* run; the returned disposer exists purely for the "ended early"
+ * paths (Cancel, a screen change away from 'armed', or unmount -- all handled by
+ * TabletPage's effect below).
  *
  * Resolves `null` — mirroring `startFacePipeline`/`startCameraMotion` — when the
  * camera/model is genuinely unavailable (a real `getUserMedia`/`loadHuman` failure) OR
@@ -191,42 +212,59 @@ async function startFaceEnrollment(opts: FaceEnrollOptions): Promise<(() => void
   let stopped = false;
   let captured = 0; // successful (`.ok`) saves -- NOT just non-null embeddings (F2)
   let sawFace = false; // true once ANY tick detected a face, success or not (F2)
-  let elapsedMs = 0;
+  let inFlight = false; // fix round 2: single-flight guard -- see the tick below
 
   const dispose = () => {
     stopped = true;
     clearInterval(intervalId);
+    clearTimeout(deadlineTimer);
     stream.getTracks().forEach((track) => track.stop());
   };
 
-  const tick = () => {
+  /** Fix round 2: the wall-clock deadline's own terminal evaluation, independent of
+   * whatever a tick is doing. Fires exactly once, `FACE_ENROLL_BUDGET_MS` after the
+   * loop starts, via `setTimeout` (NOT the interval's own accumulated tick count) --
+   * this is what bounds the session even when a tick's `enrollFace` POST never
+   * resolves at all. `stopped` makes this inert if a tick already reached a terminal
+   * outcome (e.g. the 3rd capture) in the same instant this fires. */
+  const finish = () => {
     if (stopped) return;
+    dispose();
+    if (captured > 0) onCaptured(); // partial success (1 or 2 of 3) still counts
+    else if (sawFace) onSaveFailed(); // detected a face, but every save failed
+    else onTimeout(); // never detected a face at all
+  };
+
+  const tick = () => {
+    // Fix round 2: single-flight -- a slow `computeEmbedding`/`enrollFace` round-trip
+    // (>700ms, e.g. a slow network) must not stack a second one on top of it; the
+    // wall-clock deadline above runs independently of this guard, so a stuck round-trip
+    // still can't extend the session past its budget.
+    if (stopped || inFlight) return;
+    inFlight = true;
     void computeEmbedding(human, video).then(async (embedding) => {
-      if (stopped) return; // disposed while this detect pass was in flight
-      if (embedding) {
-        sawFace = true;
-        const result = await enrollFace(drinkerId, embedding);
-        if (stopped) return; // disposed while this save was in flight
-        if (result.ok) {
-          captured += 1;
-          if (captured >= FACE_ENROLL_TARGET) {
-            dispose();
-            onCaptured();
-            return;
+      try {
+        if (stopped) return; // disposed while this detect pass was in flight
+        if (embedding) {
+          sawFace = true;
+          const result = await enrollFace(drinkerId, embedding);
+          if (stopped) return; // disposed (e.g. the deadline fired) while this save was in flight
+          if (result.ok) {
+            captured += 1;
+            if (captured >= FACE_ENROLL_TARGET) {
+              dispose();
+              onCaptured();
+            }
           }
         }
-      }
-      elapsedMs += FACE_ENROLL_INTERVAL_MS;
-      if (elapsedMs >= FACE_ENROLL_TIMEOUT_MS) {
-        dispose();
-        if (captured > 0) onCaptured(); // partial success (1 or 2 of 3) still counts
-        else if (sawFace) onSaveFailed(); // detected a face, but every save failed
-        else onTimeout(); // never detected a face at all
+      } finally {
+        inFlight = false;
       }
     });
   };
 
   const intervalId = setInterval(tick, FACE_ENROLL_INTERVAL_MS);
+  const deadlineTimer = setTimeout(finish, FACE_ENROLL_BUDGET_MS);
   return dispose;
 }
 
