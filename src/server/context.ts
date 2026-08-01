@@ -16,6 +16,7 @@ import { AutomationEngine } from './automation/engine.js';
 import { pruneNotifications } from './db/notificationsRepo.js';
 import { pruneTelemetry } from './db/telemetry.js';
 import { pruneHostStats } from './db/hostStatsRepo.js';
+import { pruneUdpActivity } from './db/udpActivity.js';
 import { pruneLogs } from './db/logs.js';
 
 export interface AppContext {
@@ -56,8 +57,9 @@ function pruneStaleRows(db: Database.Database): void {
   const prunedNotifications = pruneNotifications(db);
   const prunedTelemetry = pruneTelemetry(db);
   const prunedHostStats = pruneHostStats(db);
-  if (prunedNotifications > 0 || prunedTelemetry > 0 || prunedHostStats > 0) {
-    console.log(`[startup] pruned ${prunedNotifications} notification(s), ${prunedTelemetry} telemetry row(s), ${prunedHostStats} host-stat row(s)`);
+  const prunedUdp = pruneUdpActivity(db);
+  if (prunedNotifications > 0 || prunedTelemetry > 0 || prunedHostStats > 0 || prunedUdp > 0) {
+    console.log(`[startup] pruned ${prunedNotifications} notification(s), ${prunedTelemetry} telemetry row(s), ${prunedHostStats} host-stat row(s), ${prunedUdp} udp-activity row(s)`);
   }
 }
 

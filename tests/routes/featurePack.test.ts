@@ -193,6 +193,22 @@ describe('connection doctor (design 11e)', () => {
     expect(res.json().rawSamples).toEqual([{ raw: '{"serialNum":"2001011234"}', ts: 'w' }]);
   }, 10_000);
 
+  it('udp-history summarizes the receipt timeline; udp-raw serves the packet ring', async () => {
+    const { bumpUdpActivity } = await import('../../src/server/db/udpActivity.js');
+    const minute = new Date(Date.now() - 5 * 60_000).toISOString().slice(0, 16);
+    bumpUdpActivity(app.ctx.db, minute, 'dev427', 240);
+    const history = await app.inject({ method: 'GET', url: '/api/doctor/udp-history?hours=24', cookies });
+    expect(history.statusCode).toBe(200);
+    expect(history.json().devices[0]).toMatchObject({ serial: 'dev427', totalPackets: 240 });
+
+    app.ctx.bus.emit('udp_packet_raw', { raw: '{"serialNum":"dev427"}', serial: 'dev427', ts: 'x' });
+    app.ctx.bus.emit('udp_packet_raw', { raw: 'garbage', ts: 'y' });
+    const rawRes = await app.inject({ method: 'GET', url: '/api/doctor/udp-raw', cookies });
+    // Newest first; malformed packets appear without a serial.
+    expect(rawRes.json().packets[0]).toEqual({ raw: 'garbage', ts: 'y' });
+    expect(rawRes.json().packets[1]).toMatchObject({ serial: 'dev427' });
+  });
+
   it('env check reports Docker state with a hint', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/doctor/env', cookies });
     expect(typeof res.json().inDocker).toBe('boolean');

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { SourceStatus } from '../../../server/ingest/manager.js';
 import {
-  doctorCloud, doctorEnv, doctorGovee, doctorListen, getSources,
+  doctorCloud, doctorEnv, doctorGovee, doctorListen, doctorUdpHistory, doctorUdpRaw,
+  getSources, type UdpDeviceHistory,
 } from '../../lib/adminApi';
 
 type CheckState =
@@ -22,6 +23,18 @@ export function DoctorPage() {
   const [cloud, setCloud] = useState<CheckState>({ state: 'idle' });
   const [listen, setListen] = useState<CheckState>({ state: 'idle' });
   const [rawSamples, setRawSamples] = useState<{ raw: string; ts: string }[]>([]);
+  const [udpHistory, setUdpHistory] = useState<UdpDeviceHistory[] | null>(null);
+  const [udpRaw, setUdpRaw] = useState<{ raw: string; ts: string; serial?: string }[] | null>(null);
+
+  async function loadUdpHistory() {
+    const result = await doctorUdpHistory(24);
+    if (result.ok) setUdpHistory(result.data.devices);
+  }
+
+  async function loadUdpRaw() {
+    const result = await doctorUdpRaw();
+    if (result.ok) setUdpRaw(result.data.packets);
+  }
   const [govee, setGovee] = useState<CheckState>({ state: 'idle' });
   const [env, setEnv] = useState<{ inDocker: boolean; hint: string } | null>(null);
 
@@ -150,6 +163,53 @@ export function DoctorPage() {
             ))}
           </details>
         )}
+        <div className="doctor-udp-extra">
+          <div className="settings-actions">
+            <button type="button" data-testid="doctor-udp-history-btn" onClick={loadUdpHistory}>
+              UDP history (24h)
+            </button>
+            <button type="button" data-testid="doctor-udp-raw-btn" onClick={loadUdpRaw}>
+              Recent raw packets
+            </button>
+          </div>
+          {udpHistory !== null && (
+            udpHistory.length === 0 ? (
+              <p className="admin-page-quiet" data-testid="doctor-udp-history-empty">
+                No UDP packets recorded in the last 24h. The timeline fills in while packets arrive.
+              </p>
+            ) : (
+              <ul className="doctor-udp-history" data-testid="doctor-udp-history">
+                {udpHistory.map((d) => (
+                  <li key={d.serial}>
+                    <strong className="font-tabular">{d.serial}</strong>
+                    {` — ${d.totalPackets} packets, coverage ${d.coveragePct}%, last seen ${d.lastSeen.slice(11)} UTC`}
+                    {d.gaps.length > 0 && (
+                      <span className="admin-page-quiet">
+                        {' '}· gaps: {d.gaps.map((g) => `${g.minutes}min (from ${g.from.slice(11)})`).join(', ')}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
+          {udpRaw !== null && (
+            udpRaw.length === 0 ? (
+              <p className="admin-page-quiet" data-testid="doctor-udp-raw-empty">
+                No packets in the buffer — nothing has arrived since the server started.
+              </p>
+            ) : (
+              <details className="doctor-raw" open data-testid="doctor-udp-raw">
+                <summary>Last {udpRaw.length} raw packets (newest first)</summary>
+                {udpRaw.map((pkt) => (
+                  <pre key={pkt.ts + (pkt.serial ?? '')} className="doctor-raw__packet font-tabular">
+                    {`${pkt.ts}${pkt.serial ? ` · ${pkt.serial}` : ' · UNPARSEABLE'}\n${pkt.raw}`}
+                  </pre>
+                ))}
+              </details>
+            )
+          )}
+        </div>
         <CheckRow
           title="Govee sensors"
           hint="API key + reading freshness"

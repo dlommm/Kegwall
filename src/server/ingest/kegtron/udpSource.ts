@@ -279,24 +279,30 @@ export class KegtronUdpSource implements Source {
 
   private handlePacket(msg: Buffer): void {
     if (this.stopped) return;
-    // Raw tap for the connection doctor — fires for EVERY datagram, malformed ones
-    // included, so "what is actually on the wire" is inspectable from the admin UI.
-    this.bus.emit('udp_packet_raw', {
-      raw: msg.toString('utf8').slice(0, 2048), ts: new Date().toISOString(),
+    // Raw tap for the connection doctor + the udp_activity timeline — fires for
+    // EVERY datagram, malformed ones included, so "what is actually on the wire"
+    // is inspectable from the admin UI.
+    const rawStr = msg.toString('utf8');
+    const emitRaw = (serial?: string) => this.bus.emit('udp_packet_raw', {
+      raw: rawStr.slice(0, 2048), ts: new Date().toISOString(),
+      ...(serial ? { serial } : {}),
     });
     let raw: unknown;
     try {
-      raw = JSON.parse(msg.toString('utf8'));
+      raw = JSON.parse(rawStr);
     } catch {
+      emitRaw();
       console.warn('[kegtron_udp] dropped malformed packet: invalid JSON');
       return;
     }
 
     const parsed = parsePacket(raw);
     if (!parsed) {
+      emitRaw();
       console.warn('[kegtron_udp] dropped malformed packet: unrecognized shape');
       return;
     }
+    emitRaw(parsed.serialNum);
 
     const ts = new Date().toISOString();
     this.handleTelemetry(parsed, ts);

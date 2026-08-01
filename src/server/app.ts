@@ -28,6 +28,7 @@ import { NotFoundError, ConflictError, ValidationError } from './core/errors.js'
 import type { HostResolver } from './core/ssrfGuard.js';
 import { readHostStats } from './core/hostStats.js';
 import { recordHostStats } from './db/hostStatsRepo.js';
+import { bumpUdpActivity } from './db/udpActivity.js';
 
 /** Host-health sample cadence — 60s keeps a month of history at ~43k tiny rows. */
 const HOST_STATS_SAMPLE_MS = 60_000;
@@ -150,6 +151,30 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
     void sampleHostStats();
     const hostStatsTimer = setInterval(sampleHostStats, HOST_STATS_SAMPLE_MS);
     app.addHook('onClose', async () => clearInterval(hostStatsTimer));
+
+    // UDP receipt timeline (db/udpActivity.ts): count packets per (minute, serial)
+    // in memory and flush once a minute — NEVER a DB write per packet (4/sec would
+    // grind the Pi's SD card). Same startSources gate as the sampler above.
+    const udpCounts = new Map<string, number>(); // `${minute}|${serial}` → packets
+    const offUdpTap = app.ctx.bus.on('udp_packet_raw', (e) => {
+      const key = `${e.ts.slice(0, 16)}|${e.serial ?? 'malformed'}`;
+      udpCounts.set(key, (udpCounts.get(key) ?? 0) + 1);
+    });
+    const flushUdpActivity = () => {
+      for (const [key, count] of udpCounts) {
+        const [minute, serial] = key.split('|') as [string, string];
+        try {
+          bumpUdpActivity(app.ctx.db, minute, serial, count);
+        } catch { /* a failed flush loses a minute of counts, never the server */ }
+      }
+      udpCounts.clear();
+    };
+    const udpFlushTimer = setInterval(flushUdpActivity, 60_000);
+    app.addHook('onClose', async () => {
+      clearInterval(udpFlushTimer);
+      offUdpTap();
+      flushUdpActivity();
+    });
   }
 
   await app.register(cookie);

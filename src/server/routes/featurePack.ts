@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { requireRole } from './auth.js';
 import { ratePour } from '../db/pours.js';
+import { listUdpActivity, summarizeUdpActivity } from '../db/udpActivity.js';
 import { getUser } from '../db/users.js';
 import { getBeer } from '../db/beers.js';
 import { getKeg } from '../db/kegs.js';
@@ -210,6 +211,33 @@ export async function featurePackRoutes(app: FastifyInstance) {
   // UDP/live-path check (design: "30s listen … pour now to prove the live path"):
   // counts live bus events per monitor over a short window. Works for every
   // source, and a pour during the window proves the whole ingest path.
+  // Rolling in-memory ring of the last raw UDP datagrams — the "save the UDP data"
+  // request, scoped sanely: raw payloads are ~1KB at 4/sec, so persisting them all
+  // would grind the SD card for no diagnostic gain. The last 50 on demand + the
+  // per-minute udp_activity timeline below cover every real investigation.
+  const RAW_RING_SIZE = 50;
+  const rawRing: { raw: string; ts: string; serial?: string }[] = [];
+  app.ctx.bus.on('udp_packet_raw', (e) => {
+    rawRing.push(e);
+    if (rawRing.length > RAW_RING_SIZE) rawRing.shift();
+  });
+
+  app.get('/api/doctor/udp-raw', editor, async () => ({ packets: [...rawRing].reverse() }));
+
+  // The persisted receipt timeline (db/udpActivity.ts): per-device coverage + the
+  // largest silent gaps — the evidence for "works, then dies after N quiet minutes"
+  // (IGMP snooping ageing) vs "stopped at 21:04 and never came back" (device toggle).
+  app.get('/api/doctor/udp-history', editor, async (req) => {
+    const { hours } = z.object({
+      hours: z.coerce.number().int().min(1).max(24 * 14).default(24),
+    }).parse(req.query ?? {});
+    const now = new Date();
+    const endMinute = now.toISOString().slice(0, 16);
+    const sinceMinute = new Date(now.getTime() - hours * 3_600_000).toISOString().slice(0, 16);
+    const devices = summarizeUdpActivity(listUdpActivity(app.ctx.db, sinceMinute), endMinute);
+    return { hours, devices };
+  });
+
   app.post('/api/doctor/listen', editor, async (req) => {
     const body = z.object({ seconds: z.number().int().min(3).max(30).default(10) }).parse(req.body ?? {});
     // Count ONLY genuine UDP packets. This test's whole purpose is proving the UDP

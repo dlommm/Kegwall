@@ -43,7 +43,12 @@ export interface EventMap {
    * malformed ones (that's the debugging value). Ephemeral: nothing persists it;
    * the connection doctor's listen window collects a few samples so an admin can
    * see exactly what's arriving on the wire. `raw` is truncated to 2KB. */
-  udp_packet_raw: { raw: string; ts: string };
+  udp_packet_raw: {
+    raw: string; ts: string;
+    /** serialNum when the packet parsed; absent for malformed datagrams (which
+     * still fire — that's the debugging value). */
+    serial?: string;
+  };
   /** Emitted by app.ts's 60s host sampler after each host_stats row is written —
    * ws.ts relays it as `{type:'host_stats', ...}` so walls with `showHostStats`
    * render a live CPU/RAM/disk strip without polling an authenticated endpoint. */

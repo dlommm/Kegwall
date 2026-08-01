@@ -860,3 +860,21 @@ export function getHostStatsHistory(hours = 24): Promise<ApiResult<{ points: Hos
 export function triggerKioskRestart(): Promise<ApiResult<{ message: string }>> {
   return request('/api/system/kiosk-restart', { method: 'POST', body: JSON.stringify({}) });
 }
+
+/** Per-device UDP receipt timeline (GET /api/doctor/udp-history). */
+export interface UdpDeviceHistory {
+  serial: string;
+  totalPackets: number;
+  firstSeen: string;
+  lastSeen: string;
+  coveragePct: number;
+  gaps: { from: string; to: string; minutes: number }[];
+}
+
+export function doctorUdpHistory(hours = 24): Promise<ApiResult<{ hours: number; devices: UdpDeviceHistory[] }>> {
+  return request(`/api/doctor/udp-history?hours=${hours}`);
+}
+
+export function doctorUdpRaw(): Promise<ApiResult<{ packets: { raw: string; ts: string; serial?: string }[] }>> {
+  return request('/api/doctor/udp-raw');
+}
