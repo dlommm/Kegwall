@@ -212,20 +212,35 @@ export async function featurePackRoutes(app: FastifyInstance) {
   // source, and a pour during the window proves the whole ingest path.
   app.post('/api/doctor/listen', editor, async (req) => {
     const body = z.object({ seconds: z.number().int().min(3).max(30).default(10) }).parse(req.body ?? {});
+    // Count ONLY genuine UDP packets. This test's whole purpose is proving the UDP
+    // live path, but it originally counted volume_update/pour_* from ANY source —
+    // and Kegtron's cloud notify channel pushes shadow updates at a per-second-ish
+    // cadence, so a dead UDP path still "passed" with dozens of events (observed on
+    // real hardware: 41 cloud events while UDP had been silent for 35 minutes).
+    // The UDP source emits a healthy source_status per parsed packet with the serial
+    // in its detail (udpSource.ts) — that's the packet-level signal, keyed per device.
     const counts = new Map<string, number>();
-    const bump = (key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
+    // A few raw datagrams (malformed included — udpSource taps them BEFORE parsing)
+    // so an admin can see exactly what's on the wire, not just a count.
+    const rawSamples: { raw: string; ts: string }[] = [];
     const offs = [
-      app.ctx.bus.on('volume_update', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
-      app.ctx.bus.on('pour_started', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
-      app.ctx.bus.on('pour_progress', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
-      app.ctx.bus.on('pour_completed', (e) => bump(`${e.monitor.identifier}:${e.monitor.portIndex}`)),
+      app.ctx.bus.on('source_status', (e) => {
+        if (e.source !== 'kegtron_udp' || !e.healthy) return;
+        const m = /^last packet from (\S+) /.exec(e.detail);
+        if (m) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
+      }),
+      app.ctx.bus.on('udp_packet_raw', (e) => {
+        if (rawSamples.length < 5) rawSamples.push(e);
+      }),
     ];
     await new Promise((resolve) => { setTimeout(resolve, body.seconds * 1000); });
     offs.forEach((off) => off());
     const perMonitor = [...counts.entries()].map(([monitor, events]) => ({ monitor, events }));
     const total = perMonitor.reduce((sum, m) => sum + m.events, 0);
-    app.ctx.log.info('kegtron', `Doctor: ${body.seconds}s live listen — ${total} event(s) across ${perMonitor.length} monitor(s)`);
-    return { seconds: body.seconds, total, perMonitor };
+    app.ctx.log.info('kegtron', `Doctor: ${body.seconds}s UDP listen — ${total} packet(s) across ${perMonitor.length} device(s)`);
+    return {
+      seconds: body.seconds, total, perMonitor, rawSamples,
+    };
   });
 
   // Network-mode check (design: "detects Docker bridge and links the host-network fix").

@@ -155,12 +155,15 @@ describe('connection doctor (design 11e)', () => {
     expect(res.json()).toMatchObject({ ok: false, detail: 'No Kegtron cloud API key configured' });
   });
 
-  it('the live-path listen counts bus events during its window', async () => {
+  it('the UDP-path listen counts only genuine UDP packet statuses, never cloud events', async () => {
     const promise = app.inject({
       method: 'POST', url: '/api/doctor/listen', payload: { seconds: 3 }, cookies,
     });
-    // Give the route a beat to subscribe, then emit two live events.
+    // Give the route a beat to subscribe, then emit a mix of signals.
     await new Promise((resolve) => { setTimeout(resolve, 300); });
+    // Cloud-style live events MUST NOT count — the original implementation counted
+    // these, and Kegtron's cloud notify made a dead UDP path look alive (observed:
+    // 41 cloud events while UDP had been silent for 35 minutes).
     app.ctx.bus.emit('pour_progress', {
       monitor: { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 }, curServMl: 100, ts: 'x',
     });
@@ -168,9 +171,26 @@ describe('connection doctor (design 11e)', () => {
       monitor: { type: 'kegtron_pro', identifier: 'dev1', portIndex: 0 },
       volStartMl: 19000, volDispensedMl: 100, sizeMl: 19000, ts: 'x',
     });
+    // Real UDP packet statuses (udpSource.ts emits one per parsed packet) DO count.
+    app.ctx.bus.emit('source_status', {
+      source: 'kegtron_udp', healthy: true, detail: 'last packet from 2001011234 at x', ts: 'x',
+    });
+    app.ctx.bus.emit('source_status', {
+      source: 'kegtron_udp', healthy: true, detail: 'last packet from 2001011234 at y', ts: 'y',
+    });
+    // Unhealthy UDP statuses and other sources' statuses don't count either.
+    app.ctx.bus.emit('source_status', {
+      source: 'kegtron_udp', healthy: false, detail: 'socket error: boom', ts: 'z',
+    });
+    app.ctx.bus.emit('source_status', {
+      source: 'gen1_ble', healthy: true, detail: 'last advert from aa:bb at z', ts: 'z',
+    });
+    // Raw datagrams captured for the wire-level view (malformed included).
+    app.ctx.bus.emit('udp_packet_raw', { raw: '{"serialNum":"2001011234"}', ts: 'w' });
     const res = await promise;
     expect(res.json().total).toBe(2);
-    expect(res.json().perMonitor[0]).toMatchObject({ monitor: 'dev1:0', events: 2 });
+    expect(res.json().perMonitor[0]).toMatchObject({ monitor: '2001011234', events: 2 });
+    expect(res.json().rawSamples).toEqual([{ raw: '{"serialNum":"2001011234"}', ts: 'w' }]);
   }, 10_000);
 
   it('env check reports Docker state with a hint', async () => {

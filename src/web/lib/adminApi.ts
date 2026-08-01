@@ -737,7 +737,7 @@ export function doctorCloud(): Promise<ApiResult<{ ok: boolean; detail: string; 
   return request('/api/doctor/cloud', { method: 'POST', body: JSON.stringify({}) });
 }
 
-export function doctorListen(seconds = 10): Promise<ApiResult<{ seconds: number; total: number; perMonitor: { monitor: string; events: number }[] }>> {
+export function doctorListen(seconds = 10): Promise<ApiResult<{ seconds: number; total: number; perMonitor: { monitor: string; events: number }[]; rawSamples: { raw: string; ts: string }[] }>> {
   return request('/api/doctor/listen', { method: 'POST', body: JSON.stringify({ seconds }) });
 }
 

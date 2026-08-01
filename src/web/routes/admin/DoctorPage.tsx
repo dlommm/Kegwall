@@ -21,6 +21,7 @@ export function DoctorPage() {
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [cloud, setCloud] = useState<CheckState>({ state: 'idle' });
   const [listen, setListen] = useState<CheckState>({ state: 'idle' });
+  const [rawSamples, setRawSamples] = useState<{ raw: string; ts: string }[]>([]);
   const [govee, setGovee] = useState<CheckState>({ state: 'idle' });
   const [env, setEnv] = useState<{ inDocker: boolean; hint: string } | null>(null);
 
@@ -47,19 +48,21 @@ export function DoctorPage() {
 
   async function runListen() {
     setListen({ state: 'running' });
+    setRawSamples([]);
     const result = await doctorListen(10);
     if (!result.ok) {
       setListen({ state: 'done', ok: false, detail: result.message });
       return;
     }
     const { total, perMonitor, seconds } = result.data;
+    setRawSamples(result.data.rawSamples ?? []);
     const per = perMonitor.map((m) => `${m.monitor}: ${m.events}`).join(' · ');
     setListen({
       state: 'done',
       ok: total > 0,
       detail: total > 0
-        ? `${total} live event(s) in ${seconds}s — ${per}`
-        : `No events in ${seconds}s. Pour something to prove the live path, or check the source settings.`,
+        ? `${total} UDP packet(s) in ${seconds}s — ${per}`
+        : `No UDP packets in ${seconds}s — a streaming Kegtron sends ~1/sec even idle, so the packets aren't reaching this server (check the network path and the device's UDP toggle).`,
     });
   }
 
@@ -130,13 +133,23 @@ export function DoctorPage() {
           testId="doctor-cloud"
         />
         <CheckRow
-          title="Live path (10s listen)"
-          hint="Counts live ingest events per monitor — pour now to prove the whole path"
+          title="UDP live path (10s listen)"
+          hint="Counts raw UDP packets per device — a streaming Kegtron sends ~1/sec even idle, so 0 here means the packets aren’t reaching this server"
           check={listen}
           onRun={runListen}
           runLabel="Listen 10s"
           testId="doctor-listen"
         />
+        {rawSamples.length > 0 && (
+          <details className="doctor-raw" data-testid="doctor-raw-samples">
+            <summary>Raw UDP packets captured ({rawSamples.length})</summary>
+            {rawSamples.map((s) => (
+              <pre key={s.ts} className="doctor-raw__packet font-tabular">
+                {`${s.ts}\n${s.raw}`}
+              </pre>
+            ))}
+          </details>
+        )}
         <CheckRow
           title="Govee sensors"
           hint="API key + reading freshness"

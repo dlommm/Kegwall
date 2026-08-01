@@ -3258,6 +3258,29 @@ h2.admin-field__label-text {
  * saves independently; masked secret fields (`.masked-secret`) share one small "Replace"
  * affordance component across Kegtron/Sources/Integrations.
  */
+/* Doctor raw-UDP capture — collapsible packet dump under the UDP listen row. */
+.doctor-raw {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.8rem;
+}
+
+.doctor-raw summary {
+  cursor: pointer;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+}
+
+.doctor-raw__packet {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
 /* Wall server-health strip (showHostStats) — discreet fixed corner readout, above
  * the looks but below banners/takeovers in visual weight. */
 .wall-host-stats {
