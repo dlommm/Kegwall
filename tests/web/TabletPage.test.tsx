@@ -487,6 +487,33 @@ describe('TabletPage (design 3a)', () => {
       expect(screen.queryByTestId('face-confirm-sheet')).toBeNull();
     });
 
+    // Fix round 1: a pipeline started on the grid screen can still be "running"
+    // (mocked here as never resolving/self-stopping on its own) when someone arms
+    // manually in the meantime. A late onCandidate must not pop the confirm sheet over
+    // the armed screen -- confirming it would call armTablet with a *different*
+    // drinkerId than whoever's actually armed, silently replacing the armed slot
+    // (core/tabletArm.ts) and mis-attributing the next pour.
+    it('drops a stale candidate once the tablet has left the grid screen', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      const { onCandidate } = (startFacePipeline as Mock).mock.calls[0]![0];
+
+      // Manually arm a pourer via the avatar path while the pipeline is still active.
+      fireEvent.click(screen.getAllByTestId('tablet-avatar')[0]!); // Sam, id 1
+      await flush();
+      expect(armTablet).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('tablet-armed')).toBeInTheDocument();
+
+      // The pipeline's late match (for a DIFFERENT pourer) arrives after the screen
+      // already moved on.
+      act(() => onCandidate({ drinkerId: 2, score: 0.9 })); // JT, id 2
+      expect(screen.queryByTestId('face-confirm-sheet')).toBeNull();
+      expect(armTablet).toHaveBeenCalledTimes(1);
+    });
+
     it('never starts a second pipeline while one is already running (ref guard)', async () => {
       (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
       (startFacePipeline as Mock).mockResolvedValue(vi.fn()); // resolves with a live disposer -- stays "running"

@@ -202,11 +202,24 @@ export function TabletPage() {
    * self-stops right after firing this (faceRecognition.ts's `dispose()` inside
    * `startFacePipeline`'s tick handler), so clearing the ref guard here is exactly what
    * lets the NEXT motion/tap start a fresh run -- "Not me" never needs to touch these
-   * refs itself, since by the time it's clickable this has already run. */
+   * refs itself, since by the time it's clickable this has already run.
+   *
+   * Fix round 1 (mis-arm guard): a pipeline started on the grid screen can still be
+   * running when someone arms manually in the meantime (hand-tap an avatar, or
+   * signup) -- `startFacePipeline`'s own promise chain has no way to know the screen
+   * moved on. Without this check, a late `onCandidate` would pop the confirm sheet
+   * over whatever screen is now showing, and "Yes" would call `armTablet` with a
+   * *different* drinkerId than whoever's actually armed -- core/tabletArm.ts silently
+   * replaces the armed slot, so the next pour would attribute to the wrong person.
+   * Reading `screenRef.current` here (not a value closed over when the pipeline
+   * started) catches every screen the tablet could have moved to since then. The
+   * pipeline itself isn't stopped by this -- it already self-stopped by firing
+   * `onCandidate` in the first place -- so no extra cleanup is needed here. */
   const handleFaceCandidate = useCallback(({ drinkerId }: MatchCandidate) => {
     facePipelineActiveRef.current = false;
     facePipelineControllerRef.current = null;
     facePipelineStopRef.current = null;
+    if (screenRef.current.kind !== 'grid') return;
     const pourer = pourersRef.current.find((p) => p.id === drinkerId);
     if (!pourer) return;
     setFaceConfirm({ id: pourer.id, name: pourer.displayName, color: pourer.avatarColor });
