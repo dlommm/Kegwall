@@ -39,6 +39,10 @@ const DEFAULT_BIND_ADDRESS = '0.0.0.0';
 // fallback window (see file header comment).
 const DEFAULT_POUR_TIMEOUT_MS = 2_000;
 
+/** Multicast membership refresh cadence — well under the ~260s IGMP snooping
+ * membership timeout that killed the stream on real hardware (see start()). */
+const REJOIN_INTERVAL_MS = 60_000;
+
 export interface KegtronUdpSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
@@ -181,6 +185,9 @@ export class KegtronUdpSource implements Source {
   private readonly pourTimeoutMs: number;
 
   private socket: dgram.Socket | null = null;
+
+  /** IGMP-refresh timer — see the re-join comment in start(). */
+  private rejoinTimer: ReturnType<typeof setInterval> | null = null;
   private boundAddress: { address: string; port: number } | null = null;
   private readonly ports = new Map<string, PortState>();
   private readonly lastTemp = new Map<string, number>();
@@ -217,6 +224,10 @@ export class KegtronUdpSource implements Source {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    if (this.rejoinTimer) {
+      clearInterval(this.rejoinTimer);
+      this.rejoinTimer = null;
+    }
     for (const state of this.ports.values()) {
       if (state.timeoutTimer) {
         clearTimeout(state.timeoutTimer);
@@ -256,6 +267,24 @@ export class KegtronUdpSource implements Source {
           resolve();
           return;
         }
+        // Periodic multicast RE-JOIN — verified on real hardware (2026-08-01,
+        // UniFi network): the stream lived exactly as long as the switch's IGMP
+        // snooping table remembered the join (~5 minutes), then died until the
+        // next source restart re-joined (udp_activity timeline: 50% coverage,
+        // repeated ~6-minute gaps). With IGMP snooping enabled but NO querier on
+        // the network, nothing ever refreshes memberships — so we refresh our own:
+        // drop + re-add every minute emits a fresh IGMP report, keeping the
+        // snooping table alive regardless of the network gear's configuration.
+        // Harmless where snooping is off/querier exists (a redundant report).
+        this.rejoinTimer = setInterval(() => {
+          if (this.stopped || this.socket !== socket) return;
+          try {
+            socket.dropMembership(this.group);
+          } catch { /* wasn't joined (unicast-only bind) — re-add below still tries */ }
+          try {
+            socket.addMembership(this.group);
+          } catch { /* same unicast-only case as the initial join — harmless */ }
+        }, REJOIN_INTERVAL_MS);
         try {
           // Best-effort: joining fails harmlessly when bound to a specific unicast
           // test address (e.g. 127.0.0.1) rather than the wildcard interface — the
