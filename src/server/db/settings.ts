@@ -112,6 +112,10 @@ export const settingsSchema = z.object({
     .object({ start: z.string(), end: z.string() }) // "22:00" / "08:00"
     .nullable()
     .default(null),
+  // Presence spec Part A2/A3: shared secret for POST /api/presence/motion and
+  // GET /api/presence/stream; generated client-side in admin Settings → Integrations;
+  // null = those endpoints 503.
+  presenceWebhookToken: z.string().nullable().default(null),
   // Phase 5 Task 2: per-channel config for the automation engine's notify action
   // (`notify/channels/*.ts`). Each channel is independently optional (a site might only
   // configure ntfy, or nothing at all) AND independently nullable (explicit `null` clears

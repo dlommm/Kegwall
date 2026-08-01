@@ -8,6 +8,7 @@ import { createContext, type AppContext } from './context.js';
 import { authRoutes } from './routes/auth.js';
 import { crudRoutes } from './routes/crud.js';
 import { wsRoutes } from './routes/ws.js';
+import { presenceRoutes } from './routes/presence.js';
 import { publicRoutes } from './routes/public.js';
 import { sourcesRoutes } from './routes/sources.js';
 import { kegtronRoutes } from './routes/kegtron.js';
@@ -79,6 +80,9 @@ export interface AppOptions {
   startSources?: boolean;
   /** Overrides the `/ws` heartbeat interval (default 30s) — tests only; see `wsRoutes`. */
   wsPingIntervalMs?: number;
+  /** Overrides the `GET /api/presence/stream` SSE `: ping` comment interval (default
+   * 30s) — tests only, same pattern as `wsPingIntervalMs`; see `presenceRoutes`. */
+  presencePingIntervalMs?: number;
   /** Overrides `routes/lookup.ts`'s brewery-lookup upstream fetch timeout AND
    * `routes/kegtron.ts`'s Pro import label-download timeout (default 5s for both) —
    * tests only, same pattern as `wsPingIntervalMs` above / MdashClient's `timeoutMs`. */
@@ -204,6 +208,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   await wsRoutes(app, { pingIntervalMs: opts.wsPingIntervalMs }); // direct call —
                            // @fastify/websocket it registers internally attaches to the
                            // root instance, same reasoning as above
+  await presenceRoutes(app, { pingIntervalMs: opts.presencePingIntervalMs }); // direct
+                           // call — see encapsulation note above; registered alongside
+                           // wsRoutes since both relay app.ctx.presence's power stages
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
   const dataDir = resolve(opts.dataDir ?? './data');
