@@ -45,8 +45,13 @@ export interface WallConfigFormState {
   showClock: boolean;
   showTemp: boolean;
   ticker: string;
-  screensaverEnabled: boolean;
-  screensaverStartAfterMinutes: number;
+  /** Presence & display power (2026-07-31 spec, Part A) — replaces the old
+   * `screensaverEnabled`/`screensaverStartAfterMinutes` fields; both timers measure from
+   * last activity and `null` means "never engage that stage" (see wallConfig.ts's
+   * `displayPower` doc comment). The form never writes the legacy `screensaver` key. */
+  displayPowerScreensaverAfterMinutes: number | null;
+  displayPowerOffAfterMinutes: number | null;
+  displayPowerCameraMotion: boolean;
   fillStyle: WallConfig['fillStyle'];
 }
 
@@ -102,8 +107,9 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     showClock: config.header.showClock,
     showTemp: config.header.showTemp,
     ticker: config.ticker ?? '',
-    screensaverEnabled: config.screensaver.enabled,
-    screensaverStartAfterMinutes: config.screensaver.startAfterMinutes,
+    displayPowerScreensaverAfterMinutes: config.displayPower.screensaverAfterMinutes,
+    displayPowerOffAfterMinutes: config.displayPower.offAfterMinutes,
+    displayPowerCameraMotion: config.displayPower.cameraMotion,
     fillStyle: config.fillStyle,
   };
 }
@@ -160,9 +166,15 @@ export function formStateToConfigCandidate(
     showHostStats: form.showHostStats,
     header,
     fields: { ...form.fields },
-    screensaver: {
-      enabled: form.screensaverEnabled,
-      startAfterMinutes: form.screensaverStartAfterMinutes,
+    // The legacy `screensaver` key is deliberately NEVER written here — `parseWallConfig`
+    // owns migrating an old stored row's `screensaver` into `displayPower` on the READ
+    // side (see wallConfig.ts); a save always writes the real `displayPower` key only, so
+    // an edited wall's stored `screensaver` (if any) is simply left to go stale/unused
+    // rather than round-tripped.
+    displayPower: {
+      screensaverAfterMinutes: form.displayPowerScreensaverAfterMinutes,
+      offAfterMinutes: form.displayPowerOffAfterMinutes,
+      cameraMotion: form.displayPowerCameraMotion,
     },
     fillStyle: form.fillStyle,
   };

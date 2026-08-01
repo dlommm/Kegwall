@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wallConfigSchema, type WallConfig } from '../../src/server/core/wallConfig';
+import { wallConfigSchema, parseWallConfig, type WallConfig } from '../../src/server/core/wallConfig';
 import {
   WALL_TOKEN_KEYS, defaultFormState, configToFormState, formStateToConfigCandidate,
   parseWallConfigForm, formatZodIssue,
@@ -29,6 +29,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
     expect(result.config.ticker).toBe(defaults.ticker);
     expect(result.config.customCss).toBe(defaults.customCss);
     expect(result.config.screensaver).toEqual(defaults.screensaver);
+    expect(result.config.displayPower).toEqual(defaults.displayPower);
     expect(result.config.fillStyle).toBe(defaults.fillStyle);
     // ...except `fields`: the schema's own default is `{}` (implicit "use the template's
     // defaults"), but the editor always shows every known toggle with a real value so an
@@ -69,10 +70,19 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
         labelImage: false, brewery: true, style: true, description: true, abv: true, ibu: false, lastPour: true,
       },
       customCss: '.kegtron-theme-scope { letter-spacing: 0.05em; }',
-      screensaver: { enabled: true, startAfterMinutes: 7 },
+      // The legacy `screensaver` key is no longer wired through the form at all (see
+      // wallEditorConfig.ts's doc comment — `displayPower` owns the form now, and
+      // `formStateToConfigCandidate` never writes `screensaver`), so it always
+      // round-trips back to the schema's own default rather than an arbitrary stored
+      // value — this fixture's `screensaver` MUST be that default for `toEqual(full)`
+      // below to hold.
+      screensaver: { enabled: false, startAfterMinutes: 10 },
       fillStyle: 'keg',
       showHostStats: true,
-      displayPower: { screensaverAfterMinutes: null, offAfterMinutes: null, cameraMotion: false },
+      // Deliberately NON-default (see ledgered debt b): a default-value fixture here
+      // would still pass this round-trip test even if `displayPower` were silently
+      // dropped from the form entirely — proves the three fields are really wired.
+      displayPower: { screensaverAfterMinutes: 30, offAfterMinutes: 120, cameraMotion: true },
     };
     // Sanity: the fixture itself must be valid per the schema.
     expect(() => wallConfigSchema.parse(full)).not.toThrow();
@@ -142,12 +152,12 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
   it('zod-error surfacing: multiple invalid fields all surface, formatted with a human path', () => {
     const form = defaultFormState();
     form.columns = 0; // schema min is 1
-    form.screensaverStartAfterMinutes = 0; // schema min is 1
+    form.displayPowerScreensaverAfterMinutes = 0; // schema min is 1
     const result = parseWallConfigForm(form, []);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors.some((e) => /columns/i.test(e))).toBe(true);
-    expect(result.errors.some((e) => /screensaver/i.test(e) && /startAfterMinutes/i.test(e))).toBe(true);
+    expect(result.errors.some((e) => /displayPower/i.test(e) && /screensaverAfterMinutes/i.test(e))).toBe(true);
   });
 
   it('formatZodIssue renders a nested path with the message', () => {
@@ -172,6 +182,66 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.config.fillStyle).toBe('keg');
+    });
+  });
+
+  // Task 12: displayPower (screensaverAfterMinutes|null, offAfterMinutes|null,
+  // cameraMotion) replaces the old screensaverEnabled/screensaverStartAfterMinutes form
+  // fields — the editor never writes the legacy `screensaver` key again.
+  describe('displayPower', () => {
+    it('defaultFormState starts with both timers off and camera motion disabled', () => {
+      const form = defaultFormState();
+      expect(form.displayPowerScreensaverAfterMinutes).toBeNull();
+      expect(form.displayPowerOffAfterMinutes).toBeNull();
+      expect(form.displayPowerCameraMotion).toBe(false);
+    });
+
+    it('a non-default set of values round-trips through the form into config.displayPower verbatim', () => {
+      const form = defaultFormState();
+      form.displayPowerScreensaverAfterMinutes = 15;
+      form.displayPowerOffAfterMinutes = 45;
+      form.displayPowerCameraMotion = true;
+
+      const result = parseWallConfigForm(form, []);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.displayPower).toEqual({
+        screensaverAfterMinutes: 15, offAfterMinutes: 45, cameraMotion: true,
+      });
+      // And the legacy key is never written at all.
+      const candidate = formStateToConfigCandidate(form, []) as Record<string, unknown>;
+      expect(candidate.screensaver).toBeUndefined();
+    });
+
+    it('a null screensaverAfterMinutes with a set offAfterMinutes round-trips ("off" alone, no saver stage)', () => {
+      const form = defaultFormState();
+      form.displayPowerOffAfterMinutes = 20;
+      const result = parseWallConfigForm(form, []);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.displayPower).toEqual({
+        screensaverAfterMinutes: null, offAfterMinutes: 20, cameraMotion: false,
+      });
+    });
+
+    it("the schema's off > saver refine issue (path ['displayPower', 'offAfterMinutes']) surfaces "
+      + 'through the same per-field formatZodIssue plumbing as every other nested field', () => {
+      const form = defaultFormState();
+      form.displayPowerScreensaverAfterMinutes = 30;
+      form.displayPowerOffAfterMinutes = 10; // off must be > saver
+      const result = parseWallConfigForm(form, []);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.errors.some((e) => e.startsWith('displayPower.offAfterMinutes:'))).toBe(true);
+    });
+
+    it('a legacy stored config (only `screensaver`, no `displayPower`) loads into the new form '
+      + 'fields via parseWallConfig\'s migration — the editor never sees the legacy key itself', () => {
+      const legacyConfig = parseWallConfig({ screensaver: { enabled: true, startAfterMinutes: 12 } });
+      const form = configToFormState(legacyConfig);
+      expect(form.displayPowerScreensaverAfterMinutes).toBe(12);
+      expect(form.displayPowerOffAfterMinutes).toBeNull();
+      expect(form.displayPowerCameraMotion).toBe(false);
     });
   });
 });

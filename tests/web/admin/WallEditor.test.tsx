@@ -115,6 +115,78 @@ describe('WallEditor', () => {
     );
   });
 
+  describe('Display power (Task 12)', () => {
+    it('loads default (never-engage) displayPower into blank inputs and an unchecked camera checkbox', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      expect(screen.getByTestId('wall-editor-display-power-screensaver-minutes')).toHaveValue(null);
+      expect(screen.getByTestId('wall-editor-display-power-off-minutes')).toHaveValue(null);
+      expect(screen.getByTestId('wall-editor-display-power-camera-motion')).not.toBeChecked();
+    });
+
+    it('loads an explicit non-default displayPower into the three fields', async () => {
+      const wall = makeWall({
+        config: wallConfigSchema.parse({
+          displayPower: { screensaverAfterMinutes: 5, offAfterMinutes: 20, cameraMotion: true },
+        }),
+      });
+      render(<WallEditor wall={wall} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      expect(screen.getByTestId('wall-editor-display-power-screensaver-minutes')).toHaveValue(5);
+      expect(screen.getByTestId('wall-editor-display-power-off-minutes')).toHaveValue(20);
+      expect(screen.getByTestId('wall-editor-display-power-camera-motion')).toBeChecked();
+    });
+
+    it('editing all three fields and saving sends the new displayPower object to updateWall', async () => {
+      const savedWall = makeWall();
+      (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+
+      fireEvent.change(screen.getByTestId('wall-editor-display-power-screensaver-minutes'), { target: { value: '10' } });
+      fireEvent.change(screen.getByTestId('wall-editor-display-power-off-minutes'), { target: { value: '30' } });
+      fireEvent.click(screen.getByTestId('wall-editor-display-power-camera-motion'));
+      await act(async () => {
+        fireEvent.submit(screen.getByTestId('wall-editor-form'));
+      });
+
+      expect(updateWall).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          config: expect.objectContaining({
+            displayPower: { screensaverAfterMinutes: 10, offAfterMinutes: 30, cameraMotion: true },
+          }),
+        }),
+      );
+    });
+
+    it('clearing a filled-in minutes field back to blank saves it as null', async () => {
+      const wall = makeWall({
+        config: wallConfigSchema.parse({
+          displayPower: { screensaverAfterMinutes: 5, offAfterMinutes: null, cameraMotion: false },
+        }),
+      });
+      const savedWall = makeWall();
+      (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
+      render(<WallEditor wall={wall} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+
+      fireEvent.change(screen.getByTestId('wall-editor-display-power-screensaver-minutes'), { target: { value: '' } });
+      await act(async () => {
+        fireEvent.submit(screen.getByTestId('wall-editor-form'));
+      });
+
+      expect(updateWall).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          config: expect.objectContaining({
+            displayPower: { screensaverAfterMinutes: null, offAfterMinutes: null, cameraMotion: false },
+          }),
+        }),
+      );
+    });
+  });
+
   it('renders the pages builder once taps have loaded', async () => {
     render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
     expect(await screen.findByTestId('wall-pages-builder')).toBeInTheDocument();

@@ -6,8 +6,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPage } from '../../../src/web/routes/admin/SettingsPage';
 import {
   getSettings, patchSettings, uploadLabel, testChannel, checkForUpdates, triggerUpdate,
-  triggerOsUpdate,
+  triggerOsUpdate, listWalls,
 } from '../../../src/web/lib/adminApi';
+import { postPresenceWake } from '../../../src/web/lib/api';
 import type { Settings } from '../../../src/server/db/settings';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
@@ -22,6 +23,13 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   pollUpdateStatus: vi.fn().mockResolvedValue(null),
   triggerOsUpdate: vi.fn(),
   triggerKioskRestart: vi.fn(),
+  // Task 12: the Sources group's MQTT card feeds its motion-topics repeater's
+  // wall-slug dropdown from the real walls list.
+  listWalls: vi.fn(),
+}));
+
+vi.mock('../../../src/web/lib/api', () => ({
+  postPresenceWake: vi.fn(),
 }));
 
 vi.mock('../../../src/web/routes/admin/BackupPanel', () => ({
@@ -61,6 +69,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     proBleEnabled: false,
     mqtt: null,
     quietHours: null,
+    presenceWebhookToken: null,
     alertChannels: {},
     ...overrides,
   };
@@ -71,6 +80,11 @@ beforeEach(() => {
   // Tab clicks write ?tab= via history.replaceState and jsdom's URL persists across
   // tests — reset so every test starts on the default tab.
   window.history.replaceState(null, '', '/');
+  // Every panel stays mounted (just `hidden`), so the Sources group's walls fetch fires
+  // on every render regardless of which tab is active — give every test a default so it
+  // doesn't have to opt in individually.
+  (listWalls as Mock).mockResolvedValue({ ok: true, data: [] });
+  (postPresenceWake as Mock).mockResolvedValue(undefined);
 });
 
 describe('SettingsPage', () => {
@@ -356,6 +370,99 @@ describe('SettingsPage', () => {
       expect(screen.getByTestId('settings-sources-error')).toBeInTheDocument();
       expect(patchSettings).not.toHaveBeenCalled();
     });
+
+    // Task 12 + ledgered debt (c): the motion-topics repeater lives inside the same MQTT
+    // card, editing `mqtt.motionTopics`.
+    describe('motion topics repeater', () => {
+      it('saving with a non-empty stored motionTopics preserves it verbatim (an unrelated '
+        + 'field edit must not silently drop or rewrite an untouched row)', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true,
+          data: baseSettings({
+            mqtt: {
+              url: 'mqtt://host:1883', username: 'u', password: '••••',
+              gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: false,
+              haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+              motionTopics: [{ topic: 'sensors/bar/motion', wallSlug: 'main-bar' }],
+            },
+          }),
+        });
+        (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-sources');
+
+        fireEvent.change(screen.getByTestId('settings-sources-mqtt-url'), { target: { value: 'mqtt://new:1883' } });
+        fireEvent.click(screen.getByTestId('settings-sources-save'));
+        await flush();
+
+        expect(patchSettings).toHaveBeenCalledWith(expect.objectContaining({
+          mqtt: expect.objectContaining({
+            motionTopics: [{ topic: 'sensors/bar/motion', wallSlug: 'main-bar' }],
+          }),
+        }));
+      });
+
+      it('adding a row, filling it in, and saving PATCHes the new topic/wallSlug pair', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true,
+          data: baseSettings({
+            mqtt: {
+              url: 'mqtt://host:1883', username: 'u', password: '••••',
+              gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: false,
+              haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall', motionTopics: [],
+            },
+          }),
+        });
+        (listWalls as Mock).mockResolvedValue({
+          ok: true, data: [{ id: 1, slug: 'main-bar', name: 'Main bar', config: {} }],
+        });
+        (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-sources');
+        await flush();
+
+        fireEvent.click(screen.getByTestId('settings-sources-mqtt-motion-add'));
+        fireEvent.change(screen.getByTestId('settings-sources-mqtt-motion-topic-0'), {
+          target: { value: 'sensors/patio/motion' },
+        });
+        fireEvent.change(screen.getByTestId('settings-sources-mqtt-motion-wall-0'), {
+          target: { value: 'main-bar' },
+        });
+        fireEvent.click(screen.getByTestId('settings-sources-save'));
+        await flush();
+
+        expect(patchSettings).toHaveBeenCalledWith(expect.objectContaining({
+          mqtt: expect.objectContaining({
+            motionTopics: [{ topic: 'sensors/patio/motion', wallSlug: 'main-bar' }],
+          }),
+        }));
+      });
+
+      it('removing a row drops it from the saved motionTopics', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true,
+          data: baseSettings({
+            mqtt: {
+              url: 'mqtt://host:1883', username: 'u', password: '••••',
+              gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: false,
+              haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+              motionTopics: [{ topic: 'sensors/bar/motion', wallSlug: null }],
+            },
+          }),
+        });
+        (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-sources');
+
+        fireEvent.click(screen.getByTestId('settings-sources-mqtt-motion-remove-0'));
+        fireEvent.click(screen.getByTestId('settings-sources-save'));
+        await flush();
+
+        expect(patchSettings).toHaveBeenCalledWith(expect.objectContaining({
+          mqtt: expect.objectContaining({ motionTopics: [] }),
+        }));
+      });
+    });
   });
 
   describe('Integrations group', () => {
@@ -512,6 +619,66 @@ describe('SettingsPage', () => {
         await flush();
 
         expect(screen.getByTestId('settings-sources-mqtt-url')).toHaveValue('mqtt://half-typed:1883');
+      });
+    });
+
+    // Task 12: the Presence card — masked webhook token + Generate, and the admin
+    // "Wake all screens" action (`postPresenceWake(undefined, 'touch')`).
+    describe('Presence block', () => {
+      it('shows "Not set" when no token has ever been generated', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        expect(screen.getByTestId('settings-integrations-presence-token-masked')).toHaveTextContent('Not set');
+      });
+
+      it('shows the server-masked token as-is (consistent with the other masked-secret displays)', async () => {
+        (getSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ presenceWebhookToken: '••••beef' }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        expect(screen.getByTestId('settings-integrations-presence-token-masked')).toHaveTextContent('••••beef');
+      });
+
+      it('renders the webhook URL template', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        expect(screen.getByTestId('settings-integrations-presence-webhook-url'))
+          .toHaveTextContent('POST /api/presence/motion?token=…');
+      });
+
+      it('Generate immediately PATCHes a fresh crypto.randomUUID() token via the settings-save path', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        (patchSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ presenceWebhookToken: '••••abcd' }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        fireEvent.click(screen.getByTestId('settings-integrations-presence-generate'));
+        await flush();
+
+        expect(patchSettings).toHaveBeenCalledTimes(1);
+        const call = (patchSettings as Mock).mock.calls[0]![0];
+        expect(typeof call.presenceWebhookToken).toBe('string');
+        expect(call.presenceWebhookToken).not.toMatch(/^••••/);
+        expect(screen.getByTestId('settings-integrations-presence-token-masked')).toHaveTextContent('••••abcd');
+      });
+
+      it('"Wake all screens" calls postPresenceWake with no wall and source "touch"', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        fireEvent.click(screen.getByTestId('settings-integrations-presence-wake-all'));
+        await flush();
+
+        expect(postPresenceWake).toHaveBeenCalledWith(undefined, 'touch');
       });
     });
   });

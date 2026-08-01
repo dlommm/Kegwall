@@ -637,24 +637,41 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
           </fieldset>
 
           <fieldset className="wall-editor__section">
-            <legend>Screensaver</legend>
+            <legend>Display power</legend>
+            <label className="admin-field">
+              <span>Screensaver after (minutes, blank = never)</span>
+              <input
+                type="number"
+                min={1}
+                data-testid="wall-editor-display-power-screensaver-minutes"
+                value={form.displayPowerScreensaverAfterMinutes ?? ''}
+                onChange={(e) => updateField(
+                  'displayPowerScreensaverAfterMinutes',
+                  e.target.value === '' ? null : Number(e.target.value),
+                )}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Screens off after (minutes, blank = never)</span>
+              <input
+                type="number"
+                min={2}
+                data-testid="wall-editor-display-power-off-minutes"
+                value={form.displayPowerOffAfterMinutes ?? ''}
+                onChange={(e) => updateField(
+                  'displayPowerOffAfterMinutes',
+                  e.target.value === '' ? null : Number(e.target.value),
+                )}
+              />
+            </label>
             <label className="wall-editor__checkbox">
               <input
                 type="checkbox"
-                data-testid="wall-editor-screensaver-enabled"
-                checked={form.screensaverEnabled}
-                onChange={(e) => updateField('screensaverEnabled', e.target.checked)}
+                data-testid="wall-editor-display-power-camera-motion"
+                checked={form.displayPowerCameraMotion}
+                onChange={(e) => updateField('displayPowerCameraMotion', e.target.checked)}
               />
-              Enabled
-            </label>
-            <label className="admin-field">
-              <span>Start after (minutes)</span>
-              <input
-                type="number"
-                data-testid="wall-editor-screensaver-minutes"
-                value={form.screensaverStartAfterMinutes}
-                onChange={(e) => updateField('screensaverStartAfterMinutes', Number(e.target.value))}
-              />
+              Camera motion wake (tablet)
             </label>
           </fieldset>
 
