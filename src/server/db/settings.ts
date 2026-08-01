@@ -105,6 +105,13 @@ export const settingsSchema = z.object({
       haPublishEnabled: z.boolean().default(false),
       haDiscoveryPrefix: z.string().default('homeassistant'),
       appTopicPrefix: z.string().default('kegwall'),
+      // Presence (Plan A Task 6): motion-sensor topics. Any message on `topic` whose
+      // payload isn't a falsy marker (see isMotionPayload) wakes `wallSlug` (null =
+      // every wall). Lives inside `mqtt` because it shares this broker connection.
+      motionTopics: z.array(z.object({
+        topic: z.string().min(1),
+        wallSlug: z.string().nullable().default(null),
+      })).default([]),
     })
     .nullable()
     .default(null),

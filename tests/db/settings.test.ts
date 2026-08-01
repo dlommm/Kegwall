@@ -21,6 +21,7 @@ const MQTT_DEFAULTS = {
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegwall',
+  motionTopics: [],
 };
 
 describe('SettingsStore', () => {

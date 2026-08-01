@@ -73,12 +73,12 @@ describe('SourceManager', () => {
     const bus = new EventBus();
     const manager = new SourceManager(bus);
     const status = manager.status();
-    expect(status).toHaveLength(7);
+    expect(status).toHaveLength(8);
     expect(status.every((s) => s.registered === false)).toBe(true);
     expect(status.every((s) => s.healthy === false)).toBe(true);
     expect(status.every((s) => s.lastEventAt === null)).toBe(true);
     expect(status.map((s) => s.name).sort()).toEqual(
-      ['gen1_ble', 'gen1_mqtt', 'govee', 'kegtron_cloud', 'kegtron_udp', 'mqtt_publisher', 'pro_ble'],
+      ['gen1_ble', 'gen1_mqtt', 'govee', 'kegtron_cloud', 'kegtron_udp', 'motion_mqtt', 'mqtt_publisher', 'pro_ble'],
     );
   });
 

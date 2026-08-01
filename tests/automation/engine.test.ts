@@ -1107,7 +1107,7 @@ describe('action dispatch', () => {
       seed();
       settings.set('mqtt', {
         url: `mqtt://127.0.0.1:${brokerPort}`, gen1TopicPrefix: 'home/x', haPublishEnabled: false,
-        haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+        haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall', motionTopics: [],
       });
       const received: { topic: string; payload: string }[] = [];
       const sub = mqtt.connect(`mqtt://127.0.0.1:${brokerPort}`);

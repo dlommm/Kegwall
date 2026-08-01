@@ -14,6 +14,7 @@ import { LogService } from '../../src/server/core/logService.js';
 import { SensorRegistry } from '../../src/server/core/sensorRegistry.js';
 import { SessionRegistry } from '../../src/server/core/sessionMode.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
+import { PresenceRegistry } from '../../src/server/core/presence.js';
 import { registerConfiguredSources } from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createBeer } from '../../src/server/db/beers.js';
@@ -41,6 +42,7 @@ function makeCtx(): AppContext {
     db, bus, settings, state, sources, engine,
     tabletArm: new TabletArmRegistry(), log,
     sensors: new SensorRegistry(bus, log), session: new SessionRegistry(), version: '0.0.0-dev',
+    presence: new PresenceRegistry(bus),
   };
 }
 
@@ -71,6 +73,7 @@ describe('registerConfiguredSources', () => {
       haPublishEnabled: false,
       haDiscoveryPrefix: 'homeassistant',
       appTopicPrefix: 'kegwall',
+      motionTopics: [],
     });
     ctx.settings.set('bleDirectEnabled', true);
 
@@ -95,6 +98,7 @@ describe('registerConfiguredSources', () => {
       haPublishEnabled: true,
       haDiscoveryPrefix: 'homeassistant',
       appTopicPrefix: 'kegwall',
+      motionTopics: [],
     });
 
     registerConfiguredSources(ctx);
@@ -108,6 +112,7 @@ describe('registerConfiguredSources', () => {
     ctx.settings.set('mqtt', {
       url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
       haPublishEnabled: true, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+      motionTopics: [],
     });
     registerConfiguredSources(ctx);
     expect(ctx.sources.status().find((s) => s.name === 'mqtt_publisher')!.registered).toBe(true);
@@ -115,6 +120,7 @@ describe('registerConfiguredSources', () => {
     ctx.settings.set('mqtt', {
       url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
       haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+      motionTopics: [],
     });
     registerConfiguredSources(ctx);
     expect(ctx.sources.status().find((s) => s.name === 'mqtt_publisher')!.registered).toBe(false);

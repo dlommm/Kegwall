@@ -18,6 +18,7 @@ const MQTT_DEFAULTS = {
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegwall',
+  motionTopics: [],
 };
 
 let broker: Aedes;

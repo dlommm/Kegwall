@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<SourceStatus['name'], string> = {
   pro_ble: 'Pro BLE',
   mqtt_publisher: 'MQTT publisher',
   govee: 'Govee gateway',
+  motion_mqtt: 'Motion MQTT',
 };
 
 /** Local midnight, as an ISO string — the boundary `GET /api/pours?since=` filters

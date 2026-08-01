@@ -108,6 +108,7 @@ const MQTT_CFG = {
   haPublishEnabled: true,
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegwall',
+  motionTopics: [],
 };
 
 function tmpDataDir(): string {

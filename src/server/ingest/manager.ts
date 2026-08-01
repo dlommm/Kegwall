@@ -14,6 +14,7 @@ export interface SourceStatus {
 // error. status() always reports one row per known source, even ones never registered.
 const SOURCE_NAME_SET = {
   kegtron_cloud: true, kegtron_udp: true, gen1_mqtt: true, gen1_ble: true, pro_ble: true, mqtt_publisher: true, govee: true,
+  motion_mqtt: true,
 } satisfies Record<SourceName, true>;
 const ALL_SOURCE_NAMES = Object.keys(SOURCE_NAME_SET) as SourceName[];
 

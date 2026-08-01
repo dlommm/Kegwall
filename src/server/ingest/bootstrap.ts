@@ -9,6 +9,7 @@ import { Gen1BleSource } from './gen1/bleSource.js';
 import { PourSynthesizer } from './gen1/pourSynth.js';
 import { BleScanner } from './ble/scanner.js';
 import { HaPublisherSource } from './haPublisher.js';
+import { MotionMqttSource } from './motionMqtt.js';
 
 // ---------------------------------------------------------------------------
 // Task 8: wires the four ingest sources (Tasks 4/6/7) into a single `SourceManager`
@@ -130,6 +131,18 @@ export function registerConfiguredSources(ctx: AppContext): void {
   if (settings.mqtt?.haPublishEnabled) {
     ctx.sources.register(new HaPublisherSource({
       bus: ctx.bus, settings: ctx.settings, db: ctx.db, state: ctx.state,
+    }));
+  }
+
+  // Presence (Plan A Task 6): the motion-sensor MQTT subscriber. Same "gated on its own
+  // sub-key, not merely `settings.mqtt` being set" precedent as `mqtt_publisher` just
+  // above -- a site can run the Gen 1 MQTT bridge (or HA discovery) without configuring
+  // any motion topics at all, and an unconfigured install's `status()` should report
+  // `motion_mqtt: {registered: false}` rather than a registered-but-inert source.
+  if (settings.mqtt?.motionTopics.length) {
+    ctx.sources.register(new MotionMqttSource({
+      url: settings.mqtt.url, username: settings.mqtt.username, password: settings.mqtt.password,
+      topics: settings.mqtt.motionTopics, presence: ctx.presence, bus: ctx.bus,
     }));
   }
 }

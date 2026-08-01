@@ -30,6 +30,10 @@ const MQTT_DEFAULTS = {
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegwall',
+  // Presence (Plan A Task 6): motion-sensor topics. No admin UI edits this yet (see
+  // ingest/motionMqtt.ts) -- SourcesGroup's save below preserves whatever's already
+  // stored rather than silently clearing it every time an unrelated MQTT field is saved.
+  motionTopics: [] as Array<{ topic: string; wallSlug: string | null }>,
 };
 
 function triggersRestart(patch: Partial<Settings>): boolean {
@@ -346,6 +350,7 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
         haPublishEnabled: mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled,
         haDiscoveryPrefix: mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix,
         appTopicPrefix: mqtt?.appTopicPrefix ?? MQTT_DEFAULTS.appTopicPrefix,
+        motionTopics: mqtt?.motionTopics ?? MQTT_DEFAULTS.motionTopics,
       };
     }
     const result = await patchSettings(patch);
