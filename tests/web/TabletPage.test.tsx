@@ -3,13 +3,13 @@ import {
 } from 'vitest';
 import type { Mock } from 'vitest';
 import {
-  act, fireEvent, render, screen,
+  act, fireEvent, render, screen, waitFor,
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { TabletPage, POURER_COLORS } from '../../src/web/routes/TabletPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import {
-  armTablet, createPourer, disarmTablet, getPourers,
+  armTablet, createPourer, disarmTablet, getPourers, postPresenceWake,
 } from '../../src/web/lib/api';
 import { wallConfigSchema } from '../../src/server/core/wallConfig';
 import type { TapState } from '../../src/server/core/state';
@@ -21,6 +21,7 @@ vi.mock('../../src/web/lib/api', async (importOriginal) => ({
   createPourer: vi.fn(),
   armTablet: vi.fn(),
   disarmTablet: vi.fn(),
+  postPresenceWake: vi.fn(),
 }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
@@ -94,6 +95,7 @@ describe('TabletPage (design 3a)', () => {
     (createPourer as Mock).mockResolvedValue({
       ok: true, data: { id: 9, displayName: 'Drew', avatarColor: '#94C25C' },
     });
+    (postPresenceWake as Mock).mockResolvedValue(undefined);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -216,5 +218,82 @@ describe('TabletPage (design 3a)', () => {
     await flush();
     expect(disarmTablet).toHaveBeenCalled();
     expect(screen.getByTestId('tablet-grid')).toBeInTheDocument();
+  });
+
+  // Task 10: server-driven screensaver/off stages (useDisplayPower) ride the SAME /ws
+  // socket as pour_attributed above — onWsMessage is chained into the callback TabletPage
+  // already hands useWallData.
+  describe('server-driven display power stage (WS messages)', () => {
+    it('shows the off overlay on a display_power frame and wakes on tap', async () => {
+      const captured = mockWallData();
+      renderTablet();
+      await flush();
+      act(() => {
+        captured.onMessage?.({
+          type: 'display_power', wallSlug: 'main', state: 'off', wallId: 1, ts: 'now',
+        });
+      });
+      expect(await screen.findByTestId('screen-off-overlay')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('screen-off-overlay'));
+      expect(postPresenceWake).toHaveBeenCalledWith('main', 'touch');
+
+      act(() => {
+        captured.onMessage?.({
+          type: 'display_power', wallSlug: 'main', state: 'active', wallId: 1, ts: 'now',
+        });
+      });
+      await waitFor(() => expect(screen.queryByTestId('screen-off-overlay')).toBeNull());
+    });
+
+    it('ignores a display_power frame for a different wall slug', async () => {
+      const captured = mockWallData();
+      renderTablet();
+      await flush();
+      act(() => {
+        captured.onMessage?.({
+          type: 'display_power', wallSlug: 'patio', state: 'off', wallId: 2, ts: 'now',
+        });
+      });
+      expect(screen.queryByTestId('screen-off-overlay')).toBeNull();
+    });
+
+    it('throttles the page-root pointerdown wake to once per 30s so normal pouring does not spam the endpoint', async () => {
+      vi.useFakeTimers();
+      mockWallData();
+      renderTablet();
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      expect(postPresenceWake).toHaveBeenCalledTimes(1);
+      expect(postPresenceWake).toHaveBeenCalledWith('main', 'touch');
+
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      expect(postPresenceWake).toHaveBeenCalledTimes(1);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      expect(postPresenceWake).toHaveBeenCalledTimes(2);
+    });
+
+    it("a tap that lands on the off overlay always wakes, even mid-throttle-window", async () => {
+      vi.useFakeTimers();
+      const captured = mockWallData();
+      renderTablet();
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+      // Exhaust the page-root throttle first.
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      expect(postPresenceWake).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        captured.onMessage?.({
+          type: 'display_power', wallSlug: 'main', state: 'off', wallId: 1, ts: 'now',
+        });
+      });
+      fireEvent.click(screen.getByTestId('screen-off-overlay'));
+      expect(postPresenceWake).toHaveBeenCalledTimes(2);
+    });
   });
 });

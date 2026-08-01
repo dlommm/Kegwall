@@ -7,6 +7,8 @@ import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { useLookClock } from '../components/looks/lookShared';
 import { formatVolumeMl } from '../lib/units';
+import { ScreenCare } from '../components/ScreenCare';
+import { useDisplayPower } from '../lib/displayPower';
 import {
   armTablet, createPourer, disarmTablet, getPourers, getSession, startSession,
   joinSession, endSession, type PublicPourer, type SessionSnapshotResponse,
@@ -16,6 +18,10 @@ import {
 export const POURER_COLORS = ['#D08C4C', '#5FD9BC', '#7FA8E0', '#C77FB8', '#94C25C', '#E0B23D'];
 
 const DONE_SIGNOUT_SECONDS = 5;
+/** Minimum gap between page-root pointer taps that count as presence "wake" activity
+ * (Task 10) — normal pouring generates constant taps on the armed/done screens, so
+ * without a throttle every tap would hit POST /api/presence/wake. */
+const POINTER_WAKE_THROTTLE_MS = 30_000;
 
 type Screen =
   | { kind: 'grid' }
@@ -60,6 +66,14 @@ function initials(name: string): string {
  * done with a 5s auto sign-out. Arming is server-side (core/tabletArm.ts) so
  * the pour attributes even if the tablet naps mid-pour; the done screen is
  * driven by the WS `pour_attributed` relay. Themed by the named wall's theme.
+ * Task 10: the whole page is wrapped in `ScreenCare` (server-pushed
+ * screensaver/off stage, same `useDisplayPower` hook `WallPage` uses) OUTSIDE
+ * the grid/signup/armed/done screen machine above — arming/session flows are
+ * untouched by it. `taps={[]}` is passed deliberately: the screensaver's
+ * rotating tap highlight line makes sense on the wall display, not on this
+ * kiosk. Every pointer tap on the page also counts as presence activity
+ * (throttled to one wake per 30s so normal pouring doesn't spam the wake
+ * endpoint) — separate from the off-overlay's own always-fires tap-to-wake.
  */
 export function TabletPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -82,7 +96,12 @@ export function TabletPage() {
   const screenRef = useRef<Screen>(screen);
   screenRef.current = screen;
 
+  // Task 10: the server-pushed display power stage rides the same /ws socket as
+  // pour_attributed below — onWsMessage is chained in alongside it.
+  const { stage, onWsMessage, wake } = useDisplayPower(slug);
+
   const handleWsMessage = useCallback((msg: unknown) => {
+    onWsMessage(msg);
     if (!isPourAttributedMessage(msg)) return;
     const current = screenRef.current;
     if (current.kind === 'armed' && msg.drinkerId === current.pourer.id) {
@@ -97,9 +116,21 @@ export function TabletPage() {
         },
       });
     }
-  }, []);
+  }, [onWsMessage]);
 
   const { wall, taps, units, loading, notFound } = useWallData(slug, { onMessage: handleWsMessage });
+
+  // Page-root wake-tap throttle (Task 10): a `useRef` timestamp guard, not state — this
+  // must never trigger a re-render on every tap. The off-overlay's own `onWake` (below)
+  // bypasses this entirely, calling `wake()` directly, so a tap that lands there always
+  // wakes even mid-throttle-window.
+  const lastPointerWakeRef = useRef(0);
+  const handlePointerDownWake = useCallback(() => {
+    const now = Date.now();
+    if (now - lastPointerWakeRef.current < POINTER_WAKE_THROTTLE_MS) return;
+    lastPointerWakeRef.current = now;
+    wake();
+  }, [wake]);
 
   const loadPourers = useCallback(() => {
     setPourersStatus('loading');
@@ -238,204 +269,210 @@ export function TabletPage() {
 
   return (
     <ThemeProvider theme={wall.config.theme} className="tablet-page">
-      <div className="tablet-page__frame" data-testid="tablet-page">
-        {screen.kind === 'grid' && (
-          <div className="tablet-screen" data-testid="tablet-grid">
-            <header className="tablet-screen__header">
-              <span className="tablet-screen__title font-display">Who’s pouring?</span>
-              <span className="tablet-screen__clock font-tabular">{clock}</span>
-            </header>
-            {pourersStatus === 'error' && (
-              <p className="tablet-screen__quiet" role="alert">
-                Couldn’t load pourers.
-                {' '}
-                <button type="button" className="tablet-screen__link" onClick={loadPourers}>Try again</button>
-              </p>
-            )}
-            <div className="tablet-grid__avatars" data-testid="tablet-avatars">
-              {pourers.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="tablet-avatar"
-                  data-testid="tablet-avatar"
-                  disabled={busy}
-                  onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
-                >
-                  <span className="tablet-avatar__circle font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
-                    {initials(p.displayName)}
-                  </span>
-                  <span className="tablet-avatar__name">{p.displayName}</span>
-                  <span className="tablet-avatar__pours font-tabular">{`${p.pourCount} pours`}</span>
-                </button>
-              ))}
-            </div>
-            {session && (
-              <div className="tablet-session" data-testid="tablet-session">
-                <div className="tablet-session__head">
-                  <span className="tablet-session__name font-display">{`${session.name.toUpperCase()} · GROUP TAB`}</span>
-                  <button type="button" data-testid="tablet-session-end" className="tablet-secondary" onClick={handleEndSession}>
-                    End session
-                  </button>
-                </div>
-                {session.totals.length === 0 ? (
-                  <span className="tablet-screen__quiet">Tap your avatar to join the session.</span>
-                ) : (
-                  session.totals.map((member) => {
-                    const max = Math.max(1, ...session.totals.map((t) => t.volumeMl));
-                    return (
-                      <div key={member.drinkerId} className="tablet-session__row" data-testid="tablet-session-row">
-                        <span className="tablet-session__member">{member.name}</span>
-                        <span className="tablet-session__bar">
-                          <span className="tablet-session__bar-fill" style={{ width: `${Math.round((member.volumeMl / max) * 100)}%` }} />
-                        </span>
-                        <span className="tablet-session__count font-tabular">
-                          {`${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-            <div className="tablet-grid__footer">
-              <button
-                type="button"
-                className="tablet-cta"
-                data-testid="tablet-signup-button"
-                onClick={() => setScreen({ kind: 'signup' })}
-              >
-                I’M NEW — SIGN ME UP
-              </button>
-              {!session && (
-                <button
-                  type="button"
-                  className="tablet-secondary"
-                  data-testid="tablet-session-start"
-                  onClick={handleStartSession}
-                >
-                  Start session
-                </button>
+      <div
+        className="tablet-page__frame"
+        data-testid="tablet-page"
+        onPointerDownCapture={handlePointerDownWake}
+      >
+        <ScreenCare stage={stage} taps={[]} title={wall.name || ''} onWake={() => wake()}>
+          {screen.kind === 'grid' && (
+            <div className="tablet-screen" data-testid="tablet-grid">
+              <header className="tablet-screen__header">
+                <span className="tablet-screen__title font-display">Who’s pouring?</span>
+                <span className="tablet-screen__clock font-tabular">{clock}</span>
+              </header>
+              {pourersStatus === 'error' && (
+                <p className="tablet-screen__quiet" role="alert">
+                  Couldn’t load pourers.
+                  {' '}
+                  <button type="button" className="tablet-screen__link" onClick={loadPourers}>Try again</button>
+                </p>
               )}
-              <span className="tablet-grid__hint">or scan the QR on the wall with your phone</span>
-            </div>
-          </div>
-        )}
-
-        {screen.kind === 'signup' && (
-          <div className="tablet-screen" data-testid="tablet-signup">
-            <span className="tablet-screen__title font-display">New pourer</span>
-            <span className="tablet-screen__quiet">Just a name — no email, no password.</span>
-            <input
-              type="text"
-              className="tablet-signup__name"
-              data-testid="tablet-signup-name"
-              value={signupName}
-              maxLength={40}
-              placeholder="Your name"
-              onChange={(e) => setSignupName(e.target.value)}
-            />
-            <div className="tablet-signup__colors-label">PICK YOUR COLOR</div>
-            <div className="tablet-signup__colors">
-              {POURER_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`Avatar color ${color}`}
-                  data-testid="tablet-signup-color"
-                  className={color === signupColor ? 'tablet-signup__swatch tablet-signup__swatch--active' : 'tablet-signup__swatch'}
-                  style={{ backgroundColor: color }}
-                  onClick={() => setSignupColor(color)}
-                />
-              ))}
-            </div>
-            {signupError && <p className="tablet-screen__error" role="alert" data-testid="tablet-signup-error">{signupError}</p>}
-            <div className="tablet-signup__actions">
-              <button type="button" className="tablet-cta" data-testid="tablet-signup-submit" disabled={busy} onClick={submitSignup}>
-                START POURING
-              </button>
-              <button type="button" className="tablet-secondary" onClick={() => setScreen({ kind: 'grid' })}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {screen.kind === 'armed' && (
-          <div className="tablet-screen tablet-screen--center" data-testid="tablet-armed">
-            <div className="tablet-armed__who">
-              <span className="tablet-avatar__circle tablet-avatar__circle--small font-display" style={{ backgroundColor: screen.pourer.color ?? '#7A6C58' }}>
-                {initials(screen.pourer.name)}
-              </span>
-              <span className="tablet-armed__hint">
-                {'You’re up, '}
-                <b>{screen.pourer.name}</b>
-                {' — pour from any tap'}
-              </span>
-            </div>
-            {pouringTap ? (
-              <>
-                <span className="tablet-armed__detected font-display" data-testid="tablet-detected">
-                  <span className={reducedMotion ? 'look-pour-dot' : 'look-pour-dot look-pour-dot--pulse'} />
-                  {`DETECTED · TAP ${pouringTap.tapNumber}${pouringTap.beer ? ` · ${pouringTap.beer.name.toUpperCase()}` : ''}`}
-                </span>
-                <div className="tablet-armed__counter" data-testid="tablet-counter">
-                  <span className="tablet-armed__counter-value font-display font-tabular">
-                    {formatVolumeMl(pouringTap.curServMl ?? 0, units).split(' ')[0]}
-                  </span>
-                  <span className="tablet-armed__counter-unit font-display">
-                    {units === 'metric' ? 'ML' : 'OZ'}
-                  </span>
+              <div className="tablet-grid__avatars" data-testid="tablet-avatars">
+                {pourers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="tablet-avatar"
+                    data-testid="tablet-avatar"
+                    disabled={busy}
+                    onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
+                  >
+                    <span className="tablet-avatar__circle font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
+                      {initials(p.displayName)}
+                    </span>
+                    <span className="tablet-avatar__name">{p.displayName}</span>
+                    <span className="tablet-avatar__pours font-tabular">{`${p.pourCount} pours`}</span>
+                  </button>
+                ))}
+              </div>
+              {session && (
+                <div className="tablet-session" data-testid="tablet-session">
+                  <div className="tablet-session__head">
+                    <span className="tablet-session__name font-display">{`${session.name.toUpperCase()} · GROUP TAB`}</span>
+                    <button type="button" data-testid="tablet-session-end" className="tablet-secondary" onClick={handleEndSession}>
+                      End session
+                    </button>
+                  </div>
+                  {session.totals.length === 0 ? (
+                    <span className="tablet-screen__quiet">Tap your avatar to join the session.</span>
+                  ) : (
+                    session.totals.map((member) => {
+                      const max = Math.max(1, ...session.totals.map((t) => t.volumeMl));
+                      return (
+                        <div key={member.drinkerId} className="tablet-session__row" data-testid="tablet-session-row">
+                          <span className="tablet-session__member">{member.name}</span>
+                          <span className="tablet-session__bar">
+                            <span className="tablet-session__bar-fill" style={{ width: `${Math.round((member.volumeMl / max) * 100)}%` }} />
+                          </span>
+                          <span className="tablet-session__count font-tabular">
+                            {`${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              </>
-            ) : (
-              <span className="tablet-armed__waiting" data-testid="tablet-waiting">
-                No beer selection needed — Kegtron knows which tap is flowing
-              </span>
-            )}
-            <button type="button" className="tablet-secondary tablet-armed__signout" data-testid="tablet-signout" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
-        )}
+              )}
+              <div className="tablet-grid__footer">
+                <button
+                  type="button"
+                  className="tablet-cta"
+                  data-testid="tablet-signup-button"
+                  onClick={() => setScreen({ kind: 'signup' })}
+                >
+                  I’M NEW — SIGN ME UP
+                </button>
+                {!session && (
+                  <button
+                    type="button"
+                    className="tablet-secondary"
+                    data-testid="tablet-session-start"
+                    onClick={handleStartSession}
+                  >
+                    Start session
+                  </button>
+                )}
+                <span className="tablet-grid__hint">or scan the QR on the wall with your phone</span>
+              </div>
+            </div>
+          )}
 
-        {screen.kind === 'done' && (
-          <button
-            type="button"
-            className="tablet-screen tablet-screen--center tablet-done"
-            data-testid="tablet-done"
-            onClick={() => stayAfterDone(screen.pourer)}
-          >
-            <span className="tablet-done__check">✓</span>
-            <span className="tablet-done__title font-display">{`Cheers, ${screen.pourer.name}`}</span>
-            <span className="tablet-done__detail">
-              <b>
-                {formatVolumeMl(screen.pour.volumeMl, units)}
-                {screen.pour.beerName ? ` of ${screen.pour.beerName}` : ''}
-              </b>
-              {` logged to you · pour #${screen.pour.pourCount}`}
-            </span>
-            <span className="tablet-done__countdown font-tabular" data-testid="tablet-countdown">
-              {`Signing out in ${countdown}s — tap to stay`}
-            </span>
-          </button>
-        )}
-        {recap && (
-          <button
-            type="button"
-            className="tablet-recap"
-            data-testid="tablet-recap"
-            onClick={() => setRecap(null)}
-          >
-            <span className="tablet-done__title font-display">{`${recap.name.toUpperCase()} — RECAP`}</span>
-            {recap.totals.map((member) => (
-              <span key={member.drinkerId} className="tablet-recap__row font-tabular">
-                {`${member.name}: ${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
+          {screen.kind === 'signup' && (
+            <div className="tablet-screen" data-testid="tablet-signup">
+              <span className="tablet-screen__title font-display">New pourer</span>
+              <span className="tablet-screen__quiet">Just a name — no email, no password.</span>
+              <input
+                type="text"
+                className="tablet-signup__name"
+                data-testid="tablet-signup-name"
+                value={signupName}
+                maxLength={40}
+                placeholder="Your name"
+                onChange={(e) => setSignupName(e.target.value)}
+              />
+              <div className="tablet-signup__colors-label">PICK YOUR COLOR</div>
+              <div className="tablet-signup__colors">
+                {POURER_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={`Avatar color ${color}`}
+                    data-testid="tablet-signup-color"
+                    className={color === signupColor ? 'tablet-signup__swatch tablet-signup__swatch--active' : 'tablet-signup__swatch'}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setSignupColor(color)}
+                  />
+                ))}
+              </div>
+              {signupError && <p className="tablet-screen__error" role="alert" data-testid="tablet-signup-error">{signupError}</p>}
+              <div className="tablet-signup__actions">
+                <button type="button" className="tablet-cta" data-testid="tablet-signup-submit" disabled={busy} onClick={submitSignup}>
+                  START POURING
+                </button>
+                <button type="button" className="tablet-secondary" onClick={() => setScreen({ kind: 'grid' })}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {screen.kind === 'armed' && (
+            <div className="tablet-screen tablet-screen--center" data-testid="tablet-armed">
+              <div className="tablet-armed__who">
+                <span className="tablet-avatar__circle tablet-avatar__circle--small font-display" style={{ backgroundColor: screen.pourer.color ?? '#7A6C58' }}>
+                  {initials(screen.pourer.name)}
+                </span>
+                <span className="tablet-armed__hint">
+                  {'You’re up, '}
+                  <b>{screen.pourer.name}</b>
+                  {' — pour from any tap'}
+                </span>
+              </div>
+              {pouringTap ? (
+                <>
+                  <span className="tablet-armed__detected font-display" data-testid="tablet-detected">
+                    <span className={reducedMotion ? 'look-pour-dot' : 'look-pour-dot look-pour-dot--pulse'} />
+                    {`DETECTED · TAP ${pouringTap.tapNumber}${pouringTap.beer ? ` · ${pouringTap.beer.name.toUpperCase()}` : ''}`}
+                  </span>
+                  <div className="tablet-armed__counter" data-testid="tablet-counter">
+                    <span className="tablet-armed__counter-value font-display font-tabular">
+                      {formatVolumeMl(pouringTap.curServMl ?? 0, units).split(' ')[0]}
+                    </span>
+                    <span className="tablet-armed__counter-unit font-display">
+                      {units === 'metric' ? 'ML' : 'OZ'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <span className="tablet-armed__waiting" data-testid="tablet-waiting">
+                  No beer selection needed — Kegtron knows which tap is flowing
+                </span>
+              )}
+              <button type="button" className="tablet-secondary tablet-armed__signout" data-testid="tablet-signout" onClick={signOut}>
+                Sign out
+              </button>
+            </div>
+          )}
+
+          {screen.kind === 'done' && (
+            <button
+              type="button"
+              className="tablet-screen tablet-screen--center tablet-done"
+              data-testid="tablet-done"
+              onClick={() => stayAfterDone(screen.pourer)}
+            >
+              <span className="tablet-done__check">✓</span>
+              <span className="tablet-done__title font-display">{`Cheers, ${screen.pourer.name}`}</span>
+              <span className="tablet-done__detail">
+                <b>
+                  {formatVolumeMl(screen.pour.volumeMl, units)}
+                  {screen.pour.beerName ? ` of ${screen.pour.beerName}` : ''}
+                </b>
+                {` logged to you · pour #${screen.pour.pourCount}`}
               </span>
-            ))}
-            <span className="tablet-screen__quiet">Tap to dismiss</span>
-          </button>
-        )}
+              <span className="tablet-done__countdown font-tabular" data-testid="tablet-countdown">
+                {`Signing out in ${countdown}s — tap to stay`}
+              </span>
+            </button>
+          )}
+          {recap && (
+            <button
+              type="button"
+              className="tablet-recap"
+              data-testid="tablet-recap"
+              onClick={() => setRecap(null)}
+            >
+              <span className="tablet-done__title font-display">{`${recap.name.toUpperCase()} — RECAP`}</span>
+              {recap.totals.map((member) => (
+                <span key={member.drinkerId} className="tablet-recap__row font-tabular">
+                  {`${member.name}: ${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
+                </span>
+              ))}
+              <span className="tablet-screen__quiet">Tap to dismiss</span>
+            </button>
+          )}
+        </ScreenCare>
       </div>
     </ThemeProvider>
   );
