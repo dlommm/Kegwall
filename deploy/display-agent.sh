@@ -27,6 +27,8 @@ apply() { # $1 = active|screensaver|off  (screensaver is an ON state for the pan
 while true; do
   # -N disables buffering so events arrive as they're sent; the read loop parses
   # `data: {"state":"..."}` lines and ignores `: ping` comments.
+  # NOTE: the while-read runs in a pipeline subshell, so `last_state` dedup resets
+  # per connection (harmless — worst case one redundant ON command per reconnect).
   curl -sN --max-time 0 \
     "$KEGWALL_URL/api/presence/stream?wall=$KEGWALL_WALL&token=$KEGWALL_TOKEN" \
   | while IFS= read -r line; do

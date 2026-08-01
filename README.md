@@ -98,10 +98,10 @@ automations, and deep wall customization.
   (no Pi or real Kegtron Gen 1 device was available while writing these docs) — the Docker
   path *was* built and boot-tested live. Flagged explicitly in the Pi doc itself.
 - **Browser soft-off (screensaver / black screen) cannot cut an LED TV's backlight by itself.**
-  Real power-off requires the [display agent](docs/install/display-agent.md) (HDMI-CEC,
-  backlight sysfs), Home Assistant automations, or an external CEC controller. A Raspberry Pi
-  or Linux kiosk can run the agent as-is; an Android tablet needs a Fully Kiosk webhook to
-  pair with the agent's presence stream.
+  Real power-off requires one of three paths: the [display agent](docs/install/display-agent.md)
+  (zero-dependency bash script for Pi/CEC/Wayland kiosks), Home Assistant automations
+  subscribing to `kegwall/event/display_power`, or a server-side automation rule triggering
+  a Fully Kiosk webhook (for Android tablets).
 - **On the backlog, not started:** native TV apps (Android TV / Apple TV — browser + kiosk
   mode covers all TVs today) and two-way beer-metadata sync back to Kegtron's cloud (import
   is one-way in this version).

@@ -138,45 +138,52 @@ doesn't start, check `systemctl --user status display-agent.service`.
 ## Fully Kiosk (Android tablet)
 
 If your kegerator tablet runs [Fully Kiosk](https://www.fullykiosk.com/), you can
-integrate the display agent by automating a webhook call to Fully's REST API.
+integrate the display power stream by automating a webhook call to Fully's REST API.
 
-On the Kegwall server, create an automation rule:
+On the Kegwall server, create **two** automation rules — one for each state:
 
-1. **Admin UI → Automations**
-2. **New rule:**
+**Rule 1: Turn tablet screen OFF**
+1. **Admin UI → Automations → New rule**
    - Trigger: `display_power_changed`
-   - Action: `webhook`
-3. **Configure the action:**
-   ```
-   POST http://<tablet-ip>:2323/?cmd=screenOff&password=<admin-pin>
-   POST http://<tablet-ip>:2323/?cmd=screenOn&password=<admin-pin>
-   ```
+   - State filter: `off` (the AutomationBuilder exposes "State filter (blank = any transition)")
+2. Action: `webhook`
+   - URL: `http://<tablet-ip>:2323/?cmd=screenOff&password=<admin-pin>`
+
+**Rule 2: Turn tablet screen ON**
+1. **Admin UI → Automations → New rule**
+   - Trigger: `display_power_changed`
+   - State filter: `active`
+2. Action: `webhook`
+   - URL: `http://<tablet-ip>:2323/?cmd=screenOn&password=<admin-pin>`
 
 Replace `<tablet-ip>` with the tablet's LAN IP and `<admin-pin>` with your Fully admin
-PIN (from the left panel menu → Settings → Admin PIN). Create one rule with two
-webhooks — one for each state (Fully commands: `screenOff`, `screenOn`). The webhook
-action is fired at both ON and OFF transitions, so check the exact semantics in your
-rule's condition.
+PIN (from the left panel menu → Settings → Admin PIN). The State filter ensures each
+rule fires only on the correct transition.
 
 Fully's other options: `cmd=enableScreensaver` (black screen), `cmd=loadStart` (refresh
 the browser tab). See the Fully Kiosk documentation for the full API.
 
 ## Home Assistant alternative
 
-If you run Home Assistant, subscribe to the motion and presence events published by
-Kegwall instead:
+If you run Home Assistant, subscribe to the display power event published by Kegwall
+via MQTT instead of running the bash agent:
 
-- **Motion event:** `kegwall/event/motion` (JSON: `{"wall": "...", "timestamp": ...}`)
-- **Display power event:** `kegwall/event/display_power` (JSON: `{"wall": "...", "state": "active|screensaver|off", "timestamp": ...}`)
+- **Display power event:** `kegwall/event/display_power` (JSON: `{"wall": "...", "state": "active|screensaver|off", "ts": "..."}`)
 
 Create an HA automation to call a service (e.g., a `switch.turn_off` for a smart
-plug or an IR receiver command) when the event fires. This lets you use HA's own
+plug or an IR receiver command) when this event fires. This lets you use HA's own
 automation engine and services — no shell scripts needed. See
 [docs/setup/home-assistant.md](../setup/home-assistant.md) for the full MQTT setup.
 
+For motion integration (if you want HA automations to trigger on motion), instead
+point an HA automation at the server's `POST /api/presence/motion?token=…` endpoint
+(requires a presence token from Settings → Integrations), or configure an MQTT
+motion topic in the admin UI (Settings → Sources → MQTT motion topics) for any
+motion sensor you're running separately.
+
 ## See also
 
-- [raspberry-pi.md](raspberry-pi.md#kiosk-mode-tap-wall-on-the-server-pi-screen) —
+- [raspberry-pi.md](raspberry-pi.md#kiosk-mode-tap-wall-on-the-server-pis-screen) —
   Pi kiosk setup, which often pairs with the display agent for real backlight control.
 - [docs/setup/home-assistant.md](../setup/home-assistant.md) — MQTT discovery and event topics.
 - [docs/customization.md](../customization.md) — screensaver configuration and timing.

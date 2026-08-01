@@ -65,7 +65,7 @@ or loses its connection to the broker, not just on a clean shutdown.
 
 ## Event topics for automations
 
-Two additional topics carry point-in-time events for use in HA automations (MQTT
+Three topics carry point-in-time events for use in HA automations (MQTT
 triggers) — these are deliberately **not retained**, since a client subscribing later
 should not replay a stale event:
 
@@ -75,6 +75,8 @@ should not replay a stale event:
   tapId, ts}`, published whenever one of this app's own automation/alert rules fires
   (`tap`/`beer` may be `null` for rules with no tap context, e.g. a startup or scheduled
   rule — `tapId` is included alongside them for the same reason).
+- **`{appTopicPrefix}/event/display_power`** — JSON: `{wall, state, ts}`, published whenever
+  a wall's display power state changes (`state` is `active`, `screensaver`, or `off`).
 
 `appTopicPrefix` defaults to `kegwall` and is shared with the state topics above
 (`{appTopicPrefix}/tap/{tapId}/state`, `{appTopicPrefix}/monitor/{monitorId}/state`,
