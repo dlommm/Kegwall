@@ -121,14 +121,12 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
     socket.send(snapshot());
     // Replay current power stages so a reconnecting kiosk lands in the right stage
     // immediately (mirrors the SSE endpoint's on-connect replay guarantee).
-    setTimeout(() => {
-      for (const z of app.ctx.presence.snapshot()) {
-        socket.send(JSON.stringify({
-          type: 'display_power', wallId: z.wallId, wallSlug: z.slug, state: z.state,
-          ts: new Date().toISOString(),
-        }));
-      }
-    }, 0);
+    for (const z of app.ctx.presence.snapshot()) {
+      socket.send(JSON.stringify({
+        type: 'display_power', wallId: z.wallId, wallSlug: z.slug, state: z.state,
+        ts: new Date().toISOString(),
+      }));
+    }
     socket.on('close', () => clients.delete(socket));
     socket.on('error', () => clients.delete(socket));
   });

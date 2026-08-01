@@ -17,8 +17,39 @@ beforeEach(async () => {
 });
 afterEach(async () => { await app.close(); });
 
+// Track messages per socket with a persistent listener to handle multiple frames
+// arriving in a single TCP read (ws.once() loses frames in this case).
+const messageQueues = new Map<WebSocket, any[]>();
+const pendingResolvers = new Map<WebSocket, ((msg: any) => void)[]>();
+
+function trackMessages(ws: WebSocket): void {
+  if (messageQueues.has(ws)) return; // already tracking
+  messageQueues.set(ws, []);
+  pendingResolvers.set(ws, []);
+
+  ws.on('message', (data) => {
+    const msg = JSON.parse(data.toString());
+    const queue = messageQueues.get(ws)!;
+    const resolvers = pendingResolvers.get(ws)!;
+
+    if (resolvers.length > 0) {
+      resolvers.shift()!(msg);
+    } else {
+      queue.push(msg);
+    }
+  });
+}
+
 function nextMessage(ws: WebSocket): Promise<any> {
-  return new Promise((resolve) => ws.once('message', (d) => resolve(JSON.parse(d.toString()))));
+  trackMessages(ws);
+  return new Promise((resolve) => {
+    const queue = messageQueues.get(ws)!;
+    if (queue.length > 0) {
+      resolve(queue.shift()!);
+    } else {
+      pendingResolvers.get(ws)!.push(resolve);
+    }
+  });
 }
 
 describe('/ws', () => {
