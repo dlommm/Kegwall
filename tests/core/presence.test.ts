@@ -104,4 +104,21 @@ describe('PresenceRegistry', () => {
     reg.configure([]);
     expect(reg.stateOf('main')).toBeUndefined();
   });
+
+  it('screensaver zone re-arms off timer across configure', () => {
+    vi.advanceTimersByTime(10 * MIN);
+    expect(reg.stateOf('main')).toBe('screensaver');
+    reg.configure([{ wallId: 1, slug: 'main', screensaverAfterMinutes: 10, offAfterMinutes: 60 }]);
+    vi.advanceTimersByTime(50 * MIN);
+    expect(reg.stateOf('main')).toBe('off');
+  });
+
+  it('off zone stays off across configure with no timer resurrection', () => {
+    vi.advanceTimersByTime(60 * MIN);
+    expect(reg.stateOf('main')).toBe('off');
+    reg.configure([{ wallId: 1, slug: 'main', screensaverAfterMinutes: 10, offAfterMinutes: 60 }]);
+    expect(reg.stateOf('main')).toBe('off');
+    vi.advanceTimersByTime(24 * 60 * MIN);
+    expect(reg.stateOf('main')).toBe('off'); // stays off, no timer fires
+  });
 });

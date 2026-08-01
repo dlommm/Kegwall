@@ -45,8 +45,14 @@ export class PresenceRegistry {
     }
     this.zones = next;
     for (const zone of this.zones.values()) {
-      if (zone.state === 'active') this.schedule(zone);
-      // screensaver/off zones stay put across a reconfigure; next motion reschedules.
+      if (zone.state === 'active') {
+        this.schedule(zone);
+      } else if (zone.state === 'screensaver' && zone.cfg.offAfterMinutes !== null) {
+        // Re-arm the pending off-timer for screensaver zones across reconfigure
+        const { screensaverAfterMinutes: saver, offAfterMinutes: off } = zone.cfg;
+        zone.timer = setTimeout(() => this.transition(zone, 'off'), (off - (saver ?? 0)) * 60_000);
+      }
+      // off zones stay put with no timer until next motion
     }
   }
 
