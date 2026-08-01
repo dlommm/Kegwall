@@ -46,8 +46,7 @@ native-install features.
 One command on a fresh Raspberry Pi OS (64-bit, Lite is fine):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-install.sh \
-  | sudo bash
+curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-install.sh | sudo bash
 ```
 
 The installer is **interactive**: it asks for the port, the Bluetooth fallback,
@@ -134,8 +133,7 @@ A second Pi with the official touchscreen makes a great dedicated pourer tablet.
 It runs ONLY the browser — install nothing else on it:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-tablet-setup.sh \
-  | sudo bash -s -- http://<server-ip>:8080/tablet/main
+curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-tablet-setup.sh | sudo bash -s -- http://<server-ip>:8080/tablet/main
 sudo reboot
 ```
 
