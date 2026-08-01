@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import {
-  type EventBus, type EventMap, type MonitorRef, monitorRefKey,
+  type EventBus, type EventMap, type MonitorRef, type PowerState, monitorRefKey,
 } from '../core/events.js';
 import type { TapState } from '../core/state.js';
 import type {
@@ -125,6 +125,26 @@ import {
 //     `considerFire` (engine-side) rather than in the publisher, so the bus event itself
 //     never fires, not merely "HA chooses to drop it". In-app is unaffected -- it
 //     consumes the rule's `notify` action via `sendToChannels`, never this event.
+//
+// PRESENCE/DISPLAY-POWER FRAMEWORK (Task 8) additions:
+//
+// 12. `motion_detected`/`display_power_changed` are a NEW entity-key family: `wall:
+//     {wallSlug}` when the event carries one, else `'global'` (see `entityKeyFor`) --
+//     added as a third branch alongside `tap:`/`monitor:`, not a replacement of either
+//     (these two triggers never resolve a tap or monitor ref). Both are MOMENTARY (point
+//     3 above) -- no auto-resolve counterpart. `display_power_changed` additionally
+//     supports an optional `state` filter (matches only that specific transition), which
+//     -- like `days_since_cleaned`'s per-monitor schedule handling -- needs its own bus
+//     handler rather than reusing `fireMatchingTrigger` (that helper only ever checks
+//     `trigger.type`, nothing kind-specific beyond it).
+// 13. `display_power` (the action) calls `presence.setState` directly -- it does NOT
+//     route through the bus/PresenceRegistry's motion-debounce path at all, since an
+//     authored action is an explicit override, not a wake signal. Loop safety is entirely
+//     `PresenceRegistry.setState`'s own callee-side no-op-when-already-in-that-state guard
+//     (core/presence.ts's `transition`) -- a `display_power` action that sets a zone to
+//     the state it's already in emits no `display_power_changed` event, so it can never
+//     re-trigger a `display_power_changed`-triggered rule (including itself). This engine
+//     adds no additional guard on top of that.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
@@ -140,6 +160,12 @@ export interface EngineDeps {
    * production passes the real `StateManager`; tests can pass anything structurally
    * compatible. */
   state: { getTapStates(): TapState[] };
+  /** Task 8: the `display_power` action's sole dependency, narrowed to the one method it
+   * calls (not the full `PresenceRegistry` class) -- production passes the real
+   * `PresenceRegistry` (constructed in `context.ts` BEFORE this engine, specifically so it
+   * can be threaded in here); tests can pass anything structurally compatible, e.g. a
+   * `vi.fn()` spy wrapped in an object literal. */
+  presence: { setState(slug: string | null, state: PowerState): void };
 }
 
 /** Minimal shape of `ingest/kegtron/mdashClient.ts`'s `MdashClient` this engine actually
@@ -317,6 +343,7 @@ export class AutomationEngine {
   private readonly bus: EventBus;
   private readonly settings: SettingsStore;
   private readonly state: { getTapStates(): TapState[] };
+  private readonly presence: { setState(slug: string | null, state: PowerState): void };
   private readonly opts: EngineOptions;
   private readonly inAppChannel: InAppChannel;
 
@@ -340,6 +367,7 @@ export class AutomationEngine {
     this.bus = deps.bus;
     this.settings = deps.settings;
     this.state = deps.state;
+    this.presence = deps.presence;
     this.opts = opts;
     this.inAppChannel = new InAppChannel(this.db, this.bus);
   }
@@ -375,6 +403,8 @@ export class AutomationEngine {
     on('device_offline', (e) => this.onDeviceEvent('device_offline', e.monitor, e.ts));
     on('keg_tapped', (e) => this.onKegLifecycle('keg_tapped', e));
     on('keg_kicked', (e) => this.onKegLifecycle('keg_kicked', e));
+    on('motion_detected', (e) => this.onMotionDetected(e));
+    on('display_power_changed', (e) => this.onDisplayPowerChanged(e));
     on('automations_changed', () => this.reloadRules());
 
     this.scheduleTimer = setInterval(() => this.checkScheduleRules(), SCHEDULE_TICK_MS);
@@ -554,6 +584,27 @@ export class AutomationEngine {
     this.fireAndAutoResolve(kind, resolveType, ctx);
   }
 
+  /** `motion_detected` has no kind-specific filter beyond trigger type -- straight
+   * through `fireMatchingTrigger`, same as `pour_started`/`device_online`/etc. */
+  private onMotionDetected(e: EventMap['motion_detected']): void {
+    const ctx = this.buildWallEvalCtx(e.wallSlug, e.ts);
+    this.fireMatchingTrigger('motion_detected', ctx);
+  }
+
+  /** `display_power_changed` additionally supports an optional `state` filter (matches
+   * only that specific transition) -- can't reuse `fireMatchingTrigger`, which only ever
+   * checks `trigger.type` (same reason `checkScheduleRules` doesn't reuse it either). */
+  private onDisplayPowerChanged(e: EventMap['display_power_changed']): void {
+    const ctx = this.buildWallEvalCtx(e.wallSlug, e.ts);
+    const now = new Date();
+    for (const rule of this.rules) {
+      if (rule.trigger.type !== 'display_power_changed') continue;
+      if (rule.trigger.state !== undefined && rule.trigger.state !== e.state) continue;
+      if (!evaluateConditions(rule.conditions, ctx, rule.lastFiredAt, now)) continue;
+      this.track(this.considerFire(rule, ctx).catch((err) => this.logError(rule, 'fire', err)));
+    }
+  }
+
   private fireAppStartup(): void {
     const ctx = this.buildGlobalEvalCtx(new Date().toISOString());
     this.fireMatchingTrigger('app_startup', ctx);
@@ -646,6 +697,10 @@ export class AutomationEngine {
   private entityKeyFor(ctx: EvalCtx): string {
     if (ctx.tapId !== null) return `tap:${ctx.tapId}`;
     if (ctx.monitorRef) return `monitor:${monitorRefKey(ctx.monitorRef)}`;
+    // Task 8: `motion_detected`/`display_power_changed` resolve neither a tap nor a
+    // monitor ref -- their own entity key family, `wall:{wallSlug}`, falling back to
+    // 'global' for a wall-less event (e.g. motion with no zone context).
+    if (ctx.wallSlug) return `wall:${ctx.wallSlug}`;
     return 'global';
   }
 
@@ -807,6 +862,7 @@ export class AutomationEngine {
       case 'wall_banner': return this.dispatchWallBanner(action, templateCtx);
       case 'party_mode': return this.dispatchPartyMode(action);
       case 'kegtron_reset_volume': return this.dispatchResetVolume(ctx);
+      case 'display_power': return this.dispatchDisplayPower(action);
     }
   }
 
@@ -905,6 +961,20 @@ export class AutomationEngine {
 
   private dispatchPartyMode(action: Extract<Action, { type: 'party_mode' }>): void {
     this.bus.emit('wall_theme_override', { minutes: action.minutes });
+  }
+
+  /** Task 8: `wallSlugs` present -> one `setState` call per named slug; ABSENT (not
+   * merely empty) -> a single `setState(null, ...)` call, which `PresenceRegistry`
+   * treats as "every zone" (see presence.ts's `setState`). An explicitly empty
+   * `wallSlugs: []` -- not reachable via the schema (`.optional()`, no `.min(1)` at the
+   * array level, but the admin builder never produces one) -- degenerates to zero calls,
+   * not "every wall"; only OMITTING the field means "every wall". */
+  private dispatchDisplayPower(action: Extract<Action, { type: 'display_power' }>): void {
+    if (action.wallSlugs) {
+      for (const slug of action.wallSlugs) this.presence.setState(slug, action.state);
+    } else {
+      this.presence.setState(null, action.state);
+    }
   }
 
   /**
@@ -1015,6 +1085,21 @@ export class AutomationEngine {
   private buildGlobalEvalCtx(ts: string): EvalCtx {
     return {
       tapId: null, beerId: null, levelPct: null, volumeMl: null, temp: null, ts, monitorRef: null,
+      templateCtx: { beer: null, tap: null, keg: null, pour: null, monitor: null },
+    };
+  }
+
+  /** Task 8: `motion_detected`/`display_power_changed` ctx builder -- neither resolves a
+   * tap, beer, or monitor (there is no `TemplateContext` field for "which wall" yet, so
+   * `templateCtx` is the same all-null shape `buildGlobalEvalCtx` uses), but both stamp
+   * `wallSlug` for the `wall_scope` condition and `entityKeyFor`'s `wall:{slug}` keying.
+   * `wallSlug: null` (motion with no zone context, e.g. a pour-triggered wake) collapses
+   * to `undefined` -- `ConditionEvalCtx.wallSlug` is `string | undefined`, matching every
+   * other "not applicable" field's convention in that interface. */
+  private buildWallEvalCtx(wallSlug: string | null, ts: string): EvalCtx {
+    return {
+      tapId: null, beerId: null, levelPct: null, volumeMl: null, temp: null, ts, monitorRef: null,
+      wallSlug: wallSlug ?? undefined,
       templateCtx: { beer: null, tap: null, keg: null, pour: null, monitor: null },
     };
   }

@@ -9,6 +9,7 @@ import { openDb } from '../../src/server/db/db.js';
 import { EventBus } from '../../src/server/core/events.js';
 import { SettingsStore } from '../../src/server/db/settings.js';
 import { StateManager } from '../../src/server/core/state.js';
+import { PresenceRegistry } from '../../src/server/core/presence.js';
 import { AutomationEngine } from '../../src/server/automation/engine.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
@@ -54,7 +55,7 @@ beforeEach(() => {
   settings = new SettingsStore(db);
   state = new StateManager(db, bus);
   state.start();
-  engine = new AutomationEngine({ db, bus, settings, state });
+  engine = new AutomationEngine({ db, bus, settings, state, presence: new PresenceRegistry(bus) });
 });
 
 describe('TEMPLATES catalog', () => {

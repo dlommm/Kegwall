@@ -49,6 +49,8 @@ export interface AutomationFormState {
 export const TRIGGER_KINDS: readonly Trigger['type'][] = [
   'pour_completed', 'pour_started', 'keg_level_crosses', 'keg_kicked', 'keg_tapped',
   'device_online', 'device_offline', 'temp_crosses', 'humidity_crosses', 'schedule', 'app_startup',
+  // Task 8 (presence/display-power framework):
+  'motion_detected', 'display_power_changed',
 ];
 
 export const TRIGGER_LABELS: Record<Trigger['type'], string> = {
@@ -63,10 +65,14 @@ export const TRIGGER_LABELS: Record<Trigger['type'], string> = {
   humidity_crosses: 'Humidity crosses a value',
   schedule: 'Schedule',
   app_startup: 'App startup',
+  motion_detected: 'Motion detected',
+  display_power_changed: 'Display power changed',
 };
 
 export const CONDITION_KINDS: readonly Condition['type'][] = [
   'tap_scope', 'beer_scope', 'time_window', 'weekday', 'value_compare', 'min_interval', 'days_since_cleaned',
+  // Task 8 (presence/display-power framework):
+  'wall_scope',
 ];
 
 export const CONDITION_LABELS: Record<Condition['type'], string> = {
@@ -77,10 +83,13 @@ export const CONDITION_LABELS: Record<Condition['type'], string> = {
   value_compare: 'Value comparison',
   min_interval: 'Minimum time since last fire',
   days_since_cleaned: 'Days since cleaned',
+  wall_scope: 'Wall scope',
 };
 
 export const ACTION_KINDS: readonly Action['type'][] = [
   'notify', 'webhook', 'mqtt_publish', 'wall_banner', 'party_mode', 'kegtron_reset_volume',
+  // Task 8 (presence/display-power framework):
+  'display_power',
 ];
 
 export const ACTION_LABELS: Record<Action['type'], string> = {
@@ -90,6 +99,11 @@ export const ACTION_LABELS: Record<Action['type'], string> = {
   wall_banner: 'Wall banner',
   party_mode: 'Party mode',
   kegtron_reset_volume: 'Reset keg volume counter',
+  display_power: 'Set display power',
+};
+
+export const DISPLAY_POWER_STATE_LABELS: Record<Extract<Action, { type: 'display_power' }>['state'], string> = {
+  active: 'Active', screensaver: 'Screensaver', off: 'Off',
 };
 
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -146,6 +160,8 @@ export function defaultTrigger(kind: Trigger['type']): Trigger {
     case 'humidity_crosses': return { type: 'humidity_crosses', value: 50, direction: 'above' };
     case 'schedule': return { type: 'schedule', time: '09:00', weekdays: [] };
     case 'app_startup': return { type: 'app_startup' };
+    case 'motion_detected': return { type: 'motion_detected' };
+    case 'display_power_changed': return { type: 'display_power_changed' };
     default: {
       const _exhaustive: never = kind;
       throw new Error(`Unknown trigger kind: ${String(_exhaustive)}`);
@@ -164,6 +180,7 @@ export function defaultCondition(kind: Condition['type']): Condition {
     };
     case 'min_interval': return { type: 'min_interval', minutes: 60 };
     case 'days_since_cleaned': return { type: 'days_since_cleaned', days: 30 };
+    case 'wall_scope': return { type: 'wall_scope', wallSlugs: [] };
     default: {
       const _exhaustive: never = kind;
       throw new Error(`Unknown condition kind: ${String(_exhaustive)}`);
@@ -184,6 +201,11 @@ export function defaultAction(kind: Action['type']): Action {
     case 'wall_banner': return { type: 'wall_banner', text: '', kind: 'info' };
     case 'party_mode': return { type: 'party_mode', minutes: 15 };
     case 'kegtron_reset_volume': return { type: 'kegtron_reset_volume' };
+    // `wallSlugs` omitted (not `[]`) -- "every wall", a genuinely usable-as-is default,
+    // unlike `wall_scope`'s condition-side default above (see this file's own doc comment
+    // point about `wall_scope`'s no-honest-empty-default carve-out; the ACTION side has no
+    // such problem since omitting `wallSlugs` is itself meaningful, not "no restriction").
+    case 'display_power': return { type: 'display_power', state: 'active' };
     default: {
       const _exhaustive: never = kind;
       throw new Error(`Unknown action kind: ${String(_exhaustive)}`);
@@ -300,6 +322,11 @@ export function triggerSummary(trigger: Trigger): string {
       return `${days} at ${trigger.time}`;
     }
     case 'app_startup': return 'When the app starts';
+    case 'motion_detected': return 'When motion is detected';
+    case 'display_power_changed':
+      return trigger.state
+        ? `When display power changes to ${DISPLAY_POWER_STATE_LABELS[trigger.state].toLowerCase()}`
+        : 'When display power changes';
     default: {
       const _exhaustive: never = trigger;
       return String(_exhaustive);

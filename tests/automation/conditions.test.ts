@@ -178,6 +178,20 @@ describe('evaluateConditions', () => {
     });
   });
 
+  describe('wall_scope', () => {
+    it('matches only a listed wallSlug', () => {
+      const c: Condition = { type: 'wall_scope', wallSlugs: ['main', 'patio'] };
+      expect(evaluateConditions([c], baseCtx({ wallSlug: 'main' }), null, new Date())).toBe(true);
+      expect(evaluateConditions([c], baseCtx({ wallSlug: 'patio' }), null, new Date())).toBe(true);
+      expect(evaluateConditions([c], baseCtx({ wallSlug: 'garage' }), null, new Date())).toBe(false);
+    });
+
+    it('fails when the event has no wall context (wallSlug undefined)', () => {
+      const c: Condition = { type: 'wall_scope', wallSlugs: ['main'] };
+      expect(evaluateConditions([c], baseCtx(), null, new Date())).toBe(false);
+    });
+  });
+
   it('ANDs every condition -- one failure fails the whole list', () => {
     const conditions: Condition[] = [
       { type: 'tap_scope', tapIds: [1] },

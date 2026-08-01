@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TriggerSchema, ConditionSchema, ActionSchema, AutomationRuleConfigSchema,
-  type AutomationRuleConfig, type Action,
+  type AutomationRuleConfig, type Action, type Condition,
 } from '../../src/server/core/automationSchema';
 import { TEMPLATES } from '../../src/server/automation/templates';
 import {
@@ -47,9 +47,24 @@ describe('defaultTrigger/defaultCondition/defaultAction: every kind produces a s
     expect(result.success).toBe(true);
   });
 
-  it.each(CONDITION_KINDS)('defaultCondition(%s) is ConditionSchema-valid', (kind) => {
+  // `wall_scope` (Task 8) is the one condition kind whose ONE meaningful field
+  // (`wallSlugs`) has no honest non-empty default -- unlike `tap_scope`/`beer_scope`,
+  // whose empty-array default is itself schema-valid ("no restriction"), `wall_scope`'s
+  // schema requires `.min(1)` (an empty scope has no "match every wall" reading anyone
+  // would want -- see automationSchema.ts's doc comment on it), so a blank default can
+  // only be shape-correct, not schema-valid, same carve-out reasoning as `webhook`/
+  // `mqtt_publish` below.
+  const CONDITION_REQUIRES_USER_INPUT: readonly Condition['type'][] = ['wall_scope'];
+
+  it.each(CONDITION_KINDS)('defaultCondition(%s) is ConditionSchema-valid (or shape-correct pending required input)', (kind) => {
     const result = ConditionSchema.safeParse(defaultCondition(kind));
-    expect(result.success).toBe(true);
+    if (CONDITION_REQUIRES_USER_INPUT.includes(kind)) {
+      expect(result.success).toBe(false);
+      const filled = { ...defaultCondition(kind), wallSlugs: ['main'] };
+      expect(ConditionSchema.safeParse(filled).success).toBe(true);
+    } else {
+      expect(result.success).toBe(true);
+    }
   });
 
   // `webhook`/`mqtt_publish` are the two action kinds whose ONE meaningful field (a

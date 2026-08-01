@@ -34,6 +34,14 @@ export interface ConditionEvalCtx {
    * this addition doesn't ripple through every existing `EvalCtx` builder/test fixture
    * that has no notion of "which monitor" to compute it for. */
   daysSinceCleaned?: number | null;
+  /** `wall_scope`'s input (Task 8, presence/display-power framework) -- the triggering
+   * event's wall slug, when it has one. Only the engine's `motion_detected`/
+   * `display_power_changed` handlers ever set this (stamped from the bus event's own
+   * `wallSlug`, `null` collapsed to `undefined` -- see engine.ts's `buildWallEvalCtx`);
+   * every other ctx builder leaves it `undefined`, which `wall_scope` treats as "no wall
+   * context" -> always false, same "inapplicable condition fails closed" rule every other
+   * field here follows. */
+  wallSlug?: string;
 }
 
 function timeOfDayMinutes(d: Date): number {
@@ -125,6 +133,8 @@ function evaluateCondition(
     }
     case 'days_since_cleaned':
       return ctx.daysSinceCleaned != null && ctx.daysSinceCleaned >= c.days;
+    case 'wall_scope':
+      return ctx.wallSlug !== undefined && c.wallSlugs.includes(ctx.wallSlug);
   }
 }
 

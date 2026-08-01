@@ -8,7 +8,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb } from '../../src/server/db/db.js';
-import { EventBus } from '../../src/server/core/events.js';
+import { EventBus, type PowerState } from '../../src/server/core/events.js';
 import { SettingsStore } from '../../src/server/db/settings.js';
 import { StateManager } from '../../src/server/core/state.js';
 import { AutomationEngine, type EngineOptions } from '../../src/server/automation/engine.js';
@@ -47,9 +47,17 @@ let settings: SettingsStore;
 let state: StateManager;
 let engine: AutomationEngine | undefined;
 let banners: unknown[];
+/** Task 8: a structurally-compatible presence double (spied `setState`) -- the engine's
+ * `EngineDeps.presence` is narrowed to just this one method, same precedent as `state`
+ * above, so a real `PresenceRegistry` (which would need real wall zones configured) isn't
+ * needed just to exercise the `display_power` action / `motion_detected`/
+ * `display_power_changed` triggers. */
+let presenceSetState: ReturnType<typeof vi.fn<(slug: string | null, state: PowerState) => void>>;
 
 function makeEngine(opts: EngineOptions = {}): AutomationEngine {
-  engine = new AutomationEngine({ db, bus, settings, state }, opts);
+  engine = new AutomationEngine({
+    db, bus, settings, state, presence: { setState: presenceSetState },
+  }, opts);
   return engine;
 }
 
@@ -86,6 +94,7 @@ beforeEach(() => {
   state.start();
   banners = [];
   bus.on('wall_banner', (e) => banners.push(e));
+  presenceSetState = vi.fn();
   engine = undefined;
 });
 
@@ -444,6 +453,43 @@ describe('trigger kinds', () => {
       expect(banners).toHaveLength(1);
     });
   });
+
+  describe('motion_detected (Task 8: presence/display-power framework)', () => {
+    it('fires on any motion_detected event, wall-scoped or global', async () => {
+      createAutomation(db, ruleFor({ type: 'motion_detected' }, [bannerAction()]));
+      makeEngine().start();
+      bus.emit('motion_detected', { wallSlug: 'main', source: 'touch', ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+
+      bus.emit('motion_detected', { wallSlug: null, source: 'pour', ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(2);
+    });
+  });
+
+  describe('display_power_changed (Task 8: presence/display-power framework)', () => {
+    it('fires on any transition when the trigger has no state filter', async () => {
+      createAutomation(db, ruleFor({ type: 'display_power_changed' }, [bannerAction()]));
+      makeEngine().start();
+      bus.emit('display_power_changed', { wallId: 1, wallSlug: 'main', state: 'screensaver', ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+
+    it('an explicit state filter only matches that transition', async () => {
+      createAutomation(db, ruleFor({ type: 'display_power_changed', state: 'off' }, [bannerAction()]));
+      makeEngine().start();
+
+      bus.emit('display_power_changed', { wallId: 1, wallSlug: 'main', state: 'screensaver', ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(0);
+
+      bus.emit('display_power_changed', { wallId: 1, wallSlug: 'main', state: 'off', ts: NOW });
+      await engine!.flush();
+      expect(banners).toHaveLength(1);
+    });
+  });
 });
 
 describe('runRuleOnce (POST /api/automations/:id/run test-run support)', () => {
@@ -508,6 +554,20 @@ describe('conditions applied end-to-end (matrix itself is unit-tested in tests/a
     expect(banners).toHaveLength(0);
 
     bus.emit('keg_tapped', { tapId: tap2.id, kegId: keg.id, beerId: beer.id, ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(1);
+  });
+
+  it('wall_scope gates a motion_detected trigger by wallSlug (Task 8)', async () => {
+    const conditions: Condition[] = [{ type: 'wall_scope', wallSlugs: ['main'] }];
+    createAutomation(db, ruleFor({ type: 'motion_detected' }, [bannerAction()], { conditions }));
+    makeEngine().start();
+
+    bus.emit('motion_detected', { wallSlug: 'patio', source: 'touch', ts: NOW });
+    await engine!.flush();
+    expect(banners).toHaveLength(0);
+
+    bus.emit('motion_detected', { wallSlug: 'main', source: 'touch', ts: NOW });
     await engine!.flush();
     expect(banners).toHaveLength(1);
   });
@@ -918,6 +978,43 @@ describe('action dispatch', () => {
     await engine!.flush();
     expect(order).toEqual(['banner', 'party']);
     expect(listNotifications(db)).toHaveLength(1);
+  });
+
+  it('display_power calls presence.setState per named wallSlug (Task 8)', async () => {
+    seed();
+    createAutomation(db, ruleFor(
+      { type: 'pour_completed' }, [{ type: 'display_power', state: 'off', wallSlugs: ['main'] }],
+    ));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(presenceSetState).toHaveBeenCalledTimes(1);
+    expect(presenceSetState).toHaveBeenCalledWith('main', 'off');
+  });
+
+  it('display_power calls presence.setState(null, state) once when wallSlugs is absent', async () => {
+    seed();
+    createAutomation(db, ruleFor(
+      { type: 'pour_completed' }, [{ type: 'display_power', state: 'active' }],
+    ));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(presenceSetState).toHaveBeenCalledTimes(1);
+    expect(presenceSetState).toHaveBeenCalledWith(null, 'active');
+  });
+
+  it('display_power calls presence.setState once per slug for multiple wallSlugs', async () => {
+    seed();
+    createAutomation(db, ruleFor(
+      { type: 'pour_completed' }, [{ type: 'display_power', state: 'screensaver', wallSlugs: ['main', 'patio'] }],
+    ));
+    makeEngine().start();
+    bus.emit('pour_completed', { monitor: REF, volumeMl: 1, durationMs: 1, source: 'cloud', ts: NOW });
+    await engine!.flush();
+    expect(presenceSetState).toHaveBeenCalledTimes(2);
+    expect(presenceSetState).toHaveBeenCalledWith('main', 'screensaver');
+    expect(presenceSetState).toHaveBeenCalledWith('patio', 'screensaver');
   });
 
   it('party_mode emits wall_theme_override with minutes', async () => {

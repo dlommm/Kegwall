@@ -33,6 +33,13 @@ const weekdaySchema = z.number().int().min(0).max(6);
 
 const crossDirectionSchema = z.enum(['below', 'above']);
 
+/** Display power state, mirroring `core/events.ts`'s `PowerState` -- kept as its own
+ * literal enum here (not imported) per this file's dependency-free constraint (see top
+ * doc comment); the two must be kept in sync by hand. Shared by the
+ * `display_power_changed` trigger's optional `state` filter and the `display_power`
+ * action's target state (Task 8, presence/display-power framework). */
+const powerStateSchema = z.enum(['active', 'screensaver', 'off']);
+
 export const TriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('pour_completed') }),
   z.object({ type: z.literal('pour_started') }),
@@ -70,6 +77,20 @@ export const TriggerSchema = z.discriminatedUnion('type', [
     weekdays: z.array(weekdaySchema),
   }),
   z.object({ type: z.literal('app_startup') }),
+  // Task 8 (presence/display-power framework): both MOMENTARY -- no auto-resolve
+  // counterpart (see engine.ts's top doc comment, point 3). `motion_detected` fires on
+  // every debounced wake signal `PresenceRegistry.motion()` emits; `display_power_changed`
+  // fires on every zone state transition `PresenceRegistry`'s `transition()` emits -- that
+  // method's own no-op-when-state-is-unchanged guard is what keeps a rule's own
+  // `display_power` action from re-triggering itself in a loop, so this trigger needs no
+  // extra guard of its own. Neither carries wall-scoping directly -- pair with the
+  // `wall_scope` condition below for that (same precedent as `tap_scope`/`beer_scope`
+  // being conditions rather than trigger-embedded fields).
+  z.object({ type: z.literal('motion_detected') }),
+  z.object({
+    type: z.literal('display_power_changed'),
+    state: powerStateSchema.optional(), // absent = matches any transition
+  }),
 ]);
 
 export type Trigger = z.infer<typeof TriggerSchema>;
@@ -96,6 +117,13 @@ export const ConditionSchema = z.discriminatedUnion('type', [
   // access), matching every other condition here. True when at least `days` have elapsed
   // since the monitor's last recorded cleaning (i.e. "cleaning is due" / overdue).
   z.object({ type: z.literal('days_since_cleaned'), days: z.number().int().positive() }),
+  // Task 8: true iff the triggering event's wall context (currently only
+  // `motion_detected`/`display_power_changed` resolve one -- see conditions.ts's
+  // `ConditionEvalCtx.wallSlug`) is one of `wallSlugs`; false when the event has no wall
+  // context at all. `.min(1)` here, UNLIKE `tap_scope`/`beer_scope`'s empty-array-means-
+  // unrestricted convention -- an empty scope has no "match every wall" reading a rule
+  // author would actually want; that's just "don't add this condition".
+  z.object({ type: z.literal('wall_scope'), wallSlugs: z.array(z.string().min(1)).min(1) }),
 ]);
 
 export type Condition = z.infer<typeof ConditionSchema>;
@@ -125,6 +153,17 @@ export const ActionSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('party_mode'), minutes: z.number().int().positive() }),
   z.object({ type: z.literal('kegtron_reset_volume') }),
+  // Task 8: sets a wall's (or, when `wallSlugs` is absent, every wall's) display power
+  // state directly via `PresenceRegistry.setState` -- an explicit-hold override that
+  // bypasses the idle timers entirely, same as an admin's manual override (see
+  // core/presence.ts's own `setState` doc comment: "no schedule(): an explicit state
+  // holds until the next motion"). Loop safety is `setState`'s callee-side no-op-when-
+  // already-in-that-state guard, not anything this action needs to implement itself.
+  z.object({
+    type: z.literal('display_power'),
+    state: powerStateSchema,
+    wallSlugs: z.array(z.string().min(1)).optional(), // absent = every wall
+  }),
 ]);
 
 export type Action = z.infer<typeof ActionSchema>;

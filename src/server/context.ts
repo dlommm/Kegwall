@@ -90,8 +90,11 @@ export function createContext(dataDir: string, version = '0.0.0-dev'): AppContex
   // real actions (an `app_startup` rule's webhook/mqtt/SMTP/etc), so it's called
   // alongside `sources.startAll()` in `app.ts`, gated behind the same `startSources`
   // option, not unconditionally like `state.start()` above. See automation/engine.ts's
-  // top doc comment, point 6.
-  const engine = new AutomationEngine({ db, bus, settings, state });
+  // top doc comment, point 6. `presence` (constructed just above, specifically so it's
+  // available here) is threaded in for the Task 8 `display_power` action.
+  const engine = new AutomationEngine({
+    db, bus, settings, state, presence,
+  });
   const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry(), presence, version };
   // Registers whatever the current settings call for (Task 8's bootstrap.ts) — does NOT
   // start them; that's gated behind `buildApp()`'s `startSources` option (see app.ts /

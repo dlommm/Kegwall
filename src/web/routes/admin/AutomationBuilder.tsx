@@ -11,11 +11,21 @@ import {
 import {
   TRIGGER_KINDS, TRIGGER_LABELS, CONDITION_KINDS, CONDITION_LABELS, ACTION_KINDS, ACTION_LABELS,
   WEEKDAY_LABELS, VALUE_COMPARE_FIELD_LABELS, VALUE_COMPARE_OP_LABELS, WALL_BANNER_KIND_LABELS,
-  SEVERITY_LABELS, TEMPLATE_VARIABLE_HINTS,
+  SEVERITY_LABELS, TEMPLATE_VARIABLE_HINTS, DISPLAY_POWER_STATE_LABELS,
   defaultTrigger, defaultCondition, defaultAction,
   blankFormState, ruleToFormState, parseAutomationForm,
   type AutomationFormState,
 } from '../../lib/automationForm';
+
+/** Shared by `wall_scope`'s `wallSlugs` and `display_power`'s optional `wallSlugs` --
+ * a bare comma-separated text field rather than a checkbox list fetched from
+ * `listWalls()` (the pattern `tap_scope`/`beer_scope` use): this builder has no other
+ * reason to know about walls yet, and adding that API dependency here is Task 12's job
+ * (admin UI: wall editor fields), not this one's. Blank entries are dropped so a
+ * trailing/stray comma never produces an empty-string slug. */
+function parseWallSlugsInput(raw: string): string[] {
+  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+}
 
 export interface AutomationBuilderProps {
   /** `null` for a brand-new "blank rule" (see AutomationsPage's template picker for the
@@ -218,7 +228,30 @@ export function AutomationBuilder({
       case 'device_online':
       case 'device_offline':
       case 'app_startup':
+      case 'motion_detected':
         return null;
+      case 'display_power_changed':
+        return (
+          <label className="admin-field">
+            <span>State filter (blank = any transition)</span>
+            <select
+              disabled={!canEdit}
+              data-testid="automation-builder-trigger-field-state"
+              value={t.state ?? ''}
+              onChange={(e) => updateTrigger({
+                ...t,
+                state: e.target.value === ''
+                  ? undefined
+                  : e.target.value as Extract<Trigger, { type: 'display_power_changed' }>['state'],
+              })}
+            >
+              <option value="">Any</option>
+              {Object.entries(DISPLAY_POWER_STATE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
+        );
       case 'keg_level_crosses':
         return (
           <div className="automation-builder__field-row">
@@ -434,6 +467,19 @@ export function AutomationBuilder({
             />
           </label>
         );
+      case 'wall_scope':
+        return (
+          <label className="admin-field admin-field--full">
+            <span>Wall slugs (comma-separated)</span>
+            <input
+              type="text" disabled={!canEdit} data-testid={`${prefix}-field-wallSlugs`}
+              value={condition.wallSlugs.join(', ')}
+              onChange={(e) => updateCondition(index, {
+                ...condition, wallSlugs: parseWallSlugsInput(e.target.value),
+              })}
+            />
+          </label>
+        );
       default:
         return null;
     }
@@ -594,6 +640,36 @@ export function AutomationBuilder({
           <p className="admin-page-quiet" data-testid={`${prefix}-note`}>
             Resets the bound Kegtron Pro monitor&rsquo;s on-device volume counter for the triggering tap.
           </p>
+        );
+      case 'display_power':
+        return (
+          <>
+            <label className="admin-field">
+              <span>State</span>
+              <select
+                disabled={!canEdit} data-testid={`${prefix}-field-state`}
+                value={action.state}
+                onChange={(e) => updateAction(index, {
+                  ...action, state: e.target.value as Extract<Action, { type: 'display_power' }>['state'],
+                })}
+              >
+                {Object.entries(DISPLAY_POWER_STATE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field admin-field--full">
+              <span>Wall slugs (comma-separated, blank = every wall)</span>
+              <input
+                type="text" disabled={!canEdit} data-testid={`${prefix}-field-wallSlugs`}
+                value={(action.wallSlugs ?? []).join(', ')}
+                onChange={(e) => {
+                  const slugs = parseWallSlugsInput(e.target.value);
+                  updateAction(index, { ...action, wallSlugs: slugs.length > 0 ? slugs : undefined });
+                }}
+              />
+            </label>
+          </>
         );
       default:
         return null;

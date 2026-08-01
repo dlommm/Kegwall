@@ -36,13 +36,16 @@ function makeCtx(): AppContext {
   const state = new StateManager(db, bus);
   state.start();
   const sources = new SourceManager(bus);
-  const engine = new AutomationEngine({ db, bus, settings, state });
+  const presence = new PresenceRegistry(bus);
+  const engine = new AutomationEngine({
+    db, bus, settings, state, presence,
+  });
   const log = new LogService(db, bus);
   return {
     db, bus, settings, state, sources, engine,
     tabletArm: new TabletArmRegistry(), log,
     sensors: new SensorRegistry(bus, log), session: new SessionRegistry(), version: '0.0.0-dev',
-    presence: new PresenceRegistry(bus),
+    presence,
   };
 }
 

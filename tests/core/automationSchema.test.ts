@@ -19,6 +19,11 @@ describe('TriggerSchema', () => {
     { type: 'schedule', time: '09:00', weekdays: [1, 2, 3, 4, 5] },
     { type: 'schedule', time: '23:59', weekdays: [] },
     { type: 'app_startup' },
+    { type: 'motion_detected' },
+    { type: 'display_power_changed' },
+    { type: 'display_power_changed', state: 'active' },
+    { type: 'display_power_changed', state: 'screensaver' },
+    { type: 'display_power_changed', state: 'off' },
   ];
 
   it.each(validTriggers)('accepts %j', (trigger) => {
@@ -41,6 +46,7 @@ describe('TriggerSchema', () => {
     { type: 'schedule', time: '09:00', weekdays: [-1] },
     { type: 'schedule', time: '09:00' }, // missing weekdays
     { type: 'pour_completed', extra: 'field-that-does-not-belong-does-not-fail-strictness' },
+    { type: 'display_power_changed', state: 'sideways' }, // invalid state
   ];
 
   it.each(invalidTriggers)('rejects %j', (trigger) => {
@@ -67,6 +73,8 @@ describe('ConditionSchema', () => {
     { type: 'min_interval', minutes: 30 },
     { type: 'days_since_cleaned', days: 30 },
     { type: 'days_since_cleaned', days: 1 },
+    { type: 'wall_scope', wallSlugs: ['main'] },
+    { type: 'wall_scope', wallSlugs: ['main', 'patio'] },
   ];
 
   it.each(validConditions)('accepts %j', (condition) => {
@@ -87,6 +95,9 @@ describe('ConditionSchema', () => {
     { type: 'days_since_cleaned', days: 0 },
     { type: 'days_since_cleaned', days: -1 },
     { type: 'days_since_cleaned', days: 'thirty' },
+    { type: 'wall_scope', wallSlugs: [] }, // empty = no restriction is NOT the semantics here
+    { type: 'wall_scope', wallSlugs: [''] }, // empty string slug
+    { type: 'wall_scope' }, // missing wallSlugs
   ];
 
   it.each(invalidConditions)('rejects %j', (condition) => {
@@ -104,6 +115,9 @@ describe('ActionSchema', () => {
     { type: 'wall_banner', text: 'Low keg', kind: 'warning', durationMs: 8000 },
     { type: 'party_mode', minutes: 5 },
     { type: 'kegtron_reset_volume' },
+    { type: 'display_power', state: 'active' },
+    { type: 'display_power', state: 'off', wallSlugs: ['main'] },
+    { type: 'display_power', state: 'screensaver', wallSlugs: ['main', 'patio'] },
   ];
 
   it.each(validActions)('accepts %j', (action) => {
@@ -120,6 +134,9 @@ describe('ActionSchema', () => {
     { type: 'party_mode', minutes: 0 },
     { type: 'party_mode' }, // missing minutes
     { type: 'not_a_real_action' },
+    { type: 'display_power' }, // missing state
+    { type: 'display_power', state: 'sideways' }, // invalid state
+    { type: 'display_power', state: 'active', wallSlugs: [''] }, // empty string slug
   ];
 
   it.each(invalidActions)('rejects %j', (action) => {
