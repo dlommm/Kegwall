@@ -150,7 +150,7 @@ export const settingsSchema = z.object({
 
 export type Settings = z.infer<typeof settingsSchema>;
 
-const SECRET_KEYS = ['kegtronApiKey'] as const;
+const SECRET_KEYS = ['kegtronApiKey', 'presenceWebhookToken'] as const;
 
 const MASK_PREFIX = '••••';
 
@@ -258,6 +258,9 @@ export class SettingsStore {
     const out: Partial<Settings> = { ...patch };
     if (isMaskedString(out.kegtronApiKey)) {
       delete out.kegtronApiKey;
+    }
+    if (isMaskedString(out.presenceWebhookToken)) {
+      delete out.presenceWebhookToken;
     }
     if (out.mqtt && isMaskedString(out.mqtt.password)) {
       out.mqtt = { ...out.mqtt, password: this.get('mqtt')?.password };

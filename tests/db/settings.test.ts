@@ -109,6 +109,34 @@ describe('SettingsStore', () => {
     expect(store.get('siteName')).toBe('Still Works');
   });
 
+  // Presence spec Part A2/A3 (task-5 review F1): `presenceWebhookToken` is a top-level
+  // nullable string secret with the exact same shape as `kegtronApiKey`, so it follows
+  // that same idiom -- masked to a last-4 suffix, `set()` refuses a masked value verbatim,
+  // `sanitizePatch()` drops (not merges) a masked value from the patch.
+  describe('presenceWebhookToken', () => {
+    it('masks to a last-4 suffix, like kegtronApiKey', () => {
+      store.set('presenceWebhookToken', 'abcdefghijklmnop');
+      const m = store.masked();
+      expect(m.presenceWebhookToken).toBe('••••mnop');
+    });
+
+    it('set() throws ValidationError when given a masked presenceWebhookToken', () => {
+      store.set('presenceWebhookToken', 'realwebhooktoken1');
+      expect(() => store.set('presenceWebhookToken', '••••ken1')).toThrow(ValidationError);
+      // the real value must be untouched
+      expect(store.get('presenceWebhookToken')).toBe('realwebhooktoken1');
+    });
+
+    it('sanitizePatch drops a masked presenceWebhookToken from the patch', () => {
+      store.set('presenceWebhookToken', 'realwebhooktoken1');
+      const sanitized = store.sanitizePatch({ presenceWebhookToken: '••••ken1' });
+      expect(sanitized.presenceWebhookToken).toBeUndefined();
+      // dropped, not merged -- the caller's set()-per-key loop then leaves the
+      // currently-stored real value alone since the key is simply absent from the patch
+      expect(store.get('presenceWebhookToken')).toBe('realwebhooktoken1');
+    });
+  });
+
   // catalog.beer beer search (replaces the removed Untappd search): `catalogBeer` is a
   // nested, independently-nullable object (like `mqtt`) with a single secret sub-field,
   // `apiKey` -- same "secret nested inside a nested object" shape as `mqtt.password`,

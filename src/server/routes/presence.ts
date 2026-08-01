@@ -35,6 +35,21 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
   });
 
   const pingIntervalMs = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
+
+  // Open SSE connections (task-5 review F2): a stream still open when the app closes
+  // (e.g. an admin/kiosk tab connected during a server restart, or — as the review's
+  // probe found — simply every open connection in a test that doesn't explicitly
+  // cancel its reader first) must not leak its bus subscription, ping timer, or raw
+  // socket past `app.close()`. Every other per-connection resource in this app (wsRoutes'
+  // `clients` set) is torn down the same way: tracked in a registration-scoped collection,
+  // reaped by a single `onClose` hook below.
+  interface OpenStream {
+    unsubscribe: () => void;
+    ping: ReturnType<typeof setInterval>;
+    raw: import('node:http').ServerResponse;
+  }
+  const openStreams = new Set<OpenStream>();
+
   app.get('/api/presence/stream', (req, reply) => {
     const { wall, token } = z.object({ wall: z.string(), token: z.string().optional() })
       .parse(req.query);
@@ -56,6 +71,27 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
       if (e.wallSlug === wall) send(e.state);
     });
     const ping = setInterval(() => reply.raw.write(': ping\n\n'), pingIntervalMs);
-    req.raw.on('close', () => { unsubscribe(); clearInterval(ping); });
+    const entry: OpenStream = { unsubscribe, ping, raw: reply.raw };
+    openStreams.add(entry);
+    req.raw.on('close', () => {
+      // `Set.delete` returns false if already removed — guards against the onClose hook
+      // below and this handler both running their cleanup (app closing while the client
+      // socket is also in the middle of tearing down).
+      if (!openStreams.delete(entry)) return;
+      unsubscribe();
+      clearInterval(ping);
+    });
+  });
+
+  app.addHook('onClose', () => {
+    for (const entry of [...openStreams]) {
+      if (!openStreams.delete(entry)) continue; // same double-run guard as above
+      entry.unsubscribe();
+      clearInterval(entry.ping);
+      // Force-closes the underlying socket — plain `.end()` would leave a `keep-alive`
+      // connection sitting open for Node's http.Server.close() to wait on forever, which
+      // is exactly the hang the review's live probe caught.
+      entry.raw.destroy();
+    }
   });
 }
