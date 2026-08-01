@@ -65,20 +65,48 @@ the same way you'd treat handing someone `<style>` access to your public site: f
 your own CSS, or CSS from a source you actually trust, not something to paste blindly from
 a random forum post.
 
-## Screensaver
+## Display power
 
-`screensaver.enabled` (off by default) turns on an OLED-friendly idle mode after
-`screensaver.startAfterMinutes` (default 10, minimum 1) of the wall having been mounted
-with no interaction: the display dims its logo and rotates a highlighted tap, reducing
-static-pixel burn-in risk on displays left running 24/7. This is a display-content-level
-idle mode, separate from — and complementary to — your OS/browser's own screen-blanking
-settings; see
+The wall editor's **Display power** fieldset controls a server-owned idle/wake state
+machine (the presence engine), independent per wall:
+
+- **Screensaver after (minutes, blank = never)** — after this many minutes of no
+  activity, the display drops into a dimmed screensaver stage: a dim clock overlay over
+  the wall's title, rotating a highlighted tap every few seconds and drifting the whole
+  layout by a subpixel or two — an OLED-friendly idle mode that reduces static-pixel
+  burn-in risk on displays left running 24/7. Leave it blank and the wall never
+  screensaves.
+- **Screens off after (minutes, blank = never)** — after this many minutes of no
+  activity (the same idle-since-last-activity clock as Screensaver above, not stacked on
+  top of it — set it larger than the screensaver minutes and the wall simply passes
+  through the screensaver stage on its way to off), the display goes to a full black
+  "soft off" overlay. Leave it blank and the wall never goes to the off stage. If both
+  fields are blank, the wall stays active indefinitely.
+- **Camera motion wake (tablet)** — opt in to have the kegerator tablet's front camera
+  (frame-differencing in the browser, no ML, nothing leaves the device) count as activity
+  too, alongside touches and pours.
+
+"Activity" resets the idle clock and wakes an already-dimmed/off display back to
+`active`: a tap or pour on any wall, a touch/tap on the tablet or the screensaver/off
+overlay itself, camera motion (when enabled), or an external motion sensor wired up via
+MQTT or the presence webhook (**Settings → Sources → MQTT motion topics** /
+**Settings → Integrations → Presence**).
+
+This is a display-**content**-level idle mode — the browser tab keeps rendering, it just
+shows a dim clock or a black overlay — separate from your OS/browser's own
+screen-blanking settings; see
 [docs/install/raspberry-pi.md#kiosk-mode-wall](install/raspberry-pi.md#kiosk-mode-wall)
 for disabling X11 screen blanking so the two don't fight each other (you generally want
-this app's screensaver, not the OS one, actually engaging).
+this app's display power, not the OS one, actually engaging). It's also separate from
+actually powering down the physical panel (backlight/HDMI) — see
+[docs/install/display-agent.md](install/display-agent.md) for wiring the "off" stage up
+to real screen power control (HDMI-CEC, DPMS, a tablet's Fully Kiosk API, Home
+Assistant, etc).
 
 ## See also
 
+- [docs/install/display-agent.md](install/display-agent.md) — real panel power-off (not
+  just the in-browser dim/black stages above) driven off the same presence engine.
 - [docs/install/raspberry-pi.md](install/raspberry-pi.md) — kiosk-mode display setup.
 - [docs/recovery.md](recovery.md) — backups cover wall configs too (they're stored in the
   same database as everything else).

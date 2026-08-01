@@ -25,6 +25,13 @@ interface Zone {
 export class PresenceRegistry {
   private zones = new Map<string, Zone>();
 
+  // motion_detected debounce for GLOBAL wakes (slug === null) -- tracked separately from
+  // each zone's own `lastMotionEventAt` so a single global wake (e.g. a pour on any tap,
+  // presenceAttach.ts's `motion(null, 'pour')`) emits exactly ONE bus event, not one per
+  // zone. Per-zone `lastMotionEventAt` is untouched by this and still debounces targeted
+  // (non-null slug) wakes independently.
+  private lastGlobalMotionEventAt = 0;
+
   constructor(private bus: EventBus) {}
 
   configure(zones: PresenceZoneConfig[]): void {
@@ -61,8 +68,20 @@ export class PresenceRegistry {
       ? [...this.zones.values()]
       : [this.zones.get(slug)].filter((z): z is Zone => z !== undefined);
     const now = Date.now();
+    if (slug === null) {
+      // A global wake still transitions every zone, but the bus event fires at most
+      // once per debounce window -- one `motion(null, ...)` call used to loop zones and
+      // emit an identical `{wallSlug: null}` event per zone (debounce windows clearing
+      // in lockstep meant the loop below alone couldn't dedupe it).
+      if (now - this.lastGlobalMotionEventAt >= MOTION_EVENT_MIN_INTERVAL_MS) {
+        this.lastGlobalMotionEventAt = now;
+        this.bus.emit('motion_detected', {
+          wallSlug: null, source, ts: new Date().toISOString(),
+        });
+      }
+    }
     for (const zone of targets) {
-      if (now - zone.lastMotionEventAt >= MOTION_EVENT_MIN_INTERVAL_MS) {
+      if (slug !== null && now - zone.lastMotionEventAt >= MOTION_EVENT_MIN_INTERVAL_MS) {
         zone.lastMotionEventAt = now;
         this.bus.emit('motion_detected', {
           wallSlug: slug, source, ts: new Date().toISOString(),

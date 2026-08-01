@@ -186,4 +186,5 @@ motion sensor you're running separately.
 - [raspberry-pi.md](raspberry-pi.md#kiosk-mode-tap-wall-on-the-server-pis-screen) —
   Pi kiosk setup, which often pairs with the display agent for real backlight control.
 - [docs/setup/home-assistant.md](../setup/home-assistant.md) — MQTT discovery and event topics.
-- [docs/customization.md](../customization.md) — screensaver configuration and timing.
+- [docs/customization.md](../customization.md#display-power) — display power (screensaver
+  after / screens off after / camera motion wake) configuration and timing.

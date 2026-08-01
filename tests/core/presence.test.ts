@@ -71,6 +71,46 @@ describe('PresenceRegistry', () => {
     expect(reg.stateOf('patio')).toBe('active');
   });
 
+  it('motion(null) emits exactly ONE motion_detected event across multiple zones, not one per zone', () => {
+    reg.configure([
+      { wallId: 1, slug: 'main', screensaverAfterMinutes: 10, offAfterMinutes: 60 },
+      { wallId: 2, slug: 'patio', screensaverAfterMinutes: 10, offAfterMinutes: 60 },
+      { wallId: 3, slug: 'garage', screensaverAfterMinutes: 10, offAfterMinutes: 60 },
+    ]);
+    reg.motion(null, 'pour');
+    expect(motionEvents).toHaveLength(1);
+    expect(motionEvents[0]).toMatchObject({ wallSlug: null, source: 'pour' });
+    // Still transitions every zone even though only one event fired.
+    expect(reg.stateOf('main')).toBe('active');
+    expect(reg.stateOf('patio')).toBe('active');
+    expect(reg.stateOf('garage')).toBe('active');
+
+    // Debounced the same as targeted wakes: a second global wake inside the 5s window
+    // emits nothing more; one after the window emits exactly one more.
+    reg.motion(null, 'pour');
+    expect(motionEvents).toHaveLength(1);
+    vi.advanceTimersByTime(5_001);
+    reg.motion(null, 'pour');
+    expect(motionEvents).toHaveLength(2);
+  });
+
+  it('targeted per-zone motion debounce is independent of the global debounce window', () => {
+    reg.configure([
+      { wallId: 1, slug: 'main', screensaverAfterMinutes: 10, offAfterMinutes: 60 },
+      { wallId: 2, slug: 'patio', screensaverAfterMinutes: 10, offAfterMinutes: 60 },
+    ]);
+    // A global wake consumes the global debounce window but must not touch either
+    // zone's own per-zone debounce window.
+    reg.motion(null, 'pour');
+    expect(motionEvents).toHaveLength(1);
+    reg.motion('main', 'touch');
+    expect(motionEvents).toHaveLength(2);
+    expect(motionEvents[1]).toMatchObject({ wallSlug: 'main', source: 'touch' });
+    reg.motion('patio', 'touch');
+    expect(motionEvents).toHaveLength(3);
+    expect(motionEvents[2]).toMatchObject({ wallSlug: 'patio', source: 'touch' });
+  });
+
   it('screensaverAfterMinutes null goes straight to off at offAfterMinutes', () => {
     reg.configure([{ wallId: 1, slug: 'main', screensaverAfterMinutes: null, offAfterMinutes: 30 }]);
     vi.advanceTimersByTime(30 * MIN);

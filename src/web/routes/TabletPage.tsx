@@ -128,7 +128,15 @@ export function TabletPage() {
     }
   }, [onWsMessage]);
 
-  const { wall, taps, units, loading, notFound } = useWallData(slug, { onMessage: handleWsMessage });
+  const {
+    wall, taps, units, stale, connected, loading, notFound,
+  } = useWallData(slug, { onMessage: handleWsMessage });
+
+  // F3 fix: same dead-server fallback as WallPage -- see that file's comment. A dead
+  // server can't push a fresh display_power frame, so a stale `'off'` would otherwise
+  // black out the kegerator tablet indefinitely (and the wake tap would just POST into
+  // the same dead server). Force `'active'` whenever the connection is stale/disconnected.
+  const effectiveStage = stale || !connected ? 'active' : stage;
 
   // Page-root wake-tap throttle (Task 10): a `useRef` timestamp guard, not state — this
   // must never trigger a re-render on every tap. The off-overlay's own `onWake` (below)
@@ -316,7 +324,7 @@ export function TabletPage() {
         data-testid="tablet-page"
         onPointerDownCapture={handlePointerDownWake}
       >
-        <ScreenCare stage={stage} taps={[]} title={wall.name || ''} onWake={() => wake()}>
+        <ScreenCare stage={effectiveStage} taps={[]} title={wall.name || ''} onWake={() => wake()}>
           {screen.kind === 'grid' && (
             <div className="tablet-screen" data-testid="tablet-grid">
               <header className="tablet-screen__header">

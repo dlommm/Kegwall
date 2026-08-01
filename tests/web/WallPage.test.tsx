@@ -525,6 +525,64 @@ describe('WallPage', () => {
       act(() => { screen.getByTestId('screen-off-overlay').click(); });
       expect(postPresenceWake).toHaveBeenCalledWith('main', 'touch');
     });
+
+    // F3 fix: a dead/unreachable server can't push a fresh display_power frame, so a
+    // stale 'off' would otherwise leave the screen black forever (and the wake tap would
+    // just POST into the same dead server). WallPage falls back to 'active' whenever the
+    // connection goes stale or disconnects, regardless of the last pushed stage.
+    it('falls back to active (overlay gone) when the connection goes stale after stage was pushed off', () => {
+      const live = { stale: false, connected: true };
+      const captured: { onMessage?: (msg: unknown) => void } = {};
+      (useWallData as Mock).mockImplementation((_slug: string, options?: { onMessage?: (msg: unknown) => void }) => {
+        captured.onMessage = options?.onMessage;
+        return baseResult({
+          wall: { slug: 'main', name: 'Main', config: makeConfig() },
+          taps: [],
+          stale: live.stale,
+          connected: live.connected,
+        });
+      });
+      const { rerender } = renderWall('main');
+      act(() => { captured.onMessage?.({ type: 'display_power', wallSlug: 'main', state: 'off' }); });
+      expect(screen.getByTestId('screen-off-overlay')).toBeInTheDocument();
+
+      live.stale = true;
+      rerender(
+        <MemoryRouter initialEntries={['/wall/main']}>
+          <Routes>
+            <Route path="/wall/:slug" element={<WallPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      expect(screen.queryByTestId('screen-off-overlay')).not.toBeInTheDocument();
+    });
+
+    it('falls back to active (overlay gone) when the connection disconnects after stage was pushed off', () => {
+      const live = { stale: false, connected: true };
+      const captured: { onMessage?: (msg: unknown) => void } = {};
+      (useWallData as Mock).mockImplementation((_slug: string, options?: { onMessage?: (msg: unknown) => void }) => {
+        captured.onMessage = options?.onMessage;
+        return baseResult({
+          wall: { slug: 'main', name: 'Main', config: makeConfig() },
+          taps: [],
+          stale: live.stale,
+          connected: live.connected,
+        });
+      });
+      const { rerender } = renderWall('main');
+      act(() => { captured.onMessage?.({ type: 'display_power', wallSlug: 'main', state: 'off' }); });
+      expect(screen.getByTestId('screen-off-overlay')).toBeInTheDocument();
+
+      live.connected = false;
+      rerender(
+        <MemoryRouter initialEntries={['/wall/main']}>
+          <Routes>
+            <Route path="/wall/:slug" element={<WallPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      expect(screen.queryByTestId('screen-off-overlay')).not.toBeInTheDocument();
+    });
   });
 });
 

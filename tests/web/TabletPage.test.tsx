@@ -302,6 +302,56 @@ describe('TabletPage (design 3a)', () => {
       fireEvent.click(screen.getByTestId('screen-off-overlay'));
       expect(postPresenceWake).toHaveBeenCalledTimes(2);
     });
+
+    // F3 fix: same dead-server fallback as WallPage -- a dead server can't push a fresh
+    // display_power frame, so a stale 'off' would otherwise black out the kegerator
+    // tablet indefinitely (and the wake tap would just POST into the same dead server).
+    // TabletPage falls back to 'active' whenever the connection is stale/disconnected.
+    it('falls back to active (overlay gone) when the connection goes stale after stage was pushed off', async () => {
+      const live = { stale: false, connected: true };
+      const captured = mockWallData(live);
+      const { rerender } = renderTablet();
+      await flush();
+      act(() => {
+        captured.onMessage?.({
+          type: 'display_power', wallSlug: 'main', state: 'off', wallId: 1, ts: 'now',
+        });
+      });
+      expect(await screen.findByTestId('screen-off-overlay')).toBeInTheDocument();
+
+      live.stale = true;
+      rerender(
+        <MemoryRouter initialEntries={['/tablet/main']}>
+          <Routes>
+            <Route path="/tablet/:slug" element={<TabletPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      expect(screen.queryByTestId('screen-off-overlay')).toBeNull();
+    });
+
+    it('falls back to active (overlay gone) when the connection disconnects after stage was pushed off', async () => {
+      const live = { stale: false, connected: true };
+      const captured = mockWallData(live);
+      const { rerender } = renderTablet();
+      await flush();
+      act(() => {
+        captured.onMessage?.({
+          type: 'display_power', wallSlug: 'main', state: 'off', wallId: 1, ts: 'now',
+        });
+      });
+      expect(await screen.findByTestId('screen-off-overlay')).toBeInTheDocument();
+
+      live.connected = false;
+      rerender(
+        <MemoryRouter initialEntries={['/tablet/main']}>
+          <Routes>
+            <Route path="/tablet/:slug" element={<TabletPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      expect(screen.queryByTestId('screen-off-overlay')).toBeNull();
+    });
   });
 
   // Task 11: the browser camera motion detector is opt-in per wall

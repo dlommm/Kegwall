@@ -178,8 +178,17 @@ export function WallPage() {
   }, []);
 
   const {
-    wall, taps, units, stale, loading, error, notFound,
+    wall, taps, units, stale, connected, loading, error, notFound,
   } = useWallData(slug, { onMessage: handleWsMessage });
+
+  // F3 fix: a dead/unreachable server can't push a fresh display_power frame, so the last
+  // stage the WS delivered would otherwise persist forever (including a stale `'off'`,
+  // leaving the screen permanently black with no way to recover short of a power cycle —
+  // the wake tap POSTs into the same dead server). Force `'active'` whenever the
+  // connection is stale or outright disconnected, mirroring the bash display-agent's own
+  // documented safe default (screens stay ON while its stream is unreachable — see
+  // docs/install/display-agent.md).
+  const effectiveStage = stale || !connected ? 'active' : stage;
 
   const baseConfig = wall?.config ?? null;
   // Per-display overrides (7c) merge over the wall's own config: look, theme
@@ -336,7 +345,7 @@ export function WallPage() {
         className={stale ? 'wall-page__dimmable wall-page__dimmable--stale' : 'wall-page__dimmable'}
         data-testid="wall-page-dimmable"
       >
-        <ScreenCare stage={stage} taps={taps} title={title} onWake={() => wake()}>
+        <ScreenCare stage={effectiveStage} taps={taps} title={title} onWake={() => wake()}>
           {currentViewKind === 'leaderboard' ? (
             <div
               key={`view-${rotationIndex}`}

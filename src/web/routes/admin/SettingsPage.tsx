@@ -31,9 +31,11 @@ const MQTT_DEFAULTS = {
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegwall',
-  // Presence (Plan A Task 6): motion-sensor topics. No admin UI edits this yet (see
-  // ingest/motionMqtt.ts) -- SourcesGroup's save below preserves whatever's already
-  // stored rather than silently clearing it every time an unrelated MQTT field is saved.
+  // Presence (Plan A Task 6 / Task 12): motion-sensor topics, now editable via the
+  // repeater in SourcesGroup below (see ingest/motionMqtt.ts for how they're consumed) --
+  // this constant only supplies the fallback when `mqtt` has never been configured at
+  // all, so SourcesGroup's save preserves whatever's already stored rather than silently
+  // clearing it every time an unrelated MQTT field is saved.
   motionTopics: [] as Array<{ topic: string; wallSlug: string | null }>,
 };
 
