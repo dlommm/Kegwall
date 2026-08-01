@@ -4,6 +4,12 @@ export interface MonitorRef {
   portIndex: number; // Govee sensors are always port 0 (single-sensor devices)
 }
 
+/** Display power state per zone (presence spec Part A/A1) */
+export type PowerState = 'active' | 'screensaver' | 'off';
+
+/** Source that triggered a wake/motion event (presence spec Part A/A1) */
+export type WakeSource = 'mqtt' | 'webhook' | 'camera' | 'pour' | 'touch' | 'admin' | 'automation';
+
 /** Canonical `(type, identifier, portIndex)` string key for a `MonitorRef` -- the single
  * source of truth for every Map/Set keyed by monitor identity across the ingest pipeline
  * (StateManager's live/online maps, PourDeduper's dedupe ring, PourSynthesizer's per-ref
@@ -32,7 +38,7 @@ export interface EventMap {
   device_online: { monitor: MonitorRef; ts: string };
   device_offline: { monitor: MonitorRef; ts: string };
   source_status: {
-    source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'pro_ble' | 'mqtt_publisher' | 'govee';
+    source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'pro_ble' | 'mqtt_publisher' | 'govee' | 'motion_mqtt';
     healthy: boolean; detail: string; ts: string;
     /** True when unhealthy only because the source was never CONFIGURED (no API key
      * set, etc). LogService logs this as a warn, not an error — a fresh install with
@@ -125,6 +131,10 @@ export interface EventMap {
     ruleId: number; ruleName: string; severity: 'info' | 'warning' | 'critical';
     title: string; body: string; tapId?: number; ts: string;
   };
+  /** Motion/wake event emitted by PresenceRegistry; debounced to 5s per zone to avoid spam */
+  motion_detected: { wallSlug: string | null; source: WakeSource; ts: string };
+  /** Display power state change emitted by PresenceRegistry after state transition */
+  display_power_changed: { wallId: number; wallSlug: string; state: PowerState; ts: string };
 }
 
 type Handler<E> = (payload: E) => void;
