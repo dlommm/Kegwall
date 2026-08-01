@@ -63,7 +63,11 @@ describe('App', () => {
         </MemoryRouter>,
       );
 
-      expect(await screen.findByTestId('login-page')).toBeInTheDocument();
+      // Generous timeout: resolving the real (large) lazy AdminApp chunk through
+      // vite-node under a fully-parallel suite run repeatedly blew findBy's 1s
+      // default on loaded machines (local AND CI) — a pure scheduling flake, the
+      // same class as the lookup-test budgets. 15s is nowhere near the 30s global.
+      expect(await screen.findByTestId('login-page', {}, { timeout: 15_000 })).toBeInTheDocument();
     });
   });
 });

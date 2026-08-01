@@ -48,6 +48,13 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
       // wall payload (config + allowedTapIds + units) — useWallData.ts handles it.
       broadcast(JSON.stringify({ type: 'walls_changed' }));
     }
+  });
+
+  // Host-health relay (Pi monitoring epic): the 60s sampler's reading, for walls with
+  // showHostStats. Broadcast to every client like everything else on this feed — the
+  // wall is public by design and only renders it when its config asks.
+  app.ctx.bus.on('host_stats_sampled', (e) => {
+    broadcast(JSON.stringify({ type: 'host_stats', ...e }));
     // scope 'sources' is intentionally not relayed over this feed (unchanged from before
     // wall_banner/wall_theme_override/notifications existed).
   });

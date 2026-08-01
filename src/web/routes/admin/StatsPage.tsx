@@ -6,6 +6,7 @@ import type { TelemetryPoint } from '../../../server/db/telemetry.js';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
+  getHostStatsHistory, type HostStatsHistoryPoint,
 } from '../../lib/adminApi';
 import { formatVolumeMl } from '../../lib/units';
 import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
@@ -14,6 +15,7 @@ import { HourHistogramRow } from './HourHistogramRow';
 import { KegDepletionCards } from './KegDepletionCards';
 import { BeerVolumeChart } from './BeerVolumeChart';
 import { TempChart } from './TempChart';
+import { HostStatsChart } from './HostStatsChart';
 import { Leaderboard, type LeaderboardWindow } from './Leaderboard';
 import { useAdminContext } from './useAdminContext';
 
@@ -51,6 +53,18 @@ export function StatsPage() {
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardEntry[]>([]);
   const [kpis, setKpis] = useState<AnalyticsKpis | null>(null);
   const [heatmap, setHeatmap] = useState<number[][]>([]);
+  const [hostStats, setHostStats] = useState<HostStatsHistoryPoint[]>([]);
+
+  // Server-health history (Pi monitoring epic) — the host sampler's last 24h.
+  useEffect(() => {
+    let cancelled = false;
+    getHostStatsHistory(24).then((result) => {
+      if (!cancelled && result.ok) setHostStats(result.data.points);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // KPI row + busiest-hours heatmap (design 10a) follow the shared day range
   // (365 for anything past the 7/30/90 switcher isn't offered there — 90 caps it).
@@ -275,6 +289,7 @@ export function StatsPage() {
             data={temps} units={units} devices={proDevices}
             selectedMonitorId={selectedMonitorId} onSelectMonitor={setSelectedMonitorId}
           />
+          <HostStatsChart data={hostStats} units={units} />
           <Leaderboard
             data={leaderboardRows} units={units} window={leaderboardWindow}
             onWindowChange={setLeaderboardWindow}

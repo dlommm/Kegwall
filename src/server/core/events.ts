@@ -39,6 +39,13 @@ export interface EventMap {
      * no keys shouldn't boot into auto-created error notifications. */
     unconfigured?: boolean;
   };
+  /** Emitted by app.ts's 60s host sampler after each host_stats row is written —
+   * ws.ts relays it as `{type:'host_stats', ...}` so walls with `showHostStats`
+   * render a live CPU/RAM/disk strip without polling an authenticated endpoint. */
+  host_stats_sampled: {
+    cpuPct: number; memPct: number; diskPct: number | null;
+    tempC: number | null; watts: number | null; ts: string;
+  };
   /** scope 'walls': a wall's config/devices (or something riding the wall payload,
    * e.g. display units) changed — ws.ts relays it as `{type:'walls_changed'}` so
    * open wall/kiosk clients refetch their config without a reload (they otherwise

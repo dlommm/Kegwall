@@ -26,6 +26,11 @@ import { notificationsRoutes } from './routes/notifications.js';
 import { staticRoutes, labelsStaticRoutes } from './routes/static.js';
 import { NotFoundError, ConflictError, ValidationError } from './core/errors.js';
 import type { HostResolver } from './core/ssrfGuard.js';
+import { readHostStats } from './core/hostStats.js';
+import { recordHostStats } from './db/hostStatsRepo.js';
+
+/** Host-health sample cadence — 60s keeps a month of history at ~43k tiny rows. */
+const HOST_STATS_SAMPLE_MS = 60_000;
 
 /**
  * Maps a raw better-sqlite3 `SqliteError` to a clean API error shape — callers (route
@@ -119,6 +124,32 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
     // Started alongside sources, behind the same flag — see automation/engine.ts's top
     // doc comment, point 6, for why this isn't unconditional like state.start().
     app.ctx.engine.start();
+
+    // Host-health sampler (Pi monitoring epic): one host_stats row + one bus event per
+    // minute — the Stats page charts the rows, walls with showHostStats render the
+    // relayed WS frame. Behind startSources (like the engine) so tests that merely
+    // buildApp() never tick timers or write sample rows.
+    const dataDirForStats = opts.dataDir ?? './data';
+    const sampleHostStats = async () => {
+      try {
+        const s = await readHostStats(dataDirForStats);
+        const point = {
+          ts: new Date().toISOString(),
+          cpuPct: s.cpu.loadPct,
+          memPct: s.memory.usedPct,
+          diskPct: s.disk?.usedPct ?? null,
+          tempC: s.cpuTempC,
+          watts: s.watts,
+        };
+        recordHostStats(app.ctx.db, point);
+        app.ctx.bus.emit('host_stats_sampled', point);
+      } catch {
+        // A failed sample must never take the server down; the next tick retries.
+      }
+    };
+    void sampleHostStats();
+    const hostStatsTimer = setInterval(sampleHostStats, HOST_STATS_SAMPLE_MS);
+    app.addHook('onClose', async () => clearInterval(hostStatsTimer));
   }
 
   await app.register(cookie);

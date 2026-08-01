@@ -8,7 +8,7 @@ import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
 import {
   getSettings, patchSettings, uploadLabel, testChannel,
   getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, pollUpdateStatus,
-  triggerOsUpdate,
+  triggerOsUpdate, triggerKioskRestart,
   type UpdateCheck,
 } from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
@@ -961,7 +961,61 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
           Docker/watchtower admins never see this block. Gated on the SAVED mode so
           merely flipping the select above doesn't flash it in and out. */}
       {savedMode === 'native' && <OsUpdatesBlock settings={settings} onSaved={onSaved} />}
+      {savedMode === 'native' && <KioskRestartBlock />}
     </section>
+  );
+}
+
+/** "Display" block: restart the kiosk chromium (kegwall-kiosk.service) via the
+ * trigger-file units — the recovery lever when the TV wedges. Native installs only
+ * (gated by the caller, same as OsUpdatesBlock). */
+function KioskRestartBlock() {
+  const [run, setRun] = useState<
+    { state: 'idle' } | { state: 'confirming' } | { state: 'started'; message: string } | { state: 'failed'; message: string }
+  >({ state: 'idle' });
+
+  async function runRestart() {
+    const result = await triggerKioskRestart();
+    setRun(result.ok
+      ? { state: 'started', message: result.data.message }
+      : { state: 'failed', message: result.message });
+  }
+
+  return (
+    <div className="channels-group__block" data-testid="settings-system-kiosk">
+      <h3 className="channels-group__block-title">Display</h3>
+      <p className="admin-page-quiet">
+        Restarts the kiosk browser on this Pi&rsquo;s screen (kiosk mode only) — use it
+        if the wall ever looks stuck.
+      </p>
+      <div className="settings-actions">
+        {run.state === 'confirming' ? (
+          <button
+            type="button"
+            data-testid="settings-system-kiosk-restart-confirm"
+            onClick={runRestart}
+          >
+            Confirm — the screen goes black for a few seconds
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="settings-system-kiosk-restart"
+            onClick={() => setRun({ state: 'confirming' })}
+          >
+            Restart kiosk display
+          </button>
+        )}
+      </div>
+      {run.state === 'started' && (
+        <p className="admin-page-quiet" data-testid="settings-system-kiosk-started">{run.message}</p>
+      )}
+      {run.state === 'failed' && (
+        <p className="beer-form__notice" role="alert" data-testid="settings-system-kiosk-error">
+          {run.message}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -530,6 +530,15 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               />
               Show QR code
             </label>
+            <label className="wall-editor__checkbox">
+              <input
+                type="checkbox"
+                data-testid="wall-editor-show-host-stats"
+                checked={form.showHostStats}
+                onChange={(e) => updateField('showHostStats', e.target.checked)}
+              />
+              Show server stats (CPU / RAM / disk)
+            </label>
           </div>
 
           <fieldset className="wall-editor__section">

@@ -39,6 +39,7 @@ export interface WallConfigFormState {
   rotationSeconds: number;
   transition: WallConfig['transition'];
   showQr: boolean;
+  showHostStats: boolean;
   headerTitle: string;
   headerSubtitle: string;
   showClock: boolean;
@@ -95,6 +96,7 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     rotationSeconds: config.rotationSeconds,
     transition: config.transition,
     showQr: config.showQr,
+    showHostStats: config.showHostStats,
     headerTitle: config.header.title ?? '',
     headerSubtitle: config.header.subtitle ?? '',
     showClock: config.header.showClock,
@@ -155,6 +157,7 @@ export function formStateToConfigCandidate(
     rotationSeconds: form.rotationSeconds,
     transition: form.transition,
     showQr: form.showQr,
+    showHostStats: form.showHostStats,
     header,
     fields: { ...form.fields },
     screensaver: {

@@ -21,6 +21,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   listMonitors: vi.fn(),
   getAnalyticsKpis: vi.fn().mockResolvedValue({ ok: true, data: { pours: 0, volumeMl: 0, kegsKicked: 0, avgQuality: null, costPerPintCents: null, valueOnTapCents: 0 } }),
   getHourHeatmap: vi.fn().mockResolvedValue({ ok: true, data: { grid: [] } }),
+  getHostStatsHistory: vi.fn().mockResolvedValue({ ok: true, data: { points: [] } }),
 }));
 
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {

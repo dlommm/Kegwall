@@ -11,6 +11,8 @@ import { useViewRotation } from '../lib/useViewRotation';
 import { PlaylistBar } from '../components/PlaylistBar';
 import { LeaderboardBoard } from '../components/LeaderboardBoard';
 import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
+import { useKioskScale } from '../lib/useKioskScale';
+import { formatTempC } from '../lib/units';
 import { useBanners, type BannerKind } from '../lib/useBanners';
 import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
@@ -68,6 +70,22 @@ function isWsThemeOverrideMessage(msg: unknown): msg is WsThemeOverrideMessage {
     && typeof (msg as { minutes?: unknown }).minutes === 'number';
 }
 
+/** The 60s host-health frame ws.ts relays for walls with showHostStats. */
+interface WsHostStatsMessage {
+  type: 'host_stats';
+  cpuPct: number;
+  memPct: number;
+  diskPct: number | null;
+  tempC: number | null;
+  watts: number | null;
+  ts: string;
+}
+
+function isWsHostStatsMessage(msg: unknown): msg is WsHostStatsMessage {
+  return typeof msg === 'object' && msg !== null && (msg as { type?: unknown }).type === 'host_stats'
+    && typeof (msg as { cpuPct?: unknown }).cpuPct === 'number';
+}
+
 /**
  * Party mode's "temporary theme override" (Phase 5 Task 4): rather than swapping to a
  * whole separate named theme (which would mean either adding a 5th entry to
@@ -98,6 +116,8 @@ export function WallPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const reducedMotion = usePrefersReducedMotion();
+  // TV scale-to-fit: 720p/1080p/4K all render the 1080p-designed wall identically.
+  useKioskScale();
   const { queue, push, dismiss } = useBanners();
 
   // Per-display overrides (design 7c): a paired display opens
@@ -124,9 +144,13 @@ export function WallPage() {
   const partyModeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [partyMode, setPartyMode] = useState(false);
 
+  const [hostStats, setHostStats] = useState<WsHostStatsMessage | null>(null);
+
   const handleWsMessage = useCallback((msg: unknown) => {
     if (isWsBannerMessage(msg)) {
       push(msg.text, mapServerBannerKind(msg.kind), msg.durationMs);
+    } else if (isWsHostStatsMessage(msg)) {
+      setHostStats(msg);
     } else if (isWsThemeOverrideMessage(msg)) {
       if (partyModeTimerRef.current) clearTimeout(partyModeTimerRef.current);
       setPartyMode(true);
@@ -383,6 +407,14 @@ export function WallPage() {
           <PlaylistBar views={rotationViews} activeIndex={rotationIndex} />
           <BannerLane queue={queue} onDismiss={dismiss} />
           {look === 'classic' && config.showQr && <QrOverlay url={menuUrl} />}
+          {config.showHostStats && hostStats && (
+            <div className="wall-host-stats font-tabular" data-testid="wall-host-stats">
+              {`CPU ${Math.round(hostStats.cpuPct)}% · RAM ${Math.round(hostStats.memPct)}%`}
+              {hostStats.diskPct != null && ` · Disk ${Math.round(hostStats.diskPct)}%`}
+              {hostStats.tempC != null && ` · ${formatTempC(hostStats.tempC, units)}`}
+              {hostStats.watts != null && ` · ${hostStats.watts} W`}
+            </div>
+          )}
         </ScreenCare>
       </div>
       {stale && (

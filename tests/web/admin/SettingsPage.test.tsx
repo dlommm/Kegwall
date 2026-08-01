@@ -21,6 +21,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   pollSystemVersion: vi.fn().mockResolvedValue(null),
   pollUpdateStatus: vi.fn().mockResolvedValue(null),
   triggerOsUpdate: vi.fn(),
+  triggerKioskRestart: vi.fn(),
 }));
 
 vi.mock('../../../src/web/routes/admin/BackupPanel', () => ({

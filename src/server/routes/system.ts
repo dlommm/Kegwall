@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import os from 'node:os';
 import { requireRole } from './auth.js';
 import { readHostStats, readThrottle, type ThrottleFlags } from '../core/hostStats.js';
+import { listHostStatsBucketed } from '../db/hostStatsRepo.js';
 
 /**
  * System routes: the running version, the update check (against the project's own
@@ -243,6 +244,35 @@ export async function systemRoutes(
     app.ctx.log.info('app', `OS update trigger file written (auto-reboot ${osUpdates.autoReboot ? 'on' : 'off'})`);
     return reply.code(202).send({
       message: 'OS update started in the background — apt output lands in the journal (journalctl -u kegwall-os-update).',
+    });
+  });
+
+  // Sampled host-health history (app.ts's 60s sampler → migration 014) for the Stats
+  // page's server chart. Bucketed server-side so a week of samples doesn't ship 10k
+  // JSON rows to draw a 200px chart.
+  app.get('/api/system/stats/history', viewer, async (req) => {
+    const { hours } = z.object({
+      hours: z.coerce.number().int().min(1).max(24 * 30).default(24),
+    }).parse(req.query ?? {});
+    const since = new Date(Date.now() - hours * 3_600_000).toISOString();
+    return { points: listHostStatsBucketed(app.ctx.db, since) };
+  });
+
+  // Kiosk display restart — same trigger-file pattern as os-update/reboot above (own
+  // file + own root path unit; kegwall-kiosk-restart.sh). Chromium keeps running the
+  // JS bundle it loaded at page-open, so this is the recovery lever when the display
+  // wedges (the version-change auto-reload handles normal updates on its own).
+  app.post('/api/system/kiosk-restart', admin, async (_req, reply) => {
+    if (app.ctx.settings.get('updates')?.mode !== 'native') {
+      return reply.code(409).send({
+        error: 'conflict',
+        message: 'Restarting the kiosk display is only available on the native Pi install.',
+      });
+    }
+    writeFileSync(join(dataDir, 'kiosk-restart-requested'), 'restart');
+    app.ctx.log.info('app', 'Kiosk display restart requested from the admin UI');
+    return reply.code(202).send({
+      message: 'Restarting the kiosk display — the screen goes black for a few seconds. (Needs the installer’s kiosk-restart unit; re-run scripts/pi-install.sh once if this install predates it.)',
     });
   });
 

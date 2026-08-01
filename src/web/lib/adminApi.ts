@@ -842,3 +842,21 @@ export async function pollUpdateStatus(): Promise<string | null> {
     return null;
   }
 }
+
+/** One bucketed host-health history point (GET /api/system/stats/history). */
+export interface HostStatsHistoryPoint {
+  ts: string;
+  cpuPct: number;
+  memPct: number;
+  diskPct: number | null;
+  tempC: number | null;
+  watts: number | null;
+}
+
+export function getHostStatsHistory(hours = 24): Promise<ApiResult<{ points: HostStatsHistoryPoint[] }>> {
+  return request(`/api/system/stats/history?hours=${hours}`);
+}
+
+export function triggerKioskRestart(): Promise<ApiResult<{ message: string }>> {
+  return request('/api/system/kiosk-restart', { method: 'POST', body: JSON.stringify({}) });
+}

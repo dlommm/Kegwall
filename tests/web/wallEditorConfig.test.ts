@@ -71,6 +71,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       customCss: '.kegtron-theme-scope { letter-spacing: 0.05em; }',
       screensaver: { enabled: true, startAfterMinutes: 7 },
       fillStyle: 'keg',
+      showHostStats: true,
     };
     // Sanity: the fixture itself must be valid per the schema.
     expect(() => wallConfigSchema.parse(full)).not.toThrow();

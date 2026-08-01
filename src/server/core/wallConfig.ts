@@ -73,6 +73,10 @@ export const wallConfigSchema = z.object({
     enabled: z.boolean().default(false),
     startAfterMinutes: z.number().int().min(1).default(10),
   }).default({ enabled: false, startAfterMinutes: 10 }),
+  // Server-health strip (Pi monitoring epic): CPU/RAM/disk (+temp/watts when the
+  // host reports them) in the wall's corner, fed live by the /ws host_stats frame.
+  // Off by default so existing walls render unchanged.
+  showHostStats: z.boolean().default(false),
   // Keg-asset fill indicator feature: per-wall display style for a tap's fill visual.
   // 'liquid' (default) is the existing SRM-true LiquidFill; 'keg' renders KegFill's
   // photorealistic cutaway-keg cavity with a traffic-light level color instead. Default

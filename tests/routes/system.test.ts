@@ -7,6 +7,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp } from '../../src/server/app.js';
+import { recordHostStats } from '../../src/server/db/hostStatsRepo.js';
 import { createUser } from '../../src/server/db/users.js';
 import { isNewerVersion } from '../../src/server/routes/system.js';
 
@@ -382,5 +383,42 @@ describe('GET /api/system/update-status', () => {
 
   it('requires auth', async () => {
     expect((await app.inject({ method: 'GET', url: '/api/system/update-status' })).statusCode).toBe(401);
+  });
+});
+
+describe('GET /api/system/stats/history', () => {
+  it('serves recorded samples to viewers, bucketed shape intact', async () => {
+    recordHostStats(app.ctx.db, {
+      ts: new Date().toISOString(), cpuPct: 12, memPct: 34, diskPct: 56, tempC: null, watts: null,
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/system/stats/history?hours=24', cookies: viewerCookies });
+    expect(res.statusCode).toBe(200);
+    const { points } = res.json();
+    expect(points).toHaveLength(1);
+    expect(points[0]).toMatchObject({ cpuPct: 12, memPct: 34, diskPct: 56, tempC: null });
+  });
+
+  it('rejects an out-of-range hours query and requires auth', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/system/stats/history' })).statusCode).toBe(401);
+    const res = await app.inject({ method: 'GET', url: '/api/system/stats/history?hours=0', cookies: viewerCookies });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('POST /api/system/kiosk-restart', () => {
+  it('409s outside native mode and writes the trigger inside it', async () => {
+    let res = await app.inject({ method: 'POST', url: '/api/system/kiosk-restart', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(existsSync(join(dataDir, 'kiosk-restart-requested'))).toBe(false);
+
+    app.ctx.settings.set('updates', { mode: 'native' });
+    res = await app.inject({ method: 'POST', url: '/api/system/kiosk-restart', cookies: adminCookies, payload: {} });
+    expect(res.statusCode).toBe(202);
+    expect(readFileSync(join(dataDir, 'kiosk-restart-requested'), 'utf8')).toBe('restart');
+  });
+
+  it('is admin-only', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/system/kiosk-restart', cookies: viewerCookies, payload: {} });
+    expect(res.statusCode).toBe(403);
   });
 });

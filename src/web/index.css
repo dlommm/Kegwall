@@ -3258,6 +3258,19 @@ h2.admin-field__label-text {
  * saves independently; masked secret fields (`.masked-secret`) share one small "Replace"
  * affordance component across Kegtron/Sources/Integrations.
  */
+/* Wall server-health strip (showHostStats) — discreet fixed corner readout, above
+ * the looks but below banners/takeovers in visual weight. */
+.wall-host-stats {
+  position: fixed;
+  bottom: 0.5rem;
+  left: 0.75rem;
+  z-index: 30;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text, #fff) 45%, transparent);
+  pointer-events: none;
+}
+
 /* Settings tab bar — the page outgrew one long scroll (see SettingsPage.tsx). */
 .settings-tabs {
   display: flex;

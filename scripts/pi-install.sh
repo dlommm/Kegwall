@@ -355,8 +355,51 @@ Unit=kegwall-reboot.service
 WantedBy=multi-user.target
 UNIT
 
+cat > /usr/local/bin/kegwall-kiosk-restart.sh <<KIOSKRESTART
+#!/usr/bin/env bash
+# Kiosk display restart — fired by kegwall-kiosk-restart.path when the admin UI's
+# "Restart kiosk display" button writes the trigger. Recovery lever for a wedged
+# chromium; harmless no-op when kiosk mode isn't installed.
+set -euo pipefail
+DIR="$DIR"
+TRIGGER="\$DIR/data/kiosk-restart-requested"
+
+[ -f "\$TRIGGER" ] || exit 0
+REQ=\$(cat "\$TRIGGER")
+rm -f "\$TRIGGER" # loop guard FIRST — see kegwall-update.sh
+[ "\$REQ" = "restart" ] || { echo "kegwall-kiosk-restart: refusing malformed request '\$REQ'" >&2; exit 1; }
+if systemctl cat kegwall-kiosk.service >/dev/null 2>&1; then
+  systemctl restart kegwall-kiosk
+  echo "kegwall-kiosk-restart: done"
+else
+  echo "kegwall-kiosk-restart: no kegwall-kiosk unit installed (not in kiosk mode) — nothing to do"
+fi
+KIOSKRESTART
+chmod +x /usr/local/bin/kegwall-kiosk-restart.sh
+
+cat > /etc/systemd/system/kegwall-kiosk-restart.service <<UNIT
+[Unit]
+Description=Kegwall kiosk display restart (fired by kegwall-kiosk-restart.path)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kegwall-kiosk-restart.sh
+UNIT
+
+cat > /etc/systemd/system/kegwall-kiosk-restart.path <<UNIT
+[Unit]
+Description=Watch for kiosk display restart requests from the Kegwall admin UI
+
+[Path]
+PathExists=$DIR/data/kiosk-restart-requested
+Unit=kegwall-kiosk-restart.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
 systemctl daemon-reload
-systemctl enable --now kegwall kegwall-update.path kegwall-os-update.path kegwall-reboot.path
+systemctl enable --now kegwall kegwall-update.path kegwall-os-update.path kegwall-reboot.path kegwall-kiosk-restart.path
 
 if [ "$OS_UPDATES" = auto ]; then
   echo "==> Enabling unattended-upgrades"
