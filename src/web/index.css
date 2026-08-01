@@ -7821,6 +7821,66 @@ h2.admin-field__label-text {
   color: var(--text-dim);
 }
 
+/* --- Face sign-in confirm (Task 7, Plan B) ---------------------------------
+ * Reuses .claim-sheet__backdrop for the dimmed full-screen backdrop (same
+ * "sheet over the page" idiom the menu's ClaimSheet uses) rather than inventing a
+ * second backdrop class; .face-confirm__* below covers only the content unique to
+ * this one-tap prompt (avatar + "You pouring, NAME?" + yes/no), reusing
+ * .tablet-avatar__circle for the avatar itself. */
+.face-confirm__sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+  margin: auto;
+  padding: 30px 26px;
+  border-radius: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  text-align: center;
+  box-shadow: 0 -0.5rem 2rem rgba(0, 0, 0, 0.4);
+}
+
+.face-confirm__prompt {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.face-confirm__prompt b {
+  color: var(--accent);
+}
+
+.face-confirm__actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.face-confirm__yes {
+  flex: 1;
+  min-height: 44px;
+  padding: 13px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.face-confirm__no {
+  flex: 1;
+  min-height: 44px;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 15px;
+  cursor: pointer;
+}
+
 /* --- Cleaning (6e) --------------------------------------------------------- */
 
 .taps-cleaning {

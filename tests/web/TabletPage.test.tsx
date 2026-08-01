@@ -9,9 +9,10 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { TabletPage, POURER_COLORS } from '../../src/web/routes/TabletPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import {
-  armTablet, createPourer, disarmTablet, getPourers, postPresenceWake,
+  armTablet, createPourer, disarmTablet, getFaces, getPourers, postPresenceWake,
 } from '../../src/web/lib/api';
 import { startCameraMotion } from '../../src/web/lib/cameraMotion';
+import { startFacePipeline } from '../../src/web/lib/faceRecognition';
 import { wallConfigSchema } from '../../src/server/core/wallConfig';
 import type { TapState } from '../../src/server/core/state';
 
@@ -23,12 +24,20 @@ vi.mock('../../src/web/lib/api', async (importOriginal) => ({
   armTablet: vi.fn(),
   disarmTablet: vi.fn(),
   postPresenceWake: vi.fn(),
+  getFaces: vi.fn(),
+  enrollFace: vi.fn(),
+  deleteFaces: vi.fn(),
 }));
 // Task 11: jsdom has no getUserMedia/canvas ImageData worth fighting — the pure
 // diffFraction logic is covered by tests/web/cameraMotion.test.ts. Here we only need
 // to assert TabletPage's wiring: starts when the config flag is on, never starts when
 // it's off, disposes on unmount.
 vi.mock('../../src/web/lib/cameraMotion', () => ({ startCameraMotion: vi.fn() }));
+// Task 7: same rationale as cameraMotion above — the real pipeline (getUserMedia,
+// @vladmandic/human) is covered by tests/web/faceRecognition.test.ts. Here we only
+// assert TabletPage's wiring: when it starts the pipeline, how it resolves a candidate
+// into the confirm sheet, and the abort-on-unmount contract.
+vi.mock('../../src/web/lib/faceRecognition', () => ({ startFacePipeline: vi.fn() }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
@@ -56,6 +65,14 @@ const wall = {
   slug: 'main',
   name: 'Main',
   config: wallConfigSchema.parse({}),
+};
+
+// Task 11 + Task 7 share this fixture: a wall with the camera-motion opt-in flag on —
+// Task 11's detector tests use it to assert `startCameraMotion` wiring, Task 7's face
+// pipeline tests reuse it since motion is the pipeline's primary trigger.
+const cameraWall = {
+  ...wall,
+  config: wallConfigSchema.parse({ displayPower: { cameraMotion: true } }),
 };
 
 function mockWallData(overrides: Partial<UseWallDataResult> = {}): { onMessage?: (msg: unknown) => void } {
@@ -86,6 +103,19 @@ async function flush() {
   });
 }
 
+/** Task 7's harness for "the camera detected motion": TabletPage hands
+ * `startCameraMotion` a persistent `onMotion` closure once (Task 11's effect), reused
+ * for every subsequent motion event — so grabbing it off the mock's first call and
+ * invoking it again here is exactly what a real motion event does. Requires the wall
+ * passed to `mockWallData` to have `displayPower.cameraMotion: true` (e.g.
+ * `cameraWall`), the same precondition `startCameraMotion` itself has. */
+async function triggerCameraMotion() {
+  const { onMotion } = (startCameraMotion as Mock).mock.calls[0]![0];
+  await act(async () => {
+    onMotion();
+  });
+}
+
 describe('TabletPage (design 3a)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -103,6 +133,10 @@ describe('TabletPage (design 3a)', () => {
     });
     (postPresenceWake as Mock).mockResolvedValue(undefined);
     (startCameraMotion as Mock).mockResolvedValue(null);
+    // Task 7: disabled-by-default so every pre-existing test above (none of which
+    // knows about face sign-in) never trips the pipeline's directory-enabled guard.
+    (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
+    (startFacePipeline as Mock).mockResolvedValue(null);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -360,11 +394,6 @@ describe('TabletPage (design 3a)', () => {
   // pixel buffers — jsdom has no getUserMedia/canvas ImageData worth fighting here, so
   // the module is mocked and these tests only assert TabletPage's wiring.
   describe('camera motion input (Task 11)', () => {
-    const cameraWall = {
-      ...wall,
-      config: wallConfigSchema.parse({ displayPower: { cameraMotion: true } }),
-    };
-
     it('starts the camera motion detector when displayPower.cameraMotion is true', async () => {
       mockWallData({ wall: cameraWall });
       renderTablet();
@@ -391,6 +420,161 @@ describe('TabletPage (design 3a)', () => {
       expect(stop).not.toHaveBeenCalled();
       unmount();
       expect(stop).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Task 7 (face sign-in, Plan B): the browser face-match pipeline (`faceRecognition.ts`,
+  // mocked above for the same reason `cameraMotion` is — jsdom has no real camera/model
+  // to exercise). These tests only assert TabletPage's wiring: when it starts the
+  // pipeline, how a candidate resolves into the one-tap confirm sheet, the "at most one
+  // pipeline" ref guard, and the abort-on-unmount contract.
+  describe('face sign-in pipeline (Task 7)', () => {
+    const ENROLLED_DIRECTORY = {
+      ok: true,
+      data: {
+        enabled: true,
+        threshold: 0.6,
+        faces: [{ id: 1, drinkerId: 1, embedding: [1, 0, 0] }],
+      },
+    } as const;
+
+    it('starts the face pipeline on motion when enabled, and arms on confirm', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      expect(startFacePipeline).toHaveBeenCalledTimes(1);
+      const { onCandidate } = (startFacePipeline as Mock).mock.calls[0]![0];
+      act(() => onCandidate({ drinkerId: 1, score: 0.9 }));
+      expect(await screen.findByTestId('face-confirm-sheet')).toBeInTheDocument();
+      expect(screen.getByTestId('face-confirm-sheet')).toHaveTextContent('You pouring, Sam?');
+      fireEvent.click(screen.getByTestId('face-confirm-yes'));
+      await waitFor(() => expect(armTablet).toHaveBeenCalledWith(1));
+    });
+
+    it('"Not me" dismisses without arming', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      const { onCandidate } = (startFacePipeline as Mock).mock.calls[0]![0];
+      act(() => onCandidate({ drinkerId: 1, score: 0.9 }));
+      expect(await screen.findByTestId('face-confirm-sheet')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('face-confirm-no'));
+      await waitFor(() => expect(screen.queryByTestId('face-confirm-sheet')).toBeNull());
+      expect(armTablet).not.toHaveBeenCalled();
+    });
+
+    it('never starts the pipeline when the directory is disabled or empty', async () => {
+      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      expect(startFacePipeline).not.toHaveBeenCalled();
+    });
+
+    it('ignores a candidate for an unknown drinkerId (stale directory) silently', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      const { onCandidate } = (startFacePipeline as Mock).mock.calls[0]![0];
+      act(() => onCandidate({ drinkerId: 999, score: 0.9 }));
+      expect(screen.queryByTestId('face-confirm-sheet')).toBeNull();
+    });
+
+    it('never starts a second pipeline while one is already running (ref guard)', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      (startFacePipeline as Mock).mockResolvedValue(vi.fn()); // resolves with a live disposer -- stays "running"
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      await triggerCameraMotion();
+      expect(startFacePipeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('after "Not me", a fresh pipeline run can prompt again (no permanent lockout)', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      await triggerCameraMotion();
+      const first = (startFacePipeline as Mock).mock.calls[0]![0];
+      act(() => first.onCandidate({ drinkerId: 1, score: 0.9 }));
+      fireEvent.click(await screen.findByTestId('face-confirm-no'));
+      await waitFor(() => expect(screen.queryByTestId('face-confirm-sheet')).toBeNull());
+
+      await triggerCameraMotion();
+      expect(startFacePipeline).toHaveBeenCalledTimes(2);
+      const second = (startFacePipeline as Mock).mock.calls[1]![0];
+      act(() => second.onCandidate({ drinkerId: 1, score: 0.9 }));
+      expect(await screen.findByTestId('face-confirm-sheet')).toBeInTheDocument();
+    });
+
+    it('falls back to starting the pipeline on pointerdown when camera motion is off', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData(); // default wall: displayPower.cameraMotion is false
+      renderTablet();
+      await flush();
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      await flush();
+      expect(startFacePipeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not fall back to pointerdown when camera motion is enabled', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      fireEvent.pointerDown(screen.getByTestId('tablet-page'));
+      await flush();
+      expect(startFacePipeline).not.toHaveBeenCalled();
+    });
+
+    it('refetches the face directory on a WS faces_changed message', async () => {
+      (getFaces as Mock).mockResolvedValueOnce({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
+      const captured = mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      expect(getFaces).toHaveBeenCalledTimes(1);
+
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      act(() => {
+        captured.onMessage?.({ type: 'faces_changed' });
+      });
+      await flush();
+      expect(getFaces).toHaveBeenCalledTimes(2);
+
+      await triggerCameraMotion();
+      expect(startFacePipeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('unmounting while the pipeline is still starting aborts its signal (belt and braces)', async () => {
+      let resolvePipeline: ((disposer: (() => void) | null) => void) | undefined;
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      (startFacePipeline as Mock).mockImplementation(() => new Promise((resolve) => {
+        resolvePipeline = resolve;
+      }));
+      mockWallData({ wall: cameraWall });
+      const { unmount } = renderTablet();
+      await flush();
+      await triggerCameraMotion();
+
+      const { signal } = (startFacePipeline as Mock).mock.calls[0]![0];
+      expect(signal.aborted).toBe(false);
+      unmount();
+      expect(signal.aborted).toBe(true);
+
+      // Resolve after unmount (a disposer arriving late) -- must not throw, matching
+      // the "still call the resolved disposer if one arrived" half of the contract.
+      const disposer = vi.fn();
+      resolvePipeline?.(disposer);
+      await flush();
     });
   });
 });

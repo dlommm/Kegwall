@@ -10,9 +10,10 @@ import { formatVolumeMl } from '../lib/units';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
 import { startCameraMotion } from '../lib/cameraMotion';
+import { startFacePipeline, type MatchCandidate } from '../lib/faceRecognition';
 import {
-  armTablet, createPourer, disarmTablet, getPourers, getSession, startSession,
-  joinSession, endSession, type PublicPourer, type SessionSnapshotResponse,
+  armTablet, createPourer, disarmTablet, getFaces, getPourers, getSession, startSession,
+  joinSession, endSession, type FaceDirectory, type PublicPourer, type SessionSnapshotResponse,
 } from '../lib/api';
 
 /** The signup screen's preset avatar palette (design 3a). */
@@ -58,6 +59,13 @@ function isPourAttributedMessage(msg: unknown): msg is {
     && typeof (msg as { drinkerId?: unknown }).drinkerId === 'number';
 }
 
+/** Task 7 (face sign-in, Plan B): ws.ts's invalidation signal for enrollment/deletion
+ * (routes/public.ts's POST/DELETE /api/public/faces) — no payload, just "go refetch". */
+function isFacesChangedMessage(msg: unknown): msg is { type: 'faces_changed' } {
+  return typeof msg === 'object' && msg !== null
+    && (msg as { type?: unknown }).type === 'faces_changed';
+}
+
 /** "SL" for "Sam Lee", "S" for "Sam" — same rule the menu's ClaimSheet uses. */
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -84,6 +92,14 @@ function initials(name: string): string {
  * Task 11: when the wall opts in via `displayPower.cameraMotion`, a low-res camera
  * frame-differencing detector (`lib/cameraMotion.ts`) also feeds `wake('camera')`,
  * throttled to one wake per 5s independently of the pointer-tap throttle.
+ * Task 7 (face sign-in, Plan B): when the enrolled-faces directory (`GET
+ * /api/public/faces`, refetched on WS `faces_changed`) is enabled and non-empty and
+ * the grid screen is showing, the same camera motion above (or, when a wall has no
+ * camera-motion input at all, a pointer tap) also starts `lib/faceRecognition.ts`'s
+ * browser matching pipeline. A match resolves against the loaded pourers list and
+ * opens a one-tap confirm sheet ("You pouring, NAME?"); confirming runs the exact
+ * same `selectPourer` arm flow a manual avatar tap uses. At most one pipeline ever
+ * runs at a time (a ref guard, not state — starting one must never wait on a render).
  */
 export function TabletPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -106,12 +122,36 @@ export function TabletPage() {
   const screenRef = useRef<Screen>(screen);
   screenRef.current = screen;
 
+  // Task 7 (face sign-in, Plan B): the enrolled-faces directory feeding the browser
+  // matching pipeline below. `enabled`/`threshold` default to the server's own
+  // disabled defaults so a slow first fetch never accidentally satisfies the
+  // "directory enabled" guard before GET /api/public/faces actually answers.
+  // `facesRef`/`pourersRef` mirror `screenRef` above -- read from event-handler
+  // closures (camera motion, pointer taps) that don't otherwise see a fresh render.
+  const [faces, setFaces] = useState<FaceDirectory>({ enabled: false, threshold: 0.6, faces: [] });
+  const facesRef = useRef<FaceDirectory>(faces);
+  facesRef.current = faces;
+  const pourersRef = useRef<PublicPourer[]>(pourers);
+  pourersRef.current = pourers;
+
+  const loadFaces = useCallback(() => {
+    getFaces().then((result) => {
+      if (result.ok) setFaces(result.data);
+    });
+  }, []);
+
+  useEffect(() => {
+    loadFaces();
+  }, [loadFaces]);
+
   // Task 10: the server-pushed display power stage rides the same /ws socket as
   // pour_attributed below — onWsMessage is chained in alongside it.
   const { stage, onWsMessage, wake } = useDisplayPower(slug);
 
   const handleWsMessage = useCallback((msg: unknown) => {
     onWsMessage(msg);
+    // Task 7: faces_changed carries no payload -- just "go refetch the directory".
+    if (isFacesChangedMessage(msg)) loadFaces();
     if (!isPourAttributedMessage(msg)) return;
     const current = screenRef.current;
     if (current.kind === 'armed' && msg.drinkerId === current.pourer.id) {
@@ -126,7 +166,7 @@ export function TabletPage() {
         },
       });
     }
-  }, [onWsMessage]);
+  }, [onWsMessage, loadFaces]);
 
   const {
     wall, taps, units, stale, connected, loading, notFound,
@@ -138,17 +178,103 @@ export function TabletPage() {
   // the same dead server). Force `'active'` whenever the connection is stale/disconnected.
   const effectiveStage = stale || !connected ? 'active' : stage;
 
+  // Read ahead of both trigger sites below (pointer fallback + camera motion) since the
+  // pointer fallback needs to know whether camera motion is even in play.
+  const cameraMotionEnabled = wall?.config.displayPower.cameraMotion ?? false;
+
+  // Task 7 (face sign-in, Plan B): the one-tap confirm sheet a pipeline match opens.
+  const [faceConfirm, setFaceConfirm] = useState<ActivePourer | null>(null);
+
+  // "At most one pipeline at a time" ref guard: set synchronously the instant a start
+  // is attempted -- before `startFacePipeline`'s own async camera/model-load work even
+  // begins -- so a second motion/tap landing before that promise resolves can never
+  // slip through and start an overlapping session. `facePipelineControllerRef` is this
+  // attempt's cancellation seam (Task 6's `signal`); `facePipelineStopRef` is the
+  // disposer once the pipeline actually starts ticking. Both are read by the
+  // unmount-cleanup effect below.
+  const facePipelineActiveRef = useRef(false);
+  const facePipelineControllerRef = useRef<AbortController | null>(null);
+  const facePipelineStopRef = useRef<(() => void) | null>(null);
+
+  /** A pipeline match: resolve it against the already-loaded pourers list (an
+   * unknown/stale drinkerId -- the directory can lag a deletion -- is ignored
+   * silently, no sheet) and open the one-tap confirm sheet. The pipeline itself always
+   * self-stops right after firing this (faceRecognition.ts's `dispose()` inside
+   * `startFacePipeline`'s tick handler), so clearing the ref guard here is exactly what
+   * lets the NEXT motion/tap start a fresh run -- "Not me" never needs to touch these
+   * refs itself, since by the time it's clickable this has already run. */
+  const handleFaceCandidate = useCallback(({ drinkerId }: MatchCandidate) => {
+    facePipelineActiveRef.current = false;
+    facePipelineControllerRef.current = null;
+    facePipelineStopRef.current = null;
+    const pourer = pourersRef.current.find((p) => p.id === drinkerId);
+    if (!pourer) return;
+    setFaceConfirm({ id: pourer.id, name: pourer.displayName, color: pourer.avatarColor });
+  }, []);
+
+  /** Starts the face pipeline (Task 6) when the directory is enabled/non-empty and the
+   * grid screen is showing -- called from two sites below: camera motion (the
+   * pipeline's primary trigger) and, when the wall has no camera-motion input at all, a
+   * pointer-tap fallback. Reads `faces`/`screen`/`pourers` via refs since it's invoked
+   * from event-handler closures that don't otherwise see a fresh render. A fresh
+   * `AbortController` per attempt lets the unmount-cleanup effect below close the
+   * live-camera-during-model-load window (see faceRecognition.ts's `signal` doc) even
+   * if this specific attempt hasn't resolved yet. */
+  const maybeStartFacePipeline = useCallback(() => {
+    if (facePipelineActiveRef.current) return;
+    const directory = facesRef.current;
+    if (!directory.enabled || directory.faces.length === 0) return;
+    if (screenRef.current.kind !== 'grid') return;
+
+    facePipelineActiveRef.current = true;
+    const controller = new AbortController();
+    facePipelineControllerRef.current = controller;
+
+    startFacePipeline({
+      getEnrolled: () => facesRef.current.faces,
+      threshold: facesRef.current.threshold,
+      onCandidate: handleFaceCandidate,
+      signal: controller.signal,
+    }).then((disposer) => {
+      if (facePipelineControllerRef.current === controller) facePipelineControllerRef.current = null;
+      if (!disposer) {
+        facePipelineActiveRef.current = false;
+        return;
+      }
+      facePipelineStopRef.current = disposer;
+    });
+  }, [handleFaceCandidate]);
+
+  // Belt and braces (Task 7): on unmount, abort whichever attempt's controller is still
+  // live -- stops a camera that's mid getUserMedia/model-load immediately, per
+  // faceRecognition.ts's `signal` contract, rather than waiting for that promise to
+  // settle -- AND call the disposer if one had already resolved by then. Both are
+  // idempotent (an aborted `startFacePipeline` resolves without ever setting
+  // `facePipelineStopRef`; a disposer's own `dispose()` is safe to call more than
+  // once), so running both unconditionally here is safe regardless of which stage the
+  // pipeline was in when the component unmounted.
+  useEffect(() => () => {
+    facePipelineControllerRef.current?.abort();
+    facePipelineStopRef.current?.();
+  }, []);
+
   // Page-root wake-tap throttle (Task 10): a `useRef` timestamp guard, not state — this
   // must never trigger a re-render on every tap. The off-overlay's own `onWake` (below)
   // bypasses this entirely, calling `wake()` directly, so a tap that lands there always
   // wakes even mid-throttle-window.
   const lastPointerWakeRef = useRef(0);
   const handlePointerDownWake = useCallback(() => {
+    // Task 7: with no camera-motion input at all, a tablet's only "someone's here"
+    // signal is a tap -- fall back to it as the pipeline's trigger. When camera motion
+    // IS enabled, motion (below) is the sole trigger; a touch here is already the
+    // "who's pouring" tap itself, not a face-recognition opportunity, and starting a
+    // second detection path on top would just fight the first for the camera.
+    if (!cameraMotionEnabled) maybeStartFacePipeline();
     const now = Date.now();
     if (now - lastPointerWakeRef.current < POINTER_WAKE_THROTTLE_MS) return;
     lastPointerWakeRef.current = now;
     wake();
-  }, [wake]);
+  }, [wake, cameraMotionEnabled, maybeStartFacePipeline]);
 
   // Camera motion input (Task 11): fully opt-in per wall — `startCameraMotion` is only
   // ever called while `displayPower.cameraMotion` is true, and this effect's own
@@ -156,7 +282,6 @@ export function TabletPage() {
   // false, and on unmount) disposes it. `disposed` guards the case where the flag
   // flips off again before the async `startCameraMotion()` call resolves, so a
   // just-granted camera stream doesn't leak past its owning effect run.
-  const cameraMotionEnabled = wall?.config.displayPower.cameraMotion ?? false;
   const lastCameraWakeRef = useRef(0);
   useEffect(() => {
     if (!cameraMotionEnabled) return undefined;
@@ -164,6 +289,10 @@ export function TabletPage() {
     let stop: (() => void) | null = null;
     startCameraMotion({
       onMotion: () => {
+        // Task 7: the pipeline's primary trigger. Unthrottled (unlike wake() below) --
+        // the ref guard above already makes a redundant call here a no-op, so there's
+        // no need to gate it behind the wake-post's own 5s cooldown.
+        maybeStartFacePipeline();
         const now = Date.now();
         if (now - lastCameraWakeRef.current < CAMERA_WAKE_THROTTLE_MS) return;
         lastCameraWakeRef.current = now;
@@ -180,7 +309,7 @@ export function TabletPage() {
       disposed = true;
       stop?.();
     };
-  }, [cameraMotionEnabled, wake]);
+  }, [cameraMotionEnabled, wake, maybeStartFacePipeline]);
 
   const loadPourers = useCallback(() => {
     setPourersStatus('loading');
@@ -243,6 +372,15 @@ export function TabletPage() {
     const result = await armTablet(pourer.id);
     setBusy(false);
     if (result.ok) setScreen({ kind: 'armed', pourer });
+  }
+
+  /** "Yes, that's me" on the face-confirm sheet (Task 7): close the sheet and run the
+   * exact same arm flow a manual avatar tap uses -- `selectPourer` already handles the
+   * session-join branch and the armed-screen transition, so a face-match confirm and a
+   * hand-tap confirm are indistinguishable from here on. */
+  async function confirmFaceMatch(pourer: ActivePourer) {
+    setFaceConfirm(null);
+    await selectPourer(pourer);
   }
 
   async function handleStartSession() {
@@ -521,6 +659,46 @@ export function TabletPage() {
               ))}
               <span className="tablet-screen__quiet">Tap to dismiss</span>
             </button>
+          )}
+          {faceConfirm && (
+            <div className="claim-sheet__backdrop" data-testid="face-confirm-sheet">
+              <div
+                className="face-confirm__sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="face-confirm-heading"
+              >
+                <span
+                  className="tablet-avatar__circle font-display"
+                  style={{ backgroundColor: faceConfirm.color ?? '#7A6C58' }}
+                >
+                  {initials(faceConfirm.name)}
+                </span>
+                <p id="face-confirm-heading" className="face-confirm__prompt font-display">
+                  {'You pouring, '}
+                  <b>{faceConfirm.name}</b>
+                  ?
+                </p>
+                <div className="face-confirm__actions">
+                  <button
+                    type="button"
+                    className="face-confirm__yes"
+                    data-testid="face-confirm-yes"
+                    onClick={() => confirmFaceMatch(faceConfirm)}
+                  >
+                    Yes, that&rsquo;s me
+                  </button>
+                  <button
+                    type="button"
+                    className="face-confirm__no"
+                    data-testid="face-confirm-no"
+                    onClick={() => setFaceConfirm(null)}
+                  >
+                    Not me
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </ScreenCare>
       </div>

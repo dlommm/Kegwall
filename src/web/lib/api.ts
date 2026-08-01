@@ -290,3 +290,30 @@ export function postPresenceWake(wall: string | undefined, source: 'touch' | 'ca
     body: JSON.stringify(wall !== undefined ? { wall, source } : { source }),
   }).then(() => undefined);
 }
+
+// --- Task 7 (face sign-in, Plan B): tablet face directory + enrollment ------
+
+/** One enrolled face row as the server returns it — see src/server/routes/public.ts's
+ * GET/POST /api/public/faces. `embedding` is the on-device descriptor (Task 6's
+ * `computeEmbedding`); image bytes never reach the server. */
+export interface EnrolledFaceDto { id: number; drinkerId: number; embedding: number[] }
+
+/** GET /api/public/faces's shape: `faces` is always `[]` while `enabled` is false (one
+ * call tells a caller everything it needs to know about whether/how to run the
+ * client-side matching pipeline). */
+export interface FaceDirectory { enabled: boolean; threshold: number; faces: EnrolledFaceDto[] }
+
+export function getFaces(): Promise<ApiResult<FaceDirectory>> {
+  return request<FaceDirectory>('/api/public/faces');
+}
+
+export function enrollFace(drinkerId: number, embedding: number[]): Promise<ApiResult<EnrolledFaceDto>> {
+  return request<EnrolledFaceDto>('/api/public/faces', {
+    method: 'POST',
+    body: JSON.stringify({ drinkerId, embedding }),
+  });
+}
+
+export function deleteFaces(drinkerId: number): Promise<ApiResult<{ deleted: number }>> {
+  return request<{ deleted: number }>(`/api/public/faces/drinker/${drinkerId}`, { method: 'DELETE' });
+}
