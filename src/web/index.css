@@ -5558,6 +5558,53 @@ h2.admin-field__label-text {
   color: var(--text-dim);
 }
 
+/* --- Face sign-in enrollment (Task 8, Plan B) -------------------------------
+ * The armed screen's "gains one row" (per the task brief) for on-tablet
+ * enrollment -- .face-enroll__summary is that row's "already enrolled" state,
+ * .face-enroll is the capture panel "Add my face" opens in its place. */
+.face-enroll__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.face-enroll__status {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.face-enroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.face-enroll__preview {
+  width: 160px;
+  height: 120px;
+  border-radius: 10px;
+  background: black;
+  object-fit: cover;
+}
+
+.face-enroll__hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.face-enroll__actions {
+  display: flex;
+  gap: 12px;
+}
+
 .tablet-armed__signout {
   margin-top: 24px;
 }

@@ -9,10 +9,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { TabletPage, POURER_COLORS } from '../../src/web/routes/TabletPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import {
-  armTablet, createPourer, disarmTablet, getFaces, getPourers, postPresenceWake,
+  armTablet, createPourer, disarmTablet, deleteFaces, enrollFace, getFaces, getPourers,
+  postPresenceWake,
 } from '../../src/web/lib/api';
 import { startCameraMotion } from '../../src/web/lib/cameraMotion';
-import { startFacePipeline } from '../../src/web/lib/faceRecognition';
+import { computeEmbedding, loadHuman, startFacePipeline } from '../../src/web/lib/faceRecognition';
 import { wallConfigSchema } from '../../src/server/core/wallConfig';
 import type { TapState } from '../../src/server/core/state';
 
@@ -37,7 +38,14 @@ vi.mock('../../src/web/lib/cameraMotion', () => ({ startCameraMotion: vi.fn() })
 // @vladmandic/human) is covered by tests/web/faceRecognition.test.ts. Here we only
 // assert TabletPage's wiring: when it starts the pipeline, how it resolves a candidate
 // into the confirm sheet, and the abort-on-unmount contract.
-vi.mock('../../src/web/lib/faceRecognition', () => ({ startFacePipeline: vi.fn() }));
+// Task 8: extends this same mock (not a re-mock) with `loadHuman`/`computeEmbedding` --
+// the two faceRecognition.ts exports the armed screen's own enrollment capture loop
+// calls directly (it doesn't go through startFacePipeline, which is match-only).
+vi.mock('../../src/web/lib/faceRecognition', () => ({
+  startFacePipeline: vi.fn(),
+  loadHuman: vi.fn(async () => ({})),
+  computeEmbedding: vi.fn(),
+}));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
@@ -116,6 +124,31 @@ async function triggerCameraMotion() {
   });
 }
 
+// Task 8: the drinker `getPourers`'s first fixture entry above arms into -- shared by
+// every enrollment test below so `drinkerId` assertions don't hardcode a bare `1`.
+const PourerFixture = { id: 1, displayName: 'Sam', avatarColor: '#D08C4C', pourCount: 127 };
+
+/** Task 8's harness for "the tablet is on the armed screen, certain who's pouring":
+ * grid → tap the first avatar (Sam, `PourerFixture`) → armed. Returns the `render`
+ * result so callers that need `unmount` (camera-release-on-unmount tests) can get it;
+ * callers that don't (most) just `await armViaGrid();` and ignore the return value. */
+async function armViaGrid() {
+  mockWallData();
+  const utils = renderTablet();
+  await flush();
+  fireEvent.click(screen.getAllByTestId('tablet-avatar')[0]!);
+  await flush();
+  return utils;
+}
+
+/** Task 8's `navigator.mediaDevices.getUserMedia` stub -- same "fake stream with an
+ * inspectable, stoppable track" shape `faceRecognition.test.ts`'s `fakeStream` uses,
+ * so camera-release assertions here read `track.stop` the same way that file's do. */
+function fakeMediaStream() {
+  const track = { stop: vi.fn() };
+  return { stream: { getTracks: () => [track] } as unknown as MediaStream, track };
+}
+
 describe('TabletPage (design 3a)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -137,6 +170,16 @@ describe('TabletPage (design 3a)', () => {
     // knows about face sign-in) never trips the pipeline's directory-enabled guard.
     (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
     (startFacePipeline as Mock).mockResolvedValue(null);
+    // Task 8: a default camera stub so the armed screen's enrollment panel (gated
+    // behind `directory.enabled`, so untouched by every test above) never throws on a
+    // real `navigator.mediaDevices` lookup jsdom doesn't provide. Individual
+    // enrollment tests below replace this with their own inspectable stream/track.
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: vi.fn().mockResolvedValue(fakeMediaStream().stream) },
+      configurable: true,
+    });
+    (loadHuman as Mock).mockResolvedValue({});
+    (computeEmbedding as Mock).mockResolvedValue(null);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -602,6 +645,195 @@ describe('TabletPage (design 3a)', () => {
       const disposer = vi.fn();
       resolvePipeline?.(disposer);
       await flush();
+    });
+  });
+
+  // Task 8 (face sign-in, Plan B): tablet enrollment on the armed screen. Unlike Task
+  // 7's pipeline above, this one exercises the REAL `startFaceEnrollment` capture loop
+  // (TabletPage-local, not a mocked module) -- only its two inputs, `loadHuman`/
+  // `computeEmbedding` (faceRecognition.ts) and `navigator.mediaDevices.getUserMedia`
+  // (no module to intercept, so a global stub), are faked.
+  describe('face enrollment (Task 8)', () => {
+    it('enrolls three captures and posts them', async () => {
+      vi.useFakeTimers();
+      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+      (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
+      (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+      await armViaGrid(); // existing harness path to the armed screen
+      fireEvent.click(screen.getByTestId('face-enroll-start'));
+      await vi.advanceTimersByTimeAsync(2_500);
+      expect(enrollFace).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
+    });
+
+    it('already-enrolled drinker sees delete instead of add, and delete calls the api', async () => {
+      (getFaces as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          enabled: true,
+          threshold: 0.6,
+          faces: [{ id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] }],
+        },
+      });
+      (deleteFaces as Mock).mockResolvedValue({ ok: true, data: { deleted: 1 } });
+      await armViaGrid();
+      expect(screen.queryByTestId('face-enroll-start')).toBeNull();
+      fireEvent.click(screen.getByTestId('face-enroll-delete'));
+      await waitFor(() => expect(deleteFaces).toHaveBeenCalledWith(PourerFixture.id));
+    });
+
+    it('never shows an enrollment affordance when the face directory is disabled', async () => {
+      // beforeEach's default getFaces (enabled: false) applies unchanged here.
+      await armViaGrid();
+      expect(screen.queryByTestId('face-enroll-start')).toBeNull();
+      expect(screen.queryByTestId('face-enroll-delete')).toBeNull();
+    });
+
+    it('a null embedding does not count toward the 3-capture target and retries', async () => {
+      vi.useFakeTimers();
+      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+      (computeEmbedding as Mock)
+        .mockResolvedValueOnce(null) // tick 1: no face -- doesn't count
+        .mockResolvedValue([1, 0, 0]); // ticks 2-4: a face every time after
+      (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+      await armViaGrid();
+      fireEvent.click(screen.getByTestId('face-enroll-start'));
+      // 4 ticks needed now (1 null + 3 real) instead of 3 -- one extra 700ms interval.
+      await vi.advanceTimersByTimeAsync(2_900);
+      expect(enrollFace).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
+    });
+
+    // Camera-release tracing (brief: "released the instant the panel closes/unmounts
+    // -- all paths: success, retry-timeout, cancel, unmount"). Each test below stubs
+    // its own inspectable stream/track (rather than relying on beforeEach's shared
+    // default) so `track.stop` can be asserted directly.
+    describe('camera release', () => {
+      it('releases the camera the instant the 3rd capture completes (success)', async () => {
+        vi.useFakeTimers();
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
+        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        expect(track.stop).not.toHaveBeenCalled();
+        // Wrapped in `act()` (unlike the brief's own snippet above) because THIS test
+        // asserts on the committed DOM, not just a mock call count -- React's update
+        // scheduled from the interval tick's `.then()` needs `act()` to flush
+        // deterministically before the assertion below runs (see "screen 4"'s
+        // identical `act(async () => { await vi.advanceTimersByTimeAsync(...) })`).
+        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+        expect(track.stop).toHaveBeenCalled();
+        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
+        vi.useRealTimers();
+      });
+
+      it('releases the camera and shows retry after 15s without a face', async () => {
+        vi.useFakeTimers();
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue(null); // never a face
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        expect(track.stop).not.toHaveBeenCalled();
+        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+        expect(track.stop).toHaveBeenCalled();
+        expect(screen.getByTestId('face-enroll-retry')).toBeInTheDocument();
+        expect(screen.getByText('No face found — try again')).toBeInTheDocument();
+        expect(enrollFace).not.toHaveBeenCalled();
+        vi.useRealTimers();
+      });
+
+      it('tapping "try again" after a timeout re-acquires the camera and can still succeed', async () => {
+        vi.useFakeTimers();
+        const first = fakeMediaStream();
+        const second = fakeMediaStream();
+        const getUserMedia = vi.fn()
+          .mockResolvedValueOnce(first.stream)
+          .mockResolvedValueOnce(second.stream);
+        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue(null);
+        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+        expect(first.track.stop).toHaveBeenCalled();
+        expect(screen.getByTestId('face-enroll-retry')).toBeInTheDocument();
+
+        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
+        fireEvent.click(screen.getByTestId('face-enroll-retry'));
+        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
+        expect(enrollFace).toHaveBeenCalledTimes(3);
+        expect(second.track.stop).toHaveBeenCalled();
+        vi.useRealTimers();
+      });
+
+      it('releases the camera when Cancel is tapped mid-capture', async () => {
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue(null); // never resolves on its own
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
+        await waitFor(() => expect(video.srcObject).toBe(stream));
+        expect(track.stop).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByTestId('face-enroll-cancel'));
+        expect(track.stop).toHaveBeenCalled();
+        expect(screen.queryByTestId('face-enroll-panel')).toBeNull();
+        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument();
+      });
+
+      it('releases the camera on unmount mid-capture', async () => {
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue(null);
+        const { unmount } = await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
+        await waitFor(() => expect(video.srcObject).toBe(stream));
+        expect(track.stop).not.toHaveBeenCalled();
+
+        unmount();
+        expect(track.stop).toHaveBeenCalled();
+      });
+
+      it('releases the camera when the tablet signs out mid-capture', async () => {
+        const { stream, track } = fakeMediaStream();
+        Object.defineProperty(navigator, 'mediaDevices', {
+          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+          configurable: true,
+        });
+        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
+        (computeEmbedding as Mock).mockResolvedValue(null);
+        await armViaGrid();
+        fireEvent.click(screen.getByTestId('face-enroll-start'));
+        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
+        await waitFor(() => expect(video.srcObject).toBe(stream));
+
+        fireEvent.click(screen.getByTestId('tablet-signout'));
+        await flush();
+        expect(track.stop).toHaveBeenCalled();
+        expect(screen.getByTestId('tablet-grid')).toBeInTheDocument();
+      });
     });
   });
 });
