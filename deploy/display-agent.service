@@ -1,0 +1,16 @@
+[Unit]
+Description=Kegwall display agent (screen power via presence stream)
+After=network-online.target
+
+[Service]
+Environment=KEGWALL_URL=http://127.0.0.1:8080
+Environment=KEGWALL_WALL=main
+Environment=KEGWALL_TOKEN=CHANGE-ME
+Environment=SCREEN_ON_CMD=xset dpms force on
+Environment=SCREEN_OFF_CMD=xset dpms force off
+ExecStart=/opt/kegwall/display-agent.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

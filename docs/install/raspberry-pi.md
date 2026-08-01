@@ -127,6 +127,9 @@ kegwall-kiosk && sudo systemctl enable --now getty@tty1` brings it back.
 To repoint it (different wall slug, different port):
 `sudo /opt/kegwall/scripts/pi-tablet-setup.sh --local --force http://localhost:8080/wall/<slug>`
 
+For real backlight power-off (not just browser screensaver), pair the kiosk with the
+[display agent](display-agent.md) to control DPMS (X11) or Pi touchscreen backlight.
+
 ## Tablet mode (dedicated touchscreen Pi)
 
 A second Pi with the official touchscreen makes a great dedicated pourer tablet.

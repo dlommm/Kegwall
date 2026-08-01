@@ -68,6 +68,10 @@ automations, and deep wall customization.
 - **Optional Home Assistant integration** — publishes tap and monitor sensors via MQTT
   discovery (entities appear automatically, no HA YAML) and two event topics for pour/alert
   automations. The app works completely without it.
+- **Display power control** — motion wakes displays, idle stages into a screensaver, older
+  idle turns displays off completely. The [display agent](docs/install/display-agent.md) is
+  a zero-dependency script (bash + curl) that runs real screen on/off commands: HDMI-CEC
+  for TVs, DPMS for X11 kiosks, or backlight control for Pi touchscreens.
 - **Backup + recovery** — one-click backup download and staged restore from the admin UI,
   with a documented manual recovery path if a restore ever goes wrong.
 
@@ -93,6 +97,11 @@ automations, and deep wall customization.
 - **Raspberry Pi bare-metal and direct-BLE steps are unverified against physical hardware**
   (no Pi or real Kegtron Gen 1 device was available while writing these docs) — the Docker
   path *was* built and boot-tested live. Flagged explicitly in the Pi doc itself.
+- **Browser soft-off (screensaver / black screen) cannot cut an LED TV's backlight by itself.**
+  Real power-off requires the [display agent](docs/install/display-agent.md) (HDMI-CEC,
+  backlight sysfs), Home Assistant automations, or an external CEC controller. A Raspberry Pi
+  or Linux kiosk can run the agent as-is; an Android tablet needs a Fully Kiosk webhook to
+  pair with the agent's presence stream.
 - **On the backlog, not started:** native TV apps (Android TV / Apple TV — browser + kiosk
   mode covers all TVs today) and two-way beer-metadata sync back to Kegtron's cloud (import
   is one-way in this version).
