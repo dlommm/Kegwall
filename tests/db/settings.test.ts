@@ -341,4 +341,16 @@ describe('SettingsStore', () => {
       })).toThrow(/masked/);
     });
   });
+
+  describe('faceSignIn', () => {
+    it('faceSignIn defaults disabled with 0.6 threshold', () => {
+      expect(store.get('faceSignIn')).toEqual({ enabled: false, threshold: 0.6 });
+    });
+
+    it('faceSignIn round-trips and validates threshold bounds', () => {
+      store.set('faceSignIn', { enabled: true, threshold: 0.75 });
+      expect(store.get('faceSignIn')).toEqual({ enabled: true, threshold: 0.75 });
+      expect(() => store.set('faceSignIn', { enabled: true, threshold: 0.1 } as never)).toThrow();
+    });
+  });
 });

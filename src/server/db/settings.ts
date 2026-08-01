@@ -123,6 +123,13 @@ export const settingsSchema = z.object({
   // GET /api/presence/stream; generated client-side in admin Settings → Integrations;
   // null = those endpoints 503.
   presenceWebhookToken: z.string().nullable().default(null),
+  // Face sign-in (Plan B): global gate + cosine-similarity match threshold for the
+  // tablet's face recognition. Off by default — the tablet never starts the face
+  // camera pipeline (and enroll POSTs 403) until an admin opts the install in.
+  faceSignIn: z.object({
+    enabled: z.boolean().default(false),
+    threshold: z.number().min(0.3).max(0.95).default(0.6),
+  }).default({ enabled: false, threshold: 0.6 }),
   // Phase 5 Task 2: per-channel config for the automation engine's notify action
   // (`notify/channels/*.ts`). Each channel is independently optional (a site might only
   // configure ntfy, or nothing at all) AND independently nullable (explicit `null` clears

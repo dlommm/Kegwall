@@ -70,6 +70,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     mqtt: null,
     quietHours: null,
     presenceWebhookToken: null,
+    faceSignIn: { enabled: false, threshold: 0.6 },
     alertChannels: {},
     ...overrides,
   };
