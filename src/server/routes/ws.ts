@@ -92,6 +92,14 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
     }));
   });
 
+  // Presence (Plan A Task 4): power-stage relay. Broadcast to every client like the
+  // rest of this feed — frames carry wallSlug and clients filter for their own wall.
+  app.ctx.bus.on('display_power_changed', (e) => {
+    broadcast(JSON.stringify({
+      type: 'display_power', wallId: e.wallId, wallSlug: e.wallSlug, state: e.state, ts: e.ts,
+    }));
+  });
+
   // Heartbeat (Phase 3 final review, finding I1): ingest sources only trigger
   // `state_changed` on an actual change, and a Pro-only/idle taproom can go well past the
   // client's 60s staleness window without one — that's a perfectly healthy socket showing
@@ -111,6 +119,16 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
   app.get('/ws', { websocket: true }, (socket) => {
     clients.add(socket);
     socket.send(snapshot());
+    // Replay current power stages so a reconnecting kiosk lands in the right stage
+    // immediately (mirrors the SSE endpoint's on-connect replay guarantee).
+    setTimeout(() => {
+      for (const z of app.ctx.presence.snapshot()) {
+        socket.send(JSON.stringify({
+          type: 'display_power', wallId: z.wallId, wallSlug: z.slug, state: z.state,
+          ts: new Date().toISOString(),
+        }));
+      }
+    }, 0);
     socket.on('close', () => clients.delete(socket));
     socket.on('error', () => clients.delete(socket));
   });

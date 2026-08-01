@@ -172,3 +172,28 @@ describe('/ws', () => {
     await app.listen({ port: 0 });
   });
 });
+
+describe('display_power relay', () => {
+  it('replays each zone state after the connect snapshot', async () => {
+    app.ctx.db.prepare('INSERT INTO walls (slug, name, config) VALUES (?, ?, ?)')
+      .run('main', 'Main', JSON.stringify({}));
+    app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
+    const ws = new WebSocket(url);
+    await nextMessage(ws); // snapshot
+    const msg = await nextMessage(ws);
+    expect(msg).toMatchObject({ type: 'display_power', wallSlug: 'main', state: 'active' });
+    ws.close();
+  });
+
+  it('broadcasts display_power_changed transitions', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws); // snapshot (no walls ⇒ no replay frames)
+    const next = nextMessage(ws);
+    app.ctx.bus.emit('display_power_changed', {
+      wallId: 1, wallSlug: 'main', state: 'off', ts: new Date().toISOString(),
+    });
+    const msg = await next;
+    expect(msg).toMatchObject({ type: 'display_power', wallSlug: 'main', state: 'off' });
+    ws.close();
+  });
+});
