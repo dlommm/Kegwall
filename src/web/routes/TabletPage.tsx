@@ -473,6 +473,38 @@ export function TabletPage() {
     facePipelineStopRef.current?.();
   }, []);
 
+  /** Fix round 2 (F1): the pipeline must not keep the camera + `human.detect` loop
+   * alive once it's no longer allowed to run. Two scenarios: an unenrolled drinker (or
+   * anyone else) lingers in frame with no match while the screen moves on -- a manual
+   * avatar tap or signup arms/leaves 'grid' out from under a still-running pipeline --
+   * or an admin flips face sign-in off mid-run (`faces_changed` refetches an
+   * empty/disabled directory), after which `getEnrolled()` can never match again but
+   * nothing was otherwise telling the pipeline to stop. Mirrors the unmount-cleanup
+   * effect directly above -- abort whichever controller is still live (per
+   * faceRecognition.ts's `signal` contract, this closes a mid getUserMedia/model-load
+   * attempt immediately rather than waiting for it to settle) AND call the disposer if
+   * one had already resolved -- plus clears `facePipelineActiveRef` so a LATER return to
+   * an enabled grid starts a genuinely fresh attempt instead of finding the "at most
+   * one" ref guard still stuck on. All three teardown calls are idempotent (same
+   * reasoning as that effect: an aborted `startFacePipeline` resolves without setting
+   * `facePipelineStopRef`, and a disposer's own `dispose()` tolerates repeat calls), so
+   * running them unconditionally whenever the guard condition is false -- not just on
+   * the transition into it -- is safe, including redundantly alongside
+   * `handleFaceCandidate`'s own per-candidate self-stop. Reads `screen`/`faces` state
+   * directly (not the refs those event-handler closures use) since this is a plain
+   * effect that already re-runs on a fresh render whenever either changes -- same idiom
+   * as the screen-change reset effect below. Intentionally a no-op while `screen.kind
+   * === 'grid' && faces.enabled`, so it never fights a pipeline that's allowed to keep
+   * running. */
+  useEffect(() => {
+    if (screen.kind === 'grid' && faces.enabled) return;
+    facePipelineActiveRef.current = false;
+    facePipelineControllerRef.current?.abort();
+    facePipelineControllerRef.current = null;
+    facePipelineStopRef.current?.();
+    facePipelineStopRef.current = null;
+  }, [screen.kind, faces.enabled]);
+
   // Task 8 (face sign-in, Plan B): the armed screen's enrollment capture panel.
   // 'idle' means "no panel" -- the armed screen instead shows either "Add my face" or
   // (already enrolled) "Face sign-in: enrolled" + delete, decided by `isEnrolled`

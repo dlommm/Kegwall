@@ -646,6 +646,89 @@ describe('TabletPage (design 3a)', () => {
       resolvePipeline?.(disposer);
       await flush();
     });
+
+    // Fix round 2 (F1): the pipeline must not keep the camera + human.detect loop alive
+    // once the screen leaves 'grid' -- an unenrolled drinker (or anyone) lingering in
+    // frame with no match must not pin the camera open through a manual arm/signup.
+    // Covers both shapes a "live" attempt can be in: still starting (camera/model not
+    // yet resolved -- its controller must abort) and already running with a resolved
+    // disposer (its dispose() must be called) -- see the teardown effect's own comment
+    // in TabletPage.tsx for why these two states never overlap.
+    it('tears down an active pipeline when the screen leaves the grid (manual arm)', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+
+      // Stage 1: the pipeline is still starting (camera/model not yet resolved) when
+      // the screen leaves grid -- the teardown effect must abort its controller's
+      // signal immediately, per faceRecognition.ts's `signal` contract, rather than
+      // waiting for the attempt to settle.
+      let resolveFirst: ((disposer: (() => void) | null) => void) | undefined;
+      (startFacePipeline as Mock).mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFirst = resolve;
+      }));
+      await triggerCameraMotion();
+      const { signal: firstSignal } = (startFacePipeline as Mock).mock.calls[0]![0];
+      expect(firstSignal.aborted).toBe(false);
+
+      fireEvent.click(screen.getAllByTestId('tablet-avatar')[0]!); // manual arm -- leaves grid
+      await flush();
+      expect(screen.getByTestId('tablet-armed')).toBeInTheDocument();
+      expect(firstSignal.aborted).toBe(true);
+
+      // Let the stale attempt settle harmlessly (matches the unmount test's "must not
+      // throw" contract for a disposer arriving late).
+      resolveFirst?.(null);
+      await flush();
+
+      // Back to grid -- a fresh pipeline can start clean (the ref guard isn't stuck).
+      fireEvent.click(screen.getByTestId('tablet-signout'));
+      await flush();
+      expect(screen.getByTestId('tablet-grid')).toBeInTheDocument();
+
+      // Stage 2: this time the pipeline has already resolved and is actively running
+      // (a live disposer) when the screen leaves grid again -- the teardown effect must
+      // call that disposer.
+      const secondDisposer = vi.fn();
+      (startFacePipeline as Mock).mockResolvedValueOnce(secondDisposer);
+      await triggerCameraMotion();
+      await flush();
+      expect(startFacePipeline).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getAllByTestId('tablet-avatar')[0]!); // manual arm again
+      await flush();
+      expect(secondDisposer).toHaveBeenCalledTimes(1);
+    });
+
+    it('tears down an active pipeline when the directory goes disabled mid-run (faces_changed)', async () => {
+      (getFaces as Mock).mockResolvedValue(ENROLLED_DIRECTORY);
+      const captured = mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+
+      const disposer = vi.fn();
+      (startFacePipeline as Mock).mockResolvedValueOnce(disposer);
+      await triggerCameraMotion();
+      await flush();
+      expect(startFacePipeline).toHaveBeenCalledTimes(1);
+
+      // Admin disables face sign-in mid-run -- faces_changed's refetch comes back
+      // disabled, so `getEnrolled()` could never match again even if the pipeline kept
+      // running. The teardown effect must call the running pipeline's disposer.
+      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
+      act(() => {
+        captured.onMessage?.({ type: 'faces_changed' });
+      });
+      await flush();
+      expect(disposer).toHaveBeenCalledTimes(1);
+
+      // Still on grid, but disabled -- fresh motion must not restart it, proving the
+      // ref guard was actually cleared (not left "stuck active") rather than the
+      // directory-enabled check alone coincidentally blocking a restart.
+      await triggerCameraMotion();
+      expect(startFacePipeline).toHaveBeenCalledTimes(1);
+    });
   });
 
   // Task 8 (face sign-in, Plan B): tablet enrollment on the armed screen. Unlike Task

@@ -155,6 +155,7 @@ direct BLE), reverse proxy/HTTPS, and backup/updating — is in
 | [docs/install/android-tablet.md](docs/install/android-tablet.md) | The Android kiosk APK for the kegerator tablet (built by CI, sideloaded) |
 | [docs/setup/kegtron-cloud.md](docs/setup/kegtron-cloud.md) | Kegtron Pro API key + optional UDP for faster local updates |
 | [docs/setup/home-assistant.md](docs/setup/home-assistant.md) | MQTT discovery, entities published, event topics for automations |
+| [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md) | On-device browser face matching for tablet sign-in, privacy model, enable/enroll/delete flow |
 | [docs/recovery.md](docs/recovery.md) | Backup, restore, and manual crash-loop recovery |
 | [docs/customization.md](docs/customization.md) | Wall layout, themes, custom CSS trust model, screensaver |
 
