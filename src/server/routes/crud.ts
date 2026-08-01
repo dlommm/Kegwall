@@ -17,7 +17,7 @@ import { listPours } from '../db/pours.js';
 import {
   createUser, createDrinker, listUsers, updateUser, deleteUser,
 } from '../db/users.js';
-import { wallConfigSchema } from '../core/wallConfig.js';
+import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import { registerConfiguredSources } from '../ingest/bootstrap.js';
@@ -35,7 +35,7 @@ export interface Wall { id: number; slug: string; name: string; config: unknown 
 
 export function getWallBySlug(db: any, slug: string): Wall | null {
   const r = db.prepare('SELECT * FROM walls WHERE slug = ?').get(slug);
-  return r ? { id: r.id, slug: r.slug, name: r.name, config: JSON.parse(r.config) } : null;
+  return r ? { id: r.id, slug: r.slug, name: r.name, config: parseWallConfig(JSON.parse(r.config)) } : null;
 }
 
 /**
@@ -342,7 +342,7 @@ export async function crudRoutes(app: FastifyInstance) {
   });
   app.get('/api/walls', viewer, async () =>
     db.prepare('SELECT * FROM walls').all()
-      .map((r: any) => ({ id: r.id, slug: r.slug, name: r.name, config: JSON.parse(r.config) })));
+      .map((r: any) => ({ id: r.id, slug: r.slug, name: r.name, config: parseWallConfig(JSON.parse(r.config)) })));
   // Interface list specifies GET/PATCH/DELETE /api/walls/:id (unlike taps/kegs,
   // where the table has no single-item GET) — added even though the brief's
   // sample code omitted it.
@@ -350,7 +350,7 @@ export async function crudRoutes(app: FastifyInstance) {
     const r = db.prepare('SELECT * FROM walls WHERE id = ?')
       .get(Number((req.params as any).id)) as any;
     if (!r) throw new NotFoundError('wall');
-    return { id: r.id, slug: r.slug, name: r.name, config: JSON.parse(r.config) };
+    return { id: r.id, slug: r.slug, name: r.name, config: parseWallConfig(JSON.parse(r.config)) };
   });
   app.post('/api/walls', editor, async (req, reply) => {
     const body = wallSchema.parse(req.body);
@@ -363,7 +363,7 @@ export async function crudRoutes(app: FastifyInstance) {
     const body = wallSchema.partial().parse(req.body);
     const config = body.config !== undefined
       ? wallConfigSchema.parse(body.config)
-      : JSON.parse(existing.config);
+      : parseWallConfig(JSON.parse(existing.config));
     db.prepare('UPDATE walls SET slug = ?, name = ?, config = ? WHERE id = ?')
       .run(body.slug ?? existing.slug, body.name ?? existing.name,
         JSON.stringify(config), id);

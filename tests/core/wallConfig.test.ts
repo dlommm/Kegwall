@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wallConfigSchema } from '../../src/server/core/wallConfig.js';
+import { wallConfigSchema, parseWallConfig } from '../../src/server/core/wallConfig.js';
 
 describe('wallConfigSchema screensaver', () => {
   it('defaults to disabled with a 10-minute start delay', () => {
@@ -84,5 +84,44 @@ describe('wallConfigSchema fillStyle (keg-asset fill indicator feature)', () => 
 
   it('rejects an unrecognized fillStyle value', () => {
     expect(() => wallConfigSchema.parse({ fillStyle: 'bogus' })).toThrow();
+  });
+});
+
+describe('displayPower', () => {
+  it('defaults to fully disabled', () => {
+    const c = wallConfigSchema.parse({});
+    expect(c.displayPower).toEqual({
+      screensaverAfterMinutes: null, offAfterMinutes: null, cameraMotion: false,
+    });
+  });
+
+  it('rejects offAfterMinutes <= screensaverAfterMinutes', () => {
+    expect(() => wallConfigSchema.parse({
+      displayPower: { screensaverAfterMinutes: 30, offAfterMinutes: 30 },
+    })).toThrow();
+  });
+
+  it('accepts off-only (screensaver null, offAfterMinutes set)', () => {
+    const c = wallConfigSchema.parse({ displayPower: { offAfterMinutes: 120 } });
+    expect(c.displayPower.offAfterMinutes).toBe(120);
+    expect(c.displayPower.screensaverAfterMinutes).toBeNull();
+  });
+
+  it('parseWallConfig maps a legacy enabled screensaver into displayPower', () => {
+    const c = parseWallConfig({ screensaver: { enabled: true, startAfterMinutes: 15 } });
+    expect(c.displayPower.screensaverAfterMinutes).toBe(15);
+  });
+
+  it('parseWallConfig leaves an explicit displayPower alone (legacy key ignored)', () => {
+    const c = parseWallConfig({
+      screensaver: { enabled: true, startAfterMinutes: 15 },
+      displayPower: { screensaverAfterMinutes: 5, offAfterMinutes: null, cameraMotion: false },
+    });
+    expect(c.displayPower.screensaverAfterMinutes).toBe(5);
+  });
+
+  it('parseWallConfig with disabled legacy screensaver stays fully off', () => {
+    const c = parseWallConfig({ screensaver: { enabled: false, startAfterMinutes: 10 } });
+    expect(c.displayPower.screensaverAfterMinutes).toBeNull();
   });
 });

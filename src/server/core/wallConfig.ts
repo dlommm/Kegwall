@@ -84,6 +84,38 @@ export const wallConfigSchema = z.object({
   // exactly as before. Applies to the full/standard/minimal card templates only —
   // `compact`'s tiny liquid swatch keeps the liquid swatch regardless (see TapCard.tsx).
   fillStyle: z.enum(['liquid', 'keg']).default('liquid'),
+  // Presence & display power (2026-07-31 spec, Part A): per-wall idle timers. Both
+  // measure from the last activity. null = that stage never engages. Replaces the
+  // legacy `screensaver` key above as the read path (see parseWallConfig below) —
+  // `screensaver` stays in the schema only so stored configs round-trip unchanged.
+  displayPower: z.object({
+    screensaverAfterMinutes: z.number().int().min(1).nullable().default(null),
+    offAfterMinutes: z.number().int().min(2).nullable().default(null),
+    // Browser camera motion detection on the tablet page (frame differencing, no ML).
+    cameraMotion: z.boolean().default(false),
+  }).default({ screensaverAfterMinutes: null, offAfterMinutes: null, cameraMotion: false }),
+}).superRefine((c, ctx) => {
+  const { screensaverAfterMinutes: saver, offAfterMinutes: off } = c.displayPower;
+  if (saver !== null && off !== null && off <= saver) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['displayPower', 'offAfterMinutes'],
+      message: 'offAfterMinutes must be greater than screensaverAfterMinutes',
+    });
+  }
 });
 
 export type WallConfig = z.infer<typeof wallConfigSchema>;
+
+/** The one correct way to parse STORED wall config JSON: applies the legacy
+ * `screensaver` → `displayPower` mapping (enabled screensaver becomes
+ * `screensaverAfterMinutes`) before schema parse, but only when the stored JSON
+ * has no `displayPower` of its own — an explicit `displayPower` always wins. */
+export function parseWallConfig(raw: unknown): WallConfig {
+  const obj = (raw && typeof raw === 'object') ? { ...(raw as Record<string, unknown>) } : {};
+  const legacy = obj.screensaver as { enabled?: boolean; startAfterMinutes?: number } | undefined;
+  if (obj.displayPower === undefined && legacy?.enabled && typeof legacy.startAfterMinutes === 'number') {
+    obj.displayPower = { screensaverAfterMinutes: legacy.startAfterMinutes };
+  }
+  return wallConfigSchema.parse(obj);
+}

@@ -72,6 +72,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       screensaver: { enabled: true, startAfterMinutes: 7 },
       fillStyle: 'keg',
       showHostStats: true,
+      displayPower: { screensaverAfterMinutes: null, offAfterMinutes: null, cameraMotion: false },
     };
     // Sanity: the fixture itself must be valid per the schema.
     expect(() => wallConfigSchema.parse(full)).not.toThrow();
