@@ -147,6 +147,21 @@ disabling the display manager (`--desktop` keeps the old in-desktop autostart
 instead; `--force` skips the question). An Android tablet is the other option for
 this role — see [android-tablet.md](android-tablet.md).
 
+**Camera permission (face sign-in):** the cage service's Chromium is launched with
+`--user-data-dir=/home/kegwall-kiosk/.kegwall-kiosk` (see the flags in
+`pi-tablet-setup.sh`) — a real, persistent profile directory for the dedicated
+`kegwall-kiosk` system user, not a wiped-per-boot temp dir, so any camera-permission
+grant Chromium records there survives reboots and future `pi-tablet-setup.sh` re-runs
+against the same URL. If you use [face sign-in](../setup/face-sign-in.md), kiosk
+Chromium usually still shows its normal one-time "use your camera?" prompt — tap
+**Allow** once on the touchscreen. If your build's chrome-less kiosk mode never
+surfaces that prompt, add `--use-fake-ui-for-media-stream` to the `ExecStart` line in
+`/etc/systemd/system/kegwall-kiosk.service` and restart the service — it silently
+auto-grants `getUserMedia` requests (it does not fake the camera itself, only the
+prompt) and is the standard workaround for headless/kiosk browsers. No camera on the
+Pi → neither the prompt nor the flag matters; the tablet just uses the ordinary avatar
+grid.
+
 ## Migrating an existing install to the Pi
 
 1. On the old server: **Settings → Backup → Download backup** (a `.db` file).

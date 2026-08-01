@@ -3,6 +3,14 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Face sign-in: the web app's getUserMedia() capture needs the OS camera
+         permission (requested at runtime in MainActivity — targetSdk 34 requires the
+         runtime prompt, not just this manifest entry). android:required="false" keeps
+         the app installable on tablets/TVs with no camera — face sign-in is just
+         silently unavailable there. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <!-- usesCleartextTraffic: the whole point of this app is a LAN, plain-HTTP,
          self-hosted server (docs/install/docker.md documents the no-TLS-by-design
          choice) — without this flag Android 9+ WebViews refuse http:// outright. -->

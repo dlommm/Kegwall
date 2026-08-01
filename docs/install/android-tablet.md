@@ -24,6 +24,15 @@ button.)
 Change the URL later: **tap the top-left corner of the screen 5 times within 3
 seconds**.
 
+## Camera permission (face sign-in)
+
+If you use [face sign-in](../setup/face-sign-in.md), the app requests the Android
+camera permission on first launch — a normal system permission dialog, grant it there.
+If you deny it (or the tablet has no camera at all), the tablet page just falls back
+to the normal avatar grid; nothing crashes and face sign-in is simply unavailable. If
+you change your mind later, grant it from Android's own **Settings → Apps → Kegwall →
+Permissions → Camera**; no reinstall needed.
+
 ## Make it survive a party (recommended)
 
 - **Screen pinning** (Settings → Security → App pinning): pin Kegwall so Home/Recents

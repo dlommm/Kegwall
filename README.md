@@ -54,6 +54,10 @@ automations, and deep wall customization.
   superlatives. Drinkers can also claim pours from the QR menu, rate the beer afterward
   (5-star + quick tags), build a personal passport (volume, styles, badges), and group
   taps into a live session with a recap.
+- **Face sign-in (optional)** — enrolled drinkers can skip hunting for their avatar:
+  the tablet recognizes a returning face entirely on-device and offers a one-tap
+  "You pouring, NAME?" confirm before arming their pour. Off by default, opt-in per
+  drinker, and deletable any time — see [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md).
 - **Admin UI** — a sidebar shell with three admin looks (Midnight Slate, Workshop,
   Console), ⌘K quick-nav, live dashboard (stat cards, real-SRM tap rows, source health,
   activity feed), keg cards with "kicks in ~N days" forecasts and line-cleaning reminders,
@@ -94,6 +98,11 @@ automations, and deep wall customization.
 - **No Secure flag on the session cookie.** Deliberate, for plain-HTTP LAN deployments —
   see [docs/install/docker.md#reverse-proxy-and-https](docs/install/docker.md#reverse-proxy-and-https)
   before exposing this beyond a trusted LAN.
+- **Face sign-in embeddings are readable on the trusted LAN, unauthenticated.** Same
+  trust class as the pourer avatar grid — nothing you wouldn't want any device on your
+  network able to read. It's opt-in, embeddings-only (raw camera frames never reach the
+  server), and deletable any time by the drinker or an admin — see
+  [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md).
 - **Raspberry Pi bare-metal and direct-BLE steps are unverified against physical hardware**
   (no Pi or real Kegtron Gen 1 device was available while writing these docs) — the Docker
   path *was* built and boot-tested live. Flagged explicitly in the Pi doc itself.

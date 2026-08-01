@@ -1,7 +1,9 @@
 package app.kegwall.kiosk
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Patterns
@@ -9,6 +11,8 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -30,6 +34,11 @@ import android.widget.TextView
  *    kegerator tablet must survive the server rebooting without a human touching it.
  *  - 5 taps in the top-left corner within 3s reopens setup (deliberately awkward so
  *    party guests don't find it).
+ *  - Face sign-in: the web app captures video via getUserMedia() for on-device face
+ *    matching. targetSdk 34 means the OS camera permission needs a runtime prompt
+ *    (the manifest entry alone isn't enough), requested once on first launch; the
+ *    WebView-level grant below only ever hands out video capture when that OS
+ *    permission is actually held.
  */
 class MainActivity : Activity() {
 
@@ -37,6 +46,10 @@ class MainActivity : Activity() {
   private lateinit var webView: WebView
   private lateinit var errorView: LinearLayout
   private var setupView: LinearLayout? = null
+
+  companion object {
+    private const val CAMERA_PERMISSION_REQUEST = 1
+  }
 
   private var cornerTaps = 0
   private var firstCornerTapAt = 0L
@@ -62,6 +75,23 @@ class MainActivity : Activity() {
       settings.loadWithOverviewMode = true
       settings.useWideViewPort = true
       webViewClient = KioskClient()
+      webChromeClient = object : WebChromeClient() {
+        // Face sign-in / camera motion: the page uses getUserMedia; grant video capture
+        // to our own WebView only (the kiosk loads a single trusted origin), and only
+        // when the OS permission is actually held — a still-pending or denied runtime
+        // prompt means the page just never sees a camera.
+        override fun onPermissionRequest(request: PermissionRequest) {
+          runOnUiThread {
+            val hasCamera = checkSelfPermission(Manifest.permission.CAMERA) ==
+              PackageManager.PERMISSION_GRANTED
+            if (hasCamera && request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+              request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+            } else {
+              request.deny()
+            }
+          }
+        }
+      }
       setBackgroundColor(Color.BLACK)
     }
     errorView = buildErrorView()
@@ -69,6 +99,10 @@ class MainActivity : Activity() {
     root.addView(errorView, matchParent())
     errorView.visibility = View.GONE
     setContentView(root)
+
+    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
+    }
 
     val saved = url
     if (saved == null) showSetup(prefill = "") else webView.loadUrl(saved)
