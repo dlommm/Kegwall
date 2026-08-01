@@ -3255,8 +3255,33 @@ h2.admin-field__label-text {
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
+/* Face-data management (Task 9, Plan B): the "N face samples" + "Delete face data" row
+ * that appears under a drinker's role pill once they have at least one enrolled sample. */
+.users-row__face-data {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.users-row__face-data button {
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  background: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.users-row__face-data button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
 .user-form button:focus-visible,
 .users-table__actions button:focus-visible,
+.users-row__face-data button:focus-visible,
 .user-form input:focus-visible,
 .user-form select:focus-visible {
   outline: 2px solid var(--accent);

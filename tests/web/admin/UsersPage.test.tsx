@@ -7,8 +7,9 @@ import {
 } from '@testing-library/react';
 import { UsersPage } from '../../../src/web/routes/admin/UsersPage';
 import {
-  listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
+  listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser, getFaceCounts,
 } from '../../../src/web/lib/adminApi';
+import { deleteFaces } from '../../../src/web/lib/api';
 import type { User } from '../../../src/server/db/users';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
@@ -17,6 +18,13 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   createDrinkerProfile: vi.fn(),
   updateUser: vi.fn(),
   deleteUser: vi.fn(),
+  getFaceCounts: vi.fn(),
+}));
+
+// Task 9 (Plan B): "Delete face data" reuses the public DELETE (works while face
+// sign-in is disabled — see routes/public.ts) rather than an admin-only route.
+vi.mock('../../../src/web/lib/api', () => ({
+  deleteFaces: vi.fn(),
 }));
 
 async function flush() {
@@ -43,6 +51,7 @@ function makeDrinker(overrides: Partial<User> = {}): User {
 beforeEach(() => {
   vi.clearAllMocks();
   (listUsers as Mock).mockResolvedValue({ ok: true, data: [] });
+  (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [] });
 });
 
 describe('UsersPage', () => {
@@ -226,5 +235,50 @@ describe('UsersPage', () => {
     expect(deleteUser).toHaveBeenCalledWith(1);
     expect(screen.queryByTestId('users-delete-confirm')).not.toBeInTheDocument();
     expect(listUsers).toHaveBeenCalledTimes(2);
+  });
+
+  // Task 9 (Plan B): per-drinker face sample count + "Delete face data", fed by
+  // GET /api/faces/counts (admin-authed) and DELETE /api/public/faces/drinker/:id
+  // (the same public route the tablet's armed-screen removal action already uses).
+  describe('face-data management', () => {
+    it('shows "N face samples" and a delete button only for a drinker with count > 0', async () => {
+      (listUsers as Mock).mockResolvedValue({
+        ok: true, data: [makeLoginUser({ isDrinker: false }), makeDrinker()],
+      });
+      (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [{ drinkerId: 2, count: 2 }] });
+      render(<UsersPage />);
+      const rows = await screen.findAllByTestId('users-row');
+
+      const loginRow = rows[0]!;
+      expect(within(loginRow).queryByTestId('face-data-delete')).not.toBeInTheDocument();
+
+      const drinkerRow = rows[1]!;
+      expect(within(drinkerRow).getByText('2 face samples')).toBeInTheDocument();
+      expect(within(drinkerRow).getByTestId('face-data-delete')).toBeInTheDocument();
+    });
+
+    it('a drinker with no enrolled faces shows neither the count nor the delete button', async () => {
+      (listUsers as Mock).mockResolvedValue({ ok: true, data: [makeDrinker()] });
+      (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [] });
+      render(<UsersPage />);
+      const [row] = await screen.findAllByTestId('users-row');
+
+      expect(within(row!).queryByTestId('face-data-delete')).not.toBeInTheDocument();
+    });
+
+    it('clicking "Delete face data" calls deleteFaces(drinkerId) and refetches counts', async () => {
+      (listUsers as Mock).mockResolvedValue({ ok: true, data: [makeDrinker()] });
+      (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [{ drinkerId: 2, count: 3 }] });
+      (deleteFaces as Mock).mockResolvedValue({ ok: true, data: { deleted: 3 } });
+      render(<UsersPage />);
+      const [row] = await screen.findAllByTestId('users-row');
+      expect(getFaceCounts).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(within(row!).getByTestId('face-data-delete'));
+      await flush();
+
+      expect(deleteFaces).toHaveBeenCalledWith(2);
+      expect(getFaceCounts).toHaveBeenCalledTimes(2); // initial load + refresh after delete
+    });
   });
 });

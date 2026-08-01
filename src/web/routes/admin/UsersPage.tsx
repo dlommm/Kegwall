@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { Role, User } from '../../../server/db/users.js';
 import {
-  listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
+  listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser, getFaceCounts,
 } from '../../lib/adminApi';
+// Task 9 (Plan B): "Delete face data" reuses the public DELETE (works while face sign-in
+// is disabled — see routes/public.ts's doc comment on the route) rather than a new
+// admin-only route, same "public route, admin UI caller" precedent already used for
+// deleteFaces on the tablet's own armed-screen removal action (TabletPage.tsx).
+import { deleteFaces } from '../../lib/api';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 
@@ -339,6 +344,12 @@ function EditUserForm({ user, onSaved, onCancel }: {
  * identity with no admin access). "Add user" opens a small chooser between the two —
  * they're different enough shapes (password + role vs. just a name + color) that a single
  * merged form would be confusing about which fields apply.
+ *
+ * Task 9 (Plan B) adds per-drinker face-data management: any drinker row with at least
+ * one enrolled face sample shows the count plus a "Delete face data" button, wiping that
+ * drinker's enrolled samples via the same public DELETE the tablet's own armed-screen
+ * removal action uses (works even while face sign-in is globally disabled — see
+ * routes/public.ts's doc comment on the route).
  */
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -346,6 +357,13 @@ export function UsersPage() {
   const [formState, setFormState] = useState<FormState | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Task 9 (Plan B): per-drinker enrolled face-sample count (GET /api/faces/counts,
+  // admin role) — a drinker absent from this map has zero samples (see
+  // countFaceEmbeddingsByDrinker's doc comment, db/faceEmbeddings.ts). Loaded
+  // independently of `users` (its own fetch, own refresh) since deleting face data never
+  // changes the user list itself.
+  const [faceCounts, setFaceCounts] = useState<Map<number, number>>(new Map());
+  const [deletingFacesId, setDeletingFacesId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setStatus((s) => (s === 'loaded' ? s : 'loading'));
@@ -359,9 +377,23 @@ export function UsersPage() {
     });
   }, []);
 
+  const loadFaceCounts = useCallback(() => {
+    getFaceCounts().then((result) => {
+      if (result.ok) setFaceCounts(new Map(result.data.map((c) => [c.drinkerId, c.count])));
+    });
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadFaceCounts();
+  }, [load, loadFaceCounts]);
+
+  async function handleDeleteFaces(drinkerId: number) {
+    setDeletingFacesId(drinkerId);
+    await deleteFaces(drinkerId);
+    setDeletingFacesId(null);
+    loadFaceCounts();
+  }
 
   function handleSaved() {
     setFormState(null);
@@ -517,6 +549,21 @@ export function UsersPage() {
                     <span className="users-drinker-pill" data-testid="users-row-drinker">Drinker</span>
                   ) : (
                     <span className="admin-page-quiet" data-testid="users-row-drinker-none">—</span>
+                  )}
+                  {user.isDrinker && (faceCounts.get(user.id) ?? 0) > 0 && (
+                    <div className="users-row__face-data">
+                      <span className="admin-page-quiet" data-testid="users-row-face-count">
+                        {faceCounts.get(user.id)} face samples
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="face-data-delete"
+                        disabled={deletingFacesId === user.id}
+                        onClick={() => handleDeleteFaces(user.id)}
+                      >
+                        {deletingFacesId === user.id ? 'Deleting…' : 'Delete face data'}
+                      </button>
+                    </div>
                   )}
                 </td>
                 <td className="users-table__actions">

@@ -1327,16 +1327,114 @@ interface IntegrationsGroupProps {
    * `onCatalogBeerSaved` (`presenceWebhookToken` shares nothing with `mqtt` or
    * `catalogBeer` either). See SettingsPage's `presenceVersion`. */
   onPresenceSaved: (updated: Settings, patch: Partial<Settings>) => void;
+  /** For FaceSignInBlock only (Task 9) — same "own independent key, own counter"
+   * precedent again: `faceSignIn` shares nothing with `mqtt`/`catalogBeer`/
+   * `presenceWebhookToken`. See SettingsPage's `faceSignInVersion`. */
+  onFaceSignInSaved: (updated: Settings, patch: Partial<Settings>) => void;
+}
+
+/** Face sign-in card (Task 9, Plan B; same group as PresenceBlock above — both are small
+ * global on/off + a couple of plain fields, no masking needed): `faceSignIn.enabled` gates
+ * the tablet's face camera pipeline entirely (off = the tablet never starts it, and
+ * `POST /api/public/faces` 403s — see routes/public.ts), and `faceSignIn.threshold` is the
+ * cosine-similarity match threshold `matchFace` (lib/faceRecognition.ts) compares
+ * candidates against. Both are plain fields — unlike every masked-secret block on this
+ * page there's no Replace affordance, just an ordinary checkbox + number input saved
+ * through the normal `patchSettings` path. Client-side clamps the range to match the
+ * schema's own `min(0.3).max(0.95)` (db/settings.ts) so a typo gets a clear inline message
+ * instead of a raw 400 from the server. */
+function FaceSignInBlock({ settings, onSaved }: GroupProps) {
+  const cfg = settings.faceSignIn;
+  const [enabled, setEnabled] = useState(cfg.enabled);
+  const [threshold, setThreshold] = useState(String(cfg.threshold));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = enabled !== cfg.enabled || threshold !== String(cfg.threshold);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!dirty) return;
+    const parsed = Number(threshold);
+    if (!Number.isFinite(parsed) || parsed < 0.3 || parsed > 0.95) {
+      setError('Match threshold must be between 0.3 and 0.95.');
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    const patch: Partial<Settings> = { faceSignIn: { enabled, threshold: parsed } };
+    const result = await patchSettings(patch);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    onSaved(result.data, patch);
+  }
+
+  return (
+    <form
+      className="channels-group__block"
+      data-testid="settings-integrations-facesignin"
+      onSubmit={handleSubmit}
+      // The number input's min/max below are also real HTML constraints (nicer spinner/
+      // mobile-keyboard behavior), but validation itself is JS-driven — same
+      // clear-inline-message idiom as SiteGroup's serving-size check — rather than a
+      // native browser popup, so `noValidate` keeps the submit handler (and its message)
+      // in charge of an out-of-range value instead of the browser silently swallowing it.
+      noValidate
+    >
+      <h3 className="channels-group__block-title">Face sign-in</h3>
+      <p className="admin-page-quiet">
+        Lets the tablet recognize a returning drinker&rsquo;s face and sign them in
+        automatically. Off by default — nothing runs on the tablet until this is enabled.
+      </p>
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          data-testid="settings-integrations-facesignin-enabled"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        <span>Enable face sign-in</span>
+      </label>
+      <label className="admin-field">
+        <span>Match threshold</span>
+        <input
+          type="number"
+          step={0.05}
+          min={0.3}
+          max={0.95}
+          data-testid="settings-integrations-facesignin-threshold"
+          value={threshold}
+          onChange={(e) => setThreshold(e.target.value)}
+        />
+      </label>
+      {error && (
+        <p className="beer-form__notice" role="alert" data-testid="settings-integrations-facesignin-error">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        className="beer-form__submit"
+        disabled={!dirty || submitting}
+        data-testid="settings-integrations-facesignin-save"
+      >
+        {submitting ? 'Saving…' : 'Save changes'}
+      </button>
+    </form>
+  );
 }
 
 /** Integrations group (Task 8; Untappd creds removed post-v0.1.0 — Untappd stopped
  * granting new developer API credentials, so the integration was removed entirely, see
  * CHANGELOG): Home Assistant publish/discovery-prefix, plus (Wave N) the optional
- * catalog.beer search API key, plus (Task 12) the Presence card — independent blocks,
- * each with its own form and Save button, same "outer `<section>`, independent `<form>`
- * blocks inside" shape as ChannelsGroup below. */
+ * catalog.beer search API key, plus (Task 12) the Presence card, plus (Task 9) the Face
+ * sign-in card — independent blocks, each with its own form and Save button, same "outer
+ * `<section>`, independent `<form>` blocks inside" shape as ChannelsGroup below. */
 function IntegrationsGroup({
-  settings, onSaved, onCatalogBeerSaved, onPresenceSaved,
+  settings, onSaved, onCatalogBeerSaved, onPresenceSaved, onFaceSignInSaved,
 }: IntegrationsGroupProps) {
   return (
     <section className="settings-group" data-testid="settings-group-integrations" aria-labelledby="settings-integrations-title">
@@ -1345,6 +1443,7 @@ function IntegrationsGroup({
       <CatalogBeerBlock settings={settings} onSaved={onCatalogBeerSaved} />
       <GoveeBlock settings={settings} onSaved={onCatalogBeerSaved} />
       <PresenceBlock settings={settings} onSaved={onPresenceSaved} />
+      <FaceSignInBlock settings={settings} onSaved={onFaceSignInSaved} />
     </section>
   );
 }
@@ -1748,7 +1847,7 @@ function ChannelsGroup({ settings, onSaved }: GroupProps) {
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
-type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'presence' | 'channels' | 'updates';
+type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'presence' | 'faceSignIn' | 'channels' | 'updates';
 
 /**
  * `/admin/settings` (Task 8, admin-only route — same "no role branching needed" situation
@@ -1771,6 +1870,9 @@ type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'presence' | 'chann
  *
  * `presenceVersion` is the same precedent again for `PresenceBlock` — `presenceWebhookToken`
  * shares nothing with `mqtt` or `catalogBeer` either.
+ *
+ * `faceSignInVersion` (Task 9) is the same precedent once more for `FaceSignInBlock` —
+ * `faceSignIn` shares nothing with `mqtt`, `catalogBeer`, or `presenceWebhookToken` either.
  */
 type SettingsTabId = 'general' | 'sources' | 'integrations' | 'system';
 
@@ -1806,6 +1908,7 @@ export function SettingsPage() {
   const [mqttVersion, setMqttVersion] = useState(0);
   const [catalogBeerVersion, setCatalogBeerVersion] = useState(0);
   const [presenceVersion, setPresenceVersion] = useState(0);
+  const [faceSignInVersion, setFaceSignInVersion] = useState(0);
   const [updatesVersion, setUpdatesVersion] = useState(0);
   const [notice, setNotice] = useState<'saved' | 'restarted' | null>(null);
 
@@ -1820,6 +1923,7 @@ export function SettingsPage() {
         setMqttVersion((v) => v + 1);
         setCatalogBeerVersion((v) => v + 1);
         setPresenceVersion((v) => v + 1);
+        setFaceSignInVersion((v) => v + 1);
         setUpdatesVersion((v) => v + 1);
       } else {
         setStatus('error');
@@ -1839,6 +1943,7 @@ export function SettingsPage() {
     else if (group === 'mqtt') setMqttVersion((v) => v + 1);
     else if (group === 'catalogBeer') setCatalogBeerVersion((v) => v + 1);
     else if (group === 'presence') setPresenceVersion((v) => v + 1);
+    else if (group === 'faceSignIn') setFaceSignInVersion((v) => v + 1);
     // 'channels': no version bump/remount — see ChannelsGroup's doc comment for why each
     // of its 5 blocks manages its own post-save local-state reset instead.
     setNotice(triggersRestart(patch) ? 'restarted' : 'saved');
@@ -1917,11 +2022,12 @@ export function SettingsPage() {
       </div>
       <div className="settings-groups" hidden={tab !== 'integrations'} data-testid="settings-panel-integrations">
         <IntegrationsGroup
-          key={`integrations-${mqttVersion}-${catalogBeerVersion}-${presenceVersion}`}
+          key={`integrations-${mqttVersion}-${catalogBeerVersion}-${presenceVersion}-${faceSignInVersion}`}
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
           onCatalogBeerSaved={(updated, patch) => handleGroupSaved('catalogBeer', updated, patch)}
           onPresenceSaved={(updated, patch) => handleGroupSaved('presence', updated, patch)}
+          onFaceSignInSaved={(updated, patch) => handleGroupSaved('faceSignIn', updated, patch)}
         />
         <ChannelsGroup
           settings={settings}

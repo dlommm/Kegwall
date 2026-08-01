@@ -19,6 +19,7 @@ import {
 } from '../db/users.js';
 import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
+import { countFaceEmbeddingsByDrinker } from '../db/faceEmbeddings.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import { registerConfiguredSources } from '../ingest/bootstrap.js';
 import { setPourDrinker } from '../db/pours.js';
@@ -440,6 +441,17 @@ export async function crudRoutes(app: FastifyInstance) {
     deleteUser(db, Number((req.params as any).id));
     return reply.code(204).send();
   });
+
+  // --- faces (Task 9, Plan B): admin face-data management -----------------------------
+  // GET /api/faces/counts — per-drinker enrolled face-sample count, admin role (same
+  // gate as the rest of the users surface above). Feeds the Users page's "N face
+  // samples" + "Delete face data" affordance; removal itself reuses the public
+  // DELETE /api/public/faces/drinker/:id (routes/public.ts — works even while
+  // faceSignIn is disabled, since deleting is a privacy action, not a sign-in one).
+  // Drinkers with zero samples are simply absent from the array (see
+  // countFaceEmbeddingsByDrinker, db/faceEmbeddings.ts), never a `{count: 0}` row.
+  app.get('/api/faces/counts', admin, async () =>
+    Array.from(countFaceEmbeddingsByDrinker(db), ([drinkerId, count]) => ({ drinkerId, count })));
 
   // --- settings ---
   app.get('/api/settings', admin, async () => app.ctx.settings.masked());

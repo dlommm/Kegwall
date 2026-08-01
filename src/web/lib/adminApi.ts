@@ -878,3 +878,17 @@ export function doctorUdpHistory(hours = 24): Promise<ApiResult<{ hours: number;
 export function doctorUdpRaw(): Promise<ApiResult<{ packets: { raw: string; ts: string; serial?: string }[] }>> {
   return request('/api/doctor/udp-raw');
 }
+
+// --- Task 9 (Plan B, face sign-in): admin face-data management ---------------
+
+/** One drinker's enrolled face-sample count, as `GET /api/faces/counts` (admin role)
+ * returns it — feeds the Users page's "N face samples" + "Delete face data" affordance.
+ * A drinker with zero samples is simply absent from the array (see
+ * countFaceEmbeddingsByDrinker, db/faceEmbeddings.ts), never a `{count: 0}` row. Defined
+ * locally rather than type-imported from db/faceEmbeddings.ts's `Map`-returning function —
+ * a `Map` isn't JSON-serializable, so there's no shared server type for this shape anyway. */
+export interface FaceCount { drinkerId: number; count: number }
+
+export function getFaceCounts(): Promise<ApiResult<FaceCount[]>> {
+  return request('/api/faces/counts');
+}

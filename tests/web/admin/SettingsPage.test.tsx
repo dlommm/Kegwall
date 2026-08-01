@@ -682,6 +682,67 @@ describe('SettingsPage', () => {
         expect(postPresenceWake).toHaveBeenCalledWith(undefined, 'touch');
       });
     });
+
+    // Task 9 (Plan B): the Face sign-in card — global enabled gate + match threshold,
+    // both plain fields (not a secret), saved through the normal patchSettings path. Same
+    // "own independent key, own counter" block shape as PresenceBlock/CatalogBeerBlock
+    // above — faceSignIn shares nothing with mqtt/catalogBeer/presenceWebhookToken.
+    describe('Face sign-in block', () => {
+      it('save is disabled until a field changes', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        expect(screen.getByTestId('settings-integrations-facesignin-save')).toBeDisabled();
+      });
+
+      it('saves the face sign-in toggle and threshold', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        (patchSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ faceSignIn: { enabled: true, threshold: 0.7 } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        fireEvent.click(await screen.findByLabelText(/enable face sign-in/i));
+        fireEvent.change(screen.getByLabelText(/match threshold/i), { target: { value: '0.7' } });
+        fireEvent.click(screen.getByTestId('settings-integrations-facesignin-save'));
+        await flush();
+
+        expect(patchSettings).toHaveBeenCalledWith(
+          expect.objectContaining({ faceSignIn: { enabled: true, threshold: 0.7 } }),
+        );
+      });
+
+      it('rejects a threshold outside 0.3-0.95 without submitting', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        fireEvent.change(screen.getByLabelText(/match threshold/i), { target: { value: '0.99' } });
+        fireEvent.click(screen.getByTestId('settings-integrations-facesignin-save'));
+        await flush();
+
+        expect(screen.getByTestId('settings-integrations-facesignin-error')).toHaveTextContent(/threshold/i);
+        expect(patchSettings).not.toHaveBeenCalled();
+      });
+
+      it('does NOT show the "Sources restarted" notice — faceSignIn backs no ingest source', async () => {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        (patchSettings as Mock).mockResolvedValue({
+          ok: true, data: baseSettings({ faceSignIn: { enabled: true, threshold: 0.6 } }),
+        });
+        render(<SettingsPage />);
+        await screen.findByTestId('settings-group-integrations');
+
+        fireEvent.click(screen.getByLabelText(/enable face sign-in/i));
+        fireEvent.click(screen.getByTestId('settings-integrations-facesignin-save'));
+        await flush();
+
+        expect(screen.queryByTestId('settings-restart-notice')).not.toBeInTheDocument();
+        expect(screen.getByTestId('settings-saved-notice')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('Channels group (Task 6)', () => {

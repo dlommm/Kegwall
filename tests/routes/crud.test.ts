@@ -5,6 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { recordTelemetrySampled } from '../../src/server/db/telemetry.js';
+import { insertFaceEmbedding } from '../../src/server/db/faceEmbeddings.js';
 
 let app: FastifyInstance;
 let adminCookies: { session: string };
@@ -1126,6 +1127,32 @@ describe('crud routes', () => {
         method: 'PATCH', url: '/api/pours/999999/drinker', cookies: adminCookies, payload: { drinkerId: null },
       });
       expect(res.statusCode).toBe(404);
+    });
+  });
+
+  describe('GET /api/faces/counts (Task 9: admin face-data management)', () => {
+    it('groups per drinker and requires auth', async () => {
+      const drinker = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'Face Fixture' },
+      })).json();
+      insertFaceEmbedding(app.ctx.db, drinker.id, [1, 0, 0]);
+      insertFaceEmbedding(app.ctx.db, drinker.id, [0, 1, 0]);
+
+      const authed = await app.inject({ url: '/api/faces/counts', cookies: adminCookies });
+      expect(authed.statusCode).toBe(200);
+      expect(authed.json()).toEqual([{ drinkerId: drinker.id, count: 2 }]);
+
+      expect((await app.inject({ url: '/api/faces/counts' })).statusCode).toBe(401);
+    });
+
+    it('omits drinkers with zero samples and returns [] when none are enrolled', async () => {
+      await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { drinkerOnly: true, displayName: 'No Faces' },
+      });
+      const res = await app.inject({ url: '/api/faces/counts', cookies: adminCookies });
+      expect(res.json()).toEqual([]);
     });
   });
 });
