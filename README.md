@@ -143,7 +143,7 @@ direct BLE), reverse proxy/HTTPS, and backup/updating — is in
 ## Tech stack
 
 Single Node 24 / TypeScript process (ESM, strict): Fastify (REST + WebSocket + static
-files), better-sqlite3 (WAL mode, embedded migrations), React 18 for the web frontend.
+files), better-sqlite3 (WAL mode, embedded migrations), React 19 for the web frontend.
 No separate server build step — the server runs its TypeScript source directly under
 `tsx`; only the SPA is compiled ahead of time (`vite build`). See
 [docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md](docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md)
