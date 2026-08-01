@@ -47,6 +47,10 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
       // Wall config/device-assignment edits: tells open wall clients to refetch their
       // wall payload (config + allowedTapIds + units) — useWallData.ts handles it.
       broadcast(JSON.stringify({ type: 'walls_changed' }));
+    } else if (e.scope === 'faces') {
+      // Face sign-in (Plan B): an enrollment or delete changed the face directory —
+      // tells the tablet's matcher to refetch GET /api/public/faces.
+      broadcast(JSON.stringify({ type: 'faces_changed' }));
     }
   });
 

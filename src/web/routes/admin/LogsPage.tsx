@@ -17,7 +17,7 @@ const RANGES: { hours: number; label: string }[] = [
 ];
 
 const SOURCE_LABELS: Record<LogSource, string> = {
-  app: 'App', kegtron: 'Kegtron', wall: 'Wall', tablet: 'Tablet', sensors: 'Sensors', automations: 'Automations', pours: 'Pours',
+  app: 'App', kegtron: 'Kegtron', wall: 'Wall', tablet: 'Tablet', sensors: 'Sensors', automations: 'Automations', pours: 'Pours', faces: 'Faces',
 };
 const LEVEL_LABELS: Record<LogLevel, string> = { info: 'Info', warn: 'Warn', error: 'Error' };
 

@@ -67,7 +67,7 @@ export interface EventMap {
    * e.g. display units) changed — ws.ts relays it as `{type:'walls_changed'}` so
    * open wall/kiosk clients refetch their config without a reload (they otherwise
    * only refetched on socket reconnect, which a kiosk TV never does). */
-  state_changed: { scope: 'taps' | 'notifications' | 'sources' | 'walls'; ts: string };
+  state_changed: { scope: 'taps' | 'notifications' | 'sources' | 'walls' | 'faces'; ts: string }; // faces: enrollment/delete (Plan B) — relayed as 'faces_changed'
   /** Pour Wall overhaul Phase 6 (design 6g, Kegtron-first beers): emitted by the cloud
    * shadow differ whenever a port's configured beer NAME first appears or changes —
    * carries whatever beer facts the device shadow holds. core/beerAutoImport.ts

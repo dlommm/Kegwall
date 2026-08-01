@@ -9,6 +9,7 @@ import { getBeer } from '../db/beers.js';
 import { listTaps } from '../db/taps.js';
 import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
+import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 
 /** Design 3b: pours are claimable for 10 minutes after they happen. */
 const CLAIM_WINDOW_MINUTES = 10;
@@ -107,6 +108,40 @@ export async function publicRoutes(app: FastifyInstance) {
     return armed
       ? { armed: true, drinkerId: armed.drinkerId, expiresAt: new Date(armed.expiresAt).toISOString() }
       : { armed: false };
+  });
+
+  // Face sign-in (Plan B): embeddings directory + enrollment. Same trusted-LAN
+  // exposure class as the pourer grid above — embeddings are opt-in, deletable,
+  // and image bytes never reach the server (descriptors are computed on-device).
+  app.get('/api/public/faces', async () => {
+    const cfg = app.ctx.settings.get('faceSignIn');
+    return {
+      enabled: cfg.enabled,
+      threshold: cfg.threshold,
+      faces: cfg.enabled ? listFaceEmbeddings(db) : [],
+    };
+  });
+
+  app.post('/api/public/faces', async (req, reply) => {
+    const cfg = app.ctx.settings.get('faceSignIn');
+    if (!cfg.enabled) return reply.code(403).send({ error: 'face sign-in is disabled' });
+    const body = z.object({
+      drinkerId: z.number().int().positive(),
+      embedding: z.array(z.number().finite()).min(64).max(2048),
+    }).parse(req.body);
+    const drinker = getUser(db, body.drinkerId);
+    if (!drinker || !drinker.isDrinker) return reply.code(404).send({ error: 'no such drinker' });
+    const row = insertFaceEmbedding(db, body.drinkerId, body.embedding);
+    app.ctx.bus.emit('state_changed', { scope: 'faces', ts: new Date().toISOString() });
+    app.ctx.log.info('faces', `Face enrolled for "${drinker.displayName}" (${row.id})`);
+    return reply.code(201).send(row);
+  });
+
+  app.delete('/api/public/faces/drinker/:drinkerId', async (req) => {
+    const drinkerId = z.coerce.number().int().positive().parse((req.params as any).drinkerId);
+    const deleted = deleteFaceEmbeddingsForDrinker(db, drinkerId);
+    if (deleted > 0) app.ctx.bus.emit('state_changed', { scope: 'faces', ts: new Date().toISOString() });
+    return { deleted };
   });
 
   // Public leaderboard (design 4a view + 6b quality/superlatives) — feeds /board.

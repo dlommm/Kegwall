@@ -172,6 +172,16 @@ describe('/ws', () => {
     ws.close();
   });
 
+  it('relays a state_changed(scope:"faces") event as {type:"faces_changed"}', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws);
+    const next = nextMessage(ws);
+    app.ctx.bus.emit('state_changed', { scope: 'faces', ts: new Date().toISOString() });
+    const msg = await next;
+    expect(msg).toEqual({ type: 'faces_changed' });
+    ws.close();
+  });
+
   it('a state_changed(scope:"sources") event does not broadcast anything (ignored, same as before)', async () => {
     const ws = new WebSocket(url);
     await nextMessage(ws);

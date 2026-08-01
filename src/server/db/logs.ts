@@ -6,10 +6,10 @@ import type Database from 'better-sqlite3';
  */
 
 export type LogLevel = 'info' | 'warn' | 'error';
-export type LogSource = 'app' | 'kegtron' | 'wall' | 'tablet' | 'sensors' | 'automations' | 'pours';
+export type LogSource = 'app' | 'kegtron' | 'wall' | 'tablet' | 'sensors' | 'automations' | 'pours' | 'faces';
 
 export const LOG_SOURCES: readonly LogSource[] = [
-  'app', 'kegtron', 'wall', 'tablet', 'sensors', 'automations', 'pours',
+  'app', 'kegtron', 'wall', 'tablet', 'sensors', 'automations', 'pours', 'faces',
 ];
 export const LOG_LEVELS: readonly LogLevel[] = ['info', 'warn', 'error'];
 
