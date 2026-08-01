@@ -364,6 +364,10 @@ export function UsersPage() {
   // changes the user list itself.
   const [faceCounts, setFaceCounts] = useState<Map<number, number>>(new Map());
   const [deletingFacesId, setDeletingFacesId] = useState<number | null>(null);
+  // Keyed by drinkerId (like `deletingFacesId`, only one delete in flight at a time) —
+  // mirrors `handleConfirmDelete`'s `result.ok` check below, just surfaced inline on the
+  // row instead of in a modal.
+  const [faceDeleteError, setFaceDeleteError] = useState<{ drinkerId: number; message: string } | null>(null);
 
   const load = useCallback(() => {
     setStatus((s) => (s === 'loaded' ? s : 'loading'));
@@ -390,8 +394,18 @@ export function UsersPage() {
 
   async function handleDeleteFaces(drinkerId: number) {
     setDeletingFacesId(drinkerId);
-    await deleteFaces(drinkerId);
+    setFaceDeleteError(null);
+    const result = await deleteFaces(drinkerId);
     setDeletingFacesId(null);
+    if (!result.ok) {
+      // deleteFaces has no documented specific-status case (unlike deleteUser's 409
+      // last-admin conflict) to branch a sharper message off of — a plain, actionable
+      // sentence beats the raw server string here, same "clear phrasing over a log
+      // fragment" call handleConfirmDelete makes for its own non-409 fallback.
+      setFaceDeleteError({ drinkerId, message: "Couldn't delete face data. Try again." });
+    }
+    // Refetch either way — server truth. A failed delete just re-shows whatever count is
+    // actually stored rather than risking a stale/incorrect optimistic UI.
     loadFaceCounts();
   }
 
@@ -563,6 +577,9 @@ export function UsersPage() {
                       >
                         {deletingFacesId === user.id ? 'Deleting…' : 'Delete face data'}
                       </button>
+                      {faceDeleteError?.drinkerId === user.id && (
+                        <p role="alert" data-testid="face-data-delete-error">{faceDeleteError.message}</p>
+                      )}
                     </div>
                   )}
                 </td>

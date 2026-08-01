@@ -280,5 +280,20 @@ describe('UsersPage', () => {
       expect(deleteFaces).toHaveBeenCalledWith(2);
       expect(getFaceCounts).toHaveBeenCalledTimes(2); // initial load + refresh after delete
     });
+
+    it('a failed delete surfaces an error without losing the count, and still refetches (server truth)', async () => {
+      (listUsers as Mock).mockResolvedValue({ ok: true, data: [makeDrinker()] });
+      (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [{ drinkerId: 2, count: 3 }] });
+      (deleteFaces as Mock).mockResolvedValue({ ok: false, status: 500, message: 'boom' });
+      render(<UsersPage />);
+      const [row] = await screen.findAllByTestId('users-row');
+
+      fireEvent.click(within(row!).getByTestId('face-data-delete'));
+      await flush();
+
+      expect(within(row!).getByTestId('face-data-delete-error')).toHaveTextContent(/couldn.t delete face data/i);
+      expect(within(row!).getByTestId('users-row-face-count')).toHaveTextContent('3 face samples');
+      expect(getFaceCounts).toHaveBeenCalledTimes(2); // initial load + refresh even on failure
+    });
   });
 });
