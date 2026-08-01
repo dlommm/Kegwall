@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { TapState } from '../../server/core/state.js';
-import type { WallConfig } from '../../server/core/wallConfig.js';
 
 const DRIFT_INTERVAL_MS = 5 * 60_000;
 const HIGHLIGHT_INTERVAL_MS = 4_000;
@@ -26,22 +25,28 @@ function SaverClock() {
 }
 
 export interface ScreenCareProps {
-  screensaver: WallConfig['screensaver'];
+  /** Server-pushed power stage (Task 9; see lib/displayPower.ts) — replaces the old
+   * internal `setTimeout`-driven screensaver activation and the `screensaver` config
+   * prop. The presence engine now owns all timing; this component only renders
+   * whichever stage it's told. */
+  stage: 'active' | 'screensaver' | 'off';
   taps: TapState[];
   /** Wall title, shown (dimmed) on the screensaver overlay. */
   title: string;
+  /** Called when the user taps the off-stage black overlay. */
+  onWake?: () => void;
   children: ReactNode;
 }
 
 /**
- * OLED screen care for the wall (Task 5 plan): a constant, imperceptible 1px layout
- * drift every 5 minutes, plus an optional screensaver mode (`config.screensaver`) that
- * engages `startAfterMinutes` after mount — a dimmed overlay with the wall title and a
- * highlight that rotates across taps every few seconds, so no single pixel region stays
- * lit at full brightness indefinitely.
+ * OLED screen care for the wall (Task 5 plan, re-plumbed in Task 9): a constant,
+ * imperceptible 1px layout drift every 5 minutes, plus a server-driven `stage` that
+ * renders a dimmed screensaver overlay (wall title + a highlight that rotates across
+ * taps every few seconds, so no single pixel region stays lit at full brightness
+ * indefinitely) or blanks the display entirely when the server says `'off'`.
  */
 export function ScreenCare({
-  screensaver, taps, title, children,
+  stage, taps, title, onWake, children,
 }: ScreenCareProps) {
   const [driftIndex, setDriftIndex] = useState(0);
   useEffect(() => {
@@ -51,13 +56,7 @@ export function ScreenCare({
     return () => clearInterval(id);
   }, []);
 
-  const [active, setActive] = useState(false);
-  useEffect(() => {
-    setActive(false);
-    if (!screensaver.enabled) return undefined;
-    const id = setTimeout(() => setActive(true), screensaver.startAfterMinutes * 60_000);
-    return () => clearTimeout(id);
-  }, [screensaver.enabled, screensaver.startAfterMinutes]);
+  const active = stage === 'screensaver';
 
   const [highlightIndex, setHighlightIndex] = useState(0);
   useEffect(() => {
@@ -88,6 +87,9 @@ export function ScreenCare({
             </p>
           )}
         </div>
+      )}
+      {stage === 'off' && (
+        <div className="screen-care__off" data-testid="screen-off-overlay" onClick={onWake} />
       )}
     </div>
   );

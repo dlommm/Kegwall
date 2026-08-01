@@ -448,6 +448,17 @@
   font-size: 1.1rem;
 }
 
+/* Task 9: the server-driven "off" power stage -- blanks the display completely (a real
+   power-off substitute for hardware that can't be switched, e.g. a TV with no CEC/smart-
+   plug control). z-index 70 clears every other fixed overlay on the wall pages (the
+   highest existing one is .claim-sheet__backdrop at 60) so nothing bleeds through. */
+.screen-care__off {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: #000;
+}
+
 /* WallHeader */
 .wall-header {
   display: flex;

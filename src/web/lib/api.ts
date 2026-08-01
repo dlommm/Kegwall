@@ -273,3 +273,20 @@ export function getLeaderboard(
 ): Promise<ApiResult<LeaderboardResponse>> {
   return request<LeaderboardResponse>(`/api/public/leaderboard?window=${window}`);
 }
+
+// --- Task 9 (presence/display-power): public wake endpoint ------------------
+
+/**
+ * Fire-and-forget POST to /api/presence/wake — a user tapping the screensaver/off
+ * overlay, or a camera-driven wake. `wall` is omitted from the body entirely when
+ * undefined, which the server treats as "wake every zone" (Task 12's admin wake-all
+ * button relies on this). Callers don't need to inspect the result (`request` never
+ * throws, so this always resolves), matching this endpoint's public, best-effort trust
+ * level -- see routes/presence.ts.
+ */
+export function postPresenceWake(wall: string | undefined, source: 'touch' | 'camera'): Promise<void> {
+  return request('/api/presence/wake', {
+    method: 'POST',
+    body: JSON.stringify(wall !== undefined ? { wall, source } : { source }),
+  }).then(() => undefined);
+}

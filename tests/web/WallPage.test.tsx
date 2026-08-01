@@ -7,11 +7,16 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { WallPage } from '../../src/web/routes/WallPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import { usePrefersReducedMotion } from '../../src/web/lib/usePrefersReducedMotion';
+import { postPresenceWake } from '../../src/web/lib/api';
 import type { TapState } from '../../src/server/core/state';
 import type { WallConfig } from '../../src/server/core/wallConfig';
 
 vi.mock('../../src/web/lib/useWallData', () => ({ useWallData: vi.fn() }));
 vi.mock('../../src/web/lib/usePrefersReducedMotion', () => ({ usePrefersReducedMotion: vi.fn() }));
+vi.mock('../../src/web/lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/web/lib/api')>()),
+  postPresenceWake: vi.fn(),
+}));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
@@ -88,6 +93,7 @@ describe('WallPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (usePrefersReducedMotion as Mock).mockReturnValue(false);
+    (postPresenceWake as Mock).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -465,6 +471,59 @@ describe('WallPage', () => {
       renderWall();
       expect(() => act(() => { captured.onMessage?.({ type: 'ping', ts: 'x' }); })).not.toThrow();
       expect(screen.queryByTestId('banner-lane-banner')).not.toBeInTheDocument();
+    });
+  });
+
+  // Task 9: ScreenCare's stage is now server-pushed over the SAME /ws socket
+  // (useDisplayPower's onWsMessage is chained into the callback WallPage already hands
+  // useWallData, right alongside the banner/party-mode handling above), and its off-stage
+  // overlay wakes the wall via POST /api/presence/wake.
+  describe('server-driven display power stage (WS messages)', () => {
+    it('starts in the "active" stage: no screensaver or off overlay', () => {
+      mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall();
+      expect(screen.queryByTestId('screensaver-overlay')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('screen-off-overlay')).not.toBeInTheDocument();
+    });
+
+    it('shows the screensaver overlay on a WS {type:"display_power", state:"screensaver"} frame for this wall', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall('main');
+      act(() => { captured.onMessage?.({ type: 'display_power', wallSlug: 'main', state: 'screensaver' }); });
+      expect(screen.getByTestId('screensaver-overlay')).toBeInTheDocument();
+    });
+
+    it('shows the off overlay on a WS {type:"display_power", state:"off"} frame for this wall', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall('main');
+      act(() => { captured.onMessage?.({ type: 'display_power', wallSlug: 'main', state: 'off' }); });
+      expect(screen.getByTestId('screen-off-overlay')).toBeInTheDocument();
+    });
+
+    it('ignores a display_power frame for a different wall slug', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall('main');
+      act(() => { captured.onMessage?.({ type: 'display_power', wallSlug: 'patio', state: 'off' }); });
+      expect(screen.queryByTestId('screen-off-overlay')).not.toBeInTheDocument();
+    });
+
+    it('tapping the off overlay wakes this wall via POST /api/presence/wake', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [],
+      });
+      renderWall('main');
+      act(() => { captured.onMessage?.({ type: 'display_power', wallSlug: 'main', state: 'off' }); });
+
+      act(() => { screen.getByTestId('screen-off-overlay').click(); });
+      expect(postPresenceWake).toHaveBeenCalledWith('main', 'touch');
     });
   });
 });

@@ -24,6 +24,7 @@ import { useTakeover } from '../lib/useTakeover';
 import { BannerLane } from '../components/BannerLane';
 import { QrOverlay } from '../components/QrOverlay';
 import { ScreenCare } from '../components/ScreenCare';
+import { useDisplayPower } from '../lib/displayPower';
 
 declare global {
   interface Window {
@@ -146,7 +147,14 @@ export function WallPage() {
 
   const [hostStats, setHostStats] = useState<WsHostStatsMessage | null>(null);
 
+  // Task 9: the wall's server-pushed power stage (screensaver/off) rides the SAME /ws
+  // socket as everything else below -- `onWsMessage` is chained into handleWsMessage
+  // rather than opening a second connection, same reasoning as the banner/theme_override
+  // messages already handled here.
+  const { stage, onWsMessage, wake } = useDisplayPower(slug);
+
   const handleWsMessage = useCallback((msg: unknown) => {
+    onWsMessage(msg);
     if (isWsBannerMessage(msg)) {
       push(msg.text, mapServerBannerKind(msg.kind), msg.durationMs);
     } else if (isWsHostStatsMessage(msg)) {
@@ -161,7 +169,7 @@ export function WallPage() {
     }
     // Any other/unrecognized `type` is silently ignored (same "unknown types are
     // harmless" contract useTapStates' snapshot handling already has).
-  }, [push]);
+  }, [push, onWsMessage]);
 
   // Countdown timer cleanup on unmount -- doesn't touch state (nothing to revert to on an
   // unmounted page), just prevents a dangling setTimeout outliving the component.
@@ -328,7 +336,7 @@ export function WallPage() {
         className={stale ? 'wall-page__dimmable wall-page__dimmable--stale' : 'wall-page__dimmable'}
         data-testid="wall-page-dimmable"
       >
-        <ScreenCare screensaver={config.screensaver} taps={taps} title={title}>
+        <ScreenCare stage={stage} taps={taps} title={title} onWake={() => wake()}>
           {currentViewKind === 'leaderboard' ? (
             <div
               key={`view-${rotationIndex}`}

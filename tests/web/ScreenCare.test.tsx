@@ -23,27 +23,26 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   };
 }
 
-const DISABLED = { enabled: false, startAfterMinutes: 10 };
-
 describe('ScreenCare', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('renders children normally with no screensaver overlay by default', () => {
+  it('renders children normally with no overlay when stage is "active"', () => {
     render(
-      <ScreenCare screensaver={DISABLED} taps={[]} title="Taproom">
+      <ScreenCare stage="active" taps={[]} title="Taproom">
         <p>content</p>
       </ScreenCare>,
     );
     expect(screen.getByText('content')).toBeInTheDocument();
     expect(screen.queryByTestId('screensaver-overlay')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('screen-off-overlay')).not.toBeInTheDocument();
   });
 
   it('drifts the layout by 1px on a 5-minute interval', () => {
     vi.useFakeTimers();
     render(
-      <ScreenCare screensaver={DISABLED} taps={[]} title="Taproom">
+      <ScreenCare stage="active" taps={[]} title="Taproom">
         <p>content</p>
       </ScreenCare>,
     );
@@ -54,28 +53,44 @@ describe('ScreenCare', () => {
     expect(wrapper.style.transform).not.toBe(initialTransform);
   });
 
-  it('never activates the screensaver when disabled, even after a long wait', () => {
-    vi.useFakeTimers();
+  it('shows the screensaver overlay immediately when stage is "screensaver", with no activation timer', () => {
     render(
-      <ScreenCare screensaver={DISABLED} taps={[]} title="Taproom">
+      <ScreenCare stage="screensaver" taps={[makeTap(1)]} title="Taproom">
         <p>content</p>
       </ScreenCare>,
     );
-    act(() => { vi.advanceTimersByTime(60 * 60_000); });
+    expect(screen.getByTestId('screensaver-overlay')).toBeInTheDocument();
+    expect(screen.getByTestId('screensaver-overlay')).toHaveTextContent('Taproom');
+    expect(screen.queryByTestId('screen-off-overlay')).not.toBeInTheDocument();
+  });
+
+  it('shows the off overlay when stage is "off", and nothing else', () => {
+    render(
+      <ScreenCare stage="off" taps={[]} title="Taproom">
+        <p>content</p>
+      </ScreenCare>,
+    );
+    expect(screen.getByTestId('screen-off-overlay')).toBeInTheDocument();
     expect(screen.queryByTestId('screensaver-overlay')).not.toBeInTheDocument();
   });
 
-  it('activates the screensaver startAfterMinutes after mount when enabled', () => {
-    vi.useFakeTimers();
+  it('calls onWake when the off overlay is tapped', () => {
+    const onWake = vi.fn();
     render(
-      <ScreenCare screensaver={{ enabled: true, startAfterMinutes: 10 }} taps={[makeTap(1)]} title="Taproom">
+      <ScreenCare stage="off" taps={[]} title="Taproom" onWake={onWake}>
         <p>content</p>
       </ScreenCare>,
     );
-    expect(screen.queryByTestId('screensaver-overlay')).not.toBeInTheDocument();
+    screen.getByTestId('screen-off-overlay').click();
+    expect(onWake).toHaveBeenCalledTimes(1);
+  });
 
-    act(() => { vi.advanceTimersByTime(10 * 60_000); });
-    expect(screen.getByTestId('screensaver-overlay')).toBeInTheDocument();
-    expect(screen.getByTestId('screensaver-overlay')).toHaveTextContent('Taproom');
+  it('tapping the off overlay without an onWake handler does not throw', () => {
+    render(
+      <ScreenCare stage="off" taps={[]} title="Taproom">
+        <p>content</p>
+      </ScreenCare>,
+    );
+    expect(() => screen.getByTestId('screen-off-overlay').click()).not.toThrow();
   });
 });
