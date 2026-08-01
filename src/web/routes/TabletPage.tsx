@@ -9,6 +9,7 @@ import { useLookClock } from '../components/looks/lookShared';
 import { formatVolumeMl } from '../lib/units';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
+import { startCameraMotion } from '../lib/cameraMotion';
 import {
   armTablet, createPourer, disarmTablet, getPourers, getSession, startSession,
   joinSession, endSession, type PublicPourer, type SessionSnapshotResponse,
@@ -22,6 +23,12 @@ const DONE_SIGNOUT_SECONDS = 5;
  * (Task 10) — normal pouring generates constant taps on the armed/done screens, so
  * without a throttle every tap would hit POST /api/presence/wake. */
 const POINTER_WAKE_THROTTLE_MS = 30_000;
+/** Minimum gap between camera-detected motion events that count as presence "wake"
+ * activity (Task 11) — the detector samples every 500ms by default, so without a
+ * throttle sustained motion (someone standing at the kegerator) would spam
+ * POST /api/presence/wake. Independent of the pointer-tap throttle above: each has its
+ * own `useRef` timestamp, so exhausting one never blocks the other. */
+const CAMERA_WAKE_THROTTLE_MS = 5_000;
 
 type Screen =
   | { kind: 'grid' }
@@ -74,6 +81,9 @@ function initials(name: string): string {
  * kiosk. Every pointer tap on the page also counts as presence activity
  * (throttled to one wake per 30s so normal pouring doesn't spam the wake
  * endpoint) — separate from the off-overlay's own always-fires tap-to-wake.
+ * Task 11: when the wall opts in via `displayPower.cameraMotion`, a low-res camera
+ * frame-differencing detector (`lib/cameraMotion.ts`) also feeds `wake('camera')`,
+ * throttled to one wake per 5s independently of the pointer-tap throttle.
  */
 export function TabletPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -131,6 +141,38 @@ export function TabletPage() {
     lastPointerWakeRef.current = now;
     wake();
   }, [wake]);
+
+  // Camera motion input (Task 11): fully opt-in per wall — `startCameraMotion` is only
+  // ever called while `displayPower.cameraMotion` is true, and this effect's own
+  // cleanup (which fires on every dependency change, including the flag flipping to
+  // false, and on unmount) disposes it. `disposed` guards the case where the flag
+  // flips off again before the async `startCameraMotion()` call resolves, so a
+  // just-granted camera stream doesn't leak past its owning effect run.
+  const cameraMotionEnabled = wall?.config.displayPower.cameraMotion ?? false;
+  const lastCameraWakeRef = useRef(0);
+  useEffect(() => {
+    if (!cameraMotionEnabled) return undefined;
+    let disposed = false;
+    let stop: (() => void) | null = null;
+    startCameraMotion({
+      onMotion: () => {
+        const now = Date.now();
+        if (now - lastCameraWakeRef.current < CAMERA_WAKE_THROTTLE_MS) return;
+        lastCameraWakeRef.current = now;
+        wake('camera');
+      },
+    }).then((disposer) => {
+      if (disposed) {
+        disposer?.();
+        return;
+      }
+      stop = disposer;
+    });
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [cameraMotionEnabled, wake]);
 
   const loadPourers = useCallback(() => {
     setPourersStatus('loading');

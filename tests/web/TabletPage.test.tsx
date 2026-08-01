@@ -11,6 +11,7 @@ import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallDa
 import {
   armTablet, createPourer, disarmTablet, getPourers, postPresenceWake,
 } from '../../src/web/lib/api';
+import { startCameraMotion } from '../../src/web/lib/cameraMotion';
 import { wallConfigSchema } from '../../src/server/core/wallConfig';
 import type { TapState } from '../../src/server/core/state';
 
@@ -23,6 +24,11 @@ vi.mock('../../src/web/lib/api', async (importOriginal) => ({
   disarmTablet: vi.fn(),
   postPresenceWake: vi.fn(),
 }));
+// Task 11: jsdom has no getUserMedia/canvas ImageData worth fighting — the pure
+// diffFraction logic is covered by tests/web/cameraMotion.test.ts. Here we only need
+// to assert TabletPage's wiring: starts when the config flag is on, never starts when
+// it's off, disposes on unmount.
+vi.mock('../../src/web/lib/cameraMotion', () => ({ startCameraMotion: vi.fn() }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
   return {
@@ -96,6 +102,7 @@ describe('TabletPage (design 3a)', () => {
       ok: true, data: { id: 9, displayName: 'Drew', avatarColor: '#94C25C' },
     });
     (postPresenceWake as Mock).mockResolvedValue(undefined);
+    (startCameraMotion as Mock).mockResolvedValue(null);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -294,6 +301,46 @@ describe('TabletPage (design 3a)', () => {
       });
       fireEvent.click(screen.getByTestId('screen-off-overlay'));
       expect(postPresenceWake).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // Task 11: the browser camera motion detector is opt-in per wall
+  // (`displayPower.cameraMotion`). `startCameraMotion` itself (getUserMedia, canvas
+  // frame-differencing) is unit-tested in tests/web/cameraMotion.test.ts against real
+  // pixel buffers — jsdom has no getUserMedia/canvas ImageData worth fighting here, so
+  // the module is mocked and these tests only assert TabletPage's wiring.
+  describe('camera motion input (Task 11)', () => {
+    const cameraWall = {
+      ...wall,
+      config: wallConfigSchema.parse({ displayPower: { cameraMotion: true } }),
+    };
+
+    it('starts the camera motion detector when displayPower.cameraMotion is true', async () => {
+      mockWallData({ wall: cameraWall });
+      renderTablet();
+      await flush();
+      expect(startCameraMotion).toHaveBeenCalledTimes(1);
+      expect(startCameraMotion).toHaveBeenCalledWith(
+        expect.objectContaining({ onMotion: expect.any(Function) }),
+      );
+    });
+
+    it('never starts the camera motion detector when displayPower.cameraMotion is false', async () => {
+      mockWallData(); // default wall config: displayPower.cameraMotion is false
+      renderTablet();
+      await flush();
+      expect(startCameraMotion).not.toHaveBeenCalled();
+    });
+
+    it('disposes the camera motion detector on unmount', async () => {
+      const stop = vi.fn();
+      (startCameraMotion as Mock).mockResolvedValue(stop);
+      mockWallData({ wall: cameraWall });
+      const { unmount } = renderTablet();
+      await flush();
+      expect(stop).not.toHaveBeenCalled();
+      unmount();
+      expect(stop).toHaveBeenCalledTimes(1);
     });
   });
 });
