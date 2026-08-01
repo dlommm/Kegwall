@@ -35,3 +35,164 @@ export function bestMatch(
   if (bestOther > best.score - AMBIGUITY_MARGIN) return null;
   return best;
 }
+
+const VIDEO_WIDTH = 320;
+const VIDEO_HEIGHT = 240;
+
+/** Module-level singleton so every pipeline run (and every embedding call) shares one
+ * loaded model instead of re-downloading weights. `@vladmandic/human` is dynamically
+ * imported here — not at module top-level — so it's code-split out of the main bundle
+ * and only fetched once a face-sign-in flow actually starts. `modelBasePath: '/models/'`
+ * points at this repo's self-hosted assets (Task 4); the library's own default points at
+ * a CDN, which the "no CDN calls" constraint rules out. Everything except face
+ * detect+mesh+description is disabled — this pipeline only ever needs an embedding. */
+let humanPromise: Promise<unknown> | null = null;
+
+export function loadHuman(): Promise<unknown> {
+  if (!humanPromise) {
+    humanPromise = import('@vladmandic/human').then((m) => {
+      const human = new m.default({
+        modelBasePath: '/models/',
+        filter: { enabled: false },
+        face: {
+          enabled: true,
+          detector: { maxDetected: 1, rotation: false },
+          mesh: { enabled: true },
+          iris: { enabled: false },
+          emotion: { enabled: false },
+          antispoof: { enabled: false },
+          liveness: { enabled: false },
+          description: { enabled: true },
+        },
+        body: { enabled: false },
+        hand: { enabled: false },
+        object: { enabled: false },
+        gesture: { enabled: false },
+        warmup: 'none',
+      });
+      return human;
+    });
+  }
+  return humanPromise;
+}
+
+/** Runs one detect pass on `video` and returns the first detected face's embedding, or
+ * `null` when no face is present. `human` is untyped (`unknown`) because callers only
+ * ever obtain it from `loadHuman`/`loadHumanFn` — this is the one place that trusts its
+ * shape. */
+export async function computeEmbedding(
+  human: unknown, video: HTMLVideoElement,
+): Promise<number[] | null> {
+  const res = await (human as any).detect(video);
+  const emb = res?.face?.[0]?.embedding;
+  return Array.isArray(emb) && emb.length ? Array.from(emb) : null;
+}
+
+export interface FacePipelineOptions {
+  getEnrolled: () => EnrolledFace[];
+  threshold: number;
+  onCandidate: (c: MatchCandidate) => void;
+  /** Ms between detect passes. */
+  intervalMs?: number;
+  /** Self-stop after this long without a single detected face. */
+  noFaceStopMs?: number;
+  /** Test seam — defaults to `navigator.mediaDevices.getUserMedia`. */
+  getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+  /** Test seam — defaults to `loadHuman`. */
+  loadHumanFn?: () => Promise<unknown>;
+  /** Test seam — defaults to `computeEmbedding`. */
+  computeEmbeddingFn?: typeof computeEmbedding;
+}
+
+/**
+ * Browser face sign-in pipeline (Plan B, motion-gated by callers the same way
+ * `cameraMotion.ts`'s detector is): grabs a 320x240 camera feed, runs `@vladmandic/human`
+ * detect+embed on it every `intervalMs`, and matches each embedding against
+ * `getEnrolled()` via `bestMatch`. The first match above `threshold` fires `onCandidate`
+ * exactly once and then self-stops — same disposer path a caller-initiated stop would
+ * run — so a session never emits a second, possibly-different candidate. A pipeline that
+ * never sees a face at all self-stops after `noFaceStopMs` so an errant "start" never
+ * pins the camera open indefinitely.
+ *
+ * Resolves `null` — never rejects — when there's no camera or permission is denied,
+ * mirroring `startCameraMotion`'s "feature simply isn't available" contract.
+ * `getUserMedia` is awaited before any DOM element is created. `stopped` guards the
+ * one race this fixed `Promise<(() => void) | null>` interface can actually produce:
+ * an in-flight `computeEmbeddingFn` call resolving after the disposer already ran (via
+ * `noFaceStopMs`, a match, or a caller's own stop) — that tick's result is dropped
+ * instead of touching state or firing a second `onCandidate`. (A caller wanting to
+ * cancel a still-pending `startFacePipeline()` call itself — e.g. an unmounting
+ * component — needs its own outer `disposed` flag plus a `.then((stop) =>
+ * disposed && stop?.())`, the same pattern `TabletPage.tsx` uses around
+ * `startCameraMotion`; there's no cancellation token in this signature to do it from
+ * inside.)
+ */
+export async function startFacePipeline(
+  opts: FacePipelineOptions,
+): Promise<(() => void) | null> {
+  const {
+    getEnrolled,
+    threshold,
+    onCandidate,
+    intervalMs = 750,
+    noFaceStopMs = 30_000,
+    getUserMedia = (constraints: MediaStreamConstraints) => (
+      navigator.mediaDevices.getUserMedia(constraints)
+    ),
+    loadHumanFn = loadHuman,
+    computeEmbeddingFn = computeEmbedding,
+  } = opts;
+
+  let stream: MediaStream;
+  try {
+    stream = await getUserMedia({
+      video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT },
+      audio: false,
+    });
+  } catch {
+    return null;
+  }
+
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+  // Don't await — jsdom's play() stub never resolves in a test environment (and under
+  // fake timers doesn't even return a Promise), and a real rejection (e.g. a track that
+  // ends immediately) just means frames stay blank, same as cameraMotion.ts's identical
+  // fire-and-forget play().
+  video.play()?.catch(() => {});
+
+  const human = await loadHumanFn();
+
+  let stopped = false;
+  let sinceLastFaceMs = 0;
+
+  const dispose = () => {
+    stopped = true;
+    clearInterval(intervalId);
+    stream.getTracks().forEach((track) => track.stop());
+  };
+
+  const tick = () => {
+    if (stopped || document.visibilityState === 'hidden') return;
+    void computeEmbeddingFn(human, video).then((embedding) => {
+      if (stopped) return; // disposed while this detect pass was in flight
+      if (!embedding) {
+        sinceLastFaceMs += intervalMs;
+        if (sinceLastFaceMs >= noFaceStopMs) dispose();
+        return;
+      }
+      sinceLastFaceMs = 0;
+      const candidate = bestMatch(embedding, getEnrolled(), threshold);
+      if (candidate) {
+        onCandidate(candidate); // at most once — dispose() below stops further ticks
+        dispose();
+      }
+    });
+  };
+
+  const intervalId = setInterval(tick, intervalMs);
+
+  return dispose;
+}
