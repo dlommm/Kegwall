@@ -241,11 +241,13 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   });
 
   app.get('/api/health', async () => ({ status: 'ok' }));
+  const dataDir = resolve(opts.dataDir ?? './data');
   // Route modules are called DIRECTLY, not app.register()'d: Fastify encapsulates
   // register()'d plugins, which would scope authRoutes' onRequest hook (req.user)
   // away from the other modules and break staticRoutes' setNotFoundHandler.
   await authRoutes(app);
-  await crudRoutes(app);   // direct call — see encapsulation note above
+  await crudRoutes(app, dataDir);   // direct call — see encapsulation note above; dataDir
+                           // lets the beers handlers reclaim a replaced/deleted label file
   await wsRoutes(app, { pingIntervalMs: opts.wsPingIntervalMs }); // direct call —
                            // @fastify/websocket it registers internally attaches to the
                            // root instance, same reasoning as above
@@ -254,7 +256,6 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                            // wsRoutes since both relay app.ctx.presence's power stages
   await publicRoutes(app);  // direct call — see encapsulation note above
   await sourcesRoutes(app); // direct call — see encapsulation note above
-  const dataDir = resolve(opts.dataDir ?? './data');
   // kegtronRoutes' Pro import handler downloads a decoded labelUrl through the same
   // SSRF-guarded path lookupRoutes uses (Phase 5 Task 0) — needs `dataDir` (for the
   // labels directory) and the same test-injectable SSRF options, so it's registered

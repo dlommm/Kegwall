@@ -57,7 +57,14 @@ export function writeLabelFile(labelsDir: string, buf: Buffer): string | null {
  * its own small route module so `crud.ts` doesn't have to grow a multipart/file-storage
  * concern. */
 export async function uploadsRoutes(app: FastifyInstance, dataDir: string) {
-  await app.register(multipart, { limits: { fileSize: MAX_BYTES, files: 1 } });
+  // `fields: 0` + tiny `fieldSize`/`parts`: an upload here (and the restore handler that
+  // reuses these decorators) is a single file part with no text fields. Without these,
+  // @fastify/multipart defaults to 1000 parts each buffered in heap — ~1GB, an OOM kill on
+  // a 1-2GB Pi from a fields-only request that never sends a file. The restore route
+  // overrides `fileSize` per call for the larger DB upload; these part/field caps still apply.
+  await app.register(multipart, {
+    limits: { fileSize: MAX_BYTES, files: 1, fields: 0, fieldSize: 1024, parts: 2 },
+  });
 
   const labelsDir = join(dataDir, 'labels');
   // Belt-and-suspenders: app.ts always registers labelsStaticRoutes (which also mkdir's
@@ -65,7 +72,10 @@ export async function uploadsRoutes(app: FastifyInstance, dataDir: string) {
   // 500 on a missing directory.
   mkdirSync(labelsDir, { recursive: true });
 
-  app.post('/api/uploads/label', { preHandler: requireRole('editor') }, async (req, reply) => {
+  app.post('/api/uploads/label', {
+    preHandler: requireRole('editor'),
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     let file: MultipartFile | undefined;
     try {
       file = await req.file();

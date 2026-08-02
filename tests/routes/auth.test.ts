@@ -50,7 +50,7 @@ describe('auth routes', () => {
       method: 'POST', url: '/api/auth/login',
       payload: { username: 'dan', password: 'hunter22' },
     });
-    const plainCookie = plain.cookies.find((c: any) => c.name === 'session');
+    const plainCookie = plain.cookies.find((c: any) => c.name === 'session')!;
     expect(plainCookie.httpOnly).toBe(true);
     expect(String(plainCookie.sameSite).toLowerCase()).toBe('lax');
     expect(plainCookie.maxAge).toBeGreaterThan(0);
@@ -61,7 +61,7 @@ describe('auth routes', () => {
       headers: { 'x-forwarded-proto': 'https' },
       payload: { username: 'dan', password: 'hunter22' },
     });
-    const httpsCookie = https.cookies.find((c: any) => c.name === 'session');
+    const httpsCookie = https.cookies.find((c: any) => c.name === 'session')!;
     expect(httpsCookie.secure).toBe(true); // behind a TLS proxy → Secure
   });
 

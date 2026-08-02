@@ -24,6 +24,8 @@ import { NotFoundError, ValidationError } from '../core/errors.js';
 import { restartSourcesIfLive } from '../ingest/bootstrap.js';
 import { setPourDrinker } from '../db/pours.js';
 import { SOURCE_RESTART_KEYS } from '../core/restartKeys.js';
+import { deleteLabelIfUnreferenced } from '../core/labelStore.js';
+import { join } from 'node:path';
 
 const beerSchema = z.object({
   name: z.string().min(1),
@@ -68,8 +70,9 @@ export function createWall(db: any, input: { slug: string; name: string; config?
   return { id: Number(res.lastInsertRowid), slug: input.slug, name: input.name, config };
 }
 
-export async function crudRoutes(app: FastifyInstance) {
+export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   const db = app.ctx.db;
+  const labelsDir = join(dataDir, 'labels');
   const viewer = { preHandler: requireRole('viewer') };
   const editor = { preHandler: requireRole('editor') };
   const admin = { preHandler: requireRole('admin') };
@@ -83,10 +86,21 @@ export async function crudRoutes(app: FastifyInstance) {
     if (!beer) throw new NotFoundError('beer');
     return beer;
   });
-  app.patch('/api/beers/:id', editor, async (req) =>
-    updateBeer(db, Number((req.params as any).id), beerSchema.partial().parse(req.body)));
+  app.patch('/api/beers/:id', editor, async (req) => {
+    const id = Number((req.params as any).id);
+    const before = getBeer(db, id);
+    const updated = updateBeer(db, id, beerSchema.partial().parse(req.body));
+    // If the label image changed, reclaim the old file (no other beer references it).
+    if (before && before.labelImage !== updated.labelImage) {
+      deleteLabelIfUnreferenced(db, labelsDir, before.labelImage);
+    }
+    return updated;
+  });
   app.delete('/api/beers/:id', editor, async (req, reply) => {
-    deleteBeer(db, Number((req.params as any).id));
+    const id = Number((req.params as any).id);
+    const before = getBeer(db, id);
+    deleteBeer(db, id);
+    if (before) deleteLabelIfUnreferenced(db, labelsDir, before.labelImage);
     return reply.code(204).send();
   });
 

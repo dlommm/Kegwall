@@ -21,6 +21,8 @@ import { pruneTelemetry } from './db/telemetry.js';
 import { pruneHostStats } from './db/hostStatsRepo.js';
 import { pruneUdpActivity } from './db/udpActivity.js';
 import { pruneLogs } from './db/logs.js';
+import { sweepOrphanLabels } from './core/labelStore.js';
+import { join } from 'node:path';
 
 export interface AppContext {
   db: Database.Database;
@@ -76,6 +78,11 @@ function pruneStaleRows(db: Database.Database): void {
 export function createContext(dataDir: string, version = '0.0.0-dev'): AppContext {
   const db = openDb(dataDir);
   pruneStaleRows(db);
+  // Reclaim label files no beer references anymore (replaced images, deleted beers). Rides
+  // the same every-boot maintenance path as pruneStaleRows; a no-op on a fresh install or a
+  // test temp dir with no labels/ directory. See core/labelStore.ts.
+  const sweptLabels = sweepOrphanLabels(db, join(dataDir, 'labels'));
+  if (sweptLabels > 0) console.log(`[startup] swept ${sweptLabels} orphaned label file(s)`);
   const bus = new EventBus();
   const settings = new SettingsStore(db);
   const tabletArm = new TabletArmRegistry();
