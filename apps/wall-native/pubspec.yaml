@@ -1,0 +1,24 @@
+name: kegwall_wall
+description: Native Kegwall tap-wall client (flutter-pi on DRM/KMS) — the TV wall, no browser.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # REST calls to the public wall/menu/leaderboard endpoints.
+  http: ^1.2.0
+  # Live tap snapshots over /ws (display-token in the query string).
+  web_socket_channel: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

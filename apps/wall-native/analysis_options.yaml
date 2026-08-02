@@ -1,0 +1,8 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # The wall app is full-screen and dependency-light; a couple of the stricter style lints
+    # get in the way without adding safety here.
+    prefer_const_constructors: true
+    avoid_print: false

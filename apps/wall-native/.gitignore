@@ -1,0 +1,7 @@
+# Flutter/Dart build output + tooling — never committed.
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock

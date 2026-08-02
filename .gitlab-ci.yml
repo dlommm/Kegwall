@@ -163,3 +163,34 @@ semantic-release:
       else
         echo "No release cut this run — no tag pipeline to trigger"
       fi
+
+# Native wall client (apps/wall-native — flutter-pi kiosk, sub-project B). Compile-verifies the
+# Flutter/Dart: analyze + unit tests + a bundle build. allow_failure while the toolchain is
+# validated (like android-apk), so it never blocks a release. Per-arch flutter-pi AOT packaging
+# (arm64 + amd64) lands in the deploy milestone. Runs on demand from a branch, and on release tags.
+wall-native:
+  stage: test
+  image: ghcr.io/cirruslabs/flutter:stable
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+  cache:
+    key: flutter-wall-native
+    paths:
+      - apps/wall-native/.dart_tool/
+  script:
+    - cd apps/wall-native
+    - flutter --version
+    - flutter pub get
+    - flutter analyze
+    - flutter test
+    - flutter build bundle
+  artifacts:
+    name: kegwall-wall-bundle
+    paths:
+      - apps/wall-native/build/flutter_assets/
+    expire_in: 1 week
