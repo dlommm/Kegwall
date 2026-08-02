@@ -6,6 +6,8 @@ import {
 } from '../../lib/adminApi';
 import { groupMonitors } from '../../lib/monitorDevices';
 import { ThemeProvider } from '../../themes/ThemeProvider';
+import { HaSetupWizard } from '../../components/HaSetupWizard';
+import type { Settings } from '../../../server/db/settings.js';
 
 /**
  * `/admin/welcome`: the guided first-run wizard, entered right after SetupPage creates
@@ -22,9 +24,9 @@ import { ThemeProvider } from '../../themes/ThemeProvider';
  * internal state machine (SwapWizard precedent) — no sub-routes, no deep links.
  */
 
-type WizardStep = 'site' | 'kegtron' | 'wall' | 'updates' | 'done';
+type WizardStep = 'site' | 'kegtron' | 'home-assistant' | 'wall' | 'updates' | 'done';
 
-const STEP_ORDER: WizardStep[] = ['site', 'kegtron', 'wall', 'updates', 'done'];
+const STEP_ORDER: WizardStep[] = ['site', 'kegtron', 'home-assistant', 'wall', 'updates', 'done'];
 
 /** The site pages worth advertising on the final screen, composed client-side from
  * GET /api/system/urls (the endpoint stays dumb — addresses + port only). */
@@ -49,12 +51,14 @@ export function WelcomePage() {
   const [assignedCount, setAssignedCount] = useState<number | null>(null);
   const [updateMode, setUpdateMode] = useState<'off' | 'watchtower' | 'native'>('off');
   const [urls, setUrls] = useState<SystemUrls | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([getSettings(), getSystemUrls()]).then(([settingsRes, urlsRes]) => {
       if (cancelled) return;
       if (settingsRes.ok) {
+        setSettings(settingsRes.data);
         setSiteName(settingsRes.data.siteName);
         const savedMode = settingsRes.data.updates?.mode;
         if (savedMode) setUpdateMode(savedMode);
@@ -212,6 +216,19 @@ export function WelcomePage() {
                 </button>
               </div>
             </form>
+          )}
+
+          {step === 'home-assistant' && (
+            <div>
+              <h1 className="admin-auth__title font-display">Connect Home Assistant</h1>
+              <p className="admin-auth__intro">
+                Optional — publish your taps to Home Assistant over MQTT. Skip if you don&rsquo;t use it;
+                you can always set it up later from Settings.
+              </p>
+              {settings
+                ? <HaSetupWizard settings={settings} onSaved={goNext} onCancel={goNext} />
+                : <p className="admin-page-quiet">Loading…</p>}
+            </div>
           )}
 
           {step === 'wall' && (

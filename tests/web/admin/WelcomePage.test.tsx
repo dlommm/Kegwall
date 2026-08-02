@@ -74,6 +74,9 @@ async function walkToWallStep() {
   // kegtron step — skip
   fireEvent.click(screen.getByTestId('welcome-next'));
   await flush();
+  // home-assistant step — skip (optional)
+  fireEvent.click(screen.getByTestId('ha-wizard-skip'));
+  await flush();
 }
 
 describe('WelcomePage', () => {
