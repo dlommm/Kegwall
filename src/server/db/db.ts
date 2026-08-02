@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { runMigrations } from './migrate.js';
+import { seedGames } from './games.js';
 
 /**
  * Applies a staged restore (Task 8's `POST /api/admin/restore`, which writes
@@ -52,5 +53,8 @@ export function openDb(dataDir: string): Database.Database {
   db.pragma('busy_timeout = 5000');
   db.pragma('foreign_keys = ON');
   runMigrations(db);
+  // Idempotent content seed (upsert by name) — keeps the 100-game catalog current on every
+  // boot without touching any live session. Cheap: one transaction, no-op after the first run.
+  seedGames(db);
   return db;
 }
