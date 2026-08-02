@@ -44,7 +44,7 @@ describe('startFacePipeline', () => {
 
   it('resolves null when the camera is unavailable', async () => {
     const stop = await startFacePipeline({
-      getEnrolled: () => enrolled, threshold: 0.6, onCandidate: () => {},
+      matchEmbedding: async (e) => bestMatch(e, enrolled, 0.6), onCandidate: () => {},
       getUserMedia: () => Promise.reject(new Error('denied')),
       loadHumanFn: async () => ({}),
     });
@@ -57,7 +57,7 @@ describe('startFacePipeline', () => {
     const onCandidate = vi.fn();
     const computeEmbeddingFn = vi.fn().mockResolvedValue([0.99, 0.01, 0]);
     await startFacePipeline({
-      getEnrolled: () => enrolled, threshold: 0.6, onCandidate, intervalMs: 100,
+      matchEmbedding: async (e) => bestMatch(e, enrolled, 0.6), onCandidate, intervalMs: 100,
       getUserMedia: () => Promise.resolve(stream),
       loadHumanFn: async () => ({}), computeEmbeddingFn,
     });
@@ -74,7 +74,7 @@ describe('startFacePipeline', () => {
     const { stream, track } = fakeStream();
     const computeEmbeddingFn = vi.fn().mockResolvedValue(null); // never a face
     await startFacePipeline({
-      getEnrolled: () => enrolled, threshold: 0.6, onCandidate: () => {},
+      matchEmbedding: async (e) => bestMatch(e, enrolled, 0.6), onCandidate: () => {},
       intervalMs: 100, noFaceStopMs: 1_000,
       getUserMedia: () => Promise.resolve(stream),
       loadHumanFn: async () => ({}), computeEmbeddingFn,
@@ -91,7 +91,7 @@ describe('startFacePipeline', () => {
     const loadHumanFn = () => new Promise((resolve) => { resolveHuman = resolve; });
     const onCandidate = vi.fn();
     const pipelinePromise = startFacePipeline({
-      getEnrolled: () => enrolled, threshold: 0.6, onCandidate,
+      matchEmbedding: async (e) => bestMatch(e, enrolled, 0.6), onCandidate,
       getUserMedia: () => Promise.resolve(stream),
       loadHumanFn, signal: controller.signal,
     });
@@ -115,7 +115,7 @@ describe('startFacePipeline', () => {
     controller.abort();
     const getUserMedia = vi.fn();
     const stop = await startFacePipeline({
-      getEnrolled: () => enrolled, threshold: 0.6, onCandidate: () => {},
+      matchEmbedding: async (e) => bestMatch(e, enrolled, 0.6), onCandidate: () => {},
       getUserMedia, loadHumanFn: async () => ({}), signal: controller.signal,
     });
     expect(stop).toBeNull();

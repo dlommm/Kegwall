@@ -89,8 +89,11 @@ export async function computeEmbedding(
 }
 
 export interface FacePipelineOptions {
-  getEnrolled: () => EnrolledFace[];
-  threshold: number;
+  /** Matches a probe embedding — SERVER-SIDE now: the caller posts the embedding to
+   * `POST /api/public/faces/match` and resolves the returned `{drinkerId, score}` (or null).
+   * The enrolled corpus never reaches the browser, so a leaked client can't exfiltrate the
+   * biometric templates. */
+  matchEmbedding: (embedding: number[]) => Promise<MatchCandidate | null>;
   onCandidate: (c: MatchCandidate) => void;
   /** Ms between detect passes. */
   intervalMs?: number;
@@ -138,8 +141,7 @@ export async function startFacePipeline(
   opts: FacePipelineOptions,
 ): Promise<(() => void) | null> {
   const {
-    getEnrolled,
-    threshold,
+    matchEmbedding,
     onCandidate,
     intervalMs = 750,
     noFaceStopMs = 30_000,
@@ -215,7 +217,7 @@ export async function startFacePipeline(
 
   const tick = () => {
     if (stopped || document.visibilityState === 'hidden') return;
-    void computeEmbeddingFn(human, video).then((embedding) => {
+    void computeEmbeddingFn(human, video).then(async (embedding) => {
       if (stopped) return; // disposed while this detect pass was in flight
       if (!embedding) {
         sinceLastFaceMs += intervalMs;
@@ -223,7 +225,8 @@ export async function startFacePipeline(
         return;
       }
       sinceLastFaceMs = 0;
-      const candidate = bestMatch(embedding, getEnrolled(), threshold);
+      const candidate = await matchEmbedding(embedding);
+      if (stopped) return; // disposed while the server match was in flight
       if (candidate) {
         onCandidate(candidate); // at most once — dispose() below stops further ticks
         dispose();

@@ -19,7 +19,7 @@ import {
 } from '../db/users.js';
 import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
-import { countFaceEmbeddingsByDrinker } from '../db/faceEmbeddings.js';
+import { countFaceEmbeddingsByDrinker, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import { restartSourcesIfLive } from '../ingest/bootstrap.js';
 import { setPourDrinker } from '../db/pours.js';
@@ -479,6 +479,16 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // countFaceEmbeddingsByDrinker, db/faceEmbeddings.ts), never a `{count: 0}` row.
   app.get('/api/faces/counts', admin, async () =>
     Array.from(countFaceEmbeddingsByDrinker(db), ([drinkerId, count]) => ({ drinkerId, count })));
+
+  // Admin-initiated face-data deletion (the Users page "Delete face data" action). The
+  // public self-service delete is bound to the armed kiosk pourer; an admin isn't at the
+  // kiosk, so they delete anyone's enrollment here, gated by the admin role.
+  app.delete('/api/faces/drinker/:id', admin, async (req) => {
+    const drinkerId = parseId(req.params);
+    const deleted = deleteFaceEmbeddingsForDrinker(db, drinkerId);
+    if (deleted > 0) app.ctx.bus.emit('state_changed', { scope: 'faces', ts: new Date().toISOString() });
+    return { deleted };
+  });
 
   // --- settings ---
   app.get('/api/settings', admin, async () => app.ctx.settings.masked());

@@ -15,6 +15,7 @@ import {
 } from '../lib/faceRecognition';
 import {
   armTablet, createPourer, deleteFaces, disarmTablet, enrollFace, getFaces, getPourers,
+  matchFace, isFaceEnrolled,
   getSession, startSession, joinSession, endSession, type FaceDirectory, type PublicPourer,
   type SessionSnapshotResponse,
 } from '../lib/api';
@@ -330,7 +331,7 @@ export function TabletPage() {
   // "directory enabled" guard before GET /api/public/faces actually answers.
   // `facesRef`/`pourersRef` mirror `screenRef` above -- read from event-handler
   // closures (camera motion, pointer taps) that don't otherwise see a fresh render.
-  const [faces, setFaces] = useState<FaceDirectory>({ enabled: false, threshold: 0.6, faces: [] });
+  const [faces, setFaces] = useState<FaceDirectory>({ enabled: false });
   const facesRef = useRef<FaceDirectory>(faces);
   facesRef.current = faces;
   const pourersRef = useRef<PublicPourer[]>(pourers);
@@ -438,7 +439,7 @@ export function TabletPage() {
   const maybeStartFacePipeline = useCallback(() => {
     if (facePipelineActiveRef.current) return;
     const directory = facesRef.current;
-    if (!directory.enabled || directory.faces.length === 0) return;
+    if (!directory.enabled) return;
     if (screenRef.current.kind !== 'grid') return;
 
     facePipelineActiveRef.current = true;
@@ -446,8 +447,9 @@ export function TabletPage() {
     facePipelineControllerRef.current = controller;
 
     startFacePipeline({
-      getEnrolled: () => facesRef.current.faces,
-      threshold: facesRef.current.threshold,
+      // Matching is SERVER-SIDE now — the probe embedding is posted to /api/public/faces/
+      // match and the corpus never reaches this browser. Returns null on no match / error.
+      matchEmbedding: (embedding) => matchFace(embedding).then((r) => (r.ok ? r.data.match : null)),
       onCandidate: handleFaceCandidate,
       signal: controller.signal,
     }).then((disposer) => {
@@ -524,7 +526,18 @@ export function TabletPage() {
   // closures, everything below runs from React state/effects that already see a fresh
   // render.
   const armedDrinkerId = screen.kind === 'armed' ? screen.pourer.id : null;
-  const isEnrolled = armedDrinkerId !== null && faces.faces.some((f) => f.drinkerId === armedDrinkerId);
+  // Whether the armed drinker already has a face on file. Fetched as a boolean (the corpus
+  // never reaches the client); refetched when `faces` changes identity (a WS faces_changed
+  // after enroll/delete triggers loadFaces → setFaces with a fresh object).
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  useEffect(() => {
+    if (armedDrinkerId === null) { setIsEnrolled(false); return; }
+    let cancelled = false;
+    isFaceEnrolled(armedDrinkerId).then((r) => {
+      if (!cancelled && r.ok) setIsEnrolled(r.data.enrolled);
+    });
+    return () => { cancelled = true; };
+  }, [armedDrinkerId, faces]);
 
   /** Starts (and, for "try again", re-starts) the capture loop whenever `enrollState`
    * becomes 'capturing'. The cleanup below is what actually guarantees the

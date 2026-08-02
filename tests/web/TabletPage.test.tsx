@@ -10,7 +10,7 @@ import { TabletPage, POURER_COLORS } from '../../src/web/routes/TabletPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import {
   armTablet, createPourer, disarmTablet, deleteFaces, enrollFace, getFaces, getPourers,
-  postPresenceWake,
+  matchFace, isFaceEnrolled, postPresenceWake,
 } from '../../src/web/lib/api';
 import { startCameraMotion } from '../../src/web/lib/cameraMotion';
 import { computeEmbedding, loadHuman, startFacePipeline } from '../../src/web/lib/faceRecognition';
@@ -26,6 +26,8 @@ vi.mock('../../src/web/lib/api', async (importOriginal) => ({
   disarmTablet: vi.fn(),
   postPresenceWake: vi.fn(),
   getFaces: vi.fn(),
+  matchFace: vi.fn(),
+  isFaceEnrolled: vi.fn(),
   enrollFace: vi.fn(),
   deleteFaces: vi.fn(),
 }));
@@ -168,7 +170,9 @@ describe('TabletPage (design 3a)', () => {
     (startCameraMotion as Mock).mockResolvedValue(null);
     // Task 7: disabled-by-default so every pre-existing test above (none of which
     // knows about face sign-in) never trips the pipeline's directory-enabled guard.
-    (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
+    (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false } });
+    (matchFace as Mock).mockResolvedValue({ ok: true, data: { match: null } });
+    (isFaceEnrolled as Mock).mockResolvedValue({ ok: true, data: { enrolled: false } });
     (startFacePipeline as Mock).mockResolvedValue(null);
     // Task 8: a default camera stub so the armed screen's enrollment panel (gated
     // behind `directory.enabled`, so untouched by every test above) never throws on a
@@ -474,11 +478,7 @@ describe('TabletPage (design 3a)', () => {
   describe('face sign-in pipeline (Task 7)', () => {
     const ENROLLED_DIRECTORY = {
       ok: true,
-      data: {
-        enabled: true,
-        threshold: 0.6,
-        faces: [{ id: 1, drinkerId: 1, embedding: [1, 0, 0] }],
-      },
+      data: { enabled: true },
     } as const;
 
     it('starts the face pipeline on motion when enabled, and arms on confirm', async () => {
@@ -510,8 +510,8 @@ describe('TabletPage (design 3a)', () => {
       expect(armTablet).not.toHaveBeenCalled();
     });
 
-    it('never starts the pipeline when the directory is disabled or empty', async () => {
-      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false, threshold: 0.6, faces: [] } });
+    it('never starts the pipeline when face sign-in is disabled', async () => {
+      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: false } });
       mockWallData({ wall: cameraWall });
       renderTablet();
       await flush();
@@ -750,14 +750,9 @@ describe('TabletPage (design 3a)', () => {
     });
 
     it('already-enrolled drinker sees delete instead of add, and delete calls the api', async () => {
-      (getFaces as Mock).mockResolvedValue({
-        ok: true,
-        data: {
-          enabled: true,
-          threshold: 0.6,
-          faces: [{ id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] }],
-        },
-      });
+      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true } });
+      // The armed drinker already has a face on file (server boolean, no vectors).
+      (isFaceEnrolled as Mock).mockResolvedValue({ ok: true, data: { enrolled: true } });
       (deleteFaces as Mock).mockResolvedValue({ ok: true, data: { deleted: 1 } });
       await armViaGrid();
       expect(screen.queryByTestId('face-enroll-start')).toBeNull();

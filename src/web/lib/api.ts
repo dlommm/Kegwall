@@ -294,18 +294,31 @@ export function postPresenceWake(wall: string | undefined, source: 'touch' | 'ca
 
 // --- Task 7 (face sign-in, Plan B): tablet face directory + enrollment ------
 
-/** One enrolled face row as the server returns it — see src/server/routes/public.ts's
- * GET/POST /api/public/faces. `embedding` is the on-device descriptor (Task 6's
- * `computeEmbedding`); image bytes never reach the server. */
+/** One enrolled face row as the server returns it on enrollment. `embedding` is the
+ * on-device descriptor (Task 6's `computeEmbedding`); image bytes never reach the server —
+ * and the corpus is never sent back to any client (matching is server-side). */
 export interface EnrolledFaceDto { id: number; drinkerId: number; embedding: number[] }
 
-/** GET /api/public/faces's shape: `faces` is always `[]` while `enabled` is false (one
- * call tells a caller everything it needs to know about whether/how to run the
- * client-side matching pipeline). */
-export interface FaceDirectory { enabled: boolean; threshold: number; faces: EnrolledFaceDto[] }
+/** GET /api/public/faces — only whether the feature is enabled. The enrolled vectors NEVER
+ * leave the server (irrevocable biometric data); the tablet posts probes to `matchFace`. */
+export interface FaceDirectory { enabled: boolean }
 
 export function getFaces(): Promise<ApiResult<FaceDirectory>> {
   return request<FaceDirectory>('/api/public/faces');
+}
+
+/** Server-side match: post a probe embedding, get back the matched drinker (or null). */
+export function matchFace(embedding: number[]): Promise<ApiResult<{ match: { drinkerId: number; score: number } | null }>> {
+  return request('/api/public/faces/match', {
+    method: 'POST',
+    body: JSON.stringify({ embedding }),
+  });
+}
+
+/** Whether a specific drinker already has a face enrolled (a boolean only — no vectors) —
+ * feeds the enroll screen's "you've added your face" state. */
+export function isFaceEnrolled(drinkerId: number): Promise<ApiResult<{ enrolled: boolean }>> {
+  return request(`/api/public/faces/enrolled/${drinkerId}`);
 }
 
 export function enrollFace(drinkerId: number, embedding: number[]): Promise<ApiResult<EnrolledFaceDto>> {
@@ -315,6 +328,12 @@ export function enrollFace(drinkerId: number, embedding: number[]): Promise<ApiR
   });
 }
 
+/** Self-service delete at the kiosk (bound to the armed pourer, server-side). */
 export function deleteFaces(drinkerId: number): Promise<ApiResult<{ deleted: number }>> {
   return request<{ deleted: number }>(`/api/public/faces/drinker/${drinkerId}`, { method: 'DELETE' });
+}
+
+/** Admin-initiated face-data deletion (Users page) — admin-gated route, not the kiosk one. */
+export function deleteFacesAdmin(drinkerId: number): Promise<ApiResult<{ deleted: number }>> {
+  return request<{ deleted: number }>(`/api/faces/drinker/${drinkerId}`, { method: 'DELETE' });
 }

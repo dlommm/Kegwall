@@ -9,7 +9,7 @@ import { UsersPage } from '../../../src/web/routes/admin/UsersPage';
 import {
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser, getFaceCounts,
 } from '../../../src/web/lib/adminApi';
-import { deleteFaces } from '../../../src/web/lib/api';
+import { deleteFacesAdmin } from '../../../src/web/lib/api';
 import type { User } from '../../../src/server/db/users';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
 // Task 9 (Plan B): "Delete face data" reuses the public DELETE (works while face
 // sign-in is disabled — see routes/public.ts) rather than an admin-only route.
 vi.mock('../../../src/web/lib/api', () => ({
-  deleteFaces: vi.fn(),
+  deleteFacesAdmin: vi.fn(),
 }));
 
 async function flush() {
@@ -266,10 +266,10 @@ describe('UsersPage', () => {
       expect(within(row!).queryByTestId('face-data-delete')).not.toBeInTheDocument();
     });
 
-    it('clicking "Delete face data" calls deleteFaces(drinkerId) and refetches counts', async () => {
+    it('clicking "Delete face data" calls deleteFacesAdmin(drinkerId) and refetches counts', async () => {
       (listUsers as Mock).mockResolvedValue({ ok: true, data: [makeDrinker()] });
       (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [{ drinkerId: 2, count: 3 }] });
-      (deleteFaces as Mock).mockResolvedValue({ ok: true, data: { deleted: 3 } });
+      (deleteFacesAdmin as Mock).mockResolvedValue({ ok: true, data: { deleted: 3 } });
       render(<UsersPage />);
       const [row] = await screen.findAllByTestId('users-row');
       expect(getFaceCounts).toHaveBeenCalledTimes(1);
@@ -277,14 +277,14 @@ describe('UsersPage', () => {
       fireEvent.click(within(row!).getByTestId('face-data-delete'));
       await flush();
 
-      expect(deleteFaces).toHaveBeenCalledWith(2);
+      expect(deleteFacesAdmin).toHaveBeenCalledWith(2);
       expect(getFaceCounts).toHaveBeenCalledTimes(2); // initial load + refresh after delete
     });
 
     it('a failed delete surfaces an error without losing the count, and still refetches (server truth)', async () => {
       (listUsers as Mock).mockResolvedValue({ ok: true, data: [makeDrinker()] });
       (getFaceCounts as Mock).mockResolvedValue({ ok: true, data: [{ drinkerId: 2, count: 3 }] });
-      (deleteFaces as Mock).mockResolvedValue({ ok: false, status: 500, message: 'boom' });
+      (deleteFacesAdmin as Mock).mockResolvedValue({ ok: false, status: 500, message: 'boom' });
       render(<UsersPage />);
       const [row] = await screen.findAllByTestId('users-row');
 

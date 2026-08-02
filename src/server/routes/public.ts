@@ -10,7 +10,10 @@ import { listTaps } from '../db/taps.js';
 import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
 import { toPublicTapState } from '../core/state.js';
+import { bestMatch } from '../core/faceMatch.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
+
+const faceEmbeddingSchema = z.array(z.number().finite()).min(64).max(2048);
 
 /** Design 3b: pours are claimable for 10 minutes after they happen. */
 const CLAIM_WINDOW_MINUTES = 10;
@@ -114,25 +117,57 @@ export async function publicRoutes(app: FastifyInstance) {
       : { armed: false };
   });
 
-  // Face sign-in (Plan B): embeddings directory + enrollment. Same trusted-LAN
-  // exposure class as the pourer grid above — embeddings are opt-in, deletable,
-  // and image bytes never reach the server (descriptors are computed on-device).
+  // Face sign-in (Plan B). CRITICAL: the enrolled embedding vectors are irrevocable
+  // biometric data and NEVER leave the server. This endpoint returns only whether the
+  // feature is enabled (the tablet uses it to decide whether to start the camera). Matching
+  // happens server-side via POST /faces/match below.
   app.get('/api/public/faces', async () => {
     const cfg = app.ctx.settings.get('faceSignIn');
-    return {
-      enabled: cfg.enabled,
-      threshold: cfg.threshold,
-      faces: cfg.enabled ? listFaceEmbeddings(db) : [],
-    };
+    return { enabled: cfg.enabled };
   });
 
-  app.post('/api/public/faces', async (req, reply) => {
+  // Whether a specific drinker already has a face on file (a boolean only — never a vector).
+  // Feeds the kiosk enroll screen's "you've added your face" state.
+  app.get('/api/public/faces/enrolled/:drinkerId', async (req) => {
+    const drinkerId = z.coerce.number().int().positive().parse((req.params as any).drinkerId);
+    const row = db.prepare('SELECT 1 FROM face_embeddings WHERE drinker_id = ? LIMIT 1').get(drinkerId);
+    return { enrolled: !!row };
+  });
+
+  // Server-side match: the tablet computes a probe embedding on-device and posts it here;
+  // the server compares it against the corpus and returns only { drinkerId, score } — the
+  // corpus is never serialized to any client.
+  app.post('/api/public/faces/match', {
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    const cfg = app.ctx.settings.get('faceSignIn');
+    if (!cfg.enabled) return reply.code(403).send({ error: 'face sign-in is disabled' });
+    const { embedding } = z.object({ embedding: faceEmbeddingSchema }).parse(req.body);
+    const enrolled = listFaceEmbeddings(db)
+      .map((r) => ({ drinkerId: r.drinkerId, embedding: r.embedding }));
+    return { match: bestMatch(embedding, enrolled, cfg.threshold) };
+  });
+
+  // Enrollment is bound to the currently-ARMED pourer: you can only add a face for whoever
+  // is armed at the kiosk right now (the "Add my face" button lives on the armed screen).
+  // That closes both the impersonation vector (enrolling your face as someone else) and the
+  // eviction DoS (5 junk POSTs destroying a victim's real samples) — neither is reachable
+  // without first arming as that exact drinker at the physical tablet.
+  app.post('/api/public/faces', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     const cfg = app.ctx.settings.get('faceSignIn');
     if (!cfg.enabled) return reply.code(403).send({ error: 'face sign-in is disabled' });
     const body = z.object({
       drinkerId: z.number().int().positive(),
-      embedding: z.array(z.number().finite()).min(64).max(2048),
+      embedding: faceEmbeddingSchema,
     }).parse(req.body);
+    const armed = app.ctx.tabletArm.current();
+    if (!armed || armed.drinkerId !== body.drinkerId) {
+      return reply.code(403).send({
+        error: 'forbidden', message: 'Arm this pourer on the tablet before adding their face',
+      });
+    }
     const drinker = getUser(db, body.drinkerId);
     if (!drinker || !drinker.isDrinker) return reply.code(404).send({ error: 'no such drinker' });
     const row = insertFaceEmbedding(db, body.drinkerId, body.embedding);
@@ -141,8 +176,20 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.code(201).send(row);
   });
 
-  app.delete('/api/public/faces/drinker/:drinkerId', async (req) => {
+  // Self-service "remove my face" at the kiosk — same armed-pourer binding + enabled gate as
+  // enrollment (an admin deletes anyone's data via the admin DELETE /api/faces/drinker/:id).
+  app.delete('/api/public/faces/drinker/:drinkerId', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    const cfg = app.ctx.settings.get('faceSignIn');
+    if (!cfg.enabled) return reply.code(403).send({ error: 'face sign-in is disabled' });
     const drinkerId = z.coerce.number().int().positive().parse((req.params as any).drinkerId);
+    const armed = app.ctx.tabletArm.current();
+    if (!armed || armed.drinkerId !== drinkerId) {
+      return reply.code(403).send({
+        error: 'forbidden', message: 'Arm this pourer on the tablet before removing their face',
+      });
+    }
     const deleted = deleteFaceEmbeddingsForDrinker(db, drinkerId);
     if (deleted > 0) app.ctx.bus.emit('state_changed', { scope: 'faces', ts: new Date().toISOString() });
     return { deleted };

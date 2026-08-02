@@ -4,10 +4,10 @@ import {
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser, getFaceCounts,
 } from '../../lib/adminApi';
 // Task 9 (Plan B): "Delete face data" reuses the public DELETE (works while face sign-in
-// is disabled — see routes/public.ts's doc comment on the route) rather than a new
-// admin-only route, same "public route, admin UI caller" precedent already used for
-// deleteFaces on the tablet's own armed-screen removal action (TabletPage.tsx).
-import { deleteFaces } from '../../lib/api';
+// Admin-initiated face-data deletion goes through the admin-gated DELETE /api/faces/
+// drinker/:id — the public self-service delete is bound to the currently-armed kiosk
+// pourer, which an admin at their desk isn't.
+import { deleteFacesAdmin } from '../../lib/api';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 
@@ -395,7 +395,7 @@ export function UsersPage() {
   async function handleDeleteFaces(drinkerId: number) {
     setDeletingFacesId(drinkerId);
     setFaceDeleteError(null);
-    const result = await deleteFaces(drinkerId);
+    const result = await deleteFacesAdmin(drinkerId);
     setDeletingFacesId(null);
     if (!result.ok) {
       // deleteFaces has no documented specific-status case (unlike deleteUser's 409
