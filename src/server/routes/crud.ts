@@ -13,6 +13,10 @@ import {
 } from '../db/monitors.js';
 import { listTelemetryForDevice } from '../db/telemetry.js';
 import { sensorSummaries } from '../db/sensors.js';
+import {
+  listSuppliers, getSupplier, createSupplier, updateSupplier, deleteSupplier,
+  supplierPriceBook, supplierStats,
+} from '../db/suppliers.js';
 import { listWallDevices, setWallDevices } from '../db/wallDevices.js';
 import { listPours } from '../db/pours.js';
 import {
@@ -303,6 +307,40 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // probe + Govee), with its current reading and trailing-7-day range, for the dashboard's
   // per-sensor cards. Viewer role (read-only). No owner-cost or credential data involved.
   app.get('/api/sensors', viewer, async () => sensorSummaries(db));
+
+  // Suppliers (redesign 4l). The supplier LIST + contact data is editor-role (the swap wizard's
+  // supplier dropdown needs it). The price book + YTD spend expose OWNER COST, so those are
+  // admin-only — the hard-requirement privacy boundary. Static `/stats` is declared before the
+  // `/:id/*` param routes so it can't be shadowed.
+  const supplierSchema = z.object({
+    name: z.string().min(1).max(120),
+    contactName: z.string().max(120).nullish(),
+    phone: z.string().max(60).nullish(),
+    email: z.string().max(200).nullish(),
+    address: z.string().max(400).nullish(),
+    hours: z.string().max(200).nullish(),
+    deliveryNotes: z.string().max(1000).nullish(),
+    notes: z.string().max(2000).nullish(),
+  });
+  app.get('/api/suppliers', editor, async () => listSuppliers(db));
+  app.get('/api/suppliers/stats', admin, async () => supplierStats(db));
+  app.get('/api/suppliers/:id/pricebook', admin, async (req) => {
+    const id = parseId(req.params);
+    if (!getSupplier(db, id)) throw new NotFoundError('supplier');
+    return supplierPriceBook(db, id);
+  });
+  app.post('/api/suppliers', editor, async (req, reply) => {
+    const supplier = createSupplier(db, supplierSchema.parse(req.body));
+    reply.code(201);
+    return supplier;
+  });
+  app.patch('/api/suppliers/:id', editor, async (req) => (
+    updateSupplier(db, parseId(req.params), supplierSchema.parse(req.body))
+  ));
+  app.delete('/api/suppliers/:id', admin, async (req, reply) => {
+    deleteSupplier(db, parseId(req.params));
+    reply.code(204);
+  });
 
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);

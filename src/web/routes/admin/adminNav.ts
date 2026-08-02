@@ -19,6 +19,10 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { label: 'Dashboard', path: '/admin' },
   { label: 'Beers', path: '/admin/beers' },
   { label: 'Taps & kegs', path: '/admin/taps' },
+  // Suppliers (redesign 4l): admin-only because the page surfaces the derived price book
+  // and YTD spend, both OWNER COST — the editor-role supplier LIST endpoint still backs the
+  // swap wizard's supplier dropdown for non-admins.
+  { label: 'Suppliers', path: '/admin/suppliers', adminOnly: true },
   { label: 'Monitors', path: '/admin/monitors' },
   { label: 'Walls', path: '/admin/walls' },
   { label: 'Displays', path: '/admin/displays' },

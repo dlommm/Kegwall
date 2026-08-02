@@ -2,20 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { ADMIN_NAV_ITEMS, visibleNavItems } from '../../../src/web/routes/admin/adminNav';
 
 describe('admin nav role matrix', () => {
-  it('defines the Pour Wall overhaul sidebar order (design 5a) plus admin-only Users/Displays & Presence/Settings', () => {
+  it('defines the Pour Wall overhaul sidebar order (design 5a) plus admin-only Suppliers/Displays & Presence/Users/Settings', () => {
     expect(ADMIN_NAV_ITEMS.map((i) => i.label)).toEqual([
-      'Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Displays', 'Displays & Presence', 'Automations', 'Pourers', 'Analytics', 'Logs', 'Users', 'Settings',
+      'Dashboard', 'Beers', 'Taps & kegs', 'Suppliers', 'Monitors', 'Walls', 'Displays', 'Displays & Presence', 'Automations', 'Pourers', 'Analytics', 'Logs', 'Users', 'Settings',
     ]);
   });
 
-  it('marks only Displays & Presence, Users, and Settings as admin-only', () => {
+  it('marks only Suppliers, Displays & Presence, Users, and Settings as admin-only', () => {
     const adminOnlyLabels = ADMIN_NAV_ITEMS.filter((i) => i.adminOnly).map((i) => i.label);
-    expect(adminOnlyLabels).toEqual(['Displays & Presence', 'Users', 'Settings']);
+    expect(adminOnlyLabels).toEqual(['Suppliers', 'Displays & Presence', 'Users', 'Settings']);
   });
 
   it('shows every item to an admin', () => {
     expect(visibleNavItems('admin').map((i) => i.label)).toEqual([
-      'Dashboard', 'Beers', 'Taps & kegs', 'Monitors', 'Walls', 'Displays', 'Displays & Presence', 'Automations', 'Pourers', 'Analytics', 'Logs', 'Users', 'Settings',
+      'Dashboard', 'Beers', 'Taps & kegs', 'Suppliers', 'Monitors', 'Walls', 'Displays', 'Displays & Presence', 'Automations', 'Pourers', 'Analytics', 'Logs', 'Users', 'Settings',
     ]);
   });
 

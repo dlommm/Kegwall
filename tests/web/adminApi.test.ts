@@ -6,6 +6,7 @@ import {
   needsSetup, login, logout, getMe, setup,
   listBeers, createBeer, updateBeer, deleteBeer,
   lookupBreweries, uploadLabel, getLookupConfig,
+  listSuppliers, getSupplierStats, getSupplierPriceBook, createSupplier, deleteSupplier,
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
@@ -239,6 +240,30 @@ describe('admin api client', () => {
     mockFetchOnce(200, { catalogBeerConfigured: false, autoImportBeers: true });
     await getLookupConfig();
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/lookup/config', expect.any(Object));
+  });
+
+  it('listSuppliers GETs /api/suppliers', async () => {
+    mockFetchOnce(200, []);
+    await listSuppliers();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/suppliers', expect.any(Object));
+  });
+
+  it('getSupplierStats and getSupplierPriceBook hit their endpoints', async () => {
+    mockFetchOnce(200, { supplierCount: 0, kegsPurchased: 0, ytdSpendCents: 0 });
+    await getSupplierStats();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/suppliers/stats', expect.any(Object));
+    mockFetchOnce(200, []);
+    await getSupplierPriceBook(5);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/suppliers/5/pricebook', expect.any(Object));
+  });
+
+  it('createSupplier POSTs and deleteSupplier DELETEs', async () => {
+    mockFetchOnce(201, { id: 1, name: 'Joes' });
+    await createSupplier({ name: 'Joes' });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/suppliers', expect.objectContaining({ method: 'POST' }));
+    mockFetchOnce(204, null);
+    await deleteSupplier(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/suppliers/1', expect.objectContaining({ method: 'DELETE' }));
   });
 
   it('uploadLabel sends a FormData body without forcing a JSON content-type header', async () => {

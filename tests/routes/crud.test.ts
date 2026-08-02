@@ -479,6 +479,52 @@ describe('crud routes', () => {
     expect(res.json().message).toContain('Govee');
   });
 
+  it('suppliers: editor CRUD; price book + stats are admin-only (owner cost)', async () => {
+    // Make an editor and a viewer.
+    for (const [u, role] of [['ed', 'editor'], ['vw', 'viewer']] as const) {
+      await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { username: u, displayName: u, password: 'password1', role },
+      });
+    }
+    const cookieFor = async (u: string) => {
+      const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: u, password: 'password1' } });
+      return { session: login.cookies.find((c: any) => c.name === 'session')!.value };
+    };
+    const editorCookies = await cookieFor('ed');
+    const viewerCookies = await cookieFor('vw');
+
+    // Editor creates a supplier.
+    const created = await app.inject({
+      method: 'POST', url: '/api/suppliers', cookies: editorCookies,
+      payload: { name: 'Joes Distributing', phone: '555-1234' },
+    });
+    expect(created.statusCode).toBe(201);
+    const supplierId = created.json().id;
+
+    // Viewer can't even list (needs editor).
+    expect((await app.inject({ method: 'GET', url: '/api/suppliers', cookies: viewerCookies })).statusCode).toBe(403);
+    // Editor can list.
+    const list = await app.inject({ method: 'GET', url: '/api/suppliers', cookies: editorCookies });
+    expect(list.json().map((s: any) => s.name)).toContain('Joes Distributing');
+
+    // Price book + stats expose owner cost → admin-only; an editor is 403.
+    expect((await app.inject({ method: 'GET', url: `/api/suppliers/${supplierId}/pricebook`, cookies: editorCookies })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/suppliers/stats', cookies: editorCookies })).statusCode).toBe(403);
+    const stats = await app.inject({ method: 'GET', url: '/api/suppliers/stats', cookies: adminCookies });
+    expect(stats.statusCode).toBe(200);
+    expect(stats.json().supplierCount).toBe(1);
+
+    // Editor updates; admin deletes.
+    const patched = await app.inject({
+      method: 'PATCH', url: `/api/suppliers/${supplierId}`, cookies: editorCookies,
+      payload: { name: 'Joes Bev', deliveryNotes: 'Tuesdays' },
+    });
+    expect(patched.json()).toMatchObject({ name: 'Joes Bev', deliveryNotes: 'Tuesdays' });
+    expect((await app.inject({ method: 'DELETE', url: `/api/suppliers/${supplierId}`, cookies: editorCookies })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'DELETE', url: `/api/suppliers/${supplierId}`, cookies: adminCookies })).statusCode).toBe(204);
+  });
+
   it('GET /api/sensors summarizes temp-reporting sensors for the dashboard cards', async () => {
     const kId = upsertMonitor(app.ctx.db, { type: 'kegtron_pro', identifier: 'probe', portIndex: 0 }).id;
     recordTelemetrySampled(app.ctx.db, kId, 3, null, '2026-07-31T00:00:00.000Z');
