@@ -351,7 +351,9 @@ function EditUserForm({ user, onSaved, onCancel }: {
  * removal action uses (works even while face sign-in is globally disabled — see
  * routes/public.ts's doc comment on the route).
  */
-export function UsersPage() {
+/** `embedded` (redesign 4h) hides this page's own header/h1 so it can sit under the merged
+ *  People page's shared header + tabs; the "Add user" control moves into the section. */
+export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [users, setUsers] = useState<User[]>([]);
   const [status, setStatus] = useState<ListStatus>('loading');
   const [formState, setFormState] = useState<FormState | null>(null);
@@ -438,7 +440,7 @@ export function UsersPage() {
   return (
     <section data-testid="admin-users-page">
       <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Users</h1>
+        {!embedded && <h1 className="admin-page-header__title font-display">Users</h1>}
         {!formState && (
           <button
             type="button"

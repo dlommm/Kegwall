@@ -20,7 +20,9 @@ function initials(name: string): string {
  * join/claim flow lives). Merge/promote/export land with the full 11c pass in
  * Phase 6.
  */
-export function PourersPage() {
+/** `embedded` (redesign 4h) hides the standalone header so this sits under the merged People
+ *  page's shared header + tabs. */
+export function PourersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { units } = useAdminContext();
   const [pourers, setPourers] = useState<PublicPourer[]>([]);
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
@@ -56,12 +58,14 @@ export function PourersPage() {
 
   return (
     <div data-testid="pourers-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Pourers</h1>
-        <p className="admin-page-quiet">
-          Passwordless pourers — they join from the kegerator tablet or the menu QR, no account needed.
-        </p>
-      </header>
+      {!embedded && (
+        <header className="admin-page-header">
+          <h1 className="admin-page-header__title font-display">Pourers</h1>
+          <p className="admin-page-quiet">
+            Passwordless pourers — they join from the kegerator tablet or the menu QR, no account needed.
+          </p>
+        </header>
+      )}
 
       {status === 'loading' && <p className="admin-page-quiet">Loading pourers…</p>}
       {status === 'error' && (

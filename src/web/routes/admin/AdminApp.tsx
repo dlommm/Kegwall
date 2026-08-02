@@ -8,6 +8,7 @@ import { BeersPage } from './BeersPage';
 import { TapsPage } from './TapsPage';
 import { SuppliersPage } from './SuppliersPage';
 import { GamesPage } from './GamesPage';
+import { PeoplePage } from './PeoplePage';
 import { MonitorsPage } from './MonitorsPage';
 import { WallsPage } from './WallsPage';
 import { UsersPage } from './UsersPage';
@@ -63,6 +64,7 @@ export default function AdminApp() {
         <Route path="automations" element={<AutomationsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="logs" element={<LogsPage />} />
+        <Route path="people" element={<PeoplePage />} />
         <Route path="pourers" element={<PourersPage />} />
         <Route path="displays" element={<DisplaysPage />} />
         <Route path="presence" element={<PresencePage />} />

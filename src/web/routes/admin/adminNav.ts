@@ -36,10 +36,11 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   // Drinking games library (redesign 5a) — browseable by any role; starting a game is
   // editor-gated inside the page.
   { label: 'Games', path: '/admin/games' },
-  { label: 'Pourers', path: '/admin/pourers' },
+  // People (redesign 4h) merges the old Pourers + Users pages into one nav entry. Visible to
+  // all — the Pourers tab is for everyone; the Accounts tab is admin-gated inside the page.
+  { label: 'People', path: '/admin/people' },
   { label: 'Analytics', path: '/admin/stats' },
   { label: 'Logs', path: '/admin/logs' },
-  { label: 'Users', path: '/admin/users', adminOnly: true },
   { label: 'Settings', path: '/admin/settings', adminOnly: true },
 ];
 
@@ -56,6 +57,9 @@ export function pageTitleFor(pathname: string): string {
     '/admin/pours': 'Pours',
     '/admin/notifications': 'Notifications',
     '/admin/doctor': 'Connection doctor',
+    // Merged into People (redesign 4h); routes kept for deep links, titles preserved.
+    '/admin/users': 'People',
+    '/admin/pourers': 'People',
   };
   for (const [path, title] of Object.entries(specials)) {
     if (pathname === path || pathname.startsWith(`${path}/`)) return title;
