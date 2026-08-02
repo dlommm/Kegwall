@@ -49,7 +49,17 @@ export const wallConfigSchema = z.object({
     // 'midnight-slate' is the overhaul's flagship theme; existing walls all carry an
     // explicit stored id, so changing the default only affects newly created walls.
     id: z.string().default('midnight-slate'),
-    overrides: z.record(z.string(), z.string()).optional(),
+    // Per-token CSS custom-property overrides. Keys must be real `--custom-property` names
+    // and values may not carry CSS structural chars (`;`, `{`, `}`, `<`) — these interpolate
+    // raw into a <style> body (ThemeProvider.tsx), so an unconstrained value could inject
+    // arbitrary rules onto the public wall. (Not XSS — <style> textContent isn't HTML-parsed
+    // — but a defacement/exfil vector nonetheless. Raw `customCss` stays intentionally open.)
+    overrides: z.record(
+      z.string().regex(/^--[A-Za-z0-9_-]+$/),
+      z.string().max(200).refine((v) => !/[;{}<]/.test(v) && !/[\u0000-\u001f\u007f]/.test(v), {
+        message: "CSS token value must not contain ; { } < or control characters",
+      }),
+    ).optional(),
   }).default({ id: 'midnight-slate' }),
   pages: z.array(z.object({ tapIds: z.array(z.number().int()) })).default([]),
   rotationSeconds: z.number().int().min(3).default(15),

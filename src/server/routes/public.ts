@@ -100,7 +100,9 @@ export async function publicRoutes(app: FastifyInstance) {
     return { armed: true, drinkerId: armed.drinkerId, expiresAt: new Date(armed.expiresAt).toISOString() };
   });
 
-  app.delete('/api/public/tablet/arm', async () => {
+  app.delete('/api/public/tablet/arm', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, async () => {
     app.ctx.tabletArm.disarm();
     return { armed: false };
   });

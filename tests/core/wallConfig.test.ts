@@ -125,3 +125,24 @@ describe('displayPower', () => {
     expect(c.displayPower.screensaverAfterMinutes).toBeNull();
   });
 });
+
+describe('wallConfigSchema theme overrides (CSS-injection hardening)', () => {
+  it('accepts real --custom-property tokens with plain values', () => {
+    const c = wallConfigSchema.parse({
+      theme: { id: 'x', overrides: { '--wall-bg': '#0b1020', '--accent': 'rgb(10 20 30)' } },
+    });
+    expect(c.theme.overrides).toEqual({ '--wall-bg': '#0b1020', '--accent': 'rgb(10 20 30)' });
+  });
+
+  it('rejects a non-custom-property key', () => {
+    expect(() => wallConfigSchema.parse({
+      theme: { id: 'x', overrides: { color: 'red' } },
+    })).toThrow();
+  });
+
+  it('rejects a value that tries to break out of the declaration (; { })', () => {
+    expect(() => wallConfigSchema.parse({
+      theme: { id: 'x', overrides: { '--wall-bg': 'red; } body { display: none } .x {' } },
+    })).toThrow();
+  });
+});
