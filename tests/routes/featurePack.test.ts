@@ -153,6 +153,21 @@ describe('line cleaning endpoints (design 6e)', () => {
     const detail = (await app.inject({ method: 'GET', url: `/api/taps/${tapId}/cleanings`, cookies })).json();
     expect(detail.cleanings[0].note).toBe('BLC');
   });
+
+  it('backdates a cleaning to a past date and rejects a future one (redesign 4a)', async () => {
+    const backdated = await app.inject({
+      method: 'POST', url: `/api/taps/${tapId}/cleanings`, cookies,
+      payload: { cleanedAt: '2026-06-01T12:00:00.000Z' },
+    });
+    expect(backdated.statusCode).toBe(201);
+    expect(backdated.json().ts).toBe('2026-06-01T12:00:00.000Z');
+
+    const future = new Date(Date.now() + 86400000).toISOString();
+    const rejected = await app.inject({
+      method: 'POST', url: `/api/taps/${tapId}/cleanings`, cookies, payload: { cleanedAt: future },
+    });
+    expect(rejected.statusCode).toBe(400);
+  });
 });
 
 describe('analytics endpoints (design 10a)', () => {

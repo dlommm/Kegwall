@@ -180,11 +180,18 @@ export async function featurePackRoutes(app: FastifyInstance) {
 
   app.post('/api/taps/:id/cleanings', editor, async (req, reply) => {
     const tapId = z.coerce.number().int().parse((req.params as any).id);
-    const body = z.object({ note: z.string().max(200).optional() }).parse(req.body ?? {});
+    // `cleanedAt` (redesign 4a — backdating) is an optional ISO timestamp; a future date is
+    // rejected (you can't have cleaned a line tomorrow), a past one recomputes the counters.
+    const body = z.object({
+      note: z.string().max(200).optional(),
+      cleanedAt: z.string().datetime().optional(),
+    }).refine((v) => v.cleanedAt == null || new Date(v.cleanedAt).getTime() <= Date.now(), {
+      message: 'cleanedAt cannot be in the future', path: ['cleanedAt'],
+    }).parse(req.body ?? {});
     const taps = listTaps(db);
     if (!taps.some((t) => t.id === tapId)) throw new NotFoundError(`tap ${tapId}`);
-    const cleaning = logCleaning(db, tapId, body.note);
-    app.ctx.log.info('app', `Line cleaned — tap #${tapId}${body.note ? ` (${body.note})` : ''}`);
+    const cleaning = logCleaning(db, tapId, body.note, body.cleanedAt);
+    app.ctx.log.info('app', `Line cleaned — tap #${tapId}${body.cleanedAt ? ' (backdated)' : ''}${body.note ? ` (${body.note})` : ''}`);
     reply.code(201);
     return cleaning;
   });

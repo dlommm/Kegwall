@@ -81,6 +81,9 @@ export function TapsPage() {
   const [deleteState, setDeleteState] = useState<DeleteTapState | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [wizardState, setWizardState] = useState<WizardState | null>(null);
+  // Backdated line-cleaning dialog (redesign 4a). `when` is a YYYY-MM-DD date, or '' = just now.
+  const [cleaningDialog, setCleaningDialog] = useState<{ tapId: number; when: string } | null>(null);
+  const [cleaningSaving, setCleaningSaving] = useState(false);
   const [kegStats, setKegStats] = useState<KegBurnStat[]>([]);
   const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
@@ -130,6 +133,29 @@ export function TapsPage() {
   function handleTapSaved() {
     setTapFormState(null);
     refresh();
+  }
+
+  async function handleLogCleaning() {
+    if (!cleaningDialog) return;
+    setCleaningSaving(true);
+    // A backdated date is logged at local noon so it lands on the intended calendar day
+    // regardless of timezone; blank = "just now" (server stamps the real time).
+    const cleanedAt = cleaningDialog.when
+      ? new Date(`${cleaningDialog.when}T12:00:00`).toISOString()
+      : undefined;
+    const result = await logTapCleaning(cleaningDialog.tapId, { cleanedAt });
+    setCleaningSaving(false);
+    if (result.ok) {
+      setCleaningDialog(null);
+      refresh();
+    }
+  }
+
+  /** YYYY-MM-DD for N days ago, local — for the dialog's quick-picks. */
+  function daysAgoDate(n: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   async function handleConfirmDeleteTap() {
@@ -313,7 +339,7 @@ export function TapsPage() {
                                 type="button"
                                 className="taps-cleaning__log"
                                 data-testid="taps-cleaning-log"
-                                onClick={() => logTapCleaning(tap.tapId).then(refresh)}
+                                onClick={() => setCleaningDialog({ tapId: tap.tapId, when: '' })}
                               >
                                 Log cleaning
                               </button>
@@ -409,6 +435,53 @@ export function TapsPage() {
           onClose={() => setWizardState(null)}
           onDone={refresh}
         />
+      )}
+
+      {cleaningDialog && (
+        <div className="admin-confirm__backdrop" data-testid="cleaning-dialog" onClick={() => !cleaningSaving && setCleaningDialog(null)}>
+          <div className="admin-confirm" role="dialog" aria-modal="true" aria-label="Log line cleaning" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display">Log line cleaning</h3>
+            <p className="admin-page-quiet">Backdating recomputes the counters — pours after the chosen date count toward the next cleaning.</p>
+            <div className="cleaning-dialog__picks">
+              <button
+                type="button"
+                data-testid="cleaning-pick-now"
+                aria-pressed={cleaningDialog.when === ''}
+                onClick={() => setCleaningDialog({ ...cleaningDialog, when: '' })}
+              >
+                Just now
+              </button>
+              <button
+                type="button"
+                data-testid="cleaning-pick-yesterday"
+                aria-pressed={cleaningDialog.when === daysAgoDate(1)}
+                onClick={() => setCleaningDialog({ ...cleaningDialog, when: daysAgoDate(1) })}
+              >
+                Yesterday
+              </button>
+              <input
+                type="date"
+                data-testid="cleaning-pick-date"
+                max={daysAgoDate(0)}
+                value={cleaningDialog.when}
+                onChange={(e) => setCleaningDialog({ ...cleaningDialog, when: e.target.value })}
+              />
+            </div>
+            <p className="cleaning-dialog__preview" data-testid="cleaning-dialog-preview">
+              {cleaningDialog.when
+                ? `Will log as cleaned on ${new Date(`${cleaningDialog.when}T12:00:00`).toLocaleDateString()}.`
+                : 'Will log as cleaned just now.'}
+            </p>
+            <div className="admin-confirm__actions">
+              <button type="button" data-testid="cleaning-dialog-save" disabled={cleaningSaving} onClick={handleLogCleaning}>
+                {cleaningSaving ? 'Saving…' : 'Log cleaning'}
+              </button>
+              <button type="button" data-testid="cleaning-dialog-cancel" disabled={cleaningSaving} onClick={() => setCleaningDialog(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );

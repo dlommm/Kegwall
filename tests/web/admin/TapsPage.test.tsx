@@ -8,6 +8,7 @@ import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
   listBeers, listKegs, listMonitors, deleteTap, listTaps, getActiveKegStats, getCleaningStatuses,
+  logTapCleaning,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { Tap } from '../../../src/server/db/taps';
@@ -184,6 +185,25 @@ describe('TapsPage', () => {
     const left = parseInt(marker.style.left, 10);
     expect(left).toBeGreaterThanOrEqual(18);
     expect(left).toBeLessThanOrEqual(22);
+  });
+
+  it('opens a backdating dialog and logs a cleaning with a past date (redesign 4a)', async () => {
+    (getCleaningStatuses as Mock).mockResolvedValue({
+      ok: true, data: [{ tapId: 1, lastCleanedAt: null, gallonsSince: 20, daysSince: null, due: true }],
+    });
+    (useTapStates as Mock).mockReturnValue({ taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0 });
+    renderAdminPage(<TapsPage />);
+    fireEvent.click(await screen.findByTestId('taps-row-expand'));
+    await flush();
+    fireEvent.click(screen.getByTestId('taps-cleaning-log'));
+    // Dialog opens; default is "just now".
+    expect(screen.getByTestId('cleaning-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('cleaning-dialog-preview')).toHaveTextContent('just now');
+    fireEvent.click(screen.getByTestId('cleaning-pick-yesterday'));
+    expect(screen.getByTestId('cleaning-dialog-preview')).toHaveTextContent('Will log as cleaned on');
+    fireEvent.click(screen.getByTestId('cleaning-dialog-save'));
+    await flush();
+    expect(logTapCleaning).toHaveBeenCalledWith(1, expect.objectContaining({ cleanedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) }));
   });
 
   it('shows a cleaning meter (amber when due) that replaces the old badge (redesign 3d)', async () => {

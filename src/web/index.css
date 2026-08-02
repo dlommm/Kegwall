@@ -1898,6 +1898,44 @@
   text-align: right;
 }
 
+/* Backdated cleaning dialog (4a). */
+.cleaning-dialog__picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.cleaning-dialog__picks button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.cleaning-dialog__picks button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.cleaning-dialog__picks input[type='date'] {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.cleaning-dialog__preview {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
 /* Swap-wizard cost step (4k). */
 .swap-wizard__cost-field input {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));

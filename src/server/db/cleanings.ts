@@ -22,9 +22,16 @@ function rowToCleaning(r: any): LineCleaning {
   return { id: r.id, tapId: r.tap_id, ts: r.ts, note: r.note };
 }
 
-export function logCleaning(db: Database.Database, tapId: number, note?: string | null): LineCleaning {
+/**
+ * Log a cleaning. `cleanedAt` (redesign 4a — backdating) defaults to now; a PAST timestamp
+ * is honored so `gallonsSince`/`daysSince` recompute from that date (pours after it count
+ * toward the next cleaning). Future dates should be rejected by the caller.
+ */
+export function logCleaning(
+  db: Database.Database, tapId: number, note?: string | null, cleanedAt?: string,
+): LineCleaning {
   const res = db.prepare('INSERT INTO line_cleanings (tap_id, ts, note) VALUES (?, ?, ?)')
-    .run(tapId, new Date().toISOString(), note ?? null);
+    .run(tapId, cleanedAt ?? new Date().toISOString(), note ?? null);
   return rowToCleaning(db.prepare('SELECT * FROM line_cleanings WHERE id = ?').get(Number(res.lastInsertRowid)));
 }
 

@@ -869,11 +869,15 @@ export function getCleaningStatuses(): Promise<ApiResult<import('../../server/db
   return request('/api/cleanings/status');
 }
 
-export function logTapCleaning(tapId: number, note?: string): Promise<ApiResult<import('../../server/db/cleanings.js').LineCleaning>> {
-  return request(`/api/taps/${tapId}/cleanings`, {
-    method: 'POST',
-    body: JSON.stringify(note ? { note } : {}),
-  });
+/** Log a line cleaning. `cleanedAt` (redesign 4a) backdates it — a past ISO timestamp
+ *  recomputes the counters; omit for "just now". */
+export function logTapCleaning(
+  tapId: number, opts: { note?: string; cleanedAt?: string } = {},
+): Promise<ApiResult<import('../../server/db/cleanings.js').LineCleaning>> {
+  const body: Record<string, string> = {};
+  if (opts.note) body.note = opts.note;
+  if (opts.cleanedAt) body.cleanedAt = opts.cleanedAt;
+  return request(`/api/taps/${tapId}/cleanings`, { method: 'POST', body: JSON.stringify(body) });
 }
 
 export function doctorCloud(): Promise<ApiResult<{ ok: boolean; detail: string; deviceCount?: number; latencyMs?: number }>> {
