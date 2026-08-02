@@ -44,6 +44,28 @@ const ANALYTICS_TABS = [
 ] as const;
 type AnalyticsTab = (typeof ANALYTICS_TABS)[number]['key'];
 
+/** Serialize an array of flat records to CSV (header row + escaped values). */
+function toCsv(rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return '';
+  const cols = Object.keys(rows[0]!);
+  const esc = (v: unknown) => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+}
+
+/** Trigger a client-side download of `text` as `filename`. */
+function download(text: string, filename: string, type = 'text/csv'): void {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * `/admin/stats` (Task 9): pours/day, hour-of-day, per-keg depletion, volume-by-beer,
  * temperature, and a drinker leaderboard — six independent viewer-role read endpoints
@@ -637,10 +659,33 @@ export function StatsPage() {
           </div>
 
           <div hidden={tab !== 'raw'} data-testid="analytics-panel-raw">
-            <p className="admin-page-quiet">
-              Use “Export all (JSON)” above for the full dataset. Per-dataset CSV/NDJSON
-              export chips land here next.
-            </p>
+            <section className="stats-section">
+              <h3 className="stats-chart__title">Raw datasets</h3>
+              <p className="admin-page-quiet">Download the in-view data as CSV. Admin-only sets carry owner cost.</p>
+              <div className="raw-export-chips" data-testid="analytics-raw-chips">
+                {([
+                  ['Pour history', pourHistory],
+                  ['Beer history', beerHistory],
+                  ['Pourer history', pourerHistory],
+                  ['Pours per day', pours],
+                  ...(isAdmin ? [
+                    ['Keg costs', kegCosts] as const,
+                    ['Monthly spend', monthlySpend] as const,
+                  ] : []),
+                ] as [string, Record<string, unknown>[]][]).map(([label, rows]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="raw-export-chip"
+                    data-testid={`raw-export-${label.toLowerCase().replace(/\s+/g, '-')}`}
+                    disabled={rows.length === 0}
+                    onClick={() => download(toCsv(rows), `kegwall-${label.toLowerCase().replace(/\s+/g, '-')}.csv`)}
+                  >
+                    {`${label} · CSV (${rows.length})`}
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
         </>
       )}

@@ -166,6 +166,27 @@ describe('StatsPage', () => {
     expect(row).toHaveTextContent('2°C – 4°C');
   });
 
+  it('offers CSV export chips on the Raw tab, admin-only sets included for admins', async () => {
+    (getPourHistory as Mock).mockResolvedValue({
+      ok: true, data: [{ id: 1, ts: 'x', tapNumber: 1, beerName: 'A', drinkerName: 'B', volumeMl: 400, quality: 90, source: 'udp' }],
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-raw'));
+    expect(screen.getByTestId('raw-export-pour-history')).toHaveTextContent('Pour history · CSV (1)');
+    // Admin sees the owner-cost datasets too.
+    expect(screen.getByTestId('raw-export-keg-costs')).toBeInTheDocument();
+    expect(screen.getByTestId('raw-export-monthly-spend')).toBeInTheDocument();
+  });
+
+  it('hides owner-cost CSV export chips from a viewer', async () => {
+    renderAdminPage(<StatsPage />, adminContext('viewer'));
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-raw'));
+    expect(screen.queryByTestId('raw-export-keg-costs')).not.toBeInTheDocument();
+    expect(screen.getByTestId('raw-export-pour-history')).toBeInTheDocument();
+  });
+
   it('derives a Highlights list on the Overview tab', async () => {
     (getBeersByVolume as Mock).mockResolvedValue({
       ok: true, data: [{ beerName: 'Citra IPA', srm: 6, volumeMl: 46000, pourCount: 90 }],

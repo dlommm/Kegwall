@@ -9342,6 +9342,29 @@ h2.admin-field__label-text {
   font-size: 0.9rem;
 }
 
+.raw-export-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.raw-export-chip {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.raw-export-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .heatmap {
   display: flex;
   flex-direction: column;
