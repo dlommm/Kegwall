@@ -8,7 +8,7 @@ import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
-  type SystemStats,
+  getCleaningStatuses, type SystemStats,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { SourceStatus } from '../../../src/server/ingest/manager';
@@ -25,6 +25,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getSystemStats: vi.fn(),
   listWalls: vi.fn(),
   triggerReboot: vi.fn(),
+  getCleaningStatuses: vi.fn(),
 }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
@@ -99,6 +100,7 @@ describe('DashboardPage', () => {
     (getSystemStats as Mock).mockResolvedValue({ ok: true, data: makeStats() });
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [{ id: 1, slug: 'main', name: 'Main', config: {} }] });
     (triggerReboot as Mock).mockResolvedValue({ ok: true, data: { message: 'Rebooting' } });
+    (getCleaningStatuses as Mock).mockResolvedValue({ ok: true, data: [] });
   });
 
   afterEach(() => {
@@ -316,6 +318,42 @@ describe('DashboardPage', () => {
     await flush();
     expect(screen.getByTestId('dashboard-reboot-banner')).toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-reboot-button')).not.toBeInTheDocument();
+  });
+
+  it('surfaces a NEEDS ATTENTION card ranking an unhealthy source above a low keg', async () => {
+    (useTapStates as Mock).mockReturnValue({
+      taps: [
+        makeTap(2, {
+          tapNumber: 2,
+          beer: {
+            id: 1, name: 'Last Pils', brewery: null, style: null, abv: null, ibu: null, srm: 4, description: null, labelImage: null, createdAt: '',
+          },
+          keg: {
+            id: 1, beerId: 1, tapId: 2, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 17000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 11, remainingMl: 2000,
+          },
+        }),
+      ],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    (getSources as Mock).mockResolvedValue({
+      ok: true, data: [makeSource({ name: 'kegtron_cloud', registered: true, healthy: false })],
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-triage')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-triage-count')).toHaveTextContent('2');
+    const rows = screen.getAllByTestId('dashboard-triage-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveAttribute('data-severity', 'danger');
+    expect(rows[0]).toHaveTextContent('Kegtron cloud is down');
+    expect(rows[1]).toHaveTextContent('Last Pils on Tap 2 is at 11%');
+    expect(screen.getAllByTestId('dashboard-triage-action')[1]).toHaveTextContent('Swap keg');
+  });
+
+  it('renders no NEEDS ATTENTION card when everything is healthy', async () => {
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.queryByTestId('dashboard-triage')).not.toBeInTheDocument();
   });
 
   it('shows the finish-setup hint only while no wall exists', async () => {

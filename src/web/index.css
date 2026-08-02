@@ -6471,6 +6471,95 @@ h2.admin-field__label-text {
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
+/* NEEDS ATTENTION triage card (redesign 3b) — the ranked, actionable roll-up above the
+   stat cards. Danger/warn dots use the shared status tokens so it reads on every admin look. */
+.dashboard-triage {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+  border-radius: var(--card-radius);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.dashboard-triage__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dashboard-triage__title {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.dashboard-triage__count {
+  min-width: 1.5rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dashboard-triage__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dashboard-triage__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 0;
+}
+
+.dashboard-triage__row + .dashboard-triage__row {
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-triage__dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.dashboard-triage__dot--danger { background: var(--danger); }
+.dashboard-triage__dot--warn { background: var(--warn); }
+
+.dashboard-triage__msg {
+  flex: 1 1 auto;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.dashboard-triage__action {
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-triage__action:hover,
+.dashboard-triage__action:focus-visible {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .dashboard__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

@@ -7,8 +7,10 @@ import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
-  type SystemStats,
+  getCleaningStatuses, type SystemStats,
 } from '../../lib/adminApi';
+import type { CleaningStatus } from '../../../server/db/cleanings.js';
+import { buildTriage } from '../../lib/dashboardTriage';
 import { formatActivityText } from '../../lib/activityText';
 import { formatTempC, formatVolumeMl } from '../../lib/units';
 import { levelStatus } from '../../lib/lookData';
@@ -68,6 +70,7 @@ export function DashboardPage() {
   const [pourCount, setPourCount] = useState(0);
   const [pourVolumeMl, setPourVolumeMl] = useState(0);
   const [stats, setStats] = useState<SystemStats | null>(null);
+  const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
   const [wallCount, setWallCount] = useState<number | null>(null);
   const [rebootConfirming, setRebootConfirming] = useState(false);
   const [rebooting, setRebooting] = useState(false);
@@ -101,6 +104,9 @@ export function DashboardPage() {
           setPourCount(result.data.length);
           setPourVolumeMl(result.data.reduce((sum, p) => sum + p.volumeMl, 0));
         }
+      });
+      getCleaningStatuses().then((result) => {
+        if (!cancelled && result.ok) setCleanings(result.data);
       });
     };
     poll();
@@ -155,6 +161,19 @@ export function DashboardPage() {
   const undervolted = stats?.throttle
     && (stats.throttle.undervoltedNow || stats.throttle.undervoltedSinceBoot);
 
+  // DESIGN NOTE: undervoltage keeps its own dedicated red banner below (a distinct hardware
+  // alarm with SD-card-corruption context), so the NEEDS ATTENTION card is passed
+  // undervolted:false — it triages the operational, one-click-fixable signals (swap a keg,
+  // log a cleaning, open the doctor) rather than duplicating the power banner.
+  const triage = buildTriage({
+    taps,
+    unhealthySourceLabels: registered
+      .filter((s) => !s.healthy)
+      .map((s) => SOURCE_LABELS[s.name]),
+    cleaningDueTapIds: cleanings.filter((c) => c.due).map((c) => c.tapId),
+    undervolted: false,
+  });
+
   return (
     <section data-testid="admin-dashboard-page" className="dashboard">
       {wallCount === 0 && (
@@ -203,6 +222,42 @@ export function DashboardPage() {
             </button>
           )}
         </div>
+      )}
+
+      {triage.length > 0 && (
+        <section className="dashboard-triage" data-testid="dashboard-triage" aria-label="Needs attention">
+          <div className="dashboard-triage__head">
+            <h2 className="dashboard-triage__title font-display">NEEDS ATTENTION</h2>
+            <span className="dashboard-triage__count font-tabular" data-testid="dashboard-triage-count">
+              {triage.length}
+            </span>
+          </div>
+          <ul className="dashboard-triage__list">
+            {triage.map((item) => (
+              <li
+                key={item.id}
+                className="dashboard-triage__row"
+                data-testid="dashboard-triage-row"
+                data-severity={item.severity}
+              >
+                <span
+                  className={`dashboard-triage__dot dashboard-triage__dot--${item.severity}`}
+                  aria-hidden="true"
+                />
+                <span className="dashboard-triage__msg">{item.message}</span>
+                {item.action && (
+                  <Link
+                    to={item.action.to}
+                    className="dashboard-triage__action"
+                    data-testid="dashboard-triage-action"
+                  >
+                    {item.action.label}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="dashboard__stats">
