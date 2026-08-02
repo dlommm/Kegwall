@@ -29,4 +29,16 @@ describe('parseBthomeServiceData', () => {
     expect(parseBthomeServiceData(svc(0x40, 0x05, 0x01))) // illuminance (len 3) but only 1 byte left
       .toEqual({ encrypted: false, motion: null });
   });
+
+  // Fix round 1 (F3, Minor bundle): walk-order edges the original vectors didn't cover.
+  it('motion precedes a subsequent known object (battery) — motion is captured before '
+    + 'the walk continues past it', () => {
+    expect(parseBthomeServiceData(svc(0x40, 0x21, 0x01, 0x01, 0x64)))
+      .toEqual({ encrypted: false, motion: true });
+  });
+
+  it('a motion object id with its value byte missing (truncated pair) stops without '
+    + 'reporting a motion reading', () => {
+    expect(parseBthomeServiceData(svc(0x40, 0x21))).toEqual({ encrypted: false, motion: null });
+  });
 });

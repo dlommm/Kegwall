@@ -205,4 +205,79 @@ describe('BleMotionSource', () => {
     expect(statuses.at(-1)!.detail).toMatch(/import timed out/);
     expect(registry.markHealth).toHaveBeenCalledWith('ble-1', false, expect.stringMatching(/import timed out/));
   });
+
+  // Fix round 1 (F1, Important): the `peripheral.id` MAC fallback (macOS CoreBluetooth
+  // withholds real addresses -- `address` comes back literally `'unknown'`, only `id`
+  // is a stable per-pairing handle -- see bleMotion.ts's `peripheralMac` doc comment)
+  // was implemented but untested. Each case fires a motion-true BTHome advert at a
+  // peripheral shape the fallback must handle, alongside BOTH an any-MAC source (mac:
+  // null, must ALWAYS trigger regardless of MAC resolution) and a MAC-pinned source
+  // (must trigger ONLY when the pin matches whatever MAC the peripheral resolves to).
+  describe('MAC fallback (peripheral.id) -- F1', () => {
+    it('(a) only `id` set (no `address` at all): any-MAC triggers; a source pinned to '
+      + 'the normalized `id` triggers too -- proving the fallback FEEDS matching, not '
+      + 'just any-MAC', async () => {
+      const { scanner, getSub } = fakeScanner();
+      const source = new BleMotionSource({
+        sources: [
+          { id: 'ble-any', mac: null },
+          { id: 'ble-match-id', mac: 'AA:BB:CC:DD:EE:FF' },
+        ],
+        scanner, registry: registry as unknown as MotionSourceRegistry, bus,
+      });
+      await source.start();
+
+      expect(() => getSub().onPeripheral({
+        id: 'aa:bb:cc:dd:ee:ff', // no `address` property at all
+        advertisement: { serviceData: [{ uuid: BTHOME_SERVICE_UUID, data: svc(0x40, 0x21, 0x01) }] },
+      })).not.toThrow();
+
+      expect(registry.trigger).toHaveBeenCalledWith('ble-any');
+      expect(registry.trigger).toHaveBeenCalledWith('ble-match-id');
+      expect(registry.trigger).toHaveBeenCalledTimes(2);
+    });
+
+    it("(b) `address: 'unknown'` + `id`: any-MAC triggers; a source pinned to the "
+      + 'normalized `id` triggers too', async () => {
+      const { scanner, getSub } = fakeScanner();
+      const source = new BleMotionSource({
+        sources: [
+          { id: 'ble-any', mac: null },
+          { id: 'ble-match-id', mac: 'AA:BB:CC:DD:EE:FF' },
+        ],
+        scanner, registry: registry as unknown as MotionSourceRegistry, bus,
+      });
+      await source.start();
+
+      expect(() => getSub().onPeripheral({
+        address: 'unknown', id: 'aa:bb:cc:dd:ee:ff',
+        advertisement: { serviceData: [{ uuid: BTHOME_SERVICE_UUID, data: svc(0x40, 0x21, 0x01) }] },
+      })).not.toThrow();
+
+      expect(registry.trigger).toHaveBeenCalledWith('ble-any');
+      expect(registry.trigger).toHaveBeenCalledWith('ble-match-id');
+      expect(registry.trigger).toHaveBeenCalledTimes(2);
+    });
+
+    it('(c) neither `address` nor `id`: any-MAC still triggers; a MAC-pinned source does '
+      + 'NOT trigger (nothing to match against); nothing throws', async () => {
+      const { scanner, getSub } = fakeScanner();
+      const source = new BleMotionSource({
+        sources: [
+          { id: 'ble-any', mac: null },
+          { id: 'ble-pinned', mac: 'AA:BB:CC:DD:EE:FF' },
+        ],
+        scanner, registry: registry as unknown as MotionSourceRegistry, bus,
+      });
+      await source.start();
+
+      expect(() => getSub().onPeripheral({
+        advertisement: { serviceData: [{ uuid: BTHOME_SERVICE_UUID, data: svc(0x40, 0x21, 0x01) }] },
+      })).not.toThrow();
+
+      expect(registry.trigger).toHaveBeenCalledWith('ble-any');
+      expect(registry.trigger).not.toHaveBeenCalledWith('ble-pinned');
+      expect(registry.trigger).toHaveBeenCalledTimes(1);
+    });
+  });
 });
