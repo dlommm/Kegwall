@@ -18,12 +18,14 @@ export interface Keg {
   /** OWNER COST — admin-only, never serialized to a public surface (hard requirement).
    *  What the keg cost, in cents (design 6d cost tracking); null = untracked. */
   costCents: number | null;
-  /** OWNER COST — the refundable keg deposit in cents, or null (redesign 4k). */
-  depositCents: number | null;
-  /** Supplier this keg was bought from (redesign 4l), or null. */
-  supplierId: number | null;
-  /** ISO date the keg was purchased (redesign 4k), or null. */
-  purchasedAt: string | null;
+  /** OWNER COST — the refundable keg deposit in cents; null/absent = untracked (redesign 4k).
+   *  Optional so hand-built fixtures for kegs with no cost tracking stay valid — rowToKeg
+   *  always populates it (to null when untracked). */
+  depositCents?: number | null;
+  /** Supplier this keg was bought from (redesign 4l); null/absent = untracked. */
+  supplierId?: number | null;
+  /** ISO date the keg was purchased (redesign 4k); null/absent = untracked. */
+  purchasedAt?: string | null;
 }
 
 export interface Pour {

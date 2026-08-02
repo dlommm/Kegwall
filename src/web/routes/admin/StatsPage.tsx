@@ -730,7 +730,7 @@ export function StatsPage() {
                     ['Keg costs', kegCosts] as const,
                     ['Monthly spend', monthlySpend] as const,
                   ] : []),
-                ] as [string, Record<string, unknown>[]][]).map(([label, rows]) => (
+                ] as unknown as [string, Record<string, unknown>[]][]).map(([label, rows]) => (
                   <button
                     key={label}
                     type="button"

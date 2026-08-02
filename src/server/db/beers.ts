@@ -5,10 +5,11 @@ export interface Beer {
   id: number; name: string; brewery: string | null; style: string | null;
   abv: number | null; ibu: number | null; srm: number | null;
   description: string | null; labelImage: string | null; createdAt: string;
-  /** Per-beer public-price markup override % (redesign 4k); null = use the global markup. */
-  markupOverridePct: number | null;
-  /** Only-source supplier for this beer (redesign 4l), or null. */
-  exclusiveSupplierId: number | null;
+  /** Per-beer public-price markup override % (redesign 4k); null/absent = use the global
+   *  markup. Optional so hand-built beer fixtures stay valid — rowToBeer always sets it. */
+  markupOverridePct?: number | null;
+  /** Only-source supplier for this beer (redesign 4l); null/absent = none. */
+  exclusiveSupplierId?: number | null;
 }
 
 export interface BeerInput {

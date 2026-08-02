@@ -341,6 +341,8 @@ function oneActionSummary(action: Action): string {
     case 'webhook': return 'call a webhook';
     case 'mqtt_publish': return `publish to ${action.topic}`;
     case 'wall_banner': return 'show a wall banner';
+    case 'party_mode': return 'start party mode';
+    case 'kegtron_reset_volume': return 'reset the Kegtron volume';
     case 'display_power': return `turn the display ${action.state === 'off' ? 'off' : 'on'}`;
     default: {
       const _exhaustive: never = action;

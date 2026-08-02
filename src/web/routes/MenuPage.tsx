@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import type { TapState } from '../../server/core/state.js';
-import { getMenu } from '../lib/api';
+import { getMenu, type PublicTap } from '../lib/api';
 import { useTapStates } from '../lib/useTapStates';
 import type { VolumeUnits } from '../lib/units';
 import { TapCard } from '../components/TapCard';
@@ -112,7 +112,7 @@ export function MenuPage() {
             <ul className="menu-page__tap-list" data-testid="menu-page-tap-list">
               {visibleTaps.map((tap) => (
                 <li key={tap.tapId}>
-                  <TapCard tap={tap} template="compact" units={units} pricePerPintCents={tap.pricePerPintCents ?? null} />
+                  <TapCard tap={tap} template="compact" units={units} pricePerPintCents={(tap as PublicTap).pricePerPintCents ?? null} />
                 </li>
               ))}
             </ul>

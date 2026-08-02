@@ -426,7 +426,7 @@ export function listMonitors(): Promise<ApiResult<MonitorWithDeviceKeg[]>> {
 
 /** GET /api/sensors — one summary per physical temperature sensor (Kegtron probe + Govee)
  * with its current reading + trailing-7-day range; feeds the dashboard's per-sensor cards. */
-export function getSensors(): Promise<ApiResult<SensorSummary[]>> {
+export function getSensors(): Promise<ApiResult<import('../../server/db/sensors.js').SensorSummary[]>> {
   return request('/api/sensors');
 }
 
