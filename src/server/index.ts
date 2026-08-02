@@ -10,6 +10,10 @@ const pkg = JSON.parse(
 ) as { version: string };
 
 const port = Number(process.env.PORT ?? 8080);
+// Listen host. Defaults to 0.0.0.0 (the right default for a container behind a published
+// port); a native install can narrow it to 127.0.0.1 via HOST/BIND and put a reverse proxy
+// in front, so the admin UI isn't exposed on every host interface.
+const host = process.env.HOST ?? process.env.BIND ?? '0.0.0.0';
 
 const app = await buildApp({
   dataDir: process.env.DATA_DIR ?? './data',
@@ -21,5 +25,5 @@ const app = await buildApp({
   version: pkg.version,
   port,
 });
-await app.listen({ port, host: '0.0.0.0' });
-app.ctx.log.info('app', `Server started on port ${port}`);
+await app.listen({ port, host });
+app.ctx.log.info('app', `Server started on ${host}:${port}`);

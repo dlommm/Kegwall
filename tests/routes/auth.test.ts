@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../../src/server/app.js';
 import type { FastifyInstance } from 'fastify';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -89,5 +89,45 @@ describe('auth routes', () => {
   it('needs-setup requires no auth (public) and never leaks user data', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/auth/needs-setup' });
     expect(Object.keys(res.json())).toEqual(['needsSetup']);
+  });
+});
+
+describe('first-run setup claim token (enforced)', () => {
+  let tokenApp: FastifyInstance;
+  let dataDir: string;
+  beforeEach(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    tokenApp = await buildApp({ dataDir, requireSetupClaimToken: true });
+  });
+  afterEach(async () => { await tokenApp.close(); });
+
+  function claimToken(): string {
+    return readFileSync(join(dataDir, 'setup-claim-token'), 'utf8').trim();
+  }
+
+  const base = { username: 'dan', displayName: 'Dan', password: 'hunter22' };
+
+  it('rejects setup with no token or a wrong token (401), stays unclaimed', async () => {
+    expect((await tokenApp.inject({
+      method: 'POST', url: '/api/auth/setup', payload: base,
+    })).statusCode).toBe(401);
+    expect((await tokenApp.inject({
+      method: 'POST', url: '/api/auth/setup', payload: { ...base, claimToken: 'nope' },
+    })).statusCode).toBe(401);
+    expect((await tokenApp.inject({ method: 'GET', url: '/api/auth/needs-setup' })).json())
+      .toEqual({ needsSetup: true });
+  });
+
+  it('accepts setup with the correct token and consumes it', async () => {
+    const ok = await tokenApp.inject({
+      method: 'POST', url: '/api/auth/setup', payload: { ...base, claimToken: claimToken() },
+    });
+    expect(ok.statusCode).toBe(201);
+    // Token file is consumed on success.
+    expect(() => readFileSync(join(dataDir, 'setup-claim-token'))).toThrow();
+    // And setup can't be re-run.
+    expect((await tokenApp.inject({
+      method: 'POST', url: '/api/auth/setup', payload: { ...base, claimToken: 'anything' },
+    })).statusCode).toBe(409);
   });
 });

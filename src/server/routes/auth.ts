@@ -5,6 +5,7 @@ import {
   createUser, verifyPassword, type Role, type User,
 } from '../db/users.js';
 import { createSession, getUserForToken, destroySession } from '../core/auth.js';
+import { setupTokenMatches, consumeSetupClaimToken } from '../core/setupToken.js';
 
 declare module 'fastify' {
   interface FastifyRequest { user: User | null }
@@ -29,7 +30,7 @@ function sessionCookieOptions(req: FastifyRequest) {
   };
 }
 
-function hasAnyLoginUser(db: Database.Database): boolean {
+export function hasAnyLoginUser(db: Database.Database): boolean {
   const row = db.prepare('SELECT COUNT(*) c FROM users WHERE username IS NOT NULL').get() as any;
   return row.c > 0;
 }
@@ -44,7 +45,17 @@ export function requireRole(minRole: Role) {
   };
 }
 
-export async function authRoutes(app: FastifyInstance) {
+export interface AuthRoutesOptions {
+  /** Resolved data directory — where the first-run setup claim token lives. */
+  dataDir: string;
+  /** When true, `POST /api/auth/setup` requires the first-run claim token written to
+   * `dataDir` at boot. Defaults on in production and off under NODE_ENV=test (so the
+   * existing route-test suite, which drives setup directly, stays unchanged); a dedicated
+   * test opts in explicitly. */
+  requireSetupToken: boolean;
+}
+
+export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) {
   // Resolve session cookie -> req.user for ALL routes. NOTE: authRoutes is CALLED
   // DIRECTLY (await authRoutes(app)), not via app.register() — a register()'d plugin
   // is encapsulated and this hook would not apply to the other route modules.
@@ -57,6 +68,9 @@ export async function authRoutes(app: FastifyInstance) {
   const setupSchema = z.object({
     username: z.string().min(1), displayName: z.string().min(1),
     password: z.string().min(8),
+    // The first-run claim token printed to the server console at boot. Required only when
+    // opts.requireSetupToken is set (production) — see AuthRoutesOptions.
+    claimToken: z.string().optional(),
   });
 
   // Public, unauthenticated: the admin SPA probes this before rendering the login form
@@ -64,12 +78,22 @@ export async function authRoutes(app: FastifyInstance) {
   // src/web/routes/admin/LoginPage.tsx. Only ever reveals a boolean, never user data.
   app.get('/api/auth/needs-setup', async () => ({ needsSetup: !hasAnyLoginUser(app.ctx.db) }));
 
-  app.post('/api/auth/setup', async (req, reply) => {
+  app.post('/api/auth/setup', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     if (hasAnyLoginUser(app.ctx.db)) {
       return reply.code(409).send({ error: 'conflict', message: 'Setup already completed' });
     }
     const body = setupSchema.parse(req.body);
-    const user = createUser(app.ctx.db, { ...body, role: 'admin' });
+    if (opts.requireSetupToken && !setupTokenMatches(opts.dataDir, body.claimToken)) {
+      return reply.code(401).send({
+        error: 'unauthorized',
+        message: 'Invalid or missing setup token — copy it from the server logs',
+      });
+    }
+    const { claimToken: _drop, ...userInput } = body;
+    const user = createUser(app.ctx.db, { ...userInput, role: 'admin' });
+    if (opts.requireSetupToken) consumeSetupClaimToken(opts.dataDir);
     const { token } = createSession(app.ctx.db, user.id);
     reply.setCookie('session', token, sessionCookieOptions(req));
     return reply.code(201).send(user);

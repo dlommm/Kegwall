@@ -6,7 +6,8 @@ import { ZodError } from 'zod';
 import Database from 'better-sqlite3';
 import { resolve } from 'node:path';
 import { createContext, type AppContext } from './context.js';
-import { authRoutes } from './routes/auth.js';
+import { authRoutes, hasAnyLoginUser } from './routes/auth.js';
+import { ensureSetupClaimToken } from './core/setupToken.js';
 import { crudRoutes } from './routes/crud.js';
 import { wsRoutes } from './routes/ws.js';
 import { presenceRoutes } from './routes/presence.js';
@@ -109,6 +110,10 @@ export interface AppOptions {
   /** Test-only override for the stats endpoint's vcgencmd throttle reader — see
    * `SystemRoutesOptions.readThrottle`. Never set by index.ts. */
   readThrottle?: SystemRoutesOptions['readThrottle'];
+  /** Whether `POST /api/auth/setup` requires the first-run claim token. Defaults to
+   * `NODE_ENV !== 'test'` (on in production, off in the test suite). A dedicated test sets
+   * it true to exercise the enforced flow. */
+  requireSetupClaimToken?: boolean;
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
@@ -242,10 +247,21 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   const dataDir = resolve(opts.dataDir ?? './data');
+  // First-run setup claim token: enforced in production, off under NODE_ENV=test by default
+  // (the route-test suite drives setup directly) — a dedicated test opts in explicitly.
+  const requireSetupToken = opts.requireSetupClaimToken ?? (process.env.NODE_ENV !== 'test');
+  if (requireSetupToken && !hasAnyLoginUser(app.ctx.db)) {
+    const claimToken = ensureSetupClaimToken(dataDir);
+    console.log(
+      `\n[setup] No admin account yet. To create the first admin, open the app and enter this\n`
+      + `[setup] one-time setup token:\n\n    ${claimToken}\n\n`
+      + `[setup] (also stored at ${dataDir}/setup-claim-token). It is consumed once setup completes.\n`,
+    );
+  }
   // Route modules are called DIRECTLY, not app.register()'d: Fastify encapsulates
   // register()'d plugins, which would scope authRoutes' onRequest hook (req.user)
   // away from the other modules and break staticRoutes' setNotFoundHandler.
-  await authRoutes(app);
+  await authRoutes(app, { dataDir, requireSetupToken });
   await crudRoutes(app, dataDir);   // direct call — see encapsulation note above; dataDir
                            // lets the beers handlers reclaim a replaced/deleted label file
   await wsRoutes(app, { pingIntervalMs: opts.wsPingIntervalMs }); // direct call —

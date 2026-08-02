@@ -20,6 +20,7 @@ export function SetupPage() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [claimToken, setClaimToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -54,7 +55,10 @@ export function SetupPage() {
     setValidationError(null);
 
     setSubmitting(true);
-    const result = await setup({ username, displayName, password });
+    const result = await setup({
+      username, displayName, password,
+      claimToken: claimToken.trim() || undefined,
+    });
     setSubmitting(false);
     if (result.ok) {
       // Fresh install → straight into the guided first-run wizard (the session cookie
@@ -120,6 +124,22 @@ export function SetupPage() {
               autoComplete="new-password"
               required
             />
+          </label>
+
+          <label className="admin-auth__field">
+            <span>Setup token</span>
+            <input
+              type="text"
+              value={claimToken}
+              onChange={(e) => setClaimToken(e.target.value)}
+              autoComplete="off"
+              data-testid="setup-claim-token"
+              placeholder="Printed in the server logs on first start"
+            />
+            <small className="admin-auth__hint">
+              Find it in the server console / <code>docker logs</code> — shown once, when no
+              admin exists yet.
+            </small>
           </label>
 
           {validationError && (

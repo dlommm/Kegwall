@@ -162,7 +162,7 @@ export function logout(): Promise<ApiResult<{ ok: boolean }>> {
 }
 
 export function setup(input: {
-  username: string; displayName: string; password: string;
+  username: string; displayName: string; password: string; claimToken?: string;
 }): Promise<ApiResult<User>> {
   return request('/api/auth/setup', {
     method: 'POST',
