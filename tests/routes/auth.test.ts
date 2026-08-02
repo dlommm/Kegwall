@@ -44,6 +44,27 @@ describe('auth routes', () => {
     expect(after.statusCode).toBe(401);
   });
 
+  it('session cookie is httpOnly + lax + has an explicit maxAge, and Secure only over https', async () => {
+    await setupAdmin();
+    const plain = await app.inject({
+      method: 'POST', url: '/api/auth/login',
+      payload: { username: 'dan', password: 'hunter22' },
+    });
+    const plainCookie = plain.cookies.find((c: any) => c.name === 'session');
+    expect(plainCookie.httpOnly).toBe(true);
+    expect(String(plainCookie.sameSite).toLowerCase()).toBe('lax');
+    expect(plainCookie.maxAge).toBeGreaterThan(0);
+    expect(plainCookie.secure).toBeFalsy(); // plain HTTP → not Secure (LAN install still works)
+
+    const https = await app.inject({
+      method: 'POST', url: '/api/auth/login',
+      headers: { 'x-forwarded-proto': 'https' },
+      payload: { username: 'dan', password: 'hunter22' },
+    });
+    const httpsCookie = https.cookies.find((c: any) => c.name === 'session');
+    expect(httpsCookie.secure).toBe(true); // behind a TLS proxy → Secure
+  });
+
   it('rejects bad credentials with 401', async () => {
     await setupAdmin();
     const res = await app.inject({

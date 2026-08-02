@@ -12,6 +12,23 @@ declare module 'fastify' {
 
 const ROLE_RANK: Record<Role, number> = { viewer: 0, editor: 1, admin: 2 };
 
+/** Session cookie lifetime in seconds — mirrors core/auth.ts's SESSION_DAYS so the browser
+ * cookie and the server-side session expiry agree (previously the cookie was session-only,
+ * dying at browser close while the DB session lived 30 days). */
+const SESSION_COOKIE_MAX_AGE_S = 30 * 24 * 60 * 60;
+
+/** Cookie options for the session cookie. `secure` is set when the request arrived over
+ * HTTPS — either directly (`req.protocol`) or via a terminating proxy's
+ * `x-forwarded-proto` — so a TLS deployment gets a Secure cookie while a plain-HTTP LAN
+ * install still works. A spoofed header only ever makes the cookie MORE restrictive. */
+function sessionCookieOptions(req: FastifyRequest) {
+  const https = req.headers['x-forwarded-proto'] === 'https' || req.protocol === 'https';
+  return {
+    httpOnly: true, sameSite: 'lax' as const, path: '/',
+    secure: https, maxAge: SESSION_COOKIE_MAX_AGE_S,
+  };
+}
+
 function hasAnyLoginUser(db: Database.Database): boolean {
   const row = db.prepare('SELECT COUNT(*) c FROM users WHERE username IS NOT NULL').get() as any;
   return row.c > 0;
@@ -54,9 +71,7 @@ export async function authRoutes(app: FastifyInstance) {
     const body = setupSchema.parse(req.body);
     const user = createUser(app.ctx.db, { ...body, role: 'admin' });
     const { token } = createSession(app.ctx.db, user.id);
-    reply.setCookie('session', token, {
-      httpOnly: true, sameSite: 'lax', path: '/',
-    });
+    reply.setCookie('session', token, sessionCookieOptions(req));
     return reply.code(201).send(user);
   });
 
@@ -69,7 +84,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: 'unauthorized', message: 'Bad username or password' });
     }
     const { token } = createSession(app.ctx.db, user.id);
-    reply.setCookie('session', token, { httpOnly: true, sameSite: 'lax', path: '/' });
+    reply.setCookie('session', token, sessionCookieOptions(req));
     return user;
   });
 
