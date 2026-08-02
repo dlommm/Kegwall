@@ -20,4 +20,5 @@ import type { Settings } from '../db/settings.js';
  */
 export const SOURCE_RESTART_KEYS: readonly (keyof Settings)[] = [
   'kegtronApiKey', 'udpEnabled', 'mqtt', 'bleDirectEnabled', 'proBleEnabled', 'govee',
+  'motionSources', // Task 1: a motion source add/edit/remove restarts its GPIO/BLE transport
 ];

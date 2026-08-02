@@ -34,6 +34,11 @@ const SOURCE_LABELS: Record<SourceStatus['name'], string> = {
   mqtt_publisher: 'MQTT publisher',
   govee: 'Govee gateway',
   motion_mqtt: 'Motion MQTT',
+  // Motion-source registry's GPIO/BLE transports (Task 1's events.ts union extension) —
+  // not registered as ingest sources yet (a later task's job), but this map must stay
+  // exhaustive over SourceStatus['name'].
+  motion_gpio: 'Motion GPIO',
+  motion_ble: 'Motion BLE',
 };
 
 /** Local midnight, as an ISO string — the boundary `GET /api/pours?since=` filters

@@ -7,8 +7,10 @@ export interface MonitorRef {
 /** Display power state per zone (presence spec Part A/A1) */
 export type PowerState = 'active' | 'screensaver' | 'off';
 
-/** Source that triggered a wake/motion event (presence spec Part A/A1) */
-export type WakeSource = 'mqtt' | 'webhook' | 'camera' | 'pour' | 'touch' | 'admin' | 'automation';
+/** Source that triggered a wake/motion event (presence spec Part A/A1). `gpio`/`ble`:
+ * Displays & Presence hub Task 1's motion-source registry types (core/motionSources.ts). */
+export type WakeSource =
+  | 'mqtt' | 'webhook' | 'camera' | 'pour' | 'touch' | 'admin' | 'automation' | 'gpio' | 'ble';
 
 /** Canonical `(type, identifier, portIndex)` string key for a `MonitorRef` -- the single
  * source of truth for every Map/Set keyed by monitor identity across the ingest pipeline
@@ -39,7 +41,8 @@ export interface EventMap {
   device_offline: { monitor: MonitorRef; ts: string };
   source_status: {
     source: 'kegtron_cloud' | 'kegtron_udp' | 'gen1_mqtt' | 'gen1_ble' | 'pro_ble' | 'mqtt_publisher' | 'govee'
-      | 'motion_mqtt'; // presence framework's motion-sensor MQTT subscriber (ingest/motionMqtt.ts)
+      | 'motion_mqtt' // presence framework's motion-sensor MQTT subscriber (ingest/motionMqtt.ts)
+      | 'motion_gpio' | 'motion_ble'; // Task 1's motion-source registry GPIO/BLE transports
     healthy: boolean; detail: string; ts: string;
     /** True when unhealthy only because the source was never CONFIGURED (no API key
      * set, etc). LogService logs this as a warn, not an error — a fresh install with
@@ -133,7 +136,11 @@ export interface EventMap {
     title: string; body: string; tapId?: number; ts: string;
   };
   /** Motion/wake event emitted by PresenceRegistry; debounced to 5s per zone to avoid spam */
-  motion_detected: { wallSlug: string | null; source: WakeSource; ts: string };
+  motion_detected: {
+    wallSlug: string | null; source: WakeSource;
+    sourceId?: string; // motion-source registry id that fired this wake (Task 1); absent for legacy/anonymous wakes
+    ts: string;
+  };
   /** Display power state change emitted by PresenceRegistry after state transition */
   display_power_changed: { wallId: number; wallSlug: string; state: PowerState; ts: string };
 }

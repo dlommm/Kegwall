@@ -2,6 +2,87 @@ import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { ValidationError } from '../core/errors.js';
 
+// ---------------------------------------------------------------------------
+// Displays & Presence hub Task 1: motion-source registry schema. Exported for reuse by
+// `core/motionSources.ts` (the runtime registry) and by later tasks' admin UI. A single
+// stored `motionSources` entry is either an mqtt-topic watcher, a raw webhook, a GPIO
+// line, or a BLE beacon proximity source — `config`'s per-type requirements (mqtt needs
+// `topic`+`match`; gpio needs `line`) are enforced below via `superRefine` rather than a
+// zod discriminated union on `type`, since `config` also carries fields common to no
+// single type (this keeps the shape flat/JSON-friendly for storage and for a future
+// admin form to render generically).
+// ---------------------------------------------------------------------------
+
+/** How an mqtt motion source's message payload decides "this counts as motion":
+ * `any` — every non-empty message counts (same default as the legacy
+ * `mqtt.motionTopics` migration, see `core/motionSources.ts`'s `migrateMotionTopics`);
+ * `json` — the payload is parsed as JSON and `field` must equal `equals`; `exact` — the
+ * raw payload string must equal `value`. */
+export const matchRuleSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('any') }),
+  z.object({
+    mode: z.literal('json'), field: z.string().min(1),
+    equals: z.union([z.string(), z.number(), z.boolean()]),
+  }),
+  z.object({ mode: z.literal('exact'), value: z.string().min(1) }),
+]);
+export type MatchRule = z.infer<typeof matchRuleSchema>;
+
+/** A single configured motion source (Task 1). `wallSlug: null` wakes every wall, same
+ * broadcast convention as `PresenceRegistry.motion()`'s own `slug: null`. `config`'s
+ * shape is a union-by-`type` grab-bag rather than a discriminated union so a single flat
+ * JSON blob covers every type; the per-type requirement (mqtt: `topic`+`match`; gpio:
+ * `line`) is enforced by the `superRefine` below instead of the field types themselves. */
+export const motionSourceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.enum(['mqtt', 'webhook', 'gpio', 'ble']),
+  enabled: z.boolean().default(true),
+  wallSlug: z.string().nullable().default(null),
+  config: z.object({
+    topic: z.string().min(1).optional(), // mqtt
+    match: matchRuleSchema.optional(), // mqtt
+    chip: z.string().optional(), // gpio, e.g. 'gpiochip0'
+    line: z.number().int().min(0).optional(), // gpio
+    activeLow: z.boolean().optional(), // gpio
+    debounceMs: z.number().int().min(0).optional(), // gpio
+    mac: z.string().nullable().optional(), // ble
+  }).default({}),
+}).superRefine((val, ctx) => {
+  if (val.type === 'mqtt' && (!val.config.topic || !val.config.match)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: ['config'],
+      message: 'mqtt motion sources require config.topic and config.match',
+    });
+  }
+  if (val.type === 'gpio' && val.config.line === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: ['config', 'line'],
+      message: 'gpio motion sources require config.line',
+    });
+  }
+});
+export type MotionSource = z.infer<typeof motionSourceSchema>;
+
+/**
+ * Safe-parses each raw `motionSources` settings-layer entry against `motionSourceSchema`
+ * individually, dropping (never throwing on) anything malformed — this is why the
+ * settings key itself is stored as `z.array(z.unknown())` below rather than
+ * `z.array(motionSourceSchema)`: one corrupted or legacy-shaped entry must never make
+ * `SettingsStore.all()`/`get()` throw for the WHOLE settings object. Callers (see
+ * `core/motionSources.ts`'s `MotionSourceRegistry.sources()`) are responsible for
+ * logging the drops; this stays a pure function so it's trivially unit-testable on its
+ * own (see `tests/core/motionSources.test.ts`).
+ */
+export function parseMotionSources(raw: unknown[]): MotionSource[] {
+  const out: MotionSource[] = [];
+  for (const entry of raw) {
+    const parsed = motionSourceSchema.safeParse(entry);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const settingsSchema = z.object({
   siteName: z.string().default('My Taproom'),
   siteLogo: z.string().nullable().default(null),
@@ -115,6 +196,13 @@ export const settingsSchema = z.object({
     })
     .nullable()
     .default(null),
+  // Displays & Presence hub Task 1: the motion-source registry (supersedes
+  // `mqtt.motionTopics` above, which `core/motionSources.ts`'s boot-time
+  // `migrateMotionTopics` one-time-migrates into entries here — see that function's doc
+  // comment). Stored permissively (`z.array(z.unknown())`, NOT `z.array(motionSourceSchema)`)
+  // so one malformed/legacy-shaped entry can never make the WHOLE settings parse throw;
+  // `parseMotionSources` (above) validates each entry individually at read time.
+  motionSources: z.array(z.unknown()).default([]),
   quietHours: z
     .object({ start: z.string(), end: z.string() }) // "22:00" / "08:00"
     .nullable()

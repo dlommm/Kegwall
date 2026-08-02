@@ -11,6 +11,7 @@ import { attachMilestones } from './core/milestones.js';
 import { attachWallAutoAssign } from './core/wallAutoAssign.js';
 import { attachPresence } from './core/presenceAttach.js';
 import { PresenceRegistry } from './core/presence.js';
+import { MotionSourceRegistry, migrateMotionTopics } from './core/motionSources.js';
 import { SessionRegistry } from './core/sessionMode.js';
 import { SourceManager } from './ingest/manager.js';
 import { registerConfiguredSources } from './ingest/bootstrap.js';
@@ -39,6 +40,10 @@ export interface AppContext {
   /** Per-wall display-power presence tracking: screensaver/active/off states, wired to
    * pour events and walls_changed broadcasts. See core/presence.ts. */
   presence: PresenceRegistry;
+  /** Displays & Presence hub Task 1: the motion-source registry (settings-backed
+   * mqtt/webhook/gpio/ble sources) — resolves a source id into a `presence.motion()`
+   * wake. See core/motionSources.ts. */
+  motion: MotionSourceRegistry;
   /** The running app version (package.json, read once at boot by index.ts). Tests and
    * direct createContext callers get '0.0.0-dev'. Feeds GET /api/system/version and
    * the update-check comparison. */
@@ -85,6 +90,13 @@ export function createContext(dataDir: string, version = '0.0.0-dev'): AppContex
   attachMilestones(db, bus);
   attachWallAutoAssign(db, bus, log);
   const presence = attachPresence(db, bus);
+  const motion = new MotionSourceRegistry(bus, presence, log, settings);
+  // One-shot legacy migration (Task 1) — must run before `registerConfiguredSources`
+  // below so the ingest layer only ever sees the post-migration settings shape (a
+  // `mqtt.motionTopics`-driven `MotionMqttSource` registration would otherwise double up
+  // with the migrated `motionSources` entries once a later task wires GPIO/BLE/mqtt
+  // transports through the registry).
+  migrateMotionTopics(settings, log);
   const sources = new SourceManager(bus);
   // Constructed here (cheap: no I/O) but NOT started — `engine.start()` can dispatch
   // real actions (an `app_startup` rule's webhook/mqtt/SMTP/etc), so it's called
@@ -95,7 +107,10 @@ export function createContext(dataDir: string, version = '0.0.0-dev'): AppContex
   const engine = new AutomationEngine({
     db, bus, settings, state, presence,
   });
-  const ctx: AppContext = { db, bus, settings, state, sources, engine, tabletArm, log, sensors, session: new SessionRegistry(), presence, version };
+  const ctx: AppContext = {
+    db, bus, settings, state, sources, engine, tabletArm, log, sensors,
+    session: new SessionRegistry(), presence, motion, version,
+  };
   // Registers whatever the current settings call for (Task 8's bootstrap.ts) — does NOT
   // start them; that's gated behind `buildApp()`'s `startSources` option (see app.ts /
   // index.ts) so tests never accidentally spin up real network/BLE/MQTT connections.

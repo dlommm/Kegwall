@@ -342,6 +342,25 @@ describe('SettingsStore', () => {
     });
   });
 
+  // Displays & Presence hub Task 1: `motionSources` is stored permissively
+  // (`z.array(z.unknown())`) — per-entry shape validation is `parseMotionSources`'s job
+  // (see tests/core/motionSources.test.ts), not this schema's. These tests just cover
+  // the settings-layer round-trip.
+  describe('motionSources', () => {
+    it('defaults to []', () => {
+      expect(store.get('motionSources')).toEqual([]);
+    });
+
+    it('round-trips one valid entry', () => {
+      const entry = {
+        id: 'abc-123', name: 'Kitchen PIR', type: 'mqtt', enabled: true,
+        wallSlug: 'main', config: { topic: 'home/pir', match: { mode: 'any' } },
+      };
+      store.set('motionSources', [entry]);
+      expect(store.get('motionSources')).toEqual([entry]);
+    });
+  });
+
   describe('faceSignIn', () => {
     it('faceSignIn defaults disabled with 0.6 threshold', () => {
       expect(store.get('faceSignIn')).toEqual({ enabled: false, threshold: 0.6 });

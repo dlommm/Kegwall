@@ -63,7 +63,12 @@ export class PresenceRegistry {
     }
   }
 
-  motion(slug: string | null, source: WakeSource): void {
+  /** `sourceId` (Task 1): the motion-source registry entry that triggered this wake, if
+   * any — threaded straight into the emitted `motion_detected` event so a consumer can
+   * tell WHICH configured sensor fired without re-resolving it. Optional third param;
+   * every pre-existing caller (pour/touch/webhook wakes) omits it and behaves exactly as
+   * before. */
+  motion(slug: string | null, source: WakeSource, sourceId?: string): void {
     const targets = slug === null
       ? [...this.zones.values()]
       : [this.zones.get(slug)].filter((z): z is Zone => z !== undefined);
@@ -76,7 +81,7 @@ export class PresenceRegistry {
       if (now - this.lastGlobalMotionEventAt >= MOTION_EVENT_MIN_INTERVAL_MS) {
         this.lastGlobalMotionEventAt = now;
         this.bus.emit('motion_detected', {
-          wallSlug: null, source, ts: new Date().toISOString(),
+          wallSlug: null, source, sourceId, ts: new Date().toISOString(),
         });
       }
     }
@@ -84,7 +89,7 @@ export class PresenceRegistry {
       if (slug !== null && now - zone.lastMotionEventAt >= MOTION_EVENT_MIN_INTERVAL_MS) {
         zone.lastMotionEventAt = now;
         this.bus.emit('motion_detected', {
-          wallSlug: slug, source, ts: new Date().toISOString(),
+          wallSlug: slug, source, sourceId, ts: new Date().toISOString(),
         });
       }
       this.transition(zone, 'active');

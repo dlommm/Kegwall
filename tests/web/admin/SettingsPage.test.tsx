@@ -68,6 +68,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     bleDirectEnabled: false,
     proBleEnabled: false,
     mqtt: null,
+    motionSources: [],
     quietHours: null,
     presenceWebhookToken: null,
     faceSignIn: { enabled: false, threshold: 0.6 },

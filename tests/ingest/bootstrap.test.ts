@@ -15,6 +15,7 @@ import { SensorRegistry } from '../../src/server/core/sensorRegistry.js';
 import { SessionRegistry } from '../../src/server/core/sessionMode.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
 import { PresenceRegistry } from '../../src/server/core/presence.js';
+import { MotionSourceRegistry } from '../../src/server/core/motionSources.js';
 import { registerConfiguredSources } from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createBeer } from '../../src/server/db/beers.js';
@@ -45,7 +46,7 @@ function makeCtx(): AppContext {
     db, bus, settings, state, sources, engine,
     tabletArm: new TabletArmRegistry(), log,
     sensors: new SensorRegistry(bus, log), session: new SessionRegistry(), version: '0.0.0-dev',
-    presence,
+    presence, motion: new MotionSourceRegistry(bus, presence, log, settings),
   };
 }
 

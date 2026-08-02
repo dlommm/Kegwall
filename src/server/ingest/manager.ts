@@ -15,6 +15,11 @@ export interface SourceStatus {
 const SOURCE_NAME_SET = {
   kegtron_cloud: true, kegtron_udp: true, gen1_mqtt: true, gen1_ble: true, pro_ble: true, mqtt_publisher: true, govee: true,
   motion_mqtt: true,
+  // Motion-source registry's GPIO/BLE transports (Task 1's events.ts union extension) —
+  // not registered as ingest `Source`s by this task (that's a later task's job), but
+  // listed here so `status()` reports a (never-registered) row for them from day one,
+  // same as every other known-but-not-yet-implemented source name.
+  motion_gpio: true, motion_ble: true,
 } satisfies Record<SourceName, true>;
 const ALL_SOURCE_NAMES = Object.keys(SOURCE_NAME_SET) as SourceName[];
 
