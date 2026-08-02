@@ -5,7 +5,7 @@ import { HopFill } from '../glyphs/HopFill';
 import { AbvGlasses } from '../glyphs/AbvGlasses';
 import { KegSilhouette } from '../glyphs/KegSilhouette';
 import {
-  LookBadges, LookQr, SensorChips, TickerMarquee, useLookClock, withSpotlight,
+  LabelArt, LookBadges, LookQr, SensorChips, TickerMarquee, useLookClock, withSpotlight,
 } from './lookShared';
 
 /**
@@ -22,6 +22,9 @@ export function LedgerLook({
 }: WallLookProps) {
   const clock = useLookClock();
   const showNotes = config.fields.description !== false;
+  // Redesign 1b: label art on every look, gated on the (explicit) field toggle so a wall
+  // that never opted in renders exactly as before — no column, no shift.
+  const showLabel = config.fields.labelImage === true;
   const glyphMode = config.glyphMode;
 
   return (
@@ -57,10 +60,12 @@ export function LedgerLook({
           return (
             <div
               key={tap.tapId}
-              className={`${withSpotlight('ledger-row', tap.tapId, spotlightTapId)}${m.isKicked ? ' ledger-row--kicked' : ''}`}
+              className={`${withSpotlight('ledger-row', tap.tapId, spotlightTapId)}${m.isKicked ? ' ledger-row--kicked' : ''}${showLabel ? ' ledger-row--with-label' : ''}`}
               data-testid="ledger-row"
             >
               <div className="ledger-row__tapnum font-display">{m.tapNumber}</div>
+
+              {showLabel && <LabelArt className="ledger-row__label" model={m} />}
 
               <div className="ledger-row__cell">
                 {m.ogLabel && <span className="ledger-row__cell-top font-tabular">{`${m.ogLabel} OG`}</span>}

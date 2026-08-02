@@ -5,7 +5,7 @@ import { SrmGlass } from '../glyphs/SrmGlass';
 import { HopFill } from '../glyphs/HopFill';
 import { KegSilhouette } from '../glyphs/KegSilhouette';
 import {
-  LookBadges, SensorChips, useLookClock, withSpotlight,
+  LabelArt, LookBadges, SensorChips, useLookClock, withSpotlight,
 } from './lookShared';
 
 /**
@@ -20,6 +20,7 @@ export function ColumnsLook({
   taps, config, units, title, tempC, pageIndex, pageCount, rotationSeconds, spotlightTapId, sensors,
 }: WallLookProps) {
   const clock = useLookClock();
+  const showLabel = config.fields.labelImage === true; // redesign 1b
   const style = { '--look-cols': Math.max(1, taps.length) } as CSSProperties;
 
   return (
@@ -55,6 +56,7 @@ export function ColumnsLook({
               data-testid="columns-col"
             >
               <span className="columns-col__tap-label">{`TAP ${m.tapNumber}`}</span>
+              {showLabel && <LabelArt className="columns-col__label" model={m} />}
               <SrmGlass srm={m.srm} style={m.style} width={100} mode={config.glyphMode} />
               <div className="columns-col__badges">
                 {m.isKicked && <span className="look-badge look-badge--kicked">KICKED</span>}

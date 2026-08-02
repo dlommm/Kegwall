@@ -35,6 +35,36 @@ export function withSpotlight(
   return tapId === spotlightTapId ? `${base} ${base}--spotlit` : `${base} ${base}--dimmed`;
 }
 
+export interface LabelArtProps {
+  model: TapLookModel;
+  /** Per-look block class — the look's CSS sizes/shapes the slot (Ledger 150px column,
+   * Gallery 110px square, etc.). Modifiers `--empty` (no art) and `--has-art` are appended. */
+  className: string;
+}
+
+/**
+ * Redesign 1b — label art on EVERY look. Renders the beer's uploaded label image, or a
+ * dashed "no art" placeholder of the same footprint so toggling the field only adds/removes
+ * a column without shifting the others (a beer with no art still occupies its slot). Each
+ * look decides WHETHER to render this (gated on `config.fields.labelImage === true`); the
+ * per-look sizing lives in that look's CSS block via `className`.
+ */
+export function LabelArt({ model, className }: LabelArtProps) {
+  // `look-label-art` carries the shared styling (radius, object-fit, dashed empty slot); the
+  // per-look `className` only sets the footprint (Ledger 150px, Gallery 110px, …).
+  const base = `look-label-art ${className}`;
+  if (model.labelImage) {
+    return (
+      <img className={`${base} look-label-art--has-art`} src={model.labelImage} alt="" data-testid="look-label-art" />
+    );
+  }
+  return (
+    <div className={`${base} look-label-art--empty`} data-testid="look-label-art-empty" aria-hidden="true">
+      <span className="look-label-art__caption">no art</span>
+    </div>
+  );
+}
+
 export interface LookBadgesProps {
   model: TapLookModel;
   /** Per-look badge copy — the Ledger says "NEW ON TAP", the card looks just "NEW". */

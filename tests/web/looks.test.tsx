@@ -231,3 +231,56 @@ describe('ColumnsLook (1c)', () => {
     expect(screen.getByTestId('look-badge-low')).toHaveTextContent(/^LOW$/);
   });
 });
+
+describe('label art on every look (redesign 1b)', () => {
+  function tapWithLabel(id: number, labelImage: string | null): TapState {
+    const t = makeTap(id);
+    return { ...t, beer: { ...t.beer!, labelImage } };
+  }
+
+  it('Ledger renders the label image when the field is on and art exists', () => {
+    renderLook(
+      makeConfig({ look: 'ledger', fields: { labelImage: true } }),
+      [tapWithLabel(1, '/labels/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png')],
+    );
+    const img = screen.getByTestId('look-label-art');
+    expect(img.getAttribute('src')).toContain('/labels/');
+  });
+
+  it('Ledger renders a dashed empty slot (not an img) when the field is on but the beer has no art', () => {
+    renderLook(makeConfig({ look: 'ledger', fields: { labelImage: true } }), [tapWithLabel(1, null)]);
+    expect(screen.getByTestId('look-label-art-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('look-label-art')).toBeNull();
+  });
+
+  it('Ledger renders NO label slot when the field is off (no column, no shift)', () => {
+    renderLook(makeConfig({ look: 'ledger' }), [tapWithLabel(1, '/labels/x.png')]);
+    expect(screen.queryByTestId('look-label-art')).toBeNull();
+    expect(screen.queryByTestId('look-label-art-empty')).toBeNull();
+  });
+});
+
+describe('label art wires into card/column/style looks too (redesign 1b)', () => {
+  function tapWithLabel(id: number, labelImage: string | null): TapState {
+    const t = makeTap(id);
+    return { ...t, beer: { ...t.beer!, labelImage } };
+  }
+
+  it.each(['gallery', 'columns', 'poster', 'neon', 'chalkboard', 'editorial', 'terminal', 'departures', 'zen'] as const)(
+    'the %s look renders the label image when the field is on', (look) => {
+      renderLook(
+        makeConfig({ look, fields: { labelImage: true } }),
+        [tapWithLabel(1, '/labels/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png')],
+      );
+      expect(screen.getByTestId('look-label-art').getAttribute('src')).toContain('/labels/');
+    },
+  );
+
+  it.each(['gallery', 'poster', 'zen'] as const)(
+    'the %s look renders NO label slot when the field is off', (look) => {
+      renderLook(makeConfig({ look }), [tapWithLabel(1, '/labels/x.png')]);
+      expect(screen.queryByTestId('look-label-art')).toBeNull();
+      expect(screen.queryByTestId('look-label-art-empty')).toBeNull();
+    },
+  );
+});

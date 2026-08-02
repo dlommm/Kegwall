@@ -2,7 +2,7 @@ import type { WallLookProps } from './WallLook';
 import { tapLookModel } from '../../lib/lookData';
 import { SrmGlass } from '../glyphs/SrmGlass';
 import {
-  LookBadges, LookQr, SensorChips, useLookClock, withSpotlight,
+  LabelArt, LookBadges, LookQr, SensorChips, useLookClock, withSpotlight,
 } from './lookShared';
 
 /**
@@ -17,6 +17,7 @@ export function GalleryLook({
 }: WallLookProps) {
   const clock = useLookClock();
   const showNotes = config.fields.description !== false;
+  const showLabel = config.fields.labelImage === true; // redesign 1b
 
   return (
     <div className="gallery-look" data-testid="gallery-look">
@@ -53,6 +54,7 @@ export function GalleryLook({
               data-testid="gallery-card"
             >
               <div className="gallery-card__body">
+                {showLabel && <LabelArt className="gallery-card__label" model={m} />}
                 <div className="gallery-card__glass">
                   <SrmGlass srm={m.srm} style={m.style} width={80} mode={config.glyphMode} />
                   {m.srmLabel && <span className="gallery-card__srm font-tabular">{`${m.srmLabel} SRM`}</span>}

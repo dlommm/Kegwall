@@ -3,7 +3,7 @@ import { tapLookModel, type TapLookModel } from '../../lib/lookData';
 import { srmToColor } from '../../lib/srm';
 import { SrmGlass } from '../glyphs/SrmGlass';
 import {
-  LookBadges, LookPageDots, useLookClock, withSpotlight,
+  LabelArt, LookBadges, LookPageDots, useLookClock, withSpotlight,
 } from './lookShared';
 
 /**
@@ -49,6 +49,7 @@ export function ChalkboardLook({
       <div className="chalk-look__menu">
         {models(taps, units).map((m) => (
           <div key={m.tap.tapId} className={withSpotlight('chalk-row', m.tap.tapId, spotlightTapId)} data-testid="chalk-row">
+            {config.fields.labelImage === true && <LabelArt className="chalk-row__label" model={m} />}
             <SrmGlass srm={m.srm} style={m.style} width={64} mode="outline" />
             <div className="chalk-row__main">
               <div className="chalk-row__name-line">
@@ -93,6 +94,7 @@ export function EditorialLook({
         {models(taps, units).map((m) => (
           <div key={m.tap.tapId} className={withSpotlight('editorial-row', m.tap.tapId, spotlightTapId)} data-testid="editorial-row">
             <span className="editorial-row__num font-tabular">{String(m.tapNumber).padStart(2, '0')}</span>
+            {config.fields.labelImage === true && <LabelArt className="editorial-row__label" model={m} />}
             <div className="editorial-row__main">
               <span className="editorial-row__name">{m.name ?? '—'}</span>
               <span className="editorial-row__style">
@@ -144,6 +146,7 @@ export function NeonLook({
         {models(taps, units).map((m) => (
           <div key={m.tap.tapId} className={withSpotlight('neon-card', m.tap.tapId, spotlightTapId)} data-testid="neon-card">
             <span className="neon-card__num font-display font-tabular">{m.tapNumber}</span>
+            {config.fields.labelImage === true && <LabelArt className="neon-card__label" model={m} />}
             <div className="neon-card__main">
               <span className="neon-card__name font-display">{m.name ?? '—'}</span>
               <span className="neon-card__meta font-tabular">
@@ -178,6 +181,10 @@ export function TerminalLook({
       <div className="terminal-look__rows">
         {models(taps, units).map((m) => (
           <div key={m.tap.tapId} className={withSpotlight('terminal-row', m.tap.tapId, spotlightTapId)} data-testid="terminal-row">
+            {/* DESIGN NOTE: Terminal is a pure phosphor-text look with no natural rhythm for a
+                raster image; when the field is on, a small square thumb sits left of the row as
+                the least-jarring way to still honor "label art on all 11 looks". */}
+            {config.fields.labelImage === true && <LabelArt className="terminal-row__label" model={m} />}
             <div className="terminal-row__name-line">
               <span className="terminal-row__prompt">{`tap${String(m.tapNumber).padStart(2, '0')} >`}</span>
               <span className="terminal-row__name">{m.name ?? '(empty)'}</span>
@@ -207,7 +214,7 @@ export function TerminalLook({
 /** 8e — Poster: brutalist — each row's background IS the beer's real SRM hex,
  * ink flips black/white by luminance, 76px names. */
 export function PosterLook({
-  taps, units, pageIndex, pageCount, spotlightTapId,
+  taps, config, units, pageIndex, pageCount, spotlightTapId,
 }: WallLookProps) {
   return (
     <div className="poster-look" data-testid="poster-look">
@@ -222,6 +229,7 @@ export function PosterLook({
             data-testid="poster-row"
           >
             <span className="poster-row__num font-display font-tabular">{m.tapNumber}</span>
+            {config.fields.labelImage === true && <LabelArt className="poster-row__label" model={m} />}
             <span className="poster-row__name font-display">{(m.name ?? 'EMPTY').toUpperCase()}</span>
             {m.style && <span className="poster-row__style">{m.style}</span>}
             <span className="poster-row__spacer" />
@@ -260,7 +268,13 @@ export function DeparturesLook({
         {models(taps, units).map((m) => (
           <div key={m.tap.tapId} className={withSpotlight('departures-row', m.tap.tapId, spotlightTapId)} data-testid="departures-row">
             <span className="font-tabular">{String(m.tapNumber).padStart(2, '0')}</span>
-            <span className="departures-row__name">{(m.name ?? 'EMPTY').toUpperCase()}</span>
+            {/* DESIGN NOTE: Departures is a fixed 6-column flap board (TAP/BEER/STYLE/ABV/FULL/
+                STATUS); to honor label art without adding a 7th column that would break the
+                board, the thumb lives INSIDE the BEER cell, left of the name. */}
+            <span className="departures-row__name">
+              {config.fields.labelImage === true && <LabelArt className="departures-row__label" model={m} />}
+              {(m.name ?? 'EMPTY').toUpperCase()}
+            </span>
             <span className="departures-row__style">{(m.style ?? '').toUpperCase()}</span>
             <span className="font-tabular">{m.abv != null ? `${m.abv.toFixed(1)}%` : '—'}</span>
             <span className="font-tabular" data-testid="departures-full">{`${m.levelPct}%`}</span>
@@ -281,7 +295,7 @@ export function DeparturesLook({
 /** 8g — Zen: radical minimal — SRM dot, name, style, ABV, a 120px hairline of
  * level and a small %. Nothing else. */
 export function ZenLook({
-  taps, units, title, pageIndex, pageCount, spotlightTapId,
+  taps, config, units, title, pageIndex, pageCount, spotlightTapId,
 }: WallLookProps) {
   const count = taps.length;
   const countWord = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN'][count] ?? String(count);
@@ -291,6 +305,10 @@ export function ZenLook({
       <div className="zen-look__rows">
         {models(taps, units).map((m) => (
           <div key={m.tap.tapId} className={withSpotlight('zen-row', m.tap.tapId, spotlightTapId)} data-testid="zen-row">
+            {/* DESIGN NOTE: Zen is deliberately minimal ("nothing else"); when the field is
+                explicitly on, a small square thumb sits beside the SRM dot — honoring the
+                all-11-looks rule while staying as quiet as the look intends. */}
+            {config.fields.labelImage === true && <LabelArt className="zen-row__label" model={m} />}
             <span
               className="zen-row__dot"
               style={{ backgroundColor: m.hasBeer ? srmToColor(m.srm).liquid : 'transparent' }}

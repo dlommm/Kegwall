@@ -4379,6 +4379,73 @@ h2.admin-field__label-text {
   grid-template-columns: 64px 1fr;
 }
 
+/* Redesign 1b: label art on every look. Shared base — the per-look class sets the footprint.
+   DESIGN NOTE: README specifies `1px dashed rgba(255,255,255,0.1)` for the empty slot; using the
+   theme's --border/--text-faint tokens instead so the dashed placeholder + "no art" caption stay
+   visible across all 10 themes (hard requirement #5), not just the dark default. */
+.look-label-art {
+  flex: none;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.look-label-art--has-art {
+  object-fit: cover;
+}
+
+.look-label-art--empty {
+  border: 1px dashed var(--border);
+  background: rgba(128, 128, 128, 0.04);
+  display: grid;
+  place-items: center;
+}
+
+.look-label-art__caption {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Ledger: a 150px column inserted after the tap-number circle. Toggling the field swaps this
+   template in/out; no other column moves. */
+.ledger-row--with-label {
+  grid-template-columns: 64px 150px 164px 164px 1fr 210px 300px;
+}
+
+.ledger-row__label {
+  width: 150px;
+  height: 150px;
+}
+
+/* Gallery: an 110px square at the start of the card body. */
+.gallery-card__label {
+  width: 110px;
+  height: 110px;
+  border-radius: 12px;
+}
+
+/* Other looks: each label thumb sized to that look's rhythm (see per-look DESIGN NOTES in
+   styleLooks.tsx for the text/minimal looks where art is a deliberate compromise). */
+.columns-col__label { width: 90px; height: 90px; border-radius: 12px; }
+.chalk-row__label { width: 72px; height: 72px; border-radius: 10px; }
+.editorial-row__label { width: 64px; height: 64px; border-radius: 6px; }
+.neon-card__label { width: 72px; height: 72px; border-radius: 10px; }
+.terminal-row__label { width: 44px; height: 44px; border-radius: 4px; }
+.poster-row__label { width: 90px; height: 90px; border-radius: 8px; }
+.zen-row__label { width: 40px; height: 40px; border-radius: 8px; }
+
+.departures-row__label {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 12px;
+}
+
 .ledger-row__empty-text {
   color: var(--text-faint);
   font-size: 15px;

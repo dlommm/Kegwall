@@ -63,6 +63,9 @@ export interface TapLookModel {
   avgRating: number | null;
   /** Queued next keg's beer name (design 6e) — looks surface it when low. */
   nextUpName: string | null;
+  /** Uploaded label-art path (`/labels/…`), or null. Redesign 1b: honored by EVERY look,
+   * not just classic/TapCard. */
+  labelImage: string | null;
 }
 
 /** Level % → status bucket (≤15 danger, ≤35 warn, else ok — design thresholds). */
@@ -135,5 +138,6 @@ export function tapLookModel(tap: TapState, units: VolumeUnits, now: Date = new 
     hasBeer: !!beer && !!keg,
     avgRating: tap.avgRating ?? null,
     nextUpName: tap.nextUpBeerName ?? null,
+    labelImage: beer?.labelImage ?? null,
   };
 }

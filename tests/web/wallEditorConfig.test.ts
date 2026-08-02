@@ -257,7 +257,7 @@ describe('display fit (redesign 1c)', () => {
     expect(form.displaySizeIn).toBe(75);
     expect(form.displayResolution).toBe('4k');
     expect(form.displayUiScale).toBe(0.85);
-    const back = formStateToConfigCandidate(form, []);
+    const back = formStateToConfigCandidate(form, []) as Record<string, unknown>;
     expect(back.display).toEqual({ sizeIn: 75, resolution: '4k', uiScale: 0.85 });
   });
 
