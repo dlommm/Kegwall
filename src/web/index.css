@@ -6449,6 +6449,84 @@ h2.admin-field__label-text {
   color: var(--text-dim);
 }
 
+/* RECENT jumbo tiles + A–Z rail (redesign 2d/2g). */
+.tablet-recent {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tablet-recent__tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.tablet-recent__avatar {
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.tablet-recent__name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tablet-recent__when {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tablet-grid__body {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  min-height: 0;
+}
+
+.tablet-grid__body .tablet-grid__avatars {
+  flex: 1;
+}
+
+.tablet-az-rail {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex: none;
+}
+
+.tablet-az-rail__letter {
+  width: 22px;
+  min-height: 22px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tablet-az-rail__letter:active {
+  color: var(--accent);
+}
+
 .tablet-screen__quiet {
   font-size: 13px;
   color: var(--text-dim);

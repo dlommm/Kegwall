@@ -7,6 +7,7 @@ import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { useLookClock } from '../components/looks/lookShared';
 import { formatVolumeMl } from '../lib/units';
+import { formatRelativeTime } from '../lib/useRelativeTime';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
 import { startCameraMotion } from '../lib/cameraMotion';
@@ -519,6 +520,7 @@ export function TabletPage() {
   const [enrollState, setEnrollState] = useState<
     'idle' | 'capturing' | 'retry' | 'save-failed' | 'camera-error' | 'done'
   >('idle');
+  const avatarsRef = useRef<HTMLDivElement | null>(null);
   const enrollVideoRef = useRef<HTMLVideoElement | null>(null);
   const enrollControllerRef = useRef<AbortController | null>(null);
   const enrollDisposeRef = useRef<(() => void) | null>(null);
@@ -893,26 +895,78 @@ export function TabletPage() {
                   onChange={(e) => setPourerQuery(e.target.value)}
                 />
               )}
-              <div className="tablet-grid__avatars" data-testid="tablet-avatars">
-                {(pourerQuery.trim()
-                  ? pourers.filter((p) => p.displayName.toLowerCase().includes(pourerQuery.trim().toLowerCase()))
-                  : pourers
-                ).map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="tablet-avatar"
-                    data-testid="tablet-avatar"
-                    disabled={busy}
-                    onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
-                  >
-                    <span className="tablet-avatar__circle font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
-                      {initials(p.displayName)}
-                    </span>
-                    <span className="tablet-avatar__name">{p.displayName}</span>
-                    <span className="tablet-avatar__pours font-tabular">{`${p.pourCount} pours`}</span>
-                  </button>
-                ))}
+              {/* RECENT jumbo tiles (redesign 2d): the two most-recently-active pourers, big
+                  one-tap targets — hidden while searching. */}
+              {!pourerQuery.trim() && (() => {
+                const recent = [...pourers]
+                  .filter((p) => p.lastPourAt)
+                  .sort((a, b) => (b.lastPourAt! > a.lastPourAt! ? 1 : -1))
+                  .slice(0, 2);
+                return recent.length > 0 ? (
+                  <div className="tablet-recent" data-testid="tablet-recent">
+                    {recent.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="tablet-recent__tile"
+                        data-testid="tablet-recent-tile"
+                        disabled={busy}
+                        onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
+                      >
+                        <span className="tablet-recent__avatar font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
+                          {initials(p.displayName)}
+                        </span>
+                        <span className="tablet-recent__name">{p.displayName}</span>
+                        <span className="tablet-recent__when font-tabular">{`poured ${formatRelativeTime(p.lastPourAt!)}`}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
+              <div className="tablet-grid__body">
+                <div className="tablet-grid__avatars" data-testid="tablet-avatars" ref={avatarsRef}>
+                  {(pourerQuery.trim()
+                    ? pourers.filter((p) => p.displayName.toLowerCase().includes(pourerQuery.trim().toLowerCase()))
+                    : pourers
+                  ).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="tablet-avatar"
+                      data-testid="tablet-avatar"
+                      data-initial={(p.displayName.trim()[0] ?? '#').toUpperCase()}
+                      disabled={busy}
+                      onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
+                    >
+                      <span className="tablet-avatar__circle font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
+                        {initials(p.displayName)}
+                      </span>
+                      <span className="tablet-avatar__name">{p.displayName}</span>
+                      <span className="tablet-avatar__pours font-tabular">{`${p.pourCount} pours`}</span>
+                    </button>
+                  ))}
+                </div>
+                {/* A–Z rail (redesign 2g): thumb-jump to the first name under a letter. */}
+                {!pourerQuery.trim() && pourers.length > 12 && (
+                  <div className="tablet-az-rail" data-testid="tablet-az-rail" aria-hidden="true">
+                    {[...new Set(pourers.map((p) => (p.displayName.trim()[0] ?? '#').toUpperCase()))]
+                      .sort()
+                      .map((letter) => (
+                        <button
+                          key={letter}
+                          type="button"
+                          className="tablet-az-rail__letter"
+                          data-testid="tablet-az-letter"
+                          onClick={() => avatarsRef.current
+                            ?.querySelector(`[data-initial="${letter}"]`)
+                            ?.scrollIntoView({ block: 'nearest' })}
+                        >
+                          {letter}
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
               {session && (
                 <div className="tablet-session" data-testid="tablet-session">

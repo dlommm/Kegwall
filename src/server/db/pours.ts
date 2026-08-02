@@ -39,6 +39,14 @@ export function countPoursForDrinker(db: Database.Database, drinkerId: number): 
     .get(drinkerId) as any).c;
 }
 
+/** A drinker's most recent claimed-pour timestamp, or null — feeds the tablet's RECENT
+ *  jumbo tiles (redesign 2d). */
+export function lastPourForDrinker(db: Database.Database, drinkerId: number): string | null {
+  const r = db.prepare('SELECT MAX(ts) ts FROM pours WHERE drinker_id = ?')
+    .get(drinkerId) as { ts: string | null };
+  return r.ts ?? null;
+}
+
 /** Rate-after-claim (design 6a): stamps 1-5 stars + quick tags on a pour. */
 export function ratePour(db: Database.Database, pourId: number, rating: number, tags: string[]): Pour {
   const res = db.prepare('UPDATE pours SET rating = ?, rating_tags = ? WHERE id = ?')

@@ -220,6 +220,40 @@ describe('TabletPage (design 3a)', () => {
     expect(filtered[0]).toHaveTextContent('Samantha');
   });
 
+  it('shows RECENT jumbo tiles for the two most-recently-active pourers (redesign 2d)', async () => {
+    (getPourers as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        { id: 1, displayName: 'Sam', avatarColor: null, pourCount: 5, lastPourAt: '2026-08-01T10:00:00Z' },
+        { id: 2, displayName: 'JT', avatarColor: null, pourCount: 3, lastPourAt: '2026-08-01T11:00:00Z' },
+        { id: 3, displayName: 'Kim', avatarColor: null, pourCount: 1, lastPourAt: null },
+      ],
+    });
+    mockWallData();
+    renderTablet();
+    await flush();
+    const tiles = screen.getAllByTestId('tablet-recent-tile');
+    expect(tiles).toHaveLength(2);
+    // Most recent first: JT (11:00) before Sam (10:00).
+    expect(tiles[0]).toHaveTextContent('JT');
+    expect(tiles[0]).toHaveTextContent('poured');
+  });
+
+  it('shows an A–Z rail for a big roster (redesign 2g)', async () => {
+    (getPourers as Mock).mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 14 }, (_, i) => ({
+        id: i + 1, displayName: String.fromCharCode(65 + i) + 'name', avatarColor: null, pourCount: i,
+      })),
+    });
+    mockWallData();
+    renderTablet();
+    await flush();
+    const letters = screen.getAllByTestId('tablet-az-letter');
+    expect(letters.length).toBeGreaterThan(10);
+    expect(letters[0]).toHaveTextContent('A');
+  });
+
   it('shows a FACE SIGN-IN ON chip when the directory is enabled (redesign 2d)', async () => {
     (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true } });
     mockWallData();

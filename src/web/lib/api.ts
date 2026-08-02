@@ -144,9 +144,11 @@ export function claimPour(pourId: number, drinkerId: number): Promise<ApiResult<
 
 // --- Pour Wall overhaul Phase 3: pourers, tablet arming, leaderboard ---------
 
-/** A pourer on the tablet's avatar grid: a PublicDrinker + lifetime pour count. */
+/** A pourer on the tablet's avatar grid: a PublicDrinker + lifetime pour count + last-pour
+ *  timestamp (feeds the RECENT jumbo tiles, redesign 2d). */
 export interface PublicPourer extends PublicDrinker {
   pourCount: number;
+  lastPourAt?: string | null;
 }
 
 export interface TabletArmStatus {

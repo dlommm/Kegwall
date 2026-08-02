@@ -49,12 +49,17 @@ describe('public pourer signup (Pour Wall overhaul Phase 3)', () => {
   it('lists pourers with lifetime pour counts', async () => {
     const db = app.ctx.db;
     const sam = createDrinker(db, { displayName: 'Sam' });
+    const ts = new Date().toISOString();
     recordPourTx(db, {
-      kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp', drinkerId: sam.id,
+      kegId, ts, volumeMl: 400, source: 'udp', drinkerId: sam.id,
     });
     const res = await app.inject({ method: 'GET', url: '/api/public/pourers' });
     const entry = res.json().find((p: any) => p.id === sam.id);
     expect(entry.pourCount).toBe(1);
+    // lastPourAt feeds the tablet RECENT tiles (redesign 2d).
+    expect(entry.lastPourAt).toBe(ts);
+    const noPours = res.json().find((p: any) => p.pourCount === 0);
+    if (noPours) expect(noPours.lastPourAt).toBeNull();
   });
 });
 

@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getWallBySlug } from './crud.js';
 import { allowedTapIdsForWall } from '../db/wallDevices.js';
-import { recentUnclaimedPours, setPourDrinker, countPoursForDrinker } from '../db/pours.js';
+import {
+  recentUnclaimedPours, setPourDrinker, countPoursForDrinker, lastPourForDrinker,
+} from '../db/pours.js';
 import { listDrinkers, createDrinker, getUser } from '../db/users.js';
 import { getKeg } from '../db/kegs.js';
 import { getBeer } from '../db/beers.js';
@@ -117,6 +119,7 @@ export async function publicRoutes(app: FastifyInstance) {
       displayName: d.displayName,
       avatarColor: d.avatarColor,
       pourCount: countPoursForDrinker(db, d.id),
+      lastPourAt: lastPourForDrinker(db, d.id),
     })));
 
   // Tablet arming (design 3a): "who's pouring?" → arm → the next recorded pour on any
