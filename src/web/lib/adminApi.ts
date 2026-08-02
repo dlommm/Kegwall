@@ -477,6 +477,15 @@ export function patchSettings(patch: Partial<Settings>): Promise<ApiResult<Setti
   return request('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
+/** POST /api/doctor/mqtt — live-tests the MQTT broker connection for the HA setup wizard. A
+ * blank/masked password falls back to the stored secret server-side, so an existing config
+ * can be re-tested without re-typing it. */
+export function testMqttConnection(body: {
+  url: string; username?: string; password?: string;
+}): Promise<ApiResult<{ ok: boolean; detail: string }>> {
+  return request('/api/doctor/mqtt', { method: 'POST', body: JSON.stringify(body) });
+}
+
 /** POST /api/admin/restore — multipart upload of a full `app.db` snapshot (e.g. one
  * downloaded from this same install's own `GET /api/admin/backup`, or another install's)
  * to stage as `DATA_DIR/pending-restore.db`. Only takes effect on the NEXT server
