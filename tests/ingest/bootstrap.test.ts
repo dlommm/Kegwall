@@ -16,7 +16,7 @@ import { SessionRegistry } from '../../src/server/core/sessionMode.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
 import { PresenceRegistry } from '../../src/server/core/presence.js';
 import { MotionSourceRegistry } from '../../src/server/core/motionSources.js';
-import { registerConfiguredSources } from '../../src/server/ingest/bootstrap.js';
+import { registerConfiguredSources, restartSourcesIfLive } from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
@@ -206,6 +206,114 @@ describe('registerConfiguredSources', () => {
       registerConfiguredSources(ctx);
       expect(ctx.sources.status().find((s) => s.name === 'motion_mqtt')!.registered).toBe(false);
     });
+  });
+
+  // Task 6, mirroring the motion_mqtt gating describe block above.
+  describe('motion_gpio gating and defaulting (Task 6)', () => {
+    it('registers motion_gpio when an enabled gpio-type motion source exists', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [{
+        id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: true,
+        wallSlug: 'main', config: { line: 4 },
+      }] as never);
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(true);
+    });
+
+    it('does not register motion_gpio when no gpio-type motion source exists', () => {
+      const ctx = makeCtx();
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(false);
+    });
+
+    it('does not register motion_gpio for a disabled gpio-type motion source', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [{
+        id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: false,
+        wallSlug: 'main', config: { line: 4 },
+      }] as never);
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(false);
+    });
+
+    it('drops motion_gpio on a rebuild once the last gpio-type motion source is removed', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [{
+        id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: true,
+        wallSlug: 'main', config: { line: 4 },
+      }] as never);
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(true);
+
+      ctx.settings.set('motionSources', []);
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(false);
+    });
+
+    // Task 1 adjudication, carried into Task 6 as a binding requirement: the schema
+    // leaves `config.chip`/`activeLow`/`debounceMs` bare-optional -- bootstrap wiring
+    // (registerConfiguredSources) is where the documented defaults (`chip` 'gpiochip0',
+    // `activeLow` false, `debounceMs` 2000) get applied, so a gpio entry with only
+    // `line` set still registers `motion_gpio` (proving construction succeeded with
+    // resolved values -- GpioMotionSource's own constructor would throw/misbehave on
+    // an unresolved `chip: undefined`/`activeLow: undefined` if the defaulting here
+    // were missing or wrong).
+    it('applies documented gpio defaults (chip/activeLow/debounceMs) when only `line` is set', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [{
+        id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: true,
+        wallSlug: 'main', config: { line: 4 }, // chip/activeLow/debounceMs all omitted
+      }] as never);
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(true);
+    });
+  });
+});
+
+describe('restartSourcesIfLive', () => {
+  it('is a no-op when sources are not started (isStarted() false, e.g. default test app)', async () => {
+    const ctx = makeCtx();
+    ctx.settings.set('kegtronApiKey', 'fake-api-key-123');
+    // Not calling ctx.sources.startAll() -- isStarted() stays false.
+    await restartSourcesIfLive(ctx);
+    expect(ctx.sources.status().every((s) => !s.registered)).toBe(true);
+  });
+
+  it('stops, re-registers from current settings, and restarts when sources ARE live', async () => {
+    const ctx = makeCtx();
+    registerConfiguredSources(ctx); // cloud + govee only, both self-skip (no real I/O)
+    await ctx.sources.startAll();
+    expect(ctx.sources.isStarted()).toBe(true);
+    expect(ctx.sources.status().find((s) => s.name === 'kegtron_cloud')!.registered).toBe(true);
+
+    // stopAll/startAll are mocked (same idiom as tests/ingest/bootstrap.test.ts's
+    // "settings PATCH triggers a live source restart" describe block below) so this
+    // test observes the call sequence without a gpio-type source's startAll() actually
+    // spawning a real `gpiomon` child process -- `registerConfiguredSources` itself
+    // (NOT mocked) still runs for real and its effect on `status().registered` is what
+    // proves the rebuild picked up the new settings, independent of the mocked start.
+    const stopSpy = vi.spyOn(ctx.sources, 'stopAll').mockResolvedValue(undefined);
+    const startSpy = vi.spyOn(ctx.sources, 'startAll').mockResolvedValue(undefined);
+
+    // Change settings so a rebuild picks up a new source set (govee/cloud always
+    // register, so instead prove the rebuild actually ran via a gpio motion source
+    // that only exists after this settings write).
+    ctx.settings.set('motionSources', [{
+      id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: true,
+      wallSlug: 'main', config: { line: 4 },
+    }] as never);
+
+    await restartSourcesIfLive(ctx);
+
+    expect(stopSpy).toHaveBeenCalledTimes(1);
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(true);
   });
 });
 

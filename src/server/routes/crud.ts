@@ -21,7 +21,7 @@ import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
 import { countFaceEmbeddingsByDrinker } from '../db/faceEmbeddings.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
-import { registerConfiguredSources } from '../ingest/bootstrap.js';
+import { restartSourcesIfLive } from '../ingest/bootstrap.js';
 import { setPourDrinker } from '../db/pours.js';
 import { SOURCE_RESTART_KEYS } from '../core/restartKeys.js';
 
@@ -476,17 +476,12 @@ export async function crudRoutes(app: FastifyInstance) {
       if (!requestedKeys.has(k)) continue;
       app.ctx.settings.set(k as any, v as any);
     }
-    // Only restart a source set that's actually live — `isStarted()` is false in every
-    // test that builds the app with the default `startSources: false` and never
-    // manually starts sources, so an incidental PATCH there (e.g. existing tests that
-    // set a fake kegtronApiKey) never spins up a real KegtronCloudSource against the
-    // live mdash.net API. In production this is always true by the time an
-    // authenticated PATCH can reach this route (index.ts always passes
-    // startSources: true). See task-8-report.md "Deviations".
-    if (restartSources && app.ctx.sources.isStarted()) {
-      await app.ctx.sources.stopAll();
-      registerConfiguredSources(app.ctx);
-      await app.ctx.sources.startAll();
+    // Task 6: the stop/reconfigure/start cycle (with its `isStarted()`-is-false-in-tests
+    // rationale) now lives in `ingest/bootstrap.ts`'s `restartSourcesIfLive` -- shared
+    // verbatim with `routes/presence.ts`'s motion-source CRUD routes, see that helper's
+    // doc comment. See task-8-report.md "Deviations" for the original rationale.
+    if (restartSources) {
+      await restartSourcesIfLive(app.ctx);
     }
     // displayUnits (and siteName) ride the wall payload — nudge open wall clients.
     if (requestedKeys.has('displayUnits') || requestedKeys.has('siteName')) {

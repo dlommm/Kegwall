@@ -4,29 +4,11 @@ import { requireRole } from './auth.js';
 import { motionSourceSchema, parseMotionSources } from '../db/settings.js';
 import { parseWallConfig } from '../core/wallConfig.js';
 import { NotFoundError } from '../core/errors.js';
-import { registerConfiguredSources } from '../ingest/bootstrap.js';
+import { restartSourcesIfLive } from '../ingest/bootstrap.js';
 
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
 export interface PresenceRoutesOptions { pingIntervalMs?: number }
-
-/**
- * Displays & Presence hub Task 3: sources CRUD writes through `settings.set('motionSources',
- * ...)`, which is one of `SOURCE_RESTART_KEYS` (core/restartKeys.ts) — a PATCH to
- * `/api/settings` touching that key trips this exact stop/reconfigure/start cycle
- * (routes/crud.ts). These are dedicated CRUD routes, not that PATCH, so nothing there
- * fires automatically; this reuses crud.ts's mechanism verbatim so a motion source
- * add/edit/remove here ALSO reconfigures the live GPIO/BLE/mqtt transports. Same
- * `isStarted()` guard and rationale as that route: false in every test that builds the
- * app with the default `startSources: false`, so this never spins up a real transport
- * mid-test.
- */
-async function restartSourcesIfLive(app: FastifyInstance): Promise<void> {
-  if (!app.ctx.sources.isStarted()) return;
-  await app.ctx.sources.stopAll();
-  registerConfiguredSources(app.ctx);
-  await app.ctx.sources.startAll();
-}
 
 /** Presence wake surfaces (spec Part A/A2-A3): the token-gated external motion webhook
  * + agent SSE stream, and the public user-interaction wake endpoint (same trust level
@@ -113,6 +95,12 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
   });
 
   // --- motion-source CRUD/status (Task 3) ---------------------------------------------
+  // Every write below (create/patch/delete) ends with `restartSourcesIfLive` (Task 6,
+  // `ingest/bootstrap.ts`) — the same stop/reconfigure/start cycle `routes/crud.ts`'s
+  // settings PATCH runs for a `SOURCE_RESTART_KEYS` change, reused here (not
+  // duplicated) so a motion source add/edit/remove here ALSO reconfigures the live
+  // GPIO/BLE/mqtt transports; see that helper's doc comment for the `isStarted()` guard
+  // rationale.
   // GET /api/presence/sources: the admin Sources page's single read — configured sources
   // (registry snapshot, enabled-only per MotionSourceRegistry.sources()), derived camera
   // rows (one per wall with displayPower.cameraMotion on, status read back from the
@@ -152,7 +140,7 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
     const source = motionSourceSchema.parse({ ...raw, id: crypto.randomUUID() });
     const existing = parseMotionSources(app.ctx.settings.get('motionSources') as unknown[]);
     app.ctx.settings.set('motionSources', [...existing, source]);
-    await restartSourcesIfLive(app);
+    await restartSourcesIfLive(app.ctx);
     return reply.code(201).send(source);
   });
 
@@ -169,7 +157,7 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
     const next = [...existing];
     next[idx] = merged;
     app.ctx.settings.set('motionSources', next);
-    await restartSourcesIfLive(app);
+    await restartSourcesIfLive(app.ctx);
     return merged;
   });
 
@@ -179,7 +167,7 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
     // Idempotent, same as crud.ts's beer/tap/keg deletes -- an unknown id is simply a
     // no-op 204 rather than a 404.
     app.ctx.settings.set('motionSources', existing.filter((s) => s.id !== id));
-    await restartSourcesIfLive(app);
+    await restartSourcesIfLive(app.ctx);
     return reply.code(204).send();
   });
 

@@ -10,6 +10,7 @@ import { PourSynthesizer } from './gen1/pourSynth.js';
 import { BleScanner } from './ble/scanner.js';
 import { HaPublisherSource } from './haPublisher.js';
 import { MotionMqttSource } from './motionMqtt.js';
+import { GpioMotionSource } from './gpioMotion.js';
 
 // ---------------------------------------------------------------------------
 // Task 8: wires the four ingest sources (Tasks 4/6/7) into a single `SourceManager`
@@ -154,4 +155,52 @@ export function registerConfiguredSources(ctx: AppContext): void {
       sources: mqttMotionSources, registry: ctx.motion, bus: ctx.bus,
     }));
   }
+
+  // Task 6, same "gated on its own condition, registry-driven" precedent as `motion_mqtt`
+  // just above: registers only when at least one enabled gpio-type motion source exists,
+  // so an install with none configured reports `motion_gpio: {registered: false}` rather
+  // than a registered-but-inert transport. `config.line` is guaranteed present for every
+  // gpio-type entry by `motionSourceSchema`'s `superRefine` (see db/settings.ts), so the
+  // non-null assertion below is schema-backed, same as `mqttMotionSources.topic`/`match`
+  // above.
+  //
+  // Task 1 adjudication (ledgered, carried into this task): the schema deliberately
+  // leaves `config.chip`/`activeLow`/`debounceMs` bare-optional -- THIS is the one place
+  // those documented defaults (`chip` 'gpiochip0', `activeLow` false, `debounceMs' 2000)
+  // get applied, so `GpioMotionSource` itself only ever sees fully-resolved values (its
+  // constructor's own contract, see gpioMotion.ts).
+  const gpioMotionSources = ctx.motion.sources()
+    .filter((s) => s.type === 'gpio')
+    .map((s) => ({
+      id: s.id,
+      chip: s.config.chip ?? 'gpiochip0',
+      line: s.config.line!,
+      activeLow: s.config.activeLow ?? false,
+      debounceMs: s.config.debounceMs ?? 2000,
+    }));
+  if (gpioMotionSources.length > 0) {
+    ctx.sources.register(new GpioMotionSource({
+      sources: gpioMotionSources, registry: ctx.motion, bus: ctx.bus,
+    }));
+  }
+}
+
+/**
+ * Task 3 finding, folded here by Task 6 (reviewer-endorsed extraction site): the exact
+ * stop/reconfigure/start cycle that BOTH `routes/crud.ts`'s settings-PATCH handler (when
+ * a `SOURCE_RESTART_KEYS` field changes) and `routes/presence.ts`'s motion-source
+ * CRUD routes (create/patch/delete) need after writing a source-relevant settings
+ * change to a LIVE app -- previously duplicated verbatim in both files. `isStarted()` is
+ * false in every test that builds the app with the default `startSources: false` and
+ * never manually starts sources, so an incidental settings/source write there never
+ * spins up a real transport against a live device/broker/API. In production this is
+ * always true by the time an authenticated request can reach either call site
+ * (`index.ts` always passes `startSources: true`). See task-8-report.md "Deviations"
+ * (crud.ts's original rationale, unchanged by this extraction).
+ */
+export async function restartSourcesIfLive(ctx: AppContext): Promise<void> {
+  if (!ctx.sources.isStarted()) return;
+  await ctx.sources.stopAll();
+  registerConfiguredSources(ctx);
+  await ctx.sources.startAll();
 }

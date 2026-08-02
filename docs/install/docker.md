@@ -88,6 +88,34 @@ cd deploy
 docker compose -f docker-compose.host-network.yml up -d
 ```
 
+## GPIO PIR motion sensors (device mapping)
+
+The Displays & Presence hub's GPIO motion transport (`Settings -> Sources`, a `gpio`-type
+motion source) spawns the libgpiod CLI (`gpiomon`) against a chardev like `/dev/gpiochip0`
+— see [docs/install/raspberry-pi.md](raspberry-pi.md#gpio-pir-motion-sensors) for the
+bare-metal `apt install gpiod` setup, and `docs/setup/motion-sensors.md` for the
+sensor buying/wiring guide. That device is **not**
+visible inside a container by default, in either networking mode above, since device
+passthrough is orthogonal to `network_mode` — a bridge-network container (the default
+`deploy/docker-compose.yml`) needs it exactly as much as a host-network one
+(`deploy/docker-compose.host-network.yml`). Add it explicitly:
+
+```sh
+docker run --device /dev/gpiochip0 ...
+```
+
+or, in either compose file's `services.kegwall` block:
+
+```yaml
+    devices:
+      - /dev/gpiochip0
+```
+
+Without this, `gpiomon` inside the container can't see the host's GPIO chip at all, and
+the Sources dashboard reports `motion_gpio` unhealthy with an actionable "install
+libgpiod and map /dev/gpiochip0 into the container" detail rather than silently doing
+nothing.
+
 ## Reverse proxy and HTTPS
 
 Kegwall has no built-in TLS — it's meant to sit behind a reverse proxy (Caddy,

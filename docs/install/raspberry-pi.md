@@ -204,6 +204,26 @@ fine: BLE wins for any Gen 1 device it's actively hearing (a live sighting withi
 the last 5 minutes), MQTT is the fallback — see `bleSource.ts`/`mqttSource.ts`'s
 "BLE/MQTT DEDUPE" comments.
 
+## GPIO PIR motion sensors
+
+The Displays & Presence hub's GPIO motion transport (`Settings -> Sources`, a `gpio`-type
+motion source) shells out to the libgpiod CLI (`gpiomon`) rather than talking to
+`/dev/gpiochip0` directly, so it needs libgpiod's userspace tools installed:
+
+```sh
+sudo apt install gpiod
+```
+
+(`pi-install.sh` does not automate this the way it does the Bluetooth fallback above —
+add it by hand if you're wiring up a PIR sensor.) Nothing else is required on bare
+metal: a native install already runs as a user with access to `/dev/gpiochip0` on Pi OS.
+Running under Docker instead needs the chardev explicitly mapped into the container —
+see [docker.md's GPIO device-mapping section](docker.md#gpio-pir-motion-sensors-device-mapping).
+
+For wiring a PIR sensor (HC-SR501/AM312) to a GPIO pin, choosing a GPIO line number, and
+the rest of the supported motion-sensor hardware (mmWave, BLE, Zigbee), see
+`docs/setup/motion-sensors.md` — the dedicated sensors guide.
+
 ## See also
 
 - [docker.md](docker.md) — general Docker reference: env vars, networking modes,
