@@ -7,11 +7,11 @@ import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
   getHostStatsHistory, getKegCosts, getMonthlySpend, getPourHistory,
-  getBeerHistory, getPourerHistory,
+  getBeerHistory, getPourerHistory, getSensors,
   type HostStatsHistoryPoint, type KegCostRow, type MonthlySpendRow, type PourHistoryRow,
-  type BeerHistoryRow, type PourerHistoryRow,
+  type BeerHistoryRow, type PourerHistoryRow, type SensorSummary,
 } from '../../lib/adminApi';
-import { formatVolumeMl } from '../../lib/units';
+import { formatVolumeMl, formatTempC } from '../../lib/units';
 import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
 import { PoursChart } from './PoursChart';
 import { HourHistogramRow } from './HourHistogramRow';
@@ -64,6 +64,7 @@ export function StatsPage() {
   const [pourHistory, setPourHistory] = useState<PourHistoryRow[]>([]);
   const [beerHistory, setBeerHistory] = useState<BeerHistoryRow[]>([]);
   const [pourerHistory, setPourerHistory] = useState<PourerHistoryRow[]>([]);
+  const [sensors, setSensors] = useState<SensorSummary[]>([]);
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -108,6 +109,7 @@ export function StatsPage() {
     let cancelled = false;
     getBeerHistory().then((result) => { if (!cancelled && result.ok) setBeerHistory(result.data); });
     getPourerHistory().then((result) => { if (!cancelled && result.ok) setPourerHistory(result.data); });
+    getSensors().then((result) => { if (!cancelled && result.ok) setSensors(result.data); });
     return () => { cancelled = true; };
   }, []);
 
@@ -333,6 +335,24 @@ export function StatsPage() {
             <div className="stats-grid">
               <PoursChart data={pours} units={units} />
             </div>
+            {(() => {
+              const highlights: string[] = [];
+              if (beers[0]) highlights.push(`Top beer: ${beers[0].beerName} · ${formatVolumeMl(beers[0].volumeMl, units)}`);
+              const busiest = [...pours].sort((a, b) => b.count - a.count)[0];
+              if (busiest && busiest.count > 0) highlights.push(`Busiest day: ${busiest.date} · ${busiest.count} pours`);
+              if (leaderboardRows[0]) highlights.push(`Top pourer: ${leaderboardRows[0].displayName} · ${leaderboardRows[0].pourCount} pours`);
+              if (kpis?.costPerPintCents != null) highlights.push(`Cost per pint: $${(kpis.costPerPintCents / 100).toFixed(2)}`);
+              return highlights.length > 0 ? (
+                <section className="stats-section" data-testid="analytics-highlights">
+                  <h3 className="stats-chart__title">Highlights</h3>
+                  <ul className="analytics-highlights">
+                    {highlights.map((h) => (
+                      <li key={h} data-testid="analytics-highlight">{h}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null;
+            })()}
           </div>
 
           <div hidden={tab !== 'pours'} data-testid="analytics-panel-pours">
@@ -568,6 +588,39 @@ export function StatsPage() {
                 selectedMonitorId={selectedMonitorId} onSelectMonitor={setSelectedMonitorId}
               />
             </div>
+            <section className="stats-section" data-testid="analytics-sensor-history">
+              <h3 className="stats-chart__title">Sensor history</h3>
+              {sensors.length === 0 ? (
+                <p className="admin-page-quiet">No temperature sensors reporting.</p>
+              ) : (
+                <div className="analytics-table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Sensor</th>
+                        <th scope="col">Now</th>
+                        <th scope="col">Humidity</th>
+                        <th scope="col">7-day min–max</th>
+                        <th scope="col">Last reading</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sensors.map((s) => (
+                        <tr key={s.id} data-testid="sensor-history-row">
+                          <td>{`${s.name} · ${s.kind === 'kegtron' ? 'KEGTRON' : 'GOVEE'}`}</td>
+                          <td className="font-tabular">{s.tempC != null ? formatTempC(s.tempC, units) : '—'}</td>
+                          <td className="font-tabular">{s.humidity != null ? `${Math.round(s.humidity)}%` : '—'}</td>
+                          <td className="font-tabular">
+                            {s.min7dC != null && s.max7dC != null ? `${formatTempC(s.min7dC, units)} – ${formatTempC(s.max7dC, units)}` : '—'}
+                          </td>
+                          <td className="font-tabular">{s.lastSeen ? new Date(s.lastSeen).toLocaleString() : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           <div hidden={tab !== 'server'} data-testid="analytics-panel-server">

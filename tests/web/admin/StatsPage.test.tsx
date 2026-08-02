@@ -7,7 +7,7 @@ import { StatsPage } from '../../../src/web/routes/admin/StatsPage';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getKegCosts, getMonthlySpend, getPourHistory,
-  getBeerHistory, getPourerHistory,
+  getBeerHistory, getPourerHistory, getSensors,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
 import { renderAdminPage, adminContext } from './renderAdminPage';
@@ -28,6 +28,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getPourHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getBeerHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getPourerHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getSensors: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
@@ -150,6 +151,28 @@ describe('StatsPage', () => {
     expect(row).toHaveTextContent('Sam');
     expect(row).toHaveTextContent('127');
     expect(row).toHaveTextContent('Citra IPA');
+  });
+
+  it('renders the Sensor-history table on the Temps tab', async () => {
+    (getSensors as Mock).mockResolvedValue({
+      ok: true,
+      data: [{ id: 1, name: 'Keezer', kind: 'kegtron', tempC: 3, humidity: null, lastSeen: '2026-08-01T00:00:00Z', min7dC: 2, max7dC: 4 }],
+    });
+    renderAdminPage(<StatsPage />, adminContext('admin', 'metric'));
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-temps'));
+    const row = screen.getByTestId('sensor-history-row');
+    expect(row).toHaveTextContent('Keezer · KEGTRON');
+    expect(row).toHaveTextContent('2°C – 4°C');
+  });
+
+  it('derives a Highlights list on the Overview tab', async () => {
+    (getBeersByVolume as Mock).mockResolvedValue({
+      ok: true, data: [{ beerName: 'Citra IPA', srm: 6, volumeMl: 46000, pourCount: 90 }],
+    });
+    renderAdminPage(<StatsPage />, adminContext('admin', 'metric'));
+    await flush();
+    expect(screen.getByTestId('analytics-highlights')).toHaveTextContent('Top beer: Citra IPA');
   });
 
   it('shows the admin monthly-spend table on the Kegs tab', async () => {

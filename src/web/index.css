@@ -9326,6 +9326,22 @@ h2.admin-field__label-text {
   overflow-x: auto;
 }
 
+.analytics-highlights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.analytics-highlights li {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  font-size: 0.9rem;
+}
+
 .heatmap {
   display: flex;
   flex-direction: column;
