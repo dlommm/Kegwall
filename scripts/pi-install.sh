@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
-# Kegwall native Raspberry Pi installer — one shot, idempotent-ish, INTERACTIVE.
+# Kegwall native installer — one shot, idempotent-ish, INTERACTIVE.
+#
+# Runs on any Debian-family host (arm64 or amd64):
+#   - Raspberry Pi 4/5 (arm64)
+#   - an amd64 mini PC / Intel NUC on Debian 13 (bare metal, no Docker)
+# It's arch-agnostic — Node 24 comes from NodeSource for the detected arch, and every
+# systemd unit + apt/OS-update path works the same on both. Pi-only hardware extras
+# (vcgencmd undervoltage flags, PMIC watts) simply don't appear on an amd64 box; CPU
+# temperature still shows via coretemp/k10temp and power via RAPL (see core/hostStats.ts).
+# `scripts/install.sh` is a neutral-named symlink to this file for local mini-PC runs.
 #
 #   curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-install.sh \
 #     | sudo bash
@@ -112,6 +121,18 @@ if [ "$INTERACTIVE" -eq 1 ]; then
 else
   echo "==> Non-interactive: dir=$DIR port=$PORT ble=$WITH_BLE kiosk=$KIOSK os-updates=$OS_UPDATES auto-reboot=$AUTO_REBOOT"
 fi
+
+# Arch/host is informational only — the install path is identical on arm64 (Pi) and amd64
+# (mini PC / NUC). NodeSource ships Node 24 for both; nothing below is Pi-specific.
+ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+if grep -qi raspberry /proc/cpuinfo /sys/firmware/devicetree/base/model 2>/dev/null; then
+  HOST_KIND="Raspberry Pi"
+elif [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+  HOST_KIND="amd64 mini PC / NUC"
+else
+  HOST_KIND="$ARCH host"
+fi
+echo "==> Detected: $HOST_KIND ($ARCH) — installing natively (no Docker)"
 
 echo "==> Installing packages"
 apt-get update -qq

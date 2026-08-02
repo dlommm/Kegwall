@@ -7,6 +7,10 @@ Recommended hardware: **Pi 5 (4GB+)** — the only model whose PMIC can report p
 draw in the admin dashboard; a Pi 4 (4GB) works fine minus the watts readout; a
 Pi 3B is only suitable as a tablet-mode display.
 
+**Not a Pi?** The same native installer runs on an amd64 mini PC / Intel NUC on
+Debian 13 — see [mini-pc.md](mini-pc.md). CPU temp (coretemp/k10temp) and power
+(RAPL) work there too; only the Pi-only undervoltage flags are absent.
+
 ## The three modes
 
 - **Server mode** — `pi-install.sh`, no kiosk: the server runs headless; HDMI (if

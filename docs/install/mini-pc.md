@@ -1,0 +1,54 @@
+# Install on a mini PC (amd64 / Intel NUC) — native, Debian 13
+
+Kegwall runs natively on any amd64 mini PC (Intel NUC, Beelink, etc.) on Debian 13
+("trixie") — no Docker, no Pi required. The server is the same app that runs on a
+Raspberry Pi; only the host hardware differs.
+
+Use a mini PC when you want more headroom than a Pi (more taps, BLE + cloud + analytics
+at once, faster rebuilds) or you already have an x86 box on hand.
+
+## What differs from a Pi
+
+Everything works the same except the Pi-only hardware sensors:
+
+| Feature | Raspberry Pi | amd64 mini PC |
+|---|---|---|
+| CPU / RAM / disk / uptime | ✅ | ✅ |
+| CPU temperature | ✅ `thermal_zone0` | ✅ via `coretemp` (Intel) / `k10temp` (AMD) |
+| Power draw (watts) | ✅ Pi 5 PMIC (whole-board) | ✅ RAPL (CPU-package power) |
+| Undervoltage / throttle flags | ✅ `vcgencmd` | — not applicable (no PMIC); the panel reads "unavailable" |
+| App self-update, OS apt update, UI reboot | ✅ | ✅ (same systemd units) |
+| Kiosk mode (cage + chromium) | ✅ | ✅ |
+
+The dashboard **SERVER HEALTH** card and the analytics **Server** tab both degrade
+gracefully: CPU/RAM/disk/temp/watts show real numbers; the undervoltage panel just says
+it's unavailable on x86.
+
+## Install
+
+Fresh Debian 13 amd64, then:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dlommm/Kegwall/main/scripts/pi-install.sh | sudo bash
+```
+
+(The script is arch-agnostic — it detects the amd64 host and installs natively. From a
+local checkout you can also run `sudo bash scripts/install.sh`, a symlink to the same
+script.) It installs Node 24 (NodeSource), a `kegwall` system user, the app at its latest
+release tag, and the systemd units (`kegwall.service` + the app-update / OS-update / reboot
+path units). Answer the prompts (install dir, port, BLE fallback, kiosk vs server mode, OS
+updates) or pass the flags — see the [Raspberry Pi guide](raspberry-pi.md) for the full flag
+list and the systemd/OS-update details, which are identical here.
+
+Then open `http://<mini-pc-ip>:<port>` and run the first-run wizard.
+
+## Notes
+
+- **Debian 13 (trixie):** NodeSource `setup_24.x` supports trixie; the install toolchain
+  (`python3 make g++`) builds `better-sqlite3` if a prebuilt binary isn't available for your
+  glibc.
+- **RAPL watts** need two samples to compute a rate, so the SERVER card's watts figure
+  appears from the second stats poll onward (a few seconds after boot).
+- **BLE:** pass `--with-ble` if you're using Gen 1 / Pro BLE transports; it installs
+  `bluez` and enables the adapter. A USB Bluetooth dongle works on a mini PC that has none
+  built in.

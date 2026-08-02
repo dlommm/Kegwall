@@ -155,6 +155,7 @@ direct BLE), reverse proxy/HTTPS, and backup/updating — is in
 |---|---|
 | [docs/install/docker.md](docs/install/docker.md) | Docker/NAS install, env vars, networking modes, reverse proxy + HTTPS, backups |
 | [docs/install/raspberry-pi.md](docs/install/raspberry-pi.md) | Docker or bare-metal on a Pi, direct-BLE setup, kiosk-mode wall display |
+| [docs/install/mini-pc.md](docs/install/mini-pc.md) | Native install on an amd64 mini PC / Intel NUC (Debian 13), no Docker |
 | [docs/install/esp32-gen1.md](docs/install/esp32-gen1.md) | Gen 1 (KT-100/KT-200) via an ESP32 BLE-to-MQTT bridge, incl. the payload-shape caveat above |
 | [docs/install/android-tablet.md](docs/install/android-tablet.md) | The Android kiosk APK for the kegerator tablet (built by CI, sideloaded) |
 | [docs/setup/kegtron-cloud.md](docs/setup/kegtron-cloud.md) | Kegtron Pro API key + optional UDP for faster local updates |

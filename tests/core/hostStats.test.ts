@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseMeminfo, parsePmicAdc, parseThrottled, readCpu, readDisk, readHostStats, readMemory,
+  isCpuHwmonName, readCpuTempC, readWatts,
 } from '../../src/server/core/hostStats.js';
 
 // Trimmed from a real Pi's /proc/meminfo — order and spacing preserved.
@@ -117,5 +118,26 @@ describe('impure readers (portable behavior only)', () => {
       expect(stats.throttle).toBeNull();
       expect(stats.watts).toBeNull();
     }
+  });
+
+  it('isCpuHwmonName recognizes x86 CPU sensors (Intel NUC / AMD mini PC) and SBC SoC', () => {
+    expect(isCpuHwmonName('coretemp')).toBe(true); // Intel
+    expect(isCpuHwmonName('k10temp')).toBe(true); // AMD
+    expect(isCpuHwmonName('zenpower')).toBe(true);
+    expect(isCpuHwmonName('cpu_thermal')).toBe(true);
+    expect(isCpuHwmonName('acpitz')).toBe(false); // motherboard, not the CPU
+    expect(isCpuHwmonName('nvme')).toBe(false);
+  });
+
+  it('readCpuTempC never throws and returns a number or null on any host', async () => {
+    const temp = await readCpuTempC();
+    expect(temp === null || typeof temp === 'number').toBe(true);
+  });
+
+  it('readWatts never throws (RAPL first call has no baseline → null) and returns a number or null', async () => {
+    const w1 = await readWatts();
+    expect(w1 === null || typeof w1 === 'number').toBe(true);
+    const w2 = await readWatts();
+    expect(w2 === null || typeof w2 === 'number').toBe(true);
   });
 });
