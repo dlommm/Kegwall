@@ -18,6 +18,9 @@ interface OnDeckQueueProps {
    * may have changed this tap's queue — triggers a refetch. */
   refreshKey: number;
   onPromote: (queuedKeg: Keg) => void;
+  /** The tap's current keg is about to kick — the promote action becomes the accent
+   *  primary "Swap now →" so staff can pull the queued keg forward immediately (redesign 3d). */
+  critical?: boolean;
 }
 
 function beerName(beers: Beer[], beerId: number): string {
@@ -28,7 +31,7 @@ function beerName(beers: Beer[], beerId: number): string {
  * new entry (reusing `BeerPicker`), remove one, or promote it straight to on_tap (handed
  * off to the parent, which opens `SwapWizard` with `promoteKeg` set). */
 export function OnDeckQueue({
-  tapId, beers, kegs, units, canEdit, refreshKey, onPromote,
+  tapId, beers, kegs, units, canEdit, refreshKey, onPromote, critical = false,
 }: OnDeckQueueProps) {
   const [queue, setQueue] = useState<Keg[]>([]);
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
@@ -138,8 +141,14 @@ export function OnDeckQueue({
               <span className="font-tabular">{formatVolumeMl(keg.sizeMl, units)}</span>
               {canEdit && (
                 <span className="on-deck-queue__row-actions">
-                  <button type="button" data-testid="on-deck-row-promote" onClick={() => onPromote(keg)}>
-                    Promote
+                  <button
+                    type="button"
+                    className={critical ? 'on-deck-queue__promote--now' : undefined}
+                    data-testid="on-deck-row-promote"
+                    data-critical={critical}
+                    onClick={() => onPromote(keg)}
+                  >
+                    {critical ? 'Swap now →' : 'Promote'}
                   </button>
                   <button
                     type="button"

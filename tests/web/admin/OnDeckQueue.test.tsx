@@ -111,6 +111,20 @@ describe('OnDeckQueue', () => {
     expect(onPromote).toHaveBeenCalledWith(keg);
   });
 
+  it('promote reads "Swap now →" as the accent primary when the tap is critical (redesign 3d)', async () => {
+    (listOnDeck as Mock).mockResolvedValue({ ok: true, data: [makeKeg({ id: 3 })] });
+    render(
+      <OnDeckQueue
+        tapId={1} beers={[makeBeer()]} kegs={[]} units="us" canEdit critical
+        onPromote={vi.fn()} refreshKey={0}
+      />,
+    );
+    const promote = await screen.findByTestId('on-deck-row-promote');
+    expect(promote).toHaveTextContent('Swap now');
+    expect(promote).toHaveClass('on-deck-queue__promote--now');
+    expect(promote).toHaveAttribute('data-critical', 'true');
+  });
+
   it('removing shows a full consequence sentence, then deletes and reloads on confirm', async () => {
     const keg = makeKeg({ id: 3 });
     (listOnDeck as Mock)

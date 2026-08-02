@@ -7,7 +7,7 @@ import { TapsPage } from '../../../src/web/routes/admin/TapsPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
-  listBeers, listKegs, listMonitors, deleteTap, listTaps, getActiveKegStats,
+  listBeers, listKegs, listMonitors, deleteTap, listTaps, getActiveKegStats, getCleaningStatuses,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { Tap } from '../../../src/server/db/taps';
@@ -156,6 +156,54 @@ describe('TapsPage', () => {
     const forecast = await screen.findByTestId('taps-row-forecast');
     expect(forecast).toHaveClass('taps-row__forecast--danger');
     expect(screen.getByTestId('taps-row-swap')).toHaveClass('taps-row__swap--critical');
+  });
+
+  it('renders the days-to-kick timeline marker positioned by elapsed/predicted (redesign 3d)', async () => {
+    // Tapped 2 days ago, projected to kick in 8 days → ~20% elapsed.
+    const tapped = new Date(Date.now() - 2 * 86400000).toISOString();
+    const kick = new Date(Date.now() + 8 * 86400000).toISOString().slice(0, 10);
+    (getActiveKegStats as Mock).mockResolvedValue({
+      ok: true,
+      data: [{
+        kegId: 1, beerName: 'Citra IPA', tapNumber: 1, srm: 6, levelPct: 60, remainingMl: 11000, dailyBurnMl: 1300, projectedKickDate: kick,
+      }],
+    });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(1, {
+        beer: {
+          id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: 6, description: null, labelImage: null, createdAt: '',
+        },
+        keg: {
+          id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 8000, dateTapped: tapped, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 60, remainingMl: 11000,
+        },
+      })],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    renderAdminPage(<TapsPage />);
+    const marker = (await screen.findByTestId('taps-row-timeline')).querySelector('.taps-row__timeline-marker') as HTMLElement;
+    const left = parseInt(marker.style.left, 10);
+    expect(left).toBeGreaterThanOrEqual(18);
+    expect(left).toBeLessThanOrEqual(22);
+  });
+
+  it('shows a cleaning meter (amber when due) that replaces the old badge (redesign 3d)', async () => {
+    (getCleaningStatuses as Mock).mockResolvedValue({
+      ok: true,
+      data: [{
+        tapId: 1, lastCleanedAt: '2026-06-01T00:00:00.000Z', gallonsSince: 18, daysSince: 40, due: true,
+      }],
+    });
+    (useTapStates as Mock).mockReturnValue({ taps: [makeTap(1)], stale: false, connected: true, reconnectCount: 0 });
+    renderAdminPage(<TapsPage />);
+    fireEvent.click(await screen.findByTestId('taps-row-expand'));
+    await flush();
+    // The surprise badge is gone.
+    expect(screen.queryByTestId('taps-row-cleaning-due')).not.toBeInTheDocument();
+    const fill = screen.getByTestId('taps-cleaning-meter').querySelector('.taps-cleaning__meter-fill') as HTMLElement;
+    expect(fill).toHaveAttribute('data-due', 'true');
+    // 18 gal ÷ 15 clamps to 100%.
+    expect(fill.style.width).toBe('100%');
+    expect(screen.getByTestId('taps-cleaning')).toHaveTextContent('due now');
   });
 
   it('marks a kicked tap distinctly', async () => {

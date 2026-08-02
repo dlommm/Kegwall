@@ -15,6 +15,7 @@ import { useTapStates } from '../../lib/useTapStates';
 import { formatWholeVolume } from '../../lib/lookData';
 import { matchKegType } from '../../lib/kegAssets';
 import { kicksSoon } from '../../lib/kegForecast';
+import { cleaningProgress, kickTimelinePct } from '../../lib/tapMeters';
 import { KegSilhouette } from '../../components/glyphs/KegSilhouette';
 import { TapForm } from './TapForm';
 import { SwapWizard } from './SwapWizard';
@@ -209,9 +210,8 @@ export function TapsPage() {
                       {tap.hidden && (
                         <span className="look-badge look-badge--kicked" data-testid="taps-row-hidden">HIDDEN</span>
                       )}
-                      {cleanings.find((c) => c.tapId === tap.tapId)?.due && (
-                        <span className="look-badge look-badge--low" data-testid="taps-row-cleaning-due">CLEANING DUE</span>
-                      )}
+                      {/* DESIGN NOTE: the "surprise" CLEANING DUE badge is replaced by the
+                          cleaning meter in the details panel below (README 3d). */}
                     </span>
                     <span className="taps-row__beer font-display">
                       {tap.beer ? tap.beer.name : 'Empty'}
@@ -238,6 +238,18 @@ export function TapsPage() {
                         {kickDaysLabel(stat)}
                       </span>
                     )}
+                    {(() => {
+                      // Days-to-kick timeline: a green→amber→red gradient bar with a marker at
+                      // the elapsed/predicted position (tapped date → projected kick).
+                      const timelinePct = stat && tap.keg
+                        ? kickTimelinePct(tap.keg.dateTapped, stat.projectedKickDate)
+                        : null;
+                      return timelinePct != null ? (
+                        <span className="taps-row__timeline" data-testid="taps-row-timeline" aria-hidden="true">
+                          <span className="taps-row__timeline-marker" style={{ left: `${timelinePct}%` }} />
+                        </span>
+                      ) : null;
+                    })()}
                   </span>
                   <span className="taps-row__actions">
                     <button
@@ -283,20 +295,38 @@ export function TapsPage() {
                     {(() => {
                       const cleaning = cleanings.find((c) => c.tapId === tap.tapId);
                       return (
-                        <div className="taps-cleaning" data-testid="taps-cleaning">
-                          <span className="taps-cleaning__status font-tabular">
-                            {cleaning?.lastCleanedAt
-                              ? `Line cleaned ${cleaning.daysSince} day(s) ago · ${cleaning.gallonsSince} gal since`
-                              : 'Line cleaning never logged'}
-                          </span>
-                          {canEdit && (
-                            <button
-                              type="button"
-                              data-testid="taps-cleaning-log"
-                              onClick={() => logTapCleaning(tap.tapId).then(refresh)}
-                            >
-                              Log cleaning
-                            </button>
+                        <div
+                          className={cleaning?.due ? 'taps-cleaning taps-cleaning--due' : 'taps-cleaning'}
+                          data-testid="taps-cleaning"
+                          data-due={cleaning?.due ?? false}
+                        >
+                          <div className="taps-cleaning__head">
+                            <span className="taps-cleaning__label">LINE CLEANING</span>
+                            <span className="taps-cleaning__status font-tabular">
+                              {cleaning?.lastCleanedAt
+                                ? `${cleaning.daysSince} day(s) · ${cleaning.gallonsSince} gal since`
+                                : 'never logged'}
+                              {cleaning?.due ? ' · due now' : ''}
+                            </span>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="taps-cleaning__log"
+                                data-testid="taps-cleaning-log"
+                                onClick={() => logTapCleaning(tap.tapId).then(refresh)}
+                              >
+                                Log cleaning
+                              </button>
+                            )}
+                          </div>
+                          {cleaning && (
+                            <span className="taps-cleaning__meter" data-testid="taps-cleaning-meter" aria-hidden="true">
+                              <span
+                                className="taps-cleaning__meter-fill"
+                                data-due={cleaning.due}
+                                style={{ width: `${Math.round(cleaningProgress(cleaning) * 100)}%` }}
+                              />
+                            </span>
                           )}
                         </div>
                       );
@@ -308,6 +338,7 @@ export function TapsPage() {
                       units={units}
                       canEdit={canEdit}
                       refreshKey={dataRefreshKey}
+                      critical={kickSoon}
                       onPromote={(queuedKeg) => setWizardState({ tap, promoteKeg: queuedKeg })}
                     />
                     <KickedHistory
