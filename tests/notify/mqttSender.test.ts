@@ -99,6 +99,22 @@ describe('MqttSender', () => {
     await expect(sender.publish('a/b', 'x')).rejects.toThrow(/not configured/i);
   });
 
+  it('redaction: a connection failure never leaks the broker address', async () => {
+    const badSettings = new SettingsStore(openDb(mkdtempSync(join(tmpdir(), 'ktdash-'))));
+    badSettings.set('mqtt', { ...MQTT_DEFAULTS, url: 'mqtt://127.0.0.1:1' }); // nothing listens on :1
+    const sender = new MqttSender(badSettings, {
+      timeoutMs: 300, backoffMs: [], sleep: () => Promise.resolve(),
+    });
+    let msg = '';
+    try {
+      await sender.publish('a/b', 'x');
+    } catch (err) {
+      msg = err instanceof Error ? err.message : String(err);
+    }
+    expect(msg).not.toContain('127.0.0.1');
+    expect(msg).toMatch(/mqtt/i);
+  });
+
   it('retries and succeeds once the broker becomes reachable', async () => {
     // Point at a port nothing is listening on yet, then bring a broker up on that exact
     // port before the retry loop's final attempt.

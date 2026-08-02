@@ -51,7 +51,14 @@ export class MqttSender {
   async publish(topic: string, payload: string): Promise<void> {
     await withRetry(async () => {
       const client = await this.getClient();
-      await client.publishAsync(topic, payload);
+      try {
+        await client.publishAsync(topic, payload);
+      } catch {
+        // Never surface the raw mqtt error — it can embed the broker host:port, which
+        // `automation/engine.ts`'s run-now returns verbatim to an EDITOR (who cannot read
+        // GET /api/settings). Same redaction discipline as smtp.ts / every channel sender.
+        throw new Error('mqtt: publish failed (connection or broker error)');
+      }
     }, this.opts);
   }
 
@@ -104,12 +111,15 @@ export class MqttSender {
         resolvePromise(client);
       });
 
-      client.once('error', (err) => {
+      client.once('error', () => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         client.end(true);
-        reject(err);
+        // Redacted, not the raw mqtt error: the raw message embeds the broker host:port
+        // (e.g. "connect ECONNREFUSED 10.0.0.42:1883"), which run-now surfaces to an
+        // editor. The "not configured" case above stays a distinct, non-sensitive hint.
+        reject(new Error('mqtt: connect failed (broker unreachable or auth rejected)'));
       });
     });
 
