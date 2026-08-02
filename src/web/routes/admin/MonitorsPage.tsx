@@ -528,10 +528,11 @@ export function MonitorsPage() {
                         {canEdit && (
                           <button
                             type="button"
+                            className={monitor.tapId == null ? 'monitors-row__bind-chip' : undefined}
                             data-testid="monitors-row-bind"
                             onClick={() => openBindPicker(monitor, deviceLabel(group))}
                           >
-                            {monitor.tapId != null ? 'Change tap' : 'Bind to tap'}
+                            {monitor.tapId != null ? 'Change tap' : 'Bind tap →'}
                           </button>
                         )}
                         {canEdit && monitor.tapId != null && (

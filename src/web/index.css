@@ -1951,6 +1951,14 @@
   font-weight: 600;
 }
 
+/* Accent inline "Bind tap →" chip on an unbound monitor port (4d). */
+.monitors-row__bind-chip {
+  border-color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
 /* Doctor verdict banner (4c). */
 .doctor-verdict {
   padding: 0.7rem 1rem;
