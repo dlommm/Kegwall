@@ -173,6 +173,78 @@ function buildSourceConfig(form: SourceFormState): MotionSource['config'] {
 }
 
 /**
+ * The name to actually save when the admin leaves the Name field blank: falls back to
+ * the type's own natural identifier (mqtt's topic, gpio's line) rather than forcing a
+ * redundant re-typing of information already entered elsewhere in the same form — the
+ * SAME precedent `core/motionSources.ts`'s `migrateMotionTopics` already uses for a
+ * legacy mqtt entry (`name: t.topic`, no separate name ever existed for those). `ble`/
+ * `webhook` have no comparably natural identifier (a MAC is optional and identity-by-URL
+ * has no field at all), so those fall through to `''` — genuinely nameless, which
+ * `validateSourceForm` below rejects.
+ */
+function effectiveSourceName(form: SourceFormState): string {
+  const typed = form.name.trim();
+  if (typed !== '') return typed;
+  if (form.type === 'mqtt') return form.mqttTopic.trim();
+  if (form.type === 'gpio' && form.gpioLine.trim() !== '') return `GPIO line ${form.gpioLine.trim()}`;
+  if (form.type === 'ble') return form.bleMac.trim();
+  return '';
+}
+
+/**
+ * Client-side pre-flight validation for the add/edit modal (review fix F3) — mirrors
+ * SourcesGroup's "check before calling the api, set the form's error, return" idiom
+ * (SettingsPage.tsx's `handleSubmit`, `mqttDirty && !mqttUrl.trim()`) rather than firing a
+ * doomed `createPresenceSource`/`updatePresenceSource` call the server would 400 on
+ * anyway (`motionSourceSchema`'s own per-type `superRefine` requirements, db/settings.ts:
+ * mqtt needs `config.topic`+`config.match`, gpio needs `config.line`). Returns a human
+ * message on failure, `null` when the form is good to submit. A name is always required
+ * in the end (checked LAST, against `effectiveSourceName` — the typed value or its
+ * type-appropriate fallback — not the raw field, so leaving Name blank while a topic/
+ * line is already filled in isn't a redundant second error); `wallSlug`/`enabled`/the
+ * non-required per-type fields (e.g. ble's `mac`) are all genuinely optional, so they're
+ * left unchecked.
+ */
+function validateSourceForm(form: SourceFormState): string | null {
+  if (form.type === 'mqtt') {
+    if (form.mqttTopic.trim() === '') return 'An MQTT topic is required.';
+    if (form.mqttMatchMode === 'json' && form.mqttJsonField.trim() === '') {
+      return 'A JSON field is required for the "JSON field equals" match mode.';
+    }
+  }
+  if (form.type === 'gpio') {
+    const line = Number(form.gpioLine);
+    if (form.gpioLine.trim() === '' || Number.isNaN(line) || line < 0) {
+      return 'A GPIO line number (0 or greater) is required.';
+    }
+  }
+  if (effectiveSourceName(form) === '') return 'A name is required.';
+  return null;
+}
+
+/** The HA `rest_command` + automation YAML template, parameterized by whichever webhook
+ * URL it should point at (review fix F2) — shared by the per-source Sources-table
+ * snippet (`ha-snippet-<id>`, attributed via that source's own `&source=<id>` URL) and
+ * the Webhook & agent panel's fallback (`ha-snippet`, the unattributed base URL, shown
+ * only while no webhook-type source exists yet — see this component's doc comment on
+ * why the unattributed URL is a fallback, not the promoted path). */
+function haSnippetYaml(url: string): string {
+  return `rest_command:
+  kegwall_motion:
+    url: "${url}"
+    method: POST
+
+automation:
+  - alias: "Kegwall motion wake"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.your_motion_sensor
+        to: "on"
+    action:
+      - service: rest_command.kegwall_motion`;
+}
+
+/**
  * `/admin/presence` — the Displays & Presence hub (spec 2026-08-01, Part B), all four
  * panels:
  *
@@ -188,16 +260,23 @@ function buildSourceConfig(form: SourceFormState): MotionSource['config'] {
  *  3. Motion sources — every configured `motionSources` entry (registry snapshot) plus
  *     every derived tablet-camera row, in one table: health dot, "last motion N min ago"
  *     (or "never"), and a live blink (`data-blink="true"` for `BLINK_MS`) on a matching WS
- *     `motion` frame. An add/edit modal switches its visible field set by `type`; a camera
+ *     `motion` frame. An add/edit modal switches its visible field set by `type` and
+ *     validates client-side before ever calling the api (`validateSourceForm`); a camera
  *     row has no modal (it's derived from wall config, not a stored entry) — just a toggle
  *     that writes straight through to that wall's `displayPower.cameraMotion`, same field
  *     the Display power panel's `dp-camera-<slug>` checkbox edits (two doors to the same
- *     value, matching the spec's own "both doors stay" call for that field).
+ *     value, matching the spec's own "both doors stay" call for that field). Delete goes
+ *     through an `.admin-confirm` confirmation dialog (same shell WallsPage/TapsPage/
+ *     BeersPage use), per the spec's explicit "delete with confirm". A webhook-type row
+ *     shows its own attributed copy-paste URL AND its own HA snippet
+ *     (`ha-snippet-<id>`, `&source=<id>` baked in) in an expandable `<details>`.
  *  4. Webhook & agent — the presence webhook token's masked display + Generate button
  *     (MOVED here from SettingsPage's Integrations card, not duplicated — see
  *     SettingsPage.tsx's now-pointer-only `PresenceBlock`), the base copy-paste webhook
- *     URL, and an HA `rest_command`+automation YAML snippet with that same real URL
- *     interpolated in.
+ *     URL, and a FALLBACK HA snippet (`ha-snippet`, unattributed base URL) shown only
+ *     while there isn't yet a webhook-type source to attribute to — once one exists, its
+ *     own row's `ha-snippet-<id>` above is the promoted path (per-source health/last-
+ *     motion attribution an unattributed URL can't give an HA integrator).
  *
  * Live frames ride the SAME public `/ws` feed every other admin page's live data uses
  * (see DashboardPage.tsx's `useTapStates` for the precedent) — `useTapStates([], ...)`
@@ -224,6 +303,11 @@ export function PresencePage() {
   const [sourceFormSubmitting, setSourceFormSubmitting] = useState(false);
   const [sourceFormError, setSourceFormError] = useState<string | null>(null);
   const [sourcesActionError, setSourcesActionError] = useState<string | null>(null);
+  // Review fix F1: delete goes through a confirm dialog (same `.admin-confirm` shell as
+  // WallsPage's `deleteState` — see that page's doc comment for the pattern this mirrors)
+  // instead of firing straight from the row button.
+  const [deleteState, setDeleteState] = useState<{ id: string; name: string; error: string | null } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // --- Task 5: webhook & agent panel -----------------------------------------------------
   const [webhookToken, setWebhookToken] = useState<string | null>(null);
@@ -395,10 +479,15 @@ export function PresencePage() {
 
   async function saveSource() {
     if (!sourceForm) return;
+    const validationError = validateSourceForm(sourceForm);
+    if (validationError) {
+      setSourceFormError(validationError);
+      return;
+    }
     setSourceFormSubmitting(true);
     setSourceFormError(null);
     const body = {
-      name: sourceForm.name,
+      name: effectiveSourceName(sourceForm),
       type: sourceForm.type,
       enabled: sourceForm.enabled,
       wallSlug: sourceForm.wallSlug === '' ? null : sourceForm.wallSlug,
@@ -416,13 +505,23 @@ export function PresencePage() {
     refreshSources();
   }
 
-  async function deleteSource(id: string) {
-    setSourcesActionError(null);
-    const result = await deletePresenceSource(id);
+  /** Opens the delete confirm dialog (review fix F1) — the row's Delete button calls
+   * this instead of deleting directly; only `handleConfirmDeleteSource` below actually
+   * calls the api. */
+  function requestDeleteSource(source: MotionSource) {
+    setDeleteState({ id: source.id, name: source.name, error: null });
+  }
+
+  async function handleConfirmDeleteSource() {
+    if (!deleteState) return;
+    setDeleting(true);
+    const result = await deletePresenceSource(deleteState.id);
+    setDeleting(false);
     if (!result.ok) {
-      setSourcesActionError(result.message);
+      setDeleteState({ ...deleteState, error: result.message });
       return;
     }
+    setDeleteState(null);
     refreshSources();
   }
 
@@ -485,6 +584,11 @@ export function PresencePage() {
     ...sources.map((s): SourceRow => ({ id: s.source.id, kind: 'source', source: s.source, status: s.status })),
     ...cameraRows.map((c): SourceRow => ({ id: `camera:${c.wallSlug}`, kind: 'camera', ...c })),
   ];
+
+  // Review fix F2: whether the panel-level fallback `ha-snippet` should render at all —
+  // once a real webhook-type source exists, its own row's `ha-snippet-<id>` is the
+  // promoted, attributed path.
+  const hasWebhookSource = sources.some((s) => s.source.type === 'webhook');
 
   return (
     <div data-testid="presence-page">
@@ -692,7 +796,7 @@ export function PresencePage() {
                               <button
                                 type="button"
                                 data-testid={`source-delete-${row.id}`}
-                                onClick={() => { void deleteSource(row.id); }}
+                                onClick={() => requestDeleteSource(row.source)}
                               >
                                 Delete
                               </button>
@@ -714,6 +818,12 @@ export function PresencePage() {
                         <tr>
                           <td colSpan={6}>
                             <code data-testid={`source-webhook-url-${row.id}`}>{webhookUrl(row.id)}</code>
+                            <details className="presence-ha-snippet-details">
+                              <summary>Home Assistant snippet</summary>
+                              <pre className="presence-ha-snippet" data-testid={`ha-snippet-${row.id}`}>
+                                {haSnippetYaml(webhookUrl(row.id))}
+                              </pre>
+                            </details>
                           </td>
                         </tr>
                       )}
@@ -758,21 +868,23 @@ export function PresencePage() {
               <p className="admin-page-quiet" data-testid="webhook-base-url">
                 <code>{webhookUrl()}</code>
               </p>
-              <pre className="presence-ha-snippet" data-testid="ha-snippet">
-                {`rest_command:
-  kegwall_motion:
-    url: "${webhookUrl()}"
-    method: POST
-
-automation:
-  - alias: "Kegwall motion wake"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.your_motion_sensor
-        to: "on"
-    action:
-      - service: rest_command.kegwall_motion`}
-              </pre>
+              {hasWebhookSource ? (
+                <p className="admin-page-quiet">
+                  See a webhook-type row in the Motion sources table above for its own
+                  HA snippet, attributed to that source&rsquo;s health and last-motion time.
+                </p>
+              ) : (
+                <>
+                  <p className="admin-page-quiet">
+                    No webhook-type source yet — this generic snippet works, but won&rsquo;t
+                    give Home Assistant per-source health or last-motion attribution. Add a
+                    webhook source above for that.
+                  </p>
+                  <pre className="presence-ha-snippet" data-testid="ha-snippet">
+                    {haSnippetYaml(webhookUrl())}
+                  </pre>
+                </>
+              )}
             </>
           ) : (
             <p className="admin-page-quiet">Generate a token to see your webhook URL and Home Assistant snippet.</p>
@@ -959,6 +1071,49 @@ automation:
             <button type="button" className="beer-form__cancel" data-testid="source-cancel" onClick={closeSourceForm}>
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {deleteState && (
+        <div
+          className="admin-confirm__backdrop"
+          data-testid="source-delete-confirm-backdrop"
+          onClick={() => !deleting && setDeleteState(null)}
+        >
+          <div
+            className="admin-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="source-delete-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="source-delete-title" className="font-display">Delete motion source</h3>
+            <p>
+              This will permanently delete &ldquo;{deleteState.name}&rdquo;. Any transport
+              watching it (mqtt/gpio/ble) stops firing immediately. This can&rsquo;t be undone.
+            </p>
+            {deleteState.error && (
+              <p role="alert" data-testid="source-delete-error">{deleteState.error}</p>
+            )}
+            <div className="admin-confirm__actions">
+              <button
+                type="button"
+                data-testid="source-delete-confirm"
+                disabled={deleting}
+                onClick={() => { void handleConfirmDeleteSource(); }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+              <button
+                type="button"
+                data-testid="source-delete-cancel"
+                disabled={deleting}
+                onClick={() => setDeleteState(null)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

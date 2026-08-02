@@ -328,19 +328,59 @@ describe('PresencePage', () => {
       })));
     });
 
-    it('deleting a source calls deletePresenceSource and refreshes the table', async () => {
-      (getPresenceSources as Mock).mockResolvedValueOnce({
-        ok: true,
-        data: {
-          sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
-          camera: [], agents: [],
-        },
-      }).mockResolvedValue({ ok: true, data: { sources: [], camera: [], agents: [] } });
-      renderPresencePage();
-      await screen.findByTestId('source-row-abc-123');
-      fireEvent.click(screen.getByTestId('source-delete-abc-123'));
-      await waitFor(() => expect(deletePresenceSource).toHaveBeenCalledWith('abc-123'));
-      await waitFor(() => expect(screen.getByTestId('sources-empty')).toBeInTheDocument());
+    // Review fix F1: delete goes through an `.admin-confirm` dialog (spec's "delete with
+    // confirm") — clicking the row button alone must never call the api.
+    describe('delete confirmation', () => {
+      it('clicking Delete opens a confirm dialog naming the source, without calling the api yet', async () => {
+        (getPresenceSources as Mock).mockResolvedValue({
+          ok: true,
+          data: {
+            sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+            camera: [], agents: [],
+          },
+        });
+        renderPresencePage();
+        await screen.findByTestId('source-row-abc-123');
+        fireEvent.click(screen.getByTestId('source-delete-abc-123'));
+        expect(await screen.findByTestId('source-delete-confirm')).toBeInTheDocument();
+        expect(screen.getByTestId('source-delete-confirm-backdrop')).toHaveTextContent(SRC.name);
+        expect(deletePresenceSource).not.toHaveBeenCalled();
+      });
+
+      it('cancel closes the dialog without calling the api — the row remains', async () => {
+        (getPresenceSources as Mock).mockResolvedValue({
+          ok: true,
+          data: {
+            sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+            camera: [], agents: [],
+          },
+        });
+        renderPresencePage();
+        await screen.findByTestId('source-row-abc-123');
+        fireEvent.click(screen.getByTestId('source-delete-abc-123'));
+        await screen.findByTestId('source-delete-confirm');
+        fireEvent.click(screen.getByTestId('source-delete-cancel'));
+        await waitFor(() => expect(screen.queryByTestId('source-delete-confirm')).not.toBeInTheDocument());
+        expect(deletePresenceSource).not.toHaveBeenCalled();
+        expect(screen.getByTestId('source-row-abc-123')).toBeInTheDocument();
+      });
+
+      it('confirm calls deletePresenceSource and refreshes the table', async () => {
+        (getPresenceSources as Mock).mockResolvedValueOnce({
+          ok: true,
+          data: {
+            sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+            camera: [], agents: [],
+          },
+        }).mockResolvedValue({ ok: true, data: { sources: [], camera: [], agents: [] } });
+        renderPresencePage();
+        await screen.findByTestId('source-row-abc-123');
+        fireEvent.click(screen.getByTestId('source-delete-abc-123'));
+        fireEvent.click(await screen.findByTestId('source-delete-confirm'));
+        await waitFor(() => expect(deletePresenceSource).toHaveBeenCalledWith('abc-123'));
+        await waitFor(() => expect(screen.getByTestId('sources-empty')).toBeInTheDocument());
+        expect(screen.queryByTestId('source-delete-confirm')).not.toBeInTheDocument();
+      });
     });
 
     it('switching the modal type select swaps the visible field set', async () => {
@@ -372,6 +412,50 @@ describe('PresencePage', () => {
       const url = await screen.findByTestId('source-webhook-url-wh-1');
       expect(url).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=tok-1&source=wh-1`);
     });
+
+    // Review fix F2: a webhook-type row's own HA snippet is attributed (`&source=<id>`),
+    // not the generic panel-level one.
+    it('a webhook-type source row has its own attributed HA snippet with &source=<id>', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-1' }) });
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{
+            source: { ...SRC, id: 'wh-1', type: 'webhook', config: {} },
+            status: { lastTriggeredAt: null, healthy: true, detail: '' },
+          }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      const snippet = await screen.findByTestId('ha-snippet-wh-1');
+      expect(snippet).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=tok-1&source=wh-1`);
+    });
+
+    // Review fix F3: the modal validates client-side before ever calling the api.
+    describe('modal pre-flight validation', () => {
+      it('an empty mqtt topic shows an inline error and never calls createPresenceSource', async () => {
+        renderPresencePage();
+        fireEvent.click(await screen.findByTestId('source-add'));
+        fireEvent.change(screen.getByTestId('source-name'), { target: { value: 'Kitchen PIR' } });
+        // source-mqtt-topic is left blank.
+        fireEvent.click(screen.getByTestId('source-save'));
+        await waitFor(() => expect(screen.getByTestId('source-form-error')).toBeInTheDocument());
+        expect(createPresenceSource).not.toHaveBeenCalled();
+      });
+
+      it('a valid mqtt save is unaffected by the pre-flight check', async () => {
+        renderPresencePage();
+        fireEvent.click(await screen.findByTestId('source-add'));
+        fireEvent.change(screen.getByTestId('source-name'), { target: { value: 'Kitchen PIR' } });
+        fireEvent.change(screen.getByTestId('source-mqtt-topic'), { target: { value: 'home/kitchen/pir' } });
+        fireEvent.click(screen.getByTestId('source-save'));
+        await waitFor(() => expect(createPresenceSource).toHaveBeenCalledWith(expect.objectContaining({
+          name: 'Kitchen PIR', type: 'mqtt',
+        })));
+        expect(screen.queryByTestId('source-form-error')).not.toBeInTheDocument();
+      });
+    });
   });
 
   // -------------------------------------------------------------------------------------
@@ -402,6 +486,27 @@ describe('PresencePage', () => {
       const call = (patchSettings as Mock).mock.calls[0]![0];
       expect(typeof call.presenceWebhookToken).toBe('string');
       await waitFor(() => expect(screen.getByTestId('webhook-token-masked')).toHaveTextContent('a-fresh-token'));
+    });
+
+    // Review fix F2: the panel-level fallback `ha-snippet` is only for the "no webhook
+    // source configured yet" case — once one exists, its own row's `ha-snippet-<id>` is
+    // the promoted, attributed path and the generic fallback must not also render.
+    it('hides the panel-level fallback ha-snippet once a webhook-type source exists', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-3' }) });
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{
+            source: { ...SRC, id: 'wh-2', type: 'webhook', config: {} },
+            status: { lastTriggeredAt: null, healthy: true, detail: '' },
+          }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      await screen.findByTestId('webhook-base-url');
+      await waitFor(() => expect(screen.queryByTestId('ha-snippet')).not.toBeInTheDocument());
+      expect(screen.getByTestId('presence-panel-webhook')).toHaveTextContent(/webhook-type row/i);
     });
   });
 });

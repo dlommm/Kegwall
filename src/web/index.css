@@ -8144,3 +8144,15 @@ h2.admin-field__label-text {
   word-break: break-word;
   overflow-x: auto;
 }
+
+/* Review fix F2: the per-webhook-source-row expandable HA snippet — same collapsible
+ * affordance as `.doctor-raw` (DoctorPage's raw-UDP capture). */
+.presence-ha-snippet-details {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}
+
+.presence-ha-snippet-details summary {
+  cursor: pointer;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+}
