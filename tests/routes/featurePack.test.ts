@@ -5,6 +5,8 @@ import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
 import { createDrinker, createUser } from '../../src/server/db/users.js';
+import net from 'node:net';
+import { Aedes } from 'aedes';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -232,5 +234,55 @@ describe('connection doctor (design 11e)', () => {
   it('govee check reports the missing key', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/doctor/govee', payload: {}, cookies });
     expect(res.json()).toMatchObject({ ok: false });
+  });
+});
+
+describe('POST /api/doctor/mqtt (HA wizard connection test)', () => {
+  let broker: Aedes | undefined;
+  let server: net.Server | undefined;
+
+  afterEach(async () => {
+    if (server) await new Promise<void>((r) => server!.close(() => r()));
+    if (broker) await new Promise<void>((r) => broker!.close(() => r()));
+    server = undefined; broker = undefined;
+  });
+
+  async function startBroker(): Promise<number> {
+    broker = await Aedes.createBroker();
+    server = net.createServer(broker.handle);
+    await new Promise<void>((r) => server!.listen(0, r));
+    return (server!.address() as { port: number }).port;
+  }
+
+  it('returns ok:true against a live broker (admin)', async () => {
+    const port = await startBroker();
+    const res = await app.inject({
+      method: 'POST', url: '/api/doctor/mqtt', cookies,
+      payload: { url: `mqtt://127.0.0.1:${port}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(true);
+  });
+
+  it('returns ok:false with a friendly detail against a dead port', async () => {
+    const probe = net.createServer();
+    await new Promise<void>((r) => probe.listen(0, r));
+    const deadPort = (probe.address() as { port: number }).port;
+    await new Promise<void>((r) => probe.close(() => r()));
+
+    const res = await app.inject({
+      method: 'POST', url: '/api/doctor/mqtt', cookies,
+      payload: { url: `mqtt://127.0.0.1:${deadPort}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(false);
+    expect(typeof res.json().detail).toBe('string');
+  });
+
+  it('is editor-gated (401 unauthenticated)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/doctor/mqtt', payload: { url: 'mqtt://127.0.0.1:1883' },
+    });
+    expect(res.statusCode).toBe(401);
   });
 });

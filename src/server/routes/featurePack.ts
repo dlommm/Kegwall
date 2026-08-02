@@ -12,6 +12,7 @@ import { logCleaning, listCleanings, cleaningStatus } from '../db/cleanings.js';
 import { listTaps } from '../db/taps.js';
 import { analyticsKpis, hourHeatmap } from '../db/stats.js';
 import { MdashClient } from '../ingest/kegtron/mdashClient.js';
+import { testMqttConnection } from '../notify/mqttSender.js';
 import { NotFoundError } from '../core/errors.js';
 
 /** Rate-after-claim quick tags (design 6a). */
@@ -221,6 +222,23 @@ export async function featurePackRoutes(app: FastifyInstance) {
       app.ctx.log.error('kegtron', `Doctor: cloud check failed — ${detail}`);
       return { ok: false, detail };
     }
+  });
+
+  // MQTT broker connectivity check for the HA setup wizard. Editor-gated (same as the other
+  // doctor checks) — an editor already configures mqtt.url, so this connects to the same
+  // broker, just before saving. A blank/masked password falls back to the stored secret, so
+  // the admin can re-test an existing config without re-typing it.
+  app.post('/api/doctor/mqtt', editor, async (req) => {
+    const body = z.object({
+      url: z.string().min(1),
+      username: z.string().optional(),
+      password: z.string().optional(),
+    }).parse(req.body);
+    const saved = app.ctx.settings.get('mqtt');
+    const password = body.password && !body.password.startsWith('••••')
+      ? body.password
+      : saved?.password;
+    return testMqttConnection({ url: body.url, username: body.username ?? saved?.username, password });
   });
 
   // UDP/live-path check (design: "30s listen … pour now to prove the live path"):
