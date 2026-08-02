@@ -503,6 +503,10 @@ function HomeAssistantBlock({ settings, onSaved }: GroupProps) {
 
   return (
     <form className="channels-group__block" data-testid="settings-integrations-ha" onSubmit={handleSubmit}>
+      <p className="admin-page-quiet">
+        New to this? <a href="/admin/home-assistant" data-testid="settings-ha-wizard-link">Set up Home Assistant with the guided wizard</a>
+        {' '}— it tests the broker connection for you. Or configure it by hand below.
+      </p>
       <label className="settings-toggle">
         <input
           type="checkbox"
