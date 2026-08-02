@@ -7,6 +7,7 @@ let upstreamUrl: string;
 let requests: { body: Record<string, string> }[];
 let failCount: number;
 let alwaysFail: boolean;
+let alwaysRedirect: boolean;
 
 async function listenUpstream(): Promise<string> {
   const app = Fastify();
@@ -23,6 +24,10 @@ async function listenUpstream(): Promise<string> {
   );
   app.post('/1/messages.json', async (req, reply) => {
     requests.push({ body: req.body as Record<string, string> });
+    if (alwaysRedirect) {
+      reply.code(307).header('location', '/followed-elsewhere');
+      return '';
+    }
     if (alwaysFail || failCount > 0) {
       failCount -= 1;
       reply.code(500);
@@ -40,6 +45,7 @@ beforeEach(async () => {
   requests = [];
   failCount = 0;
   alwaysFail = false;
+  alwaysRedirect = false;
   upstreamUrl = await listenUpstream();
 });
 
@@ -91,6 +97,12 @@ describe('PushoverChannel', () => {
     const ch = new PushoverChannel({ token: 't', user: 'u' }, { baseUrl: upstreamUrl, ...FAST_RETRY });
     await expect(ch.send({ title: 'a', body: 'b', severity: 'info' })).rejects.toThrow();
     expect(requests).toHaveLength(3);
+  });
+
+  it('rejects a redirect response instead of following it (SSRF closure)', async () => {
+    alwaysRedirect = true;
+    const ch = new PushoverChannel({ token: 't', user: 'u' }, { baseUrl: upstreamUrl, ...FAST_RETRY });
+    await expect(ch.send({ title: 'a', body: 'b', severity: 'info' })).rejects.toThrow();
   });
 
   it('redaction: a thrown error never contains the token or user key', async () => {

@@ -8,11 +8,16 @@ let webhookUrl: string;
 let requests: { body: any }[];
 let failCount: number;
 let alwaysFail: boolean;
+let alwaysRedirect: boolean;
 
 async function listenUpstream(): Promise<string> {
   const app = Fastify();
   app.post('/api/webhooks/123/secret-token-abc', async (req, reply) => {
     requests.push({ body: req.body });
+    if (alwaysRedirect) {
+      reply.code(307).header('location', '/followed-elsewhere');
+      return '';
+    }
     if (alwaysFail || failCount > 0) {
       failCount -= 1;
       reply.code(500);
@@ -31,6 +36,7 @@ beforeEach(async () => {
   requests = [];
   failCount = 0;
   alwaysFail = false;
+  alwaysRedirect = false;
   upstreamUrl = await listenUpstream();
   webhookUrl = `${upstreamUrl}/api/webhooks/123/secret-token-abc`;
 });
@@ -77,6 +83,12 @@ describe('DiscordChannel', () => {
     const ch = new DiscordChannel({ webhookUrl }, FAST_RETRY);
     await expect(ch.send({ title: 'a', body: 'b', severity: 'info' })).rejects.toThrow();
     expect(requests).toHaveLength(3);
+  });
+
+  it('rejects a redirect response instead of following it (SSRF closure)', async () => {
+    alwaysRedirect = true;
+    const ch = new DiscordChannel({ webhookUrl }, FAST_RETRY);
+    await expect(ch.send({ title: 'a', body: 'b', severity: 'info' })).rejects.toThrow();
   });
 
   it('redaction: a thrown error never contains the full webhook URL (embedded token)', async () => {

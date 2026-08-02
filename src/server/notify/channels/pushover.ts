@@ -54,7 +54,12 @@ export class PushoverChannel implements Channel {
       });
       let res: Response;
       try {
-        res = await fetchImpl(url, { method: 'POST', body, signal: AbortSignal.timeout(timeoutMs) });
+        res = await fetchImpl(url, {
+          method: 'POST', body, signal: AbortSignal.timeout(timeoutMs),
+          // A guard-passing host must not 307 this POST (which carries token+user) at an
+          // internal address — same SSRF closure as webhookSender.ts.
+          redirect: 'error',
+        });
       } catch {
         throw new Error('pushover: request failed (network error or timeout)');
       }

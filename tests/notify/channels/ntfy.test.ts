@@ -21,6 +21,10 @@ async function listenUpstream(): Promise<string> {
       await new Promise((resolve) => setTimeout(resolve, 300));
       return { ok: true };
     }
+    if ((req.params as any).topic === 'redirect') {
+      reply.code(307).header('location', '/followed-elsewhere');
+      return '';
+    }
     if (alwaysFail || failCount > 0) {
       failCount -= 1;
       reply.code(500);
@@ -107,6 +111,11 @@ describe('NtfyChannel', () => {
       expect(message).not.toContain('secret-topic-name');
     }
     expect(threw).toBe(true);
+  });
+
+  it('rejects a redirect response instead of following it (SSRF closure)', async () => {
+    const ch = new NtfyChannel({ serverUrl: upstreamUrl, topic: 'redirect' }, FAST_RETRY);
+    await expect(ch.send({ title: 'a', body: 'b', severity: 'info' })).rejects.toThrow();
   });
 
   it('honors a shorter timeoutMs against a slow upstream', async () => {

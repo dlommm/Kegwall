@@ -52,6 +52,10 @@ export class NtfyChannel implements Channel {
           },
           body: msg.body,
           signal: AbortSignal.timeout(timeoutMs),
+          // A guard-passing public host must not be able to 307 this POST (method + body
+          // preserved) at an internal/loopback/metadata address — same SSRF closure as
+          // webhookSender.ts. A redirect throws, folded into the generic message below.
+          redirect: 'error',
         });
       } catch {
         // Never surface the raw fetch error -- some failure modes embed the request URL

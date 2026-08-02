@@ -36,6 +36,9 @@ export class SlackChannel implements Channel {
           headers: { 'content-type': 'application/json' },
           body: payload,
           signal: AbortSignal.timeout(timeoutMs),
+          // A guard-passing host must not 307 this POST at an internal address — same SSRF
+          // closure as webhookSender.ts. A redirect throws, folded into the message below.
+          redirect: 'error',
         });
       } catch {
         throw new Error('slack: request failed (network error or timeout)');
