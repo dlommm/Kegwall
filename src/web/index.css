@@ -1930,6 +1930,27 @@
   cursor: pointer;
 }
 
+/* Automations sentence cards (4g). */
+.automations-row--paused {
+  opacity: 0.55;
+}
+
+.automations-row__when {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.automations-row__arrow {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.automations-row__then {
+  font-weight: 600;
+}
+
 /* Doctor verdict banner (4c). */
 .doctor-verdict {
   padding: 0.7rem 1rem;

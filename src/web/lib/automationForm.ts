@@ -333,3 +333,24 @@ export function triggerSummary(trigger: Trigger): string {
     }
   }
 }
+
+/** One action → a short verb phrase for the sentence-card summary (redesign 4g). */
+function oneActionSummary(action: Action): string {
+  switch (action.type) {
+    case 'notify': return `notify ${action.channels.join(' + ')}`;
+    case 'webhook': return 'call a webhook';
+    case 'mqtt_publish': return `publish to ${action.topic}`;
+    case 'wall_banner': return 'show a wall banner';
+    case 'display_power': return `turn the display ${action.state === 'off' ? 'off' : 'on'}`;
+    default: {
+      const _exhaustive: never = action;
+      return String(_exhaustive);
+    }
+  }
+}
+
+/** "notify ntfy + Discord, show a wall banner" — the `→` half of a rule's sentence card. */
+export function actionSummary(actions: Action[]): string {
+  if (actions.length === 0) return 'do nothing';
+  return actions.map(oneActionSummary).join(', ');
+}

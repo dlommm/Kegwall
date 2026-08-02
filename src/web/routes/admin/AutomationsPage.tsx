@@ -4,7 +4,7 @@ import {
   listAutomations, listAutomationTemplates, createFromTemplate, updateAutomation, deleteAutomation,
   type AutomationTemplateSummary,
 } from '../../lib/adminApi';
-import { triggerSummary, SEVERITY_LABELS } from '../../lib/automationForm';
+import { triggerSummary, actionSummary, SEVERITY_LABELS } from '../../lib/automationForm';
 import { useRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
 import { AutomationBuilder } from './AutomationBuilder';
@@ -59,7 +59,11 @@ function AutomationRow({
   const lastFired = useRelativeTime(automation.lastFiredAt);
 
   return (
-    <li className="automations-row" data-testid="automations-row">
+    <li
+      className={automation.enabled ? 'automations-row' : 'automations-row automations-row--paused'}
+      data-testid="automations-row"
+      data-enabled={automation.enabled}
+    >
       <div className="automations-row__main">
         {canEdit ? (
           <label className="wall-editor__checkbox automations-row__enabled-toggle">
@@ -80,8 +84,12 @@ function AutomationRow({
               <AlertBadge severity={automation.alertConfig.severity} />
             )}
           </div>
+          {/* Sentence card (redesign 4g): WHEN <trigger> → <actions>, operands emphasized. */}
           <span className="automations-row__summary" data-testid="automations-row-summary">
-            {triggerSummary(automation.trigger)}
+            <span className="automations-row__when">WHEN</span>
+            {` ${triggerSummary(automation.trigger).replace(/^When /, '')} `}
+            <span className="automations-row__arrow" aria-hidden="true">→</span>
+            <span className="automations-row__then">{` ${actionSummary(automation.actions)}`}</span>
           </span>
         </div>
         <span className="automations-row__last-fired" data-testid="automations-row-last-fired">

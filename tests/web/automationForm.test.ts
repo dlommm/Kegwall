@@ -10,6 +10,7 @@ import {
   defaultTrigger, defaultCondition, defaultAction, defaultAlertConfig,
   blankFormState, ruleToFormState, formStateToRuleCandidate, parseAutomationForm,
   triggerSummary,
+  actionSummary,
 } from '../../src/web/lib/automationForm';
 
 // ---------------------------------------------------------------------------
@@ -201,5 +202,15 @@ describe('triggerSummary', () => {
       expect(summary.length).toBeGreaterThan(0);
       expect(/^(When|Every)/.test(summary)).toBe(true);
     }
+  });
+
+  it('actionSummary lists notify channels and other actions (redesign 4g)', () => {
+    expect(actionSummary([{ type: 'notify', channels: ['ntfy', 'Discord'], title: 't', body: 'b' }]))
+      .toBe('notify ntfy + Discord');
+    expect(actionSummary([
+      { type: 'notify', channels: ['ntfy'], title: 't', body: 'b' },
+      { type: 'wall_banner', text: 'x', kind: 'info' } as any,
+    ])).toBe('notify ntfy, show a wall banner');
+    expect(actionSummary([])).toBe('do nothing');
   });
 });

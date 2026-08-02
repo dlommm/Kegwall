@@ -100,7 +100,9 @@ describe('AutomationsPage', () => {
     const rows = await screen.findAllByTestId('automations-row');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent('Keg low');
-    expect(rows[0]).toHaveTextContent('When keg level drops below 15%');
+    // Sentence-card framing (redesign 4g): WHEN <trigger> → <actions>.
+    expect(rows[0]).toHaveTextContent('WHEN keg level drops below 15%');
+    expect(rows[0]).toHaveTextContent('→');
     expect(rows[0]).toHaveTextContent('Never');
     expect(screen.getByTestId('automations-row-alert-badge')).toBeInTheDocument();
   });
