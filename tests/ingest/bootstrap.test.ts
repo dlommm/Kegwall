@@ -140,6 +140,73 @@ describe('registerConfiguredSources', () => {
     registerConfiguredSources(ctx);
     expect(ctx.sources.status().find((s) => s.name === 'kegtron_udp')!.registered).toBe(false);
   });
+
+  // Displays & Presence hub Task 2: `motion_mqtt` is now gated on the motion-source
+  // registry's own mqtt-type entries (`ctx.motion.sources()`), not the removed
+  // `mqtt.motionTopics` -- see ingest/bootstrap.ts. The mqtt-configured-with-no-motion-
+  // sources case is already covered above ("registers all 4 configurable sources..."
+  // sets `settings.mqtt` but no `motionSources`, and `motion_mqtt` is absent from its
+  // expected `registered` list).
+  describe('motion_mqtt gating (Task 2: registry-driven, not mqtt.motionTopics)', () => {
+    const MQTT_SOURCE = {
+      id: 'pir-1', name: 'Kitchen PIR', type: 'mqtt' as const, enabled: true,
+      wallSlug: 'main', config: { topic: 'home/pir', match: { mode: 'any' as const } },
+    };
+
+    it('registers motion_mqtt when an enabled mqtt-type motion source exists AND mqtt is configured', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [MQTT_SOURCE] as never);
+      ctx.settings.set('mqtt', {
+        url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
+        haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+        motionTopics: [],
+      });
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_mqtt')!.registered).toBe(true);
+    });
+
+    it('does not register motion_mqtt when a motion source exists but mqtt is not configured', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [MQTT_SOURCE] as never);
+      // settings.mqtt stays null (never set).
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_mqtt')!.registered).toBe(false);
+    });
+
+    it('does not register motion_mqtt for a disabled mqtt-type motion source even with mqtt configured', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [{ ...MQTT_SOURCE, enabled: false }] as never);
+      ctx.settings.set('mqtt', {
+        url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
+        haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+        motionTopics: [],
+      });
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_mqtt')!.registered).toBe(false);
+    });
+
+    it('drops motion_mqtt on a rebuild once the last mqtt-type motion source is removed', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('mqtt', {
+        url: 'mqtt://localhost:1883', gen1TopicPrefix: 'home/TheengsGateway',
+        haPublishEnabled: false, haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall',
+        motionTopics: [],
+      });
+      ctx.settings.set('motionSources', [MQTT_SOURCE] as never);
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_mqtt')!.registered).toBe(true);
+
+      ctx.settings.set('motionSources', []);
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_mqtt')!.registered).toBe(false);
+    });
+  });
 });
 
 // -----------------------------------------------------------------------------------

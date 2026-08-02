@@ -134,15 +134,24 @@ export function registerConfiguredSources(ctx: AppContext): void {
     }));
   }
 
-  // Presence (Plan A Task 6): the motion-sensor MQTT subscriber. Same "gated on its own
-  // sub-key, not merely `settings.mqtt` being set" precedent as `mqtt_publisher` just
-  // above -- a site can run the Gen 1 MQTT bridge (or HA discovery) without configuring
-  // any motion topics at all, and an unconfigured install's `status()` should report
-  // `motion_mqtt: {registered: false}` rather than a registered-but-inert source.
-  if (settings.mqtt?.motionTopics.length) {
+  // Presence (Plan A Task 6, reworked by Displays & Presence hub Task 2): the
+  // motion-sensor MQTT subscriber, now driven by the motion-source registry's own
+  // mqtt-type entries (Task 1's `ctx.motion.sources()`) rather than the removed
+  // `mqtt.motionTopics`. Same "gated on its own condition, not merely `settings.mqtt`
+  // being set" precedent as `mqtt_publisher` just above -- a site can run the Gen 1
+  // MQTT bridge (or HA discovery) without configuring any motion sources at all, and an
+  // unconfigured install's `status()` should report `motion_mqtt: {registered: false}`
+  // rather than a registered-but-inert source. `config.topic`/`config.match` are
+  // guaranteed present for every mqtt-type entry by `motionSourceSchema`'s `superRefine`
+  // (see db/settings.ts), so the non-null assertions below are schema-backed, not a
+  // runtime gamble.
+  const mqttMotionSources = ctx.motion.sources()
+    .filter((s) => s.type === 'mqtt')
+    .map((s) => ({ id: s.id, topic: s.config.topic!, match: s.config.match! }));
+  if (mqttMotionSources.length > 0 && settings.mqtt) {
     ctx.sources.register(new MotionMqttSource({
       url: settings.mqtt.url, username: settings.mqtt.username, password: settings.mqtt.password,
-      topics: settings.mqtt.motionTopics, presence: ctx.presence, bus: ctx.bus,
+      sources: mqttMotionSources, registry: ctx.motion, bus: ctx.bus,
     }));
   }
 }
