@@ -1,13 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Tap } from '../../../server/db/taps.js';
-import { wallConfigSchema } from '../../../server/core/wallConfig.js';
 import {
   listTaps, listMonitors, updateWall, getWallDevices, setWallDevices,
   type Wall, type WallDeviceRef,
 } from '../../lib/adminApi';
 import { groupMonitors, deviceLabel, type MonitorDeviceGroup } from '../../lib/monitorDevices';
 import {
-  configToFormState, parseWallConfigForm, WALL_TOKEN_KEYS,
+  configToFormState, parseWallConfigForm, safeParseWallConfig, WALL_TOKEN_KEYS,
   type WallConfigFormState, type WallTokenKey,
 } from '../../lib/wallEditorConfig';
 import {
@@ -95,17 +94,6 @@ const TOKEN_LABELS: Record<WallTokenKey, string> = {
   '--card-radius': 'Card radius',
 };
 
-/** A stored wall row's `config` was schema-validated at write time, but older rows can
- * predate a since-added key (e.g. `screensaver`, added after the column already existed
- * — see wallConfig.ts's doc comment) — re-parsing here fills any such gap with the
- * schema's current defaults rather than the editor choking on a partial object. A config
- * that's now outright invalid (shouldn't happen; nothing writes unvalidated config) falls
- * back to schema defaults rather than crashing the whole editor. */
-function safeParseConfig(config: unknown) {
-  const result = wallConfigSchema.safeParse(config);
-  return result.success ? result.data : wallConfigSchema.parse({});
-}
-
 /**
  * The wall editor (Task 7): every `WallConfig` field, plus name/slug, side-by-side with a
  * live `/wall/:slug` preview. Saving runs the form through `parseWallConfigForm` (the
@@ -120,7 +108,7 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [currentWall, setCurrentWall] = useState(wall);
   const [name, setName] = useState(wall.name);
   const [slug, setSlug] = useState(wall.slug);
-  const [form, setForm] = useState<WallConfigFormState>(() => configToFormState(safeParseConfig(wall.config)));
+  const [form, setForm] = useState<WallConfigFormState>(() => configToFormState(safeParseWallConfig(wall.config)));
   const [taps, setTaps] = useState<Tap[]>([]);
   const [tapsStatus, setTapsStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [deviceGroups, setDeviceGroups] = useState<MonitorDeviceGroup[]>([]);

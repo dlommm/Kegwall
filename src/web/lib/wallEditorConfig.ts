@@ -66,6 +66,21 @@ export function defaultFormState(): WallConfigFormState {
   return configToFormState(wallConfigSchema.parse({}));
 }
 
+/** A stored wall row's `config` was schema-validated at write time, but older rows can
+ * predate a since-added key (e.g. `screensaver`, added after the column already existed
+ * — see wallConfig.ts's doc comment) — re-parsing here fills any such gap with the
+ * schema's current defaults rather than a caller choking on a partial object. A config
+ * that's now outright invalid (shouldn't happen; nothing writes unvalidated config) falls
+ * back to schema defaults rather than crashing. Shared by every reader of a `Wall.config`
+ * that isn't already going through `parseWallConfig` server-side — WallEditor (the full
+ * form) and, since Displays & Presence hub Task 4, PresencePage's display-power panel
+ * (which only touches 3 of the config's fields but still needs the rest to round-trip
+ * safely through a save). */
+export function safeParseWallConfig(config: unknown): WallConfig {
+  const result = wallConfigSchema.safeParse(config);
+  return result.success ? result.data : wallConfigSchema.parse({});
+}
+
 /**
  * Deserializer: a fully-resolved `WallConfig` (already defaulted — e.g. via
  * `wallConfigSchema.parse(rawConfigFromServer)`, which fills anything a legacy stored

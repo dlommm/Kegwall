@@ -22,6 +22,12 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { label: 'Monitors', path: '/admin/monitors' },
   { label: 'Walls', path: '/admin/walls' },
   { label: 'Displays', path: '/admin/displays' },
+  // Displays & Presence hub (Task 4): zones + display power now, motion sources +
+  // webhook/agent setup land in Task 5. `adminOnly` because every route it calls
+  // (`GET/POST /api/presence/...`) is admin-gated (unlike the wall PATCH the display-
+  // power panel also writes through, which is only editor-gated) -- an editor landing
+  // here would just see every panel action fail.
+  { label: 'Displays & Presence', path: '/admin/presence', adminOnly: true },
   { label: 'Automations', path: '/admin/automations' },
   { label: 'Pourers', path: '/admin/pourers' },
   { label: 'Analytics', path: '/admin/stats' },
