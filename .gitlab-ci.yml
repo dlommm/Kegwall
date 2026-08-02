@@ -74,14 +74,20 @@ android-apk:
     - cd android
     - |
       if [ -n "$ANDROID_KEYSTORE_B64" ]; then
-        gradle --no-daemon assembleRelease \
-          -PkeystoreB64="$ANDROID_KEYSTORE_B64" \
-          -PkeystorePass="$ANDROID_KEYSTORE_PASS" \
-          -PkeyAlias="$ANDROID_KEY_ALIAS" \
-          -PkeyPass="$ANDROID_KEY_PASS"
+        # Signing secrets travel as ORG_GRADLE_PROJECT_* env vars (Gradle maps each to the
+        # matching project property, same as -P) instead of -P CLI args — so they never
+        # appear in the process argv / --info build output where GitLab masking can't reach.
+        export ORG_GRADLE_PROJECT_keystoreB64="$ANDROID_KEYSTORE_B64"
+        export ORG_GRADLE_PROJECT_keystorePass="$ANDROID_KEYSTORE_PASS"
+        export ORG_GRADLE_PROJECT_keyAlias="$ANDROID_KEY_ALIAS"
+        export ORG_GRADLE_PROJECT_keyPass="$ANDROID_KEY_PASS"
+        gradle --no-daemon assembleRelease
         cp app/build/outputs/apk/release/app-release.apk ../kegwall-tablet.apk
+      elif [ -n "$CI_COMMIT_TAG" ]; then
+        echo "Release tag build with no ANDROID_KEYSTORE_B64 — refusing to publish an unsigned/debug APK." >&2
+        exit 1
       else
-        echo "No ANDROID_KEYSTORE_B64 set — building a debug-signed APK (uninstall before updating)."
+        echo "No keystore (manual/branch build) — building a debug-signed APK (uninstall before updating)."
         gradle --no-daemon assembleDebug
         cp app/build/outputs/apk/debug/app-debug.apk ../kegwall-tablet.apk
       fi

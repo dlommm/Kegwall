@@ -137,11 +137,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Server source (run directly by tsx, no build step) + migrations (loaded by
 # path relative to src/server/db/migrate.ts, so they must ship as files, not
-# be bundled) + operational scripts (e.g. `npx tsx scripts/seed.ts`, run
-# ad hoc against a live /data volume). No src/shared directory exists in this
-# repo — the server tree is self-contained.
+# be bundled) + the ONE operational script the image runs (`npx tsx scripts/seed.ts`,
+# run ad hoc against a live /data volume). No src/shared directory exists in this
+# repo — the server tree is self-contained. Only seed.ts is copied — the dev/audit
+# scripts (e2eAudit.ts, phase5AuditScreenshots.ts, host installers) have no business in
+# a production image.
 COPY src/server ./src/server
-COPY scripts ./scripts
+COPY scripts/seed.ts ./scripts/seed.ts
 COPY --from=web /app/dist/web ./dist/web
 
 # Deliberately NOT `chown -R node:node /app`: overlayfs has to copy-up any

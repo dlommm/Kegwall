@@ -47,9 +47,12 @@ services:
     ports:
       - "127.0.0.1:8090:8080" # loopback only — never exposed off-box
     environment:
-      # Generate with: openssl rand -hex 16 — and paste the SAME value into
-      # Settings → System in the Kegwall admin UI.
-      - WATCHTOWER_HTTP_API_TOKEN=change-me
+      # REQUIRED — no default. Generate with: openssl rand -hex 16, put it in a `.env`
+      # file next to this compose (WATCHTOWER_HTTP_API_TOKEN=...), and paste the SAME value
+      # into Settings → System in the Kegwall admin UI. `compose up` refuses to start until
+      # it's set, so a host-networked container can never reach Watchtower with a shipped
+      # default token.
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN:?set a token — openssl rand -hex 16}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --http-api-update --label-enable --cleanup
