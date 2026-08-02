@@ -18,6 +18,69 @@ import { withRetry, DEFAULT_TIMEOUT_MS, type RetryOptions } from './retry.js';
 // only owns the connect/publish/close mechanics, not where the instance lives.
 // ---------------------------------------------------------------------------
 
+export interface MqttTestConfig { url: string; username?: string; password?: string }
+export interface MqttTestOptions {
+  timeoutMs?: number;
+  /** Test-only override of `mqtt.connect` — same injectable knob as MqttSenderOptions. */
+  connectFn?: (url: string, opts?: IClientOptions) => MqttClient;
+}
+
+/** Classifies a broker connect failure into a friendly, non-raw message for the HA setup
+ * wizard's "Test connection" affordance (the admin is testing THEIR OWN broker, so a useful
+ * cause is helpful — but still never a raw driver dump). */
+function classifyMqttError(err: unknown): string {
+  const e = err as { code?: string; message?: string };
+  const msg = (e?.message ?? String(err)).toLowerCase();
+  const code = e?.code;
+  if (code === 'ECONNREFUSED' || msg.includes('econnrefused')) {
+    return 'Connection refused — is the broker running at that address?';
+  }
+  if (msg.includes('not authorized') || msg.includes('bad username') || msg.includes('bad user name')
+    || msg.includes('password') || msg.includes('unauthorized')) {
+    return 'Broker rejected the credentials';
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || msg.includes('getaddrinfo')) {
+    return 'Could not resolve the broker host';
+  }
+  return 'Could not connect to the broker';
+}
+
+/**
+ * One-shot connectivity probe for the HA setup wizard: connects to `config`'s broker with a
+ * timeout, immediately disconnects, and resolves `{ ok, detail }` — never rejects. Standalone
+ * (takes ad-hoc config, not `settings.mqtt`) because the wizard tests values BEFORE they're
+ * saved. `reconnectPeriod: 0` so a bad host fails fast instead of retrying forever.
+ */
+export async function testMqttConnection(
+  config: MqttTestConfig, opts: MqttTestOptions = {},
+): Promise<{ ok: boolean; detail: string }> {
+  const connectFn = opts.connectFn ?? mqtt.connect;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  return new Promise((resolve) => {
+    let client: MqttClient | undefined;
+    let settled = false;
+    const done = (result: { ok: boolean; detail: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { client?.end(true); } catch { /* already down */ }
+      resolve(result);
+    };
+    const timer = setTimeout(() => done({ ok: false, detail: 'Timed out reaching the broker' }), timeoutMs);
+    try {
+      client = connectFn(config.url, {
+        username: config.username, password: config.password,
+        connectTimeout: timeoutMs, reconnectPeriod: 0,
+      });
+    } catch {
+      done({ ok: false, detail: 'That broker URL is not valid' });
+      return;
+    }
+    client.once('connect', () => done({ ok: true, detail: 'Connected to the broker' }));
+    client.once('error', (err) => done({ ok: false, detail: classifyMqttError(err) }));
+  });
+}
+
 export interface MqttSenderOptions extends RetryOptions {
   /** Per-attempt connect timeout (ms). Production default: `DEFAULT_TIMEOUT_MS` (5s),
    * same constant every other Task 2 sender uses. */
