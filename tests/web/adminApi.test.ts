@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import {
   needsSetup, login, logout, getMe, setup,
   listBeers, createBeer, updateBeer, deleteBeer,
-  lookupBreweries, uploadLabel,
+  lookupBreweries, uploadLabel, getLookupConfig,
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
@@ -233,6 +233,12 @@ describe('admin api client', () => {
     const result = await lookupBreweries('modern brew');
     expect(result.ok).toBe(true);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/lookup/breweries?q=modern%20brew', expect.any(Object));
+  });
+
+  it('getLookupConfig GETs /api/lookup/config', async () => {
+    mockFetchOnce(200, { catalogBeerConfigured: false, autoImportBeers: true });
+    await getLookupConfig();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/lookup/config', expect.any(Object));
   });
 
   it('uploadLabel sends a FormData body without forcing a JSON content-type header', async () => {

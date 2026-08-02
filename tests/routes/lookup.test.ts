@@ -443,6 +443,28 @@ describe('GET /api/lookup/breweries', () => {
   });
 });
 
+describe('GET /api/lookup/config', () => {
+  it('rejects unauthenticated requests', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/lookup/config' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('reports non-secret availability flags to a viewer (never the key itself)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/lookup/config', cookies: viewerCookies });
+    expect(res.statusCode).toBe(200);
+    // No catalog.beer key set in this harness, auto-import defaults on.
+    expect(res.json()).toEqual({ catalogBeerConfigured: false, autoImportBeers: true });
+  });
+
+  it('flips catalogBeerConfigured once a key is configured, still exposing no secret', async () => {
+    app.ctx.settings.set('catalogBeer', { apiKey: 'super-secret-key' });
+    app.ctx.settings.set('autoImportBeers', false);
+    const res = await app.inject({ method: 'GET', url: '/api/lookup/config', cookies: viewerCookies });
+    expect(res.json()).toEqual({ catalogBeerConfigured: true, autoImportBeers: false });
+    expect(JSON.stringify(res.json())).not.toContain('super-secret-key');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // downloadAndStoreLabel — the generic remote label download helper (SSRF-guarded
 // download -> size-capped read -> magic-byte validation -> stored under labelsDir). Its

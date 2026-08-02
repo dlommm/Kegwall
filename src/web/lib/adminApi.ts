@@ -241,6 +241,17 @@ export function lookupBeers(q: string): Promise<ApiResult<BeerLookupResult[]>> {
   return request(`/api/lookup/beers?q=${encodeURIComponent(q)}`);
 }
 
+/** Non-secret lookup availability flags for the Beers page's LOOKUP chip row. */
+export interface LookupConfig {
+  catalogBeerConfigured: boolean;
+  autoImportBeers: boolean;
+}
+
+/** GET /api/lookup/config — is catalog.beer keyed, and is Kegtron beer auto-import on. */
+export function getLookupConfig(): Promise<ApiResult<LookupConfig>> {
+  return request('/api/lookup/config');
+}
+
 /** POST /api/uploads/label — multipart file upload (Task 1); returns the stored
  * `/labels/...` path. Sends a real `FormData` body — see `request()`'s Content-Type
  * handling above for why that must NOT get a `application/json` header. */

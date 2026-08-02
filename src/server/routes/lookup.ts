@@ -290,6 +290,15 @@ export async function lookupRoutes(
 ) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const editor = { preHandler: requireRole('editor') };
+  const viewer = { preHandler: requireRole('viewer') };
+
+  // GET /api/lookup/config — non-secret lookup availability flags for the Beers page's
+  // LOOKUP chip row (is catalog.beer keyed? is Kegtron auto-import on?). Viewer role: these
+  // are booleans, never the keys themselves — the secret catalogBeer.apiKey stays server-side.
+  app.get('/api/lookup/config', viewer, async () => ({
+    catalogBeerConfigured: !!app.ctx.settings.get('catalogBeer'),
+    autoImportBeers: app.ctx.settings.get('autoImportBeers'),
+  }));
 
   app.get('/api/lookup/breweries', editor, async (req, reply) => {
     const { q } = z.object({ q: z.string().optional() }).parse(req.query);

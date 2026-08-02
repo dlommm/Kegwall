@@ -1636,6 +1636,105 @@
   border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
 }
 
+/* Header lead (title + count summary), search, LOOKUP chips, "add art" chip, STATUS pills (3f). */
+.admin-page-header__lead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.beers-summary {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.beers-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.beers-search {
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  min-width: 12rem;
+}
+
+.beers-lookup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.beers-chip {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.beers-chip--dashed {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+}
+
+.beers-chip--on {
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+  color: var(--ok);
+}
+
+.beers-table__thumb--add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.beers-status {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.beers-status--on-tap {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+}
+
+.beers-status--low {
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: var(--warn);
+}
+
+.beers-status--on-deck {
+  border: 1px dashed color-mix(in srgb, var(--text) 28%, transparent);
+  color: var(--text-dim);
+}
+
+.beers-status--none {
+  color: var(--text-faint, var(--text-dim));
+  font-weight: 400;
+}
+
 .beers-table__srm-chip {
   display: inline-block;
   width: 1rem;
