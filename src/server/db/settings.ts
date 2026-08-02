@@ -2,6 +2,13 @@ import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { ValidationError } from '../core/errors.js';
 
+/** A URL constrained to http(s) — `z.string().url()` alone also accepts `file:`, `ftp:`,
+ * even `javascript:`. Every outbound channel/webhook target must be a real HTTP endpoint,
+ * matching the scheme allowlist the automation `webhook` action already enforces. */
+const httpUrl = () => z.string().url().refine(
+  (u) => /^https?:\/\//i.test(u), { message: 'must be an http(s) URL' },
+);
+
 // ---------------------------------------------------------------------------
 // Displays & Presence hub Task 1: motion-source registry schema. Exported for reuse by
 // `core/motionSources.ts` (the runtime registry) and by later tasks' admin UI. A single
@@ -42,7 +49,9 @@ export const motionSourceSchema = z.object({
   config: z.object({
     topic: z.string().min(1).optional(), // mqtt
     match: matchRuleSchema.optional(), // mqtt
-    chip: z.string().optional(), // gpio, e.g. 'gpiochip0'
+    // gpio chip, e.g. 'gpiochip0'. Constrained so it can't begin with '-' (which gpiomon
+    // would parse as a flag — argument injection) or carry shell/path metacharacters.
+    chip: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_-]*$/).optional(),
     line: z.number().int().min(0).optional(), // gpio
     activeLow: z.boolean().optional(), // gpio
     debounceMs: z.number().int().min(0).optional(), // gpio
@@ -147,7 +156,7 @@ export const settingsSchema = z.object({
   // masked secret (all four masking pieces below).
   updates: z.object({
     mode: z.enum(['off', 'watchtower', 'native']),
-    watchtowerUrl: z.string().url().optional(),
+    watchtowerUrl: httpUrl().optional(),
     watchtowerToken: z.string().min(1).optional(),
   }).nullable().default(null),
   // OS (apt) updates — native Pi installs only (the UI hides this unless
@@ -230,7 +239,7 @@ export const settingsSchema = z.object({
   // deeper (a secret nested inside a nested object).
   alertChannels: z
     .object({
-      ntfy: z.object({ serverUrl: z.string().url(), topic: z.string().min(1) }).nullable().optional(),
+      ntfy: z.object({ serverUrl: httpUrl(), topic: z.string().min(1) }).nullable().optional(),
       pushover: z.object({ token: z.string().min(1), user: z.string().min(1) }).nullable().optional(),
       smtp: z
         .object({
@@ -244,8 +253,8 @@ export const settingsSchema = z.object({
         })
         .nullable()
         .optional(),
-      discord: z.object({ webhookUrl: z.string().url() }).nullable().optional(),
-      slack: z.object({ webhookUrl: z.string().url() }).nullable().optional(),
+      discord: z.object({ webhookUrl: httpUrl() }).nullable().optional(),
+      slack: z.object({ webhookUrl: httpUrl() }).nullable().optional(),
     })
     .default({}),
 });

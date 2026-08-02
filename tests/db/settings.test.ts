@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
-import { SettingsStore } from '../../src/server/db/settings.js';
+import { SettingsStore, motionSourceSchema } from '../../src/server/db/settings.js';
 import { ValidationError } from '../../src/server/core/errors.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -370,6 +370,22 @@ describe('SettingsStore', () => {
       store.set('faceSignIn', { enabled: true, threshold: 0.75 });
       expect(store.get('faceSignIn')).toEqual({ enabled: true, threshold: 0.75 });
       expect(() => store.set('faceSignIn', { enabled: true, threshold: 0.1 } as never)).toThrow();
+    });
+  });
+
+  describe('outbound URL / gpio hardening', () => {
+    it('rejects a non-http(s) channel webhook URL, accepts a real https one', () => {
+      expect(() => store.set('alertChannels', { discord: { webhookUrl: 'file:///etc/passwd' } } as never)).toThrow();
+      expect(() => store.set('alertChannels', { ntfy: { serverUrl: 'ftp://x/y', topic: 't' } } as never)).toThrow();
+      expect(() => store.set(
+        'alertChannels', { slack: { webhookUrl: 'https://hooks.slack.com/services/T/B/x' } } as never,
+      )).not.toThrow();
+    });
+
+    it('rejects a gpio chip beginning with a dash (gpiomon argument injection)', () => {
+      const base = { id: 'a', name: 'Door', type: 'gpio' as const };
+      expect(motionSourceSchema.safeParse({ ...base, config: { line: 4, chip: '-oInject' } }).success).toBe(false);
+      expect(motionSourceSchema.safeParse({ ...base, config: { line: 4, chip: 'gpiochip0' } }).success).toBe(true);
     });
   });
 });
