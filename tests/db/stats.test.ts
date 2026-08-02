@@ -6,8 +6,9 @@ import { createTap } from '../../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
 import { createDrinker } from '../../src/server/db/users.js';
 import {
-  poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard,
+  poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard, kegCostRows,
 } from '../../src/server/db/stats.js';
+import { createSupplier } from '../../src/server/db/suppliers.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -377,6 +378,34 @@ describe('stats repo', () => {
       expect(rows).toEqual([{
         drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0,
       }]);
+    });
+  });
+
+  describe('kegCostRows', () => {
+    it('computes poured %, $/pint, and remaining value per keg', () => {
+      const beer = createBeer(db, { name: 'Yuengling' });
+      const tap = createTap(db, { number: 1 });
+      const supplier = createSupplier(db, { name: 'Joes' });
+      // 47,318 mL ≈ 100 pints, $131.00, half poured.
+      const keg = createKeg(db, {
+        beerId: beer.id, tapId: tap.id, sizeMl: 47318, volStartMl: 47318,
+        costCents: 13100, supplierId: supplier.id, purchasedAt: '2026-06-01',
+      });
+      db.prepare('UPDATE kegs SET vol_dispensed_ml = ? WHERE id = ?').run(23659, keg.id);
+
+      const rows = kegCostRows(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        beerName: 'Yuengling', supplierName: 'Joes', costCents: 13100,
+        pouredPct: 50, pricePerPintCents: 131, valueLeftCents: 6550,
+      });
+    });
+
+    it('leaves cost-derived fields null when a keg has no cost', () => {
+      const beer = createBeer(db, { name: 'Free Beer' });
+      createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, status: 'on_deck' });
+      const rows = kegCostRows(db);
+      expect(rows[0]).toMatchObject({ costCents: null, pricePerPintCents: null, valueLeftCents: null, supplierName: null });
     });
   });
 });

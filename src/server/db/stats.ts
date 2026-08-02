@@ -338,6 +338,67 @@ export function analyticsKpis(db: Database.Database, days: number, now = new Dat
   };
 }
 
+/** Per-keg cost row for the analytics Kegs & cost tab (redesign 4e/4j). Carries OWNER COST —
+ *  its route is admin-only; never serialize this to a public surface. */
+export interface KegCostRow {
+  kegId: number;
+  beerName: string;
+  supplierName: string | null;
+  status: string;
+  costCents: number | null;
+  depositCents: number | null;
+  sizeMl: number;
+  volStartMl: number;
+  volDispensedMl: number;
+  purchasedAt: string | null;
+  dateTapped: string | null;
+  /** % of the keg's starting volume that's been poured. */
+  pouredPct: number;
+  /** Owner cost ÷ pints in the keg, in cents; null when cost is untracked. */
+  pricePerPintCents: number | null;
+  /** Remaining-beer value (remaining fraction × cost), in cents; null when untracked. */
+  valueLeftCents: number | null;
+}
+
+export function kegCostRows(db: Database.Database): KegCostRow[] {
+  const ML_PER_PINT_LOCAL = 473.176;
+  const rows = db.prepare(`
+    SELECT k.id, b.name AS beer_name, s.name AS supplier_name, k.status,
+           k.cost_cents, k.deposit_cents, k.size_ml, k.vol_start_ml, k.vol_dispensed_ml,
+           k.purchased_at, k.date_tapped
+    FROM kegs k
+    JOIN beers b ON b.id = k.beer_id
+    LEFT JOIN suppliers s ON s.id = k.supplier_id
+    ORDER BY COALESCE(k.date_tapped, k.created_at) DESC
+  `).all() as any[];
+  return rows.map((r) => {
+    const pints = r.size_ml / ML_PER_PINT_LOCAL;
+    const pouredPct = r.vol_start_ml > 0
+      ? Math.round((r.vol_dispensed_ml / r.vol_start_ml) * 100) : 0;
+    const pricePerPintCents = r.cost_cents != null && pints > 0
+      ? Math.round(r.cost_cents / pints) : null;
+    const remainingFrac = r.vol_start_ml > 0
+      ? Math.max(0, (r.vol_start_ml - r.vol_dispensed_ml) / r.vol_start_ml) : 0;
+    const valueLeftCents = r.cost_cents != null ? Math.round(remainingFrac * r.cost_cents) : null;
+    return {
+      kegId: r.id,
+      beerName: r.beer_name,
+      supplierName: r.supplier_name ?? null,
+      status: r.status,
+      costCents: r.cost_cents ?? null,
+      depositCents: r.deposit_cents ?? null,
+      sizeMl: r.size_ml,
+      volStartMl: r.vol_start_ml,
+      volDispensedMl: r.vol_dispensed_ml,
+      purchasedAt: r.purchased_at ?? null,
+      dateTapped: r.date_tapped ?? null,
+      pouredPct,
+      pricePerPintCents,
+      valueLeftCents,
+    };
+  });
+}
+
 /** Busiest-hours heatmap (design 10a): day-of-week (0=Sun) × hour counts over
  * the trailing `days` window, local time — same localtime convention as
  * `hourHistogram` above. */

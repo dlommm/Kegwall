@@ -32,6 +32,15 @@ beforeEach(async () => {
 });
 afterEach(async () => { await app.close(); });
 
+describe('GET /api/stats/keg-costs (admin-only owner cost)', () => {
+  it('403s a viewer and 200s an admin', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/stats/keg-costs', cookies: viewerCookies })).statusCode).toBe(403);
+    const admin = await app.inject({ method: 'GET', url: '/api/stats/keg-costs', cookies: adminCookies });
+    expect(admin.statusCode).toBe(200);
+    expect(Array.isArray(admin.json())).toBe(true);
+  });
+});
+
 describe('GET /api/stats/pours', () => {
   it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/stats/pours' });

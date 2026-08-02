@@ -6,10 +6,10 @@ import { act, fireEvent, screen } from '@testing-library/react';
 import { StatsPage } from '../../../src/web/routes/admin/StatsPage';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
-  getStatsTemps, getLeaderboard, listMonitors,
+  getStatsTemps, getLeaderboard, listMonitors, getKegCosts,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
-import { renderAdminPage } from './renderAdminPage';
+import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   getPoursByDay: vi.fn(),
@@ -22,6 +22,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getAnalyticsKpis: vi.fn().mockResolvedValue({ ok: true, data: { pours: 0, volumeMl: 0, kegsKicked: 0, avgQuality: null, costPerPintCents: null, valueOnTapCents: 0 } }),
   getHourHeatmap: vi.fn().mockResolvedValue({ ok: true, data: { grid: [] } }),
   getHostStatsHistory: vi.fn().mockResolvedValue({ ok: true, data: { points: [] } }),
+  getKegCosts: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
@@ -65,6 +66,34 @@ describe('StatsPage', () => {
   it('shows a loading state before the initial fetches settle', () => {
     renderAdminPage(<StatsPage />);
     expect(screen.getByTestId('stats-loading')).toBeInTheDocument();
+  });
+
+  it('shows the admin keg-cost table on the Kegs tab, with $/pint and value-left', async () => {
+    (getKegCosts as Mock).mockResolvedValue({
+      ok: true,
+      data: [{
+        kegId: 1, beerName: 'Yuengling', supplierName: 'Joes', status: 'on_tap',
+        costCents: 13100, depositCents: 3000, sizeMl: 47318, volStartMl: 47318, volDispensedMl: 23659,
+        purchasedAt: '2026-06-01', dateTapped: '2026-06-02', pouredPct: 50, pricePerPintCents: 131, valueLeftCents: 6550,
+      }],
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-kegs'));
+    const row = screen.getByTestId('keg-cost-row');
+    expect(row).toHaveTextContent('Yuengling');
+    expect(row).toHaveTextContent('Joes');
+    expect(row).toHaveTextContent('$131.00'); // paid
+    expect(row).toHaveTextContent('$1.31'); // $/pint
+    expect(row).toHaveTextContent('50%');
+    expect(row).toHaveTextContent('$65.50'); // value left
+  });
+
+  it('hides the keg-cost table from a non-admin (viewer)', async () => {
+    renderAdminPage(<StatsPage />, adminContext('viewer'));
+    await flush();
+    expect(getKegCosts).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('analytics-keg-costs')).not.toBeInTheDocument();
   });
 
   it('renders the 9-tab hub with Overview active, and switching tabs reveals another panel', async () => {

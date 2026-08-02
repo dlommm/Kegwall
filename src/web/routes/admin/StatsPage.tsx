@@ -6,7 +6,7 @@ import type { TelemetryPoint } from '../../../server/db/telemetry.js';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
-  getHostStatsHistory, type HostStatsHistoryPoint,
+  getHostStatsHistory, getKegCosts, type HostStatsHistoryPoint, type KegCostRow,
 } from '../../lib/adminApi';
 import { formatVolumeMl } from '../../lib/units';
 import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
@@ -52,9 +52,11 @@ type AnalyticsTab = (typeof ANALYTICS_TABS)[number]['key'];
  * neither of those is shared with anything else on the page.
  */
 export function StatsPage() {
-  const { units } = useAdminContext();
+  const { units, me } = useAdminContext();
+  const isAdmin = me.role === 'admin';
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [tab, setTab] = useState<AnalyticsTab>('overview');
+  const [kegCosts, setKegCosts] = useState<KegCostRow[]>([]);
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -71,6 +73,16 @@ export function StatsPage() {
   const [kpis, setKpis] = useState<AnalyticsKpis | null>(null);
   const [heatmap, setHeatmap] = useState<number[][]>([]);
   const [hostStats, setHostStats] = useState<HostStatsHistoryPoint[]>([]);
+
+  // Per-keg owner-cost breakdown (admin-only; the endpoint 403s for non-admins).
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    let cancelled = false;
+    getKegCosts().then((result) => {
+      if (!cancelled && result.ok) setKegCosts(result.data);
+    });
+    return () => { cancelled = true; };
+  }, [isAdmin]);
 
   // Server-health history (Pi monitoring epic) — the host sampler's last 24h.
   useEffect(() => {
@@ -336,6 +348,47 @@ export function StatsPage() {
             <div className="stats-grid">
               <KegDepletionCards data={kegs} units={units} />
             </div>
+            {isAdmin && (
+              <section className="stats-section" data-testid="analytics-keg-costs">
+                <h3 className="stats-chart__title">Keg cost history</h3>
+                {kegCosts.length === 0 ? (
+                  <p className="admin-page-quiet">No keg costs recorded yet — add them in the swap wizard.</p>
+                ) : (
+                  <div className="analytics-table-scroll">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Beer</th>
+                          <th scope="col">Supplier</th>
+                          <th scope="col">Paid</th>
+                          <th scope="col">$/pint</th>
+                          <th scope="col">Poured</th>
+                          <th scope="col">Value left</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kegCosts.map((row) => (
+                          <tr key={row.kegId} data-testid="keg-cost-row">
+                            <td>{row.beerName}</td>
+                            <td>{row.supplierName ?? '—'}</td>
+                            <td className="font-tabular">
+                              {row.costCents != null ? `$${(row.costCents / 100).toFixed(2)}` : '—'}
+                            </td>
+                            <td className="font-tabular">
+                              {row.pricePerPintCents != null ? `$${(row.pricePerPintCents / 100).toFixed(2)}` : '—'}
+                            </td>
+                            <td className="font-tabular">{`${row.pouredPct}%`}</td>
+                            <td className="font-tabular">
+                              {row.valueLeftCents != null ? `$${(row.valueLeftCents / 100).toFixed(2)}` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           <div hidden={tab !== 'people'} data-testid="analytics-panel-people">

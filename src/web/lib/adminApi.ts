@@ -780,7 +780,15 @@ export function deleteDisplay(id: number): Promise<ApiResult<null>> {
 
 // --- Pour Wall overhaul Phase 6: analytics + cleaning + doctor ---------------
 
-export type { AnalyticsKpis, PoursByDay, KegBurnStat } from '../../server/db/stats.js';
+export type {
+  AnalyticsKpis, PoursByDay, KegBurnStat, KegCostRow,
+} from '../../server/db/stats.js';
+
+/** GET /api/stats/keg-costs — per-keg owner-cost breakdown for the analytics Kegs tab.
+ *  ADMIN ONLY (owner cost). */
+export function getKegCosts(): Promise<ApiResult<import('../../server/db/stats.js').KegCostRow[]>> {
+  return request('/api/stats/keg-costs');
+}
 export type { SensorSummary } from '../../server/db/sensors.js';
 export type { CleaningStatus, LineCleaning } from '../../server/db/cleanings.js';
 

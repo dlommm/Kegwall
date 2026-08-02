@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireRole } from './auth.js';
 import {
-  poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard,
+  poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard, kegCostRows,
 } from '../db/stats.js';
 import { listTelemetryForDevice } from '../db/telemetry.js';
 import { getMonitorById } from '../db/monitors.js';
@@ -17,6 +17,12 @@ import { NotFoundError } from '../core/errors.js';
 export async function statsRoutes(app: FastifyInstance) {
   const db = app.ctx.db;
   const viewer = { preHandler: requireRole('viewer') };
+  const admin = { preHandler: requireRole('admin') };
+
+  // GET /api/stats/keg-costs — per-keg owner-cost breakdown for the analytics Kegs & cost tab.
+  // ADMIN ONLY: it exposes cost/$-per-pint/value-left, which the hard requirement keeps off
+  // every non-admin surface (the rest of /api/stats is viewer-role aggregate data).
+  app.get('/api/stats/keg-costs', admin, async () => kegCostRows(db));
 
   // `?days=` is restricted to the three ranges the Stats page's switcher actually offers
   // (7/30/90) — an `z.enum` on the raw string query value (rather than a bare

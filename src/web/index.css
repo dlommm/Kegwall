@@ -8871,6 +8871,11 @@ h2.admin-field__label-text {
   margin-bottom: 18px;
 }
 
+/* History tables scroll horizontally inside their own container (never the page body). */
+.analytics-table-scroll {
+  overflow-x: auto;
+}
+
 .heatmap {
   display: flex;
   flex-direction: column;
