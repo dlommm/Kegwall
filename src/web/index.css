@@ -1898,6 +1898,27 @@
   text-align: right;
 }
 
+/* Doctor verdict banner (4c). */
+.doctor-verdict {
+  padding: 0.7rem 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+.doctor-verdict--ok {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--ok);
+}
+
+.doctor-verdict--warn {
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+}
+
 /* Backdated cleaning dialog (4a). */
 .cleaning-dialog__picks {
   display: flex;

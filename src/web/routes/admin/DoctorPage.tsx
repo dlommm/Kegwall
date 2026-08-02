@@ -87,6 +87,24 @@ export function DoctorPage() {
       : { state: 'done', ok: false, detail: result.message });
   }
 
+  // Run-all (redesign 4c): fire every check at once. Concurrent — each sets its own state.
+  async function runAll() {
+    await Promise.all([runCloud(), runListen(), runGovee()]);
+  }
+
+  // Overall verdict banner (redesign 4c): a plain-language health summary over registered sources.
+  const registered = sources.filter((s) => s.registered);
+  const healthy = registered.filter((s) => s.healthy);
+  const down = registered.filter((s) => !s.healthy).map((s) => s.name);
+  const verdict = registered.length === 0
+    ? { text: 'No ingest sources configured yet.', ok: true }
+    : {
+      text: down.length === 0
+        ? `All ${registered.length} ingest paths healthy.`
+        : `${healthy.length} of ${registered.length} paths healthy — ${down.join(', ')} ${down.length === 1 ? 'is' : 'are'} down.`,
+      ok: down.length === 0,
+    };
+
   function CheckRow({
     title, hint, check, onRun, runLabel, testId,
   }: {
@@ -116,9 +134,22 @@ export function DoctorPage() {
   return (
     <div data-testid="doctor-page">
       <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Connection doctor</h1>
-        <p className="admin-page-quiet">Every result is also written to Logs.</p>
+        <div className="admin-page-header__lead">
+          <h1 className="admin-page-header__title font-display">Connection doctor</h1>
+          <p className="admin-page-quiet">Every result is also written to Logs.</p>
+        </div>
+        <button type="button" className="admin-page-header__action" data-testid="doctor-run-all" onClick={runAll}>
+          Run all checks
+        </button>
       </header>
+
+      <div
+        className={`doctor-verdict doctor-verdict--${verdict.ok ? 'ok' : 'warn'}`}
+        role="status"
+        data-testid="doctor-verdict"
+      >
+        {verdict.text}
+      </div>
 
       <section className="displays-section">
         <h2 className="dashboard-card__title font-display">SOURCES RIGHT NOW</h2>
