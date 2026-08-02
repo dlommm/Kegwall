@@ -2027,6 +2027,50 @@
   margin: 0.5rem 0 0;
 }
 
+/* Game setup sheet (5b). */
+.game-setup__label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 0.75rem 0 0.4rem;
+}
+
+.game-setup__players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.game-setup__player {
+  padding: 0.4rem 0.8rem;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.game-setup__player--on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.game-setup__target {
+  margin-top: 0.75rem;
+  max-width: 12rem;
+}
+
+.game-setup__start {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  font-weight: 600;
+}
+
 /* --- Games (5a) ------------------------------------------------------------- */
 .games-active-banner {
   display: flex;

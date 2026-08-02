@@ -3,6 +3,7 @@ import {
   getGames, getActiveGame, startGameSession, endGameSession,
   type Game,
 } from '../../lib/adminApi';
+import { getPourers, type PublicPourer } from '../../lib/api';
 import { useAdminContext } from './useAdminContext';
 
 /** Category display metadata (redesign 5a) — color tick + header + subtitle, in doc order. */
@@ -34,6 +35,11 @@ export function GamesPage() {
   const [activeName, setActiveName] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  // 5b game-setup sheet: pick players (+ a target for volume games) before the game starts.
+  const [pourers, setPourers] = useState<PublicPourer[]>([]);
+  const [setupGame, setSetupGame] = useState<Game | null>(null);
+  const [pickedIds, setPickedIds] = useState<Set<number>>(new Set());
+  const [targetOz, setTargetOz] = useState('100');
 
   const load = useCallback(() => {
     getGames().then((result) => {
@@ -50,6 +56,9 @@ export function GamesPage() {
     });
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    getPourers().then((result) => { if (result.ok) setPourers(result.data); });
+  }, []);
 
   const visible = useMemo(() => games.filter((game) => {
     if (filter === 'all') return true;
@@ -61,11 +70,37 @@ export function GamesPage() {
     .map((cat) => ({ cat, items: visible.filter((game) => game.category === cat) }))
     .filter((section) => section.items.length > 0), [visible]);
 
-  async function handleStart(game: Game) {
+  function openSetup(game: Game) {
+    setSetupGame(game);
+    setPickedIds(new Set());
+    setTargetOz('100');
+  }
+
+  function togglePicked(id: number) {
+    setPickedIds((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleStartConfirmed() {
+    if (!setupGame) return;
     setBusy(true);
-    const result = await startGameSession({ gameId: game.id });
+    // Only volume/oz games carry a target; the wall strip reads settings.targetOz for the bar.
+    const settings = setupGame.metric === 'oz' && targetOz.trim()
+      ? { targetOz: Number(targetOz.trim()) }
+      : undefined;
+    const result = await startGameSession({
+      gameId: setupGame.id,
+      participantDrinkerIds: [...pickedIds],
+      settings,
+    });
     setBusy(false);
-    if (result.ok) load();
+    if (result.ok) {
+      setSetupGame(null);
+      load();
+    }
   }
 
   async function handleEnd() {
@@ -147,7 +182,7 @@ export function GamesPage() {
                   </span>
                   {game.duration && <span className="game-card__meta font-tabular">{game.duration}</span>}
                   {canEdit && !activeName && (
-                    <button type="button" className="game-card__start" data-testid="game-start" disabled={busy} onClick={() => handleStart(game)}>
+                    <button type="button" className="game-card__start" data-testid="game-start" disabled={busy} onClick={() => openSetup(game)}>
                       Start
                     </button>
                   )}
@@ -157,6 +192,54 @@ export function GamesPage() {
           </div>
         </section>
       ))}
+
+      {setupGame && (
+        <div className="admin-confirm__backdrop" data-testid="game-setup" onClick={() => !busy && setSetupGame(null)}>
+          <div className="admin-confirm game-setup" role="dialog" aria-modal="true" aria-label="Set up game" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display">{setupGame.name}</h3>
+            <p className="admin-page-quiet">{setupGame.premise}</p>
+
+            <span className="game-setup__label">Who’s playing?</span>
+            <div className="game-setup__players" data-testid="game-setup-players">
+              {pourers.length === 0 ? (
+                <p className="admin-page-quiet">No pourers yet — players can also join later from the tablet.</p>
+              ) : pourers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`game-setup__player${pickedIds.has(p.id) ? ' game-setup__player--on' : ''}`}
+                  data-testid="game-setup-player"
+                  aria-pressed={pickedIds.has(p.id)}
+                  onClick={() => togglePicked(p.id)}
+                >
+                  {p.displayName}
+                </button>
+              ))}
+            </div>
+
+            {setupGame.metric === 'oz' && (
+              <label className="admin-field game-setup__target">
+                <span>Race to (oz)</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  data-testid="game-setup-target"
+                  value={targetOz}
+                  onChange={(e) => setTargetOz(e.target.value)}
+                />
+              </label>
+            )}
+
+            <p className="admin-page-quiet">Pours auto-count; the winner’s badge + a superlative post to the leaderboard automatically.</p>
+            <div className="admin-confirm__actions">
+              <button type="button" className="game-setup__start" data-testid="game-setup-start" disabled={busy} onClick={handleStartConfirmed}>
+                {busy ? 'Starting…' : 'Start the game'}
+              </button>
+              <button type="button" data-testid="game-setup-cancel" disabled={busy} onClick={() => setSetupGame(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

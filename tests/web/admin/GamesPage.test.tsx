@@ -7,6 +7,7 @@ import { GamesPage } from '../../../src/web/routes/admin/GamesPage';
 import {
   getGames, getActiveGame, startGameSession, endGameSession,
 } from '../../../src/web/lib/adminApi';
+import { getPourers } from '../../../src/web/lib/api';
 import type { Game } from '../../../src/web/lib/adminApi';
 import { renderAdminPage, adminContext } from './renderAdminPage';
 
@@ -16,6 +17,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   startGameSession: vi.fn(),
   endGameSession: vi.fn(),
 }));
+vi.mock('../../../src/web/lib/api', () => ({ getPourers: vi.fn() }));
 
 function game(over: Partial<Game> & Pick<Game, 'id' | 'name' | 'category' | 'tracking'>): Game {
   return {
@@ -41,6 +43,9 @@ beforeEach(() => {
   (getActiveGame as Mock).mockResolvedValue({ ok: true, data: null });
   (startGameSession as Mock).mockResolvedValue({ ok: true, data: null });
   (endGameSession as Mock).mockResolvedValue({ ok: true, data: null });
+  (getPourers as Mock).mockResolvedValue({
+    ok: true, data: [{ id: 1, displayName: 'Sam', avatarColor: null, pourCount: 5 }],
+  });
 });
 
 describe('GamesPage', () => {
@@ -71,12 +76,19 @@ describe('GamesPage', () => {
     expect(screen.getByTestId('game-card')).toHaveTextContent('Perfect Pint');
   });
 
-  it('an editor can start a game, and the active banner replaces the Start buttons', async () => {
+  it('starting a game opens a setup sheet to pick players + a target, then starts it (redesign 5b)', async () => {
     renderAdminPage(<GamesPage />);
     await flush();
-    fireEvent.click(screen.getAllByTestId('game-start')[0]!);
+    fireEvent.click(screen.getAllByTestId('game-start')[0]!); // Keg Race (oz metric)
+    // Setup sheet: pick a player + a target.
+    expect(screen.getByTestId('game-setup')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('game-setup-player'));
+    fireEvent.change(screen.getByTestId('game-setup-target'), { target: { value: '150' } });
+    fireEvent.click(screen.getByTestId('game-setup-start'));
     await flush();
-    expect(startGameSession).toHaveBeenCalledWith({ gameId: 1 });
+    expect(startGameSession).toHaveBeenCalledWith({
+      gameId: 1, participantDrinkerIds: [1], settings: { targetOz: 150 },
+    });
   });
 
   it('shows the now-playing banner and an End control when a game is active', async () => {
