@@ -6825,6 +6825,36 @@ h2.admin-field__label-text {
   color: var(--text-faint, var(--text-dim));
 }
 
+/* Inline kick forecast + Swap chip on dashboard tap rows (redesign 3b). */
+.dashboard-tap-row__forecast {
+  width: 118px;
+  flex: none;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.dashboard-tap-row__forecast--danger {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.dashboard-tap-row__swap {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dashboard-tap-row__swap:hover,
+.dashboard-tap-row__swap:focus-visible {
+  filter: brightness(1.08);
+}
+
 .dashboard-sensors {
   display: flex;
   gap: 10px;

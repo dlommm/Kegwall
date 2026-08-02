@@ -14,7 +14,7 @@ import type { CleaningStatus } from '../../../server/db/cleanings.js';
 import { buildTriage } from '../../lib/dashboardTriage';
 import { buildPoursTrend } from '../../lib/poursTrend';
 import { buildSensorCards } from '../../lib/sensorCards';
-import { kicksInDays } from '../../lib/kegForecast';
+import { kicksInDays, kicksInLabel, kicksSoon } from '../../lib/kegForecast';
 import { formatActivityText } from '../../lib/activityText';
 import { formatTempC, formatTempDelta, formatVolumeMl } from '../../lib/units';
 import { levelStatus } from '../../lib/lookData';
@@ -189,6 +189,8 @@ export function DashboardPage() {
     .sort((a, b) => a - b)[0] ?? null;
   const downSources = registered.filter((s) => !s.healthy).map((s) => SOURCE_LABELS[s.name]);
   const sensorCards = buildSensorCards(sensors);
+  // Projected kick date per tap (by tap number), for the inline TAPS-row forecast + Swap chip.
+  const kickByTap = new Map(kegStats.map((k) => [k.tapNumber, k.projectedKickDate]));
 
   // DESIGN NOTE: undervoltage keeps its own dedicated red banner below (a distinct hardware
   // alarm with SD-card-corruption context), so the NEEDS ATTENTION card is passed
@@ -419,6 +421,9 @@ export function DashboardPage() {
                 const isKicked = tap.keg?.status === 'kicked';
                 const levelPct = tap.keg && !isKicked ? Math.round(tap.keg.levelPct) : 0;
                 const pints = tap.keg && !isKicked ? Math.round(tap.keg.remainingMl / ML_PER_PINT) : 0;
+                const kickDate = isKicked ? null : kickByTap.get(tap.tapNumber) ?? null;
+                const forecast = kickDate ? kicksInLabel(kickDate) : null;
+                const kickSoon = kickDate ? kicksSoon(kickDate) : false;
                 return (
                   <li
                     key={tap.tapId}
@@ -452,6 +457,23 @@ export function DashboardPage() {
                     <span className="dashboard-tap-row__pints font-tabular">
                       {tap.keg && !isKicked ? `${pints} pints` : ''}
                     </span>
+                    {forecast && (
+                      <span
+                        className={`dashboard-tap-row__forecast${kickSoon ? ' dashboard-tap-row__forecast--danger' : ''}`}
+                        data-testid="dashboard-tap-forecast"
+                      >
+                        {forecast}
+                      </span>
+                    )}
+                    {kickSoon && (
+                      <Link
+                        to="/admin/taps"
+                        className="dashboard-tap-row__swap"
+                        data-testid="dashboard-tap-swap"
+                      >
+                        Swap
+                      </Link>
+                    )}
                   </li>
                 );
               })}

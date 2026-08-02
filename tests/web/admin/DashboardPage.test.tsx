@@ -447,6 +447,37 @@ describe('DashboardPage', () => {
     expect(cards[1]).toHaveTextContent('warming · Δ +3°C vs Kegtron');
   });
 
+  it('shows an inline kick forecast and a Swap chip on a critically low tap row', async () => {
+    (useTapStates as Mock).mockReturnValue({
+      taps: [
+        makeTap(1, {
+          tapNumber: 1,
+          beer: {
+            id: 1, name: 'Ending IPA', brewery: null, style: null, abv: null, ibu: null, srm: 6, description: null, labelImage: null, createdAt: '',
+          },
+          keg: {
+            id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 17000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 10, remainingMl: 2000,
+          },
+        }),
+      ],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    (getActiveKegStats as Mock).mockResolvedValue({
+      ok: true,
+      data: [{
+        kegId: 1, beerName: 'Ending IPA', tapNumber: 1, srm: 6, levelPct: 10, remainingMl: 2000, dailyBurnMl: 1500, projectedKickDate: '2099-01-02',
+      }],
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2099, 0, 1, 12, 0, 0));
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    const forecast = screen.getByTestId('dashboard-tap-forecast');
+    expect(forecast).toHaveTextContent('kicks in ~1 day');
+    expect(forecast.className).toContain('danger');
+    expect(screen.getByTestId('dashboard-tap-swap')).toHaveTextContent('Swap');
+  });
+
   it('falls back to the KEG ROOM card when no sensors report', async () => {
     renderAdminPage(<DashboardPage />);
     await flush();
