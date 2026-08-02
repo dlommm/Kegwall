@@ -78,7 +78,7 @@ export function MenuPage() {
           <ul className="menu-page__tap-list" data-testid="menu-page-tap-list">
             {taps.map((tap) => (
               <li key={tap.tapId}>
-                <TapCard tap={tap} template="compact" units={units} />
+                <TapCard tap={tap} template="compact" units={units} pricePerPintCents={tap.pricePerPintCents ?? null} />
               </li>
             ))}
           </ul>

@@ -300,6 +300,28 @@
   font-size: 0.8rem;
 }
 
+/* Public per-pint price chip (redesign 4k) — shown only when pricing is enabled. */
+.settings-pricing__matrix {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.tap-card__price {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .tap-card__empty {
   color: var(--text-dim);
   font-style: italic;

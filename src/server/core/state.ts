@@ -49,14 +49,21 @@ export interface TapState {
  * keeps hidden taps, public callers drop them first. Fields are nulled rather than deleted so
  * the `TapState` shape stays intact for typed consumers. */
 export function toPublicTapState(t: TapState): TapState {
+  // Also strip the beer's operator-only pricing/sourcing config (markup override, exclusive
+  // supplier) — the computed DISPLAY price is attached separately by the public route when
+  // pricing is enabled; the raw markup/supplier config never ships.
+  const beer = t.beer
+    ? { ...t.beer, markupOverridePct: null, exclusiveSupplierId: null }
+    : t.beer;
   return t.keg
     ? {
       ...t,
+      beer,
       keg: {
         ...t.keg, costCents: null, depositCents: null, supplierId: null, purchasedAt: null,
       },
     }
-    : t;
+    : { ...t, beer };
 }
 
 /** The keg configuration a Kegtron device itself reports for one port — the operator

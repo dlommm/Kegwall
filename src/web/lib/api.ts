@@ -4,10 +4,15 @@ import type { Pour } from '../../server/db/kegs.js';
 import type { VolumeUnits } from './units';
 import { getDisplayToken } from './displayToken';
 
+/** A public tap: the shared TapState plus the ONE public money value — the computed per-pint
+ *  display price (redesign 4k), present (non-null) only when pricing is enabled. Owner cost is
+ *  never included. Optional so an older payload without the field is still a valid PublicTap. */
+export type PublicTap = TapState & { pricePerPintCents?: number | null };
+
 /** A public wall's identity + config as returned by GET /api/public/wall/:slug. */
 export interface WallResponse {
   wall: { slug: string; name: string; config: WallConfig };
-  taps: TapState[];
+  taps: PublicTap[];
   /** The tap ids this wall may show — taps bound to the wall's assigned Kegtron
    * devices (strict: `[]` = show nothing). The client must re-apply this to every
    * `/ws` snapshot, which is global rather than per-wall. Optional so an older
@@ -20,7 +25,7 @@ export interface WallResponse {
 /** GET /api/public/menu. */
 export interface MenuResponse {
   siteName: string;
-  taps: TapState[];
+  taps: PublicTap[];
   /** The taproom's configured display units (global settings' `displayUnits`). */
   units: VolumeUnits;
 }

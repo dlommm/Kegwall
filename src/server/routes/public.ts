@@ -9,7 +9,8 @@ import { getBeer } from '../db/beers.js';
 import { listTaps } from '../db/taps.js';
 import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
-import { toPublicTapState } from '../core/state.js';
+import { toPublicTapState, type TapState } from '../core/state.js';
+import { displayPricePerPintCents } from '../core/pricing.js';
 import { requireDisplayToken } from './displayAuth.js';
 import { bestMatch } from '../core/faceMatch.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
@@ -29,6 +30,26 @@ const AVATAR_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export async function publicRoutes(app: FastifyInstance) {
   const db = app.ctx.db;
+
+  /**
+   * Public tap serialization + the ONE public-facing money value: the computed per-pint
+   * DISPLAY price, attached only when pricing is enabled. Cost is read from the raw TapState,
+   * priced, then `toPublicTapState` strips every owner-cost field — so the wire carries the
+   * marked-up price and nothing that reveals what the operator actually paid (hard requirement).
+   */
+  function toPublicTap(t: TapState): TapState & { pricePerPintCents: number | null } {
+    const pricing = app.ctx.settings.get('pricing');
+    const pricePerPintCents = pricing.enabled && t.keg
+      ? displayPricePerPintCents({
+        costCents: t.keg.costCents,
+        sizeMl: t.keg.sizeMl,
+        markupPct: pricing.markupPct,
+        rounding: pricing.rounding,
+        overridePct: t.beer?.markupOverridePct ?? null,
+      })
+      : null;
+    return { ...toPublicTapState(t), pricePerPintCents };
+  }
   // Display-facing reads: gated behind the display token when enforcement is on (dormant
   // otherwise). The guest-phone claim flow below (recent-pours/claim/pourers) stays public.
   const display = { preHandler: requireDisplayToken(app) };
@@ -48,7 +69,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (configured.size > 0) taps = taps.filter((t) => configured.has(t.tapId));
     return {
       wall: { slug: wall.slug, name: wall.name, config },
-      taps: taps.map(toPublicTapState), // strip operator-only fields (keg.costCents)
+      taps: taps.map(toPublicTap), // strips owner cost; attaches display price when enabled
       allowedTapIds,
       units: app.ctx.settings.get('displayUnits'),
     };
@@ -56,8 +77,9 @@ export async function publicRoutes(app: FastifyInstance) {
 
   app.get('/api/public/menu', display, async () => ({
     siteName: app.ctx.settings.get('siteName'),
-    // Hidden taps never reach a public surface; costCents is stripped by toPublicTapState.
-    taps: app.ctx.state.getTapStates().filter((t) => !t.hidden).map(toPublicTapState),
+    // Hidden taps never reach a public surface; owner cost is stripped by toPublicTap, which
+    // also attaches the computed display price when pricing is enabled.
+    taps: app.ctx.state.getTapStates().filter((t) => !t.hidden).map(toPublicTap),
     units: app.ctx.settings.get('displayUnits'),
   }));
 

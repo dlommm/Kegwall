@@ -43,6 +43,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     servingSizeMl: 473,
     logRetentionDays: 30,
     autoImportBeers: true,
+    pricing: { enabled: false, markupPct: 245, rounding: 0.25 },
     govee: null,
     goveeBaseUrl: 'https://openapi.api.govee.com',
     updateCheckBaseUrl: 'https://github.com',
@@ -211,6 +212,38 @@ describe('SettingsPage', () => {
       fireEvent.click(screen.getByTestId('settings-site-save'));
       await flush();
       expect(patchSettings).toHaveBeenCalledWith({ siteLogo: null });
+    });
+  });
+
+  describe('Pricing group (4k)', () => {
+    it('enabling the toggle + markup PATCHes the whole pricing object and shows the who-sees-what note', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      (patchSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ pricing: { enabled: true, markupPct: 200, rounding: 0.5 } }),
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-pricing');
+
+      expect(screen.getByTestId('settings-pricing-matrix')).toHaveTextContent('never your cost');
+      expect(screen.getByTestId('settings-pricing-save')).toBeDisabled();
+      fireEvent.click(screen.getByTestId('settings-pricing-enabled'));
+      fireEvent.change(screen.getByTestId('settings-pricing-markup'), { target: { value: '200' } });
+      fireEvent.change(screen.getByTestId('settings-pricing-rounding'), { target: { value: '0.5' } });
+      fireEvent.click(screen.getByTestId('settings-pricing-save'));
+      await flush();
+
+      expect(patchSettings).toHaveBeenCalledWith({ pricing: { enabled: true, markupPct: 200, rounding: 0.5 } });
+    });
+
+    it('rejects an out-of-range markup without calling the server', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-pricing');
+      fireEvent.change(screen.getByTestId('settings-pricing-markup'), { target: { value: '9999' } });
+      fireEvent.click(screen.getByTestId('settings-pricing-save'));
+      await flush();
+      expect(screen.getByTestId('settings-pricing-error')).toBeInTheDocument();
+      expect(patchSettings).not.toHaveBeenCalled();
     });
   });
 

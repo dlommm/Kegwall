@@ -64,6 +64,28 @@ describe('public routes', () => {
     expect(res.body).not.toContain('2026-05-20');
   });
 
+  it('serves the computed display price when pricing is enabled, never the owner cost', async () => {
+    const db = app.ctx.db;
+    // 47,318 mL (≈100 pints) keg at $131.00; markup 245% → $4.50/pint at $0.25 rounding.
+    db.prepare('UPDATE kegs SET cost_cents = 13100, size_ml = 47318').run();
+    app.ctx.settings.set('pricing', { enabled: true, markupPct: 245, rounding: 0.25 });
+
+    const res = await app.inject({ method: 'GET', url: '/api/public/menu' });
+    const priced = res.json().taps.find((t: any) => t.keg);
+    expect(priced.pricePerPintCents).toBe(450);
+    expect(priced.keg.costCents).toBeNull(); // cost still stripped
+    expect(res.body).not.toContain('13100'); // raw cost never on the wire
+  });
+
+  it('omits the display price (null) when pricing is disabled', async () => {
+    const db = app.ctx.db;
+    db.prepare('UPDATE kegs SET cost_cents = 13100').run();
+    // pricing defaults to disabled
+    const res = await app.inject({ method: 'GET', url: '/api/public/menu' });
+    const priced = res.json().taps.find((t: any) => t.keg);
+    expect(priced.pricePerPintCents).toBeNull();
+  });
+
   it('serves wall data by slug and 404s unknown walls', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
     expect(res.statusCode).toBe(200);

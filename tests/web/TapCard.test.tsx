@@ -102,6 +102,14 @@ describe('TapCard', () => {
     expect(screen.getByTestId('liquid-fill-body').getAttribute('fill')).toBe(srmToColor(28).liquid);
   });
 
+  it('renders a per-pint price chip only when a price is supplied (redesign 4k)', () => {
+    mockReducedMotion(false);
+    const { rerender } = render(<TapCard tap={makeTap()} />);
+    expect(screen.queryByTestId('tap-card-price')).not.toBeInTheDocument();
+    rerender(<TapCard tap={makeTap()} pricePerPintCents={450} />);
+    expect(screen.getByTestId('tap-card-price')).toHaveTextContent('$4.50 / pint');
+  });
+
   it('formats the running pour readout per the units prop while pouring', () => {
     mockReducedMotion(false);
     render(

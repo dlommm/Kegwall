@@ -39,6 +39,9 @@ export interface TapCardProps {
   fillStyle?: WallConfig['fillStyle'];
   /** Unit system for the ABV-adjacent pour readout. Defaults to `'us'`. */
   units?: VolumeUnits;
+  /** Public per-pint DISPLAY price in cents (redesign 4k) — renders a `$X.XX / pint` chip when
+   *  non-null. This is the marked-up price only; the owner cost is never sent to the client. */
+  pricePerPintCents?: number | null;
   className?: string;
 }
 
@@ -50,7 +53,8 @@ export interface TapCardProps {
  * `KickedBadge`) rather than disappearing.
  */
 export function TapCard({
-  tap, template = 'standard', fields, fillStyle = 'liquid', units = 'us', className,
+  tap, template = 'standard', fields, fillStyle = 'liquid', units = 'us',
+  pricePerPintCents, className,
 }: TapCardProps) {
   const resolvedFields = useMemo(() => resolveFields(template, fields), [template, fields]);
   // 'compact' never gets the keg cutaway art — its liquid swatch (28x40px, see
@@ -171,6 +175,12 @@ export function TapCard({
               </span>
             )}
           </div>
+        )}
+
+        {pricePerPintCents != null && (
+          <span className="tap-card__price font-tabular" data-testid="tap-card-price">
+            {`$${(pricePerPintCents / 100).toFixed(2)} / pint`}
+          </span>
         )}
 
         {resolvedFields.lastPour && lastPourRelative && (
