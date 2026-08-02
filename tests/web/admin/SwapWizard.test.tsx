@@ -18,6 +18,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   updateBeer: vi.fn(),
   uploadLabel: vi.fn(),
   lookupBreweries: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  listSuppliers: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 async function flush() {
@@ -94,6 +95,28 @@ describe('SwapWizard', () => {
     expect(screen.queryByTestId('swap-wizard-step-confirm')).not.toBeInTheDocument();
   });
 
+  it('cost step: shows the $/pint preview + lock note and sends owner-cost fields (redesign 4k)', async () => {
+    (swapTap as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 2, status: 'on_tap' }) });
+    const beer = makeBeer({ id: 5, name: 'Pilsner' });
+    render(
+      <SwapWizard tap={emptyTap} beers={[beer]} kegs={[]} monitors={[]} onClose={vi.fn()} onDone={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByTestId('beer-picker-option'));
+    fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '47318' } }); // ~100 pints
+    fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '47318' } });
+    fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+    // Cost step visible with the privacy lock note.
+    expect(screen.getByTestId('swap-wizard-step-cost')).toBeInTheDocument();
+    expect(screen.getByTestId('swap-wizard-cost-lock')).toHaveTextContent('never appears on the wall');
+    fireEvent.change(screen.getByTestId('swap-wizard-cost'), { target: { value: '131.00' } });
+    expect(screen.getByTestId('swap-wizard-cost-preview')).toHaveTextContent('$1.31 / pint');
+    fireEvent.click(screen.getByTestId('swap-wizard-cost-submit'));
+    await flush();
+    expect(swapTap).toHaveBeenCalledWith(1, expect.objectContaining({
+      beerId: 5, sizeMl: 47318, volStartMl: 47318, costCents: 13100, supplierId: null,
+    }));
+  });
+
   it('runs the full step flow for a tap with an active keg and no bound monitor: confirm -> pick -> size -> submit', async () => {
     (swapTap as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 2, status: 'on_tap' }) });
     const onDone = vi.fn();
@@ -112,6 +135,8 @@ describe('SwapWizard', () => {
     fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
     fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
     fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+    // Size step now advances to the (skippable) cost step — Skip taps without cost.
+    fireEvent.click(screen.getByTestId('swap-wizard-cost-skip'));
     await flush();
 
     expect(swapTap).toHaveBeenCalledWith(1, { beerId: 5, sizeMl: 19000, volStartMl: 19000 });
@@ -134,6 +159,7 @@ describe('SwapWizard', () => {
       fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
       fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
       fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+      fireEvent.click(screen.getByTestId('swap-wizard-cost-skip'));
       await flush();
 
       expect(swapTap).toHaveBeenCalledWith(1, { beerId: 5, sizeMl: 19000, volStartMl: 19000 });
@@ -152,6 +178,7 @@ describe('SwapWizard', () => {
       fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
       fireEvent.change(screen.getByTestId('swap-wizard-keg-type'), { target: { value: 'cornelius' } });
       fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+      fireEvent.click(screen.getByTestId('swap-wizard-cost-skip'));
       await flush();
 
       expect(swapTap).toHaveBeenCalledWith(1, {
@@ -240,10 +267,12 @@ describe('SwapWizard', () => {
     fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
     fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
     fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+    fireEvent.click(screen.getByTestId('swap-wizard-cost-submit'));
     await flush();
     expect(screen.getByTestId('swap-wizard-swap-error')).toHaveTextContent('tap 1 already has an active keg');
     expect(onDone).not.toHaveBeenCalled();
-    expect(screen.getByTestId('swap-wizard-step-size')).toBeInTheDocument();
+    // the swap fires from the cost step, so an error keeps us there
+    expect(screen.getByTestId('swap-wizard-step-cost')).toBeInTheDocument();
   });
 
   it('Back returns from size to pick, and from pick to confirm', () => {
@@ -328,6 +357,7 @@ describe('SwapWizard', () => {
     fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
     fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
     fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+    fireEvent.click(screen.getByTestId('swap-wizard-cost-skip'));
     await flush();
     expect(screen.getByTestId('swap-wizard-step-reset')).toBeInTheDocument();
     // the wizard stays open for the optional reset even though the swap already succeeded
@@ -347,6 +377,7 @@ describe('SwapWizard', () => {
     fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
     fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
     fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+    fireEvent.click(screen.getByTestId('swap-wizard-cost-skip'));
     await flush();
     fireEvent.click(screen.getByTestId('swap-wizard-reset-button'));
     await flush();
@@ -370,6 +401,7 @@ describe('SwapWizard', () => {
     fireEvent.change(screen.getByTestId('swap-wizard-size'), { target: { value: '19000' } });
     fireEvent.change(screen.getByTestId('swap-wizard-volstart'), { target: { value: '19000' } });
     fireEvent.click(screen.getByTestId('swap-wizard-submit'));
+    fireEvent.click(screen.getByTestId('swap-wizard-cost-skip'));
     await flush();
     fireEvent.click(screen.getByTestId('swap-wizard-reset-button'));
     await flush();

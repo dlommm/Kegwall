@@ -180,6 +180,11 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     volStartMl: z.number().int().positive().optional(),
     fromKegId: z.number().int().optional(),
     kegType: kegTypeSchema,
+    // OWNER COST fields (redesign 4k) — optional swap-wizard cost step.
+    costCents: z.number().int().min(0).nullish(),
+    depositCents: z.number().int().min(0).nullish(),
+    supplierId: z.number().int().positive().nullish(),
+    purchasedAt: z.string().nullish(),
   }).refine(
     (v) => v.fromKegId != null || (v.beerId != null && v.sizeMl != null && v.volStartMl != null),
     { message: 'beerId, sizeMl, and volStartMl are required unless fromKegId (promoting an on-deck keg) is given' },
@@ -199,6 +204,10 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       sizeMl: body.sizeMl,
       volStartMl: body.volStartMl,
       kegType: body.kegType,
+      costCents: body.costCents,
+      depositCents: body.depositCents,
+      supplierId: body.supplierId,
+      purchasedAt: body.purchasedAt,
     });
     const ts = new Date().toISOString();
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts });

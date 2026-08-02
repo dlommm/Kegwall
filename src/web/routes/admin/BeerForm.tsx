@@ -45,6 +45,7 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
   const [ibu, setIbu] = useState(beer?.ibu != null ? String(beer.ibu) : '');
   const [srm, setSrm] = useState(beer?.srm != null ? String(beer.srm) : '');
   const [description, setDescription] = useState(beer?.description ?? '');
+  const [markupOverride, setMarkupOverride] = useState(beer?.markupOverridePct != null ? String(beer.markupOverridePct) : '');
   const [labelImage, setLabelImage] = useState<string | null>(beer?.labelImage ?? null);
 
   const [labelBusy, setLabelBusy] = useState(false);
@@ -76,6 +77,7 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
     if (abv.trim() !== '' && Number.isNaN(Number(abv))) return 'ABV must be a number.';
     if (ibu.trim() !== '' && Number.isNaN(Number(ibu))) return 'IBU must be a number.';
     if (srm.trim() !== '' && Number.isNaN(Number(srm))) return 'SRM must be a number.';
+    if (markupOverride.trim() !== '' && Number.isNaN(Number(markupOverride))) return 'Markup override must be a number.';
     return null;
   }
 
@@ -98,6 +100,7 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
       srm: parseOptionalNumber(srm),
       description: description.trim() || null,
       labelImage,
+      markupOverridePct: parseOptionalNumber(markupOverride),
     };
 
     setSubmitting(true);
@@ -220,6 +223,20 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+      </label>
+
+      <label className="admin-field">
+        <span>Price markup override %</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          data-testid="beer-form-markup"
+          placeholder="Uses the global markup"
+          value={markupOverride}
+          onChange={(e) => setMarkupOverride(e.target.value)}
+        />
+        {/* DESIGN NOTE (4k): only affects the public price when pricing is enabled in Settings;
+            owner cost is never shown here. Blank = fall back to the global markup. */}
       </label>
 
       <div className="beer-form__label">

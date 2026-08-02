@@ -392,10 +392,18 @@ export function listOnDeck(tapId: number): Promise<ApiResult<Keg[]>> {
  * optionally `kegType`) or promotes an already-queued on-deck keg (`fromKegId`, which
  * ignores `kegType` — the promoted keg keeps whatever it was created with); either way,
  * any currently on_tap keg for this tap is kicked first (see db/kegs.ts's `swapKeg`). */
+/** OWNER COST fields (redesign 4k) — the swap wizard's optional cost step. */
+export interface KegCostInput {
+  costCents?: number | null;
+  depositCents?: number | null;
+  supplierId?: number | null;
+  purchasedAt?: string | null;
+}
+
 export function swapTap(
   tapId: number,
   input:
-    | { beerId: number; sizeMl: number; volStartMl: number; kegType?: KegType }
+    | ({ beerId: number; sizeMl: number; volStartMl: number; kegType?: KegType } & KegCostInput)
     | { fromKegId: number },
 ): Promise<ApiResult<Keg>> {
   return request(`/api/taps/${tapId}/swap`, { method: 'POST', body: JSON.stringify(input) });

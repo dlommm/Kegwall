@@ -120,6 +120,33 @@ describe('crud routes', () => {
       expect(swap.json()).toMatchObject({ kegType: null });
     });
 
+    it('POST /api/taps/:id/swap persists owner-cost fields on the new keg (redesign 4k)', async () => {
+      const beer = (await app.inject({
+        method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },
+      })).json();
+      const tap = (await app.inject({
+        method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 1 },
+      })).json();
+      const supplier = (await app.inject({
+        method: 'POST', url: '/api/suppliers', cookies: adminCookies, payload: { name: 'Joes' },
+      })).json();
+      const swap = await app.inject({
+        method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+        payload: {
+          beerId: beer.id, sizeMl: 19000, volStartMl: 19000,
+          costCents: 13100, depositCents: 3000, supplierId: supplier.id, purchasedAt: '2026-06-01',
+        },
+      });
+      expect(swap.json()).toMatchObject({
+        costCents: 13100, depositCents: 3000, supplierId: supplier.id, purchasedAt: '2026-06-01',
+      });
+      // …and the public menu still never leaks it.
+      const menu = await app.inject({ method: 'GET', url: '/api/public/menu' });
+      for (const t of menu.json().taps) {
+        if (t.keg) expect(t.keg.costCents).toBeNull();
+      }
+    });
+
     it('POST /api/taps/:id/swap 400s for an unrecognized kegType', async () => {
       const beer = (await app.inject({
         method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Pils' },

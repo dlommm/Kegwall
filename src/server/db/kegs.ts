@@ -214,6 +214,12 @@ export function swapKeg(db: Database.Database, input: {
   /** Manual KegFill asset override for a freshly-tapped keg (ignored when promoting via
    * `fromKegId` — see above). Omitted/`null` means "auto-match by sizeMl". */
   kegType?: KegType | null;
+  /** OWNER COST fields (redesign 4k) for a freshly-tapped keg — the swap wizard's cost step.
+   * Ignored when promoting via `fromKegId` (the queued keg keeps its own cost). */
+  costCents?: number | null;
+  depositCents?: number | null;
+  supplierId?: number | null;
+  purchasedAt?: string | null;
 }): Keg {
   const tx = db.transaction(() => {
     db.prepare(`UPDATE kegs SET status = 'kicked' WHERE tap_id = ? AND status = 'on_tap'`)
@@ -233,10 +239,13 @@ export function swapKeg(db: Database.Database, input: {
       throw new ValidationError('newBeerId, sizeMl, and volStartMl are required unless promoting an on-deck keg via fromKegId');
     }
     const res = db.prepare(`INSERT INTO kegs
-        (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at, keg_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, created_at, keg_type,
+         cost_cents, deposit_cents, supplier_id, purchased_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(input.newBeerId, input.tapId, input.sizeMl, input.volStartMl,
-        new Date().toISOString(), new Date().toISOString(), input.kegType ?? null);
+        new Date().toISOString(), new Date().toISOString(), input.kegType ?? null,
+        input.costCents ?? null, input.depositCents ?? null, input.supplierId ?? null,
+        input.purchasedAt ?? null);
     return Number(res.lastInsertRowid);
   });
   return getKeg(db, tx())!;

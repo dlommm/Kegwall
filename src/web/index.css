@@ -1898,6 +1898,23 @@
   text-align: right;
 }
 
+/* Swap-wizard cost step (4k). */
+.swap-wizard__cost-field input {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.swap-wizard__cost-preview {
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0.5rem 0 0;
+}
+
+.swap-wizard__cost-lock {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 0.5rem 0 0;
+}
+
 /* --- Games (5a) ------------------------------------------------------------- */
 .games-active-banner {
   display: flex;

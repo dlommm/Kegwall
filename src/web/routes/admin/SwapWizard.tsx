@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
-import { swapTap, resetKegtronVolume, type MonitorWithDeviceKeg } from '../../lib/adminApi';
+import {
+  swapTap, resetKegtronVolume, listSuppliers,
+  type MonitorWithDeviceKeg, type Supplier,
+} from '../../lib/adminApi';
 import { BeerPicker } from './BeerPicker';
 import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
+
+const ML_PER_PINT = 473.176;
 
 interface SwapWizardProps {
   tap: TapState;
@@ -24,7 +29,7 @@ interface SwapWizardProps {
   onDone: () => void;
 }
 
-type Step = 'confirm' | 'pick' | 'size' | 'reset';
+type Step = 'confirm' | 'pick' | 'size' | 'cost' | 'reset';
 
 function tapLabel(tap: TapState): string {
   return tap.tapName ?? `Tap ${tap.tapNumber}`;
@@ -66,7 +71,7 @@ export function SwapWizard({
 
   const steps: Step[] = [
     ...(hasActiveKeg || promoteKeg ? (['confirm'] as const) : []),
-    ...(promoteKeg ? [] : (['pick', 'size'] as const)),
+    ...(promoteKeg ? [] : (['pick', 'size', 'cost'] as const)),
     ...(boundMonitor ? (['reset'] as const) : []),
   ];
 
@@ -77,6 +82,12 @@ export function SwapWizard({
   const [prefilledFromDevice, setPrefilledFromDevice] = useState(false);
   const [kegTypeSelect, setKegTypeSelect] = useState<KegTypeSelectValue>('auto');
   const [sizeError, setSizeError] = useState<string | null>(null);
+  // Cost step (redesign 4k) — dollars in the UI, cents to the API. All optional/skippable.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [costDollars, setCostDollars] = useState('');
+  const [depositDollars, setDepositDollars] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [purchasedAt, setPurchasedAt] = useState('');
   const [swapping, setSwapping] = useState(false);
   const [swapError, setSwapError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -97,6 +108,14 @@ export function SwapWizard({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
+
+  // Suppliers for the cost step's dropdown (redesign 4l) — editor-readable list.
+  useEffect(() => {
+    if (promoteKeg) return; // promoting keeps the queued keg's own cost; no cost step
+    listSuppliers().then((result) => {
+      if (result.ok) setSuppliers(result.data);
+    });
+  }, [promoteKeg]);
 
   async function doSwap(
     input:
@@ -162,14 +181,33 @@ export function SwapWizard({
       return;
     }
     if (!pickedBeer) return;
-    // 'auto' (the default) is never sent to the server — omitting `kegType` entirely
-    // means "auto-match by sizeMl" server-side too (see kegs.ts's `createKeg`/`swapKeg`),
-    // so there's no reason to ship the sentinel string itself.
+    // Size is valid — advance to the (skippable) cost step; the swap fires from there.
+    setStepIndex(stepIndex + 1);
+  }
+
+  /** Parse a "$12.34" dollar string to integer cents, or null when blank/invalid. */
+  function dollarsToCents(v: string): number | null {
+    const n = Number(v.trim());
+    return v.trim() !== '' && Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+  }
+
+  function handleCostSubmit(skip: boolean) {
+    if (!pickedBeer) return;
+    const size = Number(sizeMl.trim());
+    const start = Number(volStartMl.trim());
+    // 'auto' (the default) is never sent to the server — omitting `kegType` entirely means
+    // "auto-match by sizeMl" server-side too (see kegs.ts's `createKeg`/`swapKeg`).
     void doSwap({
       beerId: pickedBeer.id,
       sizeMl: size,
       volStartMl: start,
       ...(kegTypeSelect !== 'auto' ? { kegType: kegTypeSelect } : {}),
+      ...(skip ? {} : {
+        costCents: dollarsToCents(costDollars),
+        depositCents: dollarsToCents(depositDollars),
+        supplierId: supplierId ? Number(supplierId) : null,
+        purchasedAt: purchasedAt || null,
+      }),
     });
   }
 
@@ -331,7 +369,7 @@ export function SwapWizard({
                 disabled={swapping}
                 onClick={handleSizeSubmit}
               >
-                {swapping ? 'Tapping…' : 'Tap this keg'}
+                Next: keg cost →
               </button>
               {canGoBack && (
                 <button type="button" data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)}>
@@ -340,6 +378,94 @@ export function SwapWizard({
               )}
               <button type="button" data-testid="swap-wizard-cancel" onClick={onClose} disabled={swapping}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'cost' && pickedBeer && (
+          <div data-testid="swap-wizard-step-cost">
+            <p className="swap-wizard__picked">{`What did this keg cost? (optional)`}</p>
+            <div className="tap-form__grid">
+              <label className="admin-field swap-wizard__cost-field">
+                <span>Keg cost ($)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  data-testid="swap-wizard-cost"
+                  placeholder="e.g. 131.00"
+                  value={costDollars}
+                  onChange={(e) => setCostDollars(e.target.value)}
+                />
+              </label>
+              <label className="admin-field">
+                <span>Deposit ($)</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  data-testid="swap-wizard-deposit"
+                  value={depositDollars}
+                  onChange={(e) => setDepositDollars(e.target.value)}
+                />
+              </label>
+              <label className="admin-field">
+                <span>Supplier</span>
+                <select
+                  data-testid="swap-wizard-supplier"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="admin-field">
+                <span>Purchase date</span>
+                <input
+                  type="date"
+                  data-testid="swap-wizard-purchased"
+                  value={purchasedAt}
+                  onChange={(e) => setPurchasedAt(e.target.value)}
+                />
+              </label>
+            </div>
+            {(() => {
+              const cents = dollarsToCents(costDollars);
+              const size = Number(sizeMl.trim());
+              const pints = size > 0 ? size / ML_PER_PINT : 0;
+              return cents != null && pints > 0 ? (
+                <p className="swap-wizard__cost-preview" data-testid="swap-wizard-cost-preview">
+                  {`≈ $${(cents / 100 / pints).toFixed(2)} / pint owner cost`}
+                </p>
+              ) : null;
+            })()}
+            <p className="swap-wizard__cost-lock" data-testid="swap-wizard-cost-lock">
+              🔒 Owner cost is admin-only. It never appears on the wall, menu, tablet, or board.
+            </p>
+            {swapError && (
+              <p role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
+            )}
+            <div className="swap-wizard__actions">
+              <button
+                type="button"
+                data-testid="swap-wizard-cost-submit"
+                disabled={swapping}
+                onClick={() => handleCostSubmit(false)}
+              >
+                {swapping ? 'Tapping…' : 'Tap this keg'}
+              </button>
+              <button
+                type="button"
+                data-testid="swap-wizard-cost-skip"
+                disabled={swapping}
+                onClick={() => handleCostSubmit(true)}
+              >
+                Skip
+              </button>
+              <button type="button" data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)} disabled={swapping}>
+                Back
               </button>
             </div>
           </div>

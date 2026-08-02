@@ -91,9 +91,18 @@ describe('BeerForm', () => {
 
     expect(createBeer).toHaveBeenCalledWith({
       name: 'Citra IPA', brewery: null, style: null, abv: 6.5, ibu: null, srm: 6,
-      description: null, labelImage: null,
+      description: null, labelImage: null, markupOverridePct: null,
     });
     expect(onSaved).toHaveBeenCalledWith(created);
+  });
+
+  it('sends a per-beer markup override when set (redesign 4k)', async () => {
+    render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('beer-form-name'), { target: { value: 'Pricey Pils' } });
+    fireEvent.change(screen.getByTestId('beer-form-markup'), { target: { value: '300' } });
+    fireEvent.click(screen.getByTestId('beer-form-submit'));
+    await flush();
+    expect(createBeer).toHaveBeenCalledWith(expect.objectContaining({ markupOverridePct: 300 }));
   });
 
   it('pre-fills every field from the given beer in edit mode and PATCHes on submit', async () => {
