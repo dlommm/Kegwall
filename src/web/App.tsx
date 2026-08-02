@@ -5,6 +5,7 @@ import { MenuPage } from './routes/MenuPage';
 import { TabletPage } from './routes/TabletPage';
 import { BoardPage } from './routes/BoardPage';
 import { DisplayPage } from './routes/DisplayPage';
+import { DisplayPairingGate } from './components/DisplayPairingGate';
 
 // Phase 5 Task 0 (Phase 4 final review, "MUST FIX before/at start of Phase 5"): the
 // entire admin subtree — shell, all nine pages, and (transitively, via StatsPage's
@@ -29,10 +30,11 @@ function AdminFallback() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/wall/:slug" element={<WallPage />} />
-      <Route path="/menu" element={<MenuPage />} />
-      <Route path="/tablet/:slug" element={<TabletPage />} />
-      <Route path="/board" element={<BoardPage />} />
+      <Route path="/wall/:slug" element={<DisplayPairingGate><WallPage /></DisplayPairingGate>} />
+      <Route path="/menu" element={<DisplayPairingGate><MenuPage /></DisplayPairingGate>} />
+      <Route path="/tablet/:slug" element={<DisplayPairingGate><TabletPage /></DisplayPairingGate>} />
+      <Route path="/board" element={<DisplayPairingGate><BoardPage /></DisplayPairingGate>} />
+      {/* /display is the pairing entry itself — never gated. */}
       <Route path="/display" element={<DisplayPage />} />
 
       <Route

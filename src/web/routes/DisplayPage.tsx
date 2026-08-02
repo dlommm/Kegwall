@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { pairDisplay, getDisplayView } from '../lib/api';
+import { setDisplayToken } from '../lib/displayToken';
 
 const STORAGE_KEY = 'kegtron.display';
 
@@ -65,6 +66,9 @@ export function DisplayPage() {
       return;
     }
     saveDisplayId(result.data.id);
+    // Store the per-display token so this screen authenticates to the gated wall/menu/ws
+    // reads from now on (see lib/displayToken.ts). Returned once, on pair only.
+    if (result.data.token) setDisplayToken(result.data.token);
     if (result.data.wallSlug) {
       navigate(`/wall/${result.data.wallSlug}?display=${result.data.id}`, { replace: true });
     } else {

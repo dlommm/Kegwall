@@ -2,6 +2,7 @@ import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import type { Pour } from '../../server/db/kegs.js';
 import type { VolumeUnits } from './units';
+import { getDisplayToken } from './displayToken';
 
 /** A public wall's identity + config as returned by GET /api/public/wall/:slug. */
 export interface WallResponse {
@@ -76,6 +77,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
         ...(init?.body !== undefined && !(init.body instanceof FormData)
           ? { 'Content-Type': 'application/json' }
           : {}),
+        // Display-token auth: attach the paired token when present so gated reads
+        // (wall/menu/leaderboard/passport) authenticate. Absent → unpaired, which is fine
+        // while server-side enforcement is off. See lib/displayToken.ts.
+        ...(getDisplayToken() ? { 'X-Display-Token': getDisplayToken()! } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -189,6 +194,9 @@ export interface DisplayView {
   name: string;
   wallSlug: string | null;
   overrides: { look?: string; themeId?: string; takeoverStyle?: string };
+  /** Present ONLY on the pair response (POST /display/pair) — the per-display token the
+   * client stores and presents thereafter. Absent on the GET /display/:id refresh. */
+  token?: string;
 }
 
 export function pairDisplay(code: string): Promise<ApiResult<DisplayView>> {

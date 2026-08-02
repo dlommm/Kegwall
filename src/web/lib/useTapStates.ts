@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TapState } from '../../server/core/state.js';
+import { withDisplayTokenQuery } from './displayToken';
 
 const STALE_TIMEOUT_MS = 60_000;
 const BACKOFF_MIN_MS = 1_000;
@@ -104,7 +105,9 @@ export function useTapStates(
 
     const connect = () => {
       if (cancelled) return;
-      const wsUrl = url ?? defaultWsUrl();
+      // Attach the display token (query param — a WebSocket can't set headers) so the socket
+      // authenticates when server-side enforcement is on. No-op for an unpaired client.
+      const wsUrl = withDisplayTokenQuery(url ?? defaultWsUrl());
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
