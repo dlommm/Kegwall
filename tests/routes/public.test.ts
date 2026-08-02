@@ -36,6 +36,22 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); });
 
 describe('public routes', () => {
+  it('public menu drops hidden taps and never leaks keg.costCents', async () => {
+    const db = app.ctx.db;
+    db.prepare('UPDATE kegs SET cost_cents = 12345').run(); // seeded keg now has a cost
+    const hiddenBeer = createBeer(db, { name: 'Secret Stout' });
+    const hiddenTap = createTap(db, { number: 9, hidden: true });
+    createKeg(db, { beerId: hiddenBeer.id, sizeMl: 19000, volStartMl: 19000, tapId: hiddenTap.id });
+
+    const res = await app.inject({ method: 'GET', url: '/api/public/menu' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.taps.some((t: any) => t.tapNumber === 9)).toBe(false); // hidden tap absent
+    for (const t of body.taps) {
+      if (t.keg) expect(t.keg.costCents).toBeNull(); // operator cost never leaks
+    }
+  });
+
   it('serves wall data by slug and 404s unknown walls', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
     expect(res.statusCode).toBe(200);
@@ -104,6 +120,20 @@ describe('public routes', () => {
       method: 'POST', url: '/api/public/claim', payload: { pourId, drinkerId },
     });
     expect(again.statusCode).toBe(409);
+  });
+
+  it('rejects claiming a pour older than the claim window (server-side, not just UI)', async () => {
+    const db = app.ctx.db;
+    // Age the seeded pour well past the 10-minute claim window.
+    const old = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    db.prepare('UPDATE pours SET ts = ? WHERE id = ?').run(old, pourId);
+    const res = await app.inject({
+      method: 'POST', url: '/api/public/claim', payload: { pourId, drinkerId },
+    });
+    expect(res.statusCode).toBe(409);
+    // And it stays unclaimed.
+    const row = db.prepare('SELECT drinker_id FROM pours WHERE id = ?').get(pourId) as any;
+    expect(row.drinker_id).toBeNull();
   });
 
   it('rejects claiming as a non-drinker user id', async () => {

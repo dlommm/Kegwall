@@ -45,6 +45,22 @@ describe('POST /api/presence/motion', () => {
     expect(ok.statusCode).toBe(200);
     expect(app.ctx.presence.stateOf('main')).toBe('active');
   });
+
+  it('accepts the token via Authorization: Bearer and rejects a wrong bearer', async () => {
+    app.ctx.settings.set('presenceWebhookToken', 'sekret');
+    app.ctx.presence.setState('main', 'off');
+    const ok = await app.inject({
+      method: 'POST', url: '/api/presence/motion',
+      headers: { authorization: 'Bearer sekret' }, payload: { wall: 'main' },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(app.ctx.presence.stateOf('main')).toBe('active');
+    const bad = await app.inject({
+      method: 'POST', url: '/api/presence/motion',
+      headers: { authorization: 'Bearer nope' }, payload: {},
+    });
+    expect(bad.statusCode).toBe(401);
+  });
 });
 
 describe('POST /api/presence/wake', () => {

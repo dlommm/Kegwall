@@ -41,6 +41,16 @@ export interface TapState {
   nextUpBeerName: string | null;
 }
 
+/** Strips operator-only fields from a TapState before it reaches an unauthenticated or
+ * display client. Today that's `keg.costCents` (what the operator paid — no wall/menu
+ * consumer reads it; it was leaking through the public menu and the global WS snapshot).
+ * Hidden-tap filtering is the CALLER's job: the admin snapshot keeps hidden taps, public
+ * callers drop them first. `costCents` is nulled rather than deleted so the `TapState`
+ * shape stays intact for typed consumers. */
+export function toPublicTapState(t: TapState): TapState {
+  return t.keg ? { ...t, keg: { ...t.keg, costCents: null } } : t;
+}
+
 /** The keg configuration a Kegtron device itself reports for one port — the operator
  * sets size/starting volume in Kegtron's own app when tapping a keg, and both the UDP
  * and cloud-shadow sources relay them on every `volume_update`. Held in memory only:

@@ -9,6 +9,7 @@ import { getBeer } from '../db/beers.js';
 import { listTaps } from '../db/taps.js';
 import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
+import { toPublicTapState } from '../core/state.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 
 /** Design 3b: pours are claimable for 10 minutes after they happen. */
@@ -40,7 +41,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (configured.size > 0) taps = taps.filter((t) => configured.has(t.tapId));
     return {
       wall: { slug: wall.slug, name: wall.name, config },
-      taps,
+      taps: taps.map(toPublicTapState), // strip operator-only fields (keg.costCents)
       allowedTapIds,
       units: app.ctx.settings.get('displayUnits'),
     };
@@ -48,7 +49,8 @@ export async function publicRoutes(app: FastifyInstance) {
 
   app.get('/api/public/menu', async () => ({
     siteName: app.ctx.settings.get('siteName'),
-    taps: app.ctx.state.getTapStates(),
+    // Hidden taps never reach a public surface; costCents is stripped by toPublicTapState.
+    taps: app.ctx.state.getTapStates().filter((t) => !t.hidden).map(toPublicTapState),
     units: app.ctx.settings.get('displayUnits'),
   }));
 
@@ -188,11 +190,19 @@ export async function publicRoutes(app: FastifyInstance) {
     const body = z.object({
       pourId: z.number().int(), drinkerId: z.number().int(),
     }).parse(req.body);
-    const existing = db.prepare('SELECT drinker_id FROM pours WHERE id = ?')
-      .get(body.pourId) as any;
+    const existing = db.prepare('SELECT drinker_id, ts FROM pours WHERE id = ?')
+      .get(body.pourId) as { drinker_id: number | null; ts: string } | undefined;
     if (!existing) return reply.code(404).send({ error: 'not_found', message: 'No such pour' });
     if (existing.drinker_id !== null) {
       return reply.code(409).send({ error: 'conflict', message: 'Pour already claimed' });
+    }
+    // The claim window is enforced server-side, not just in the UI's recent-pours list:
+    // a pour older than CLAIM_WINDOW_MINUTES can't be claimed by anyone (design 3b), so an
+    // anonymous caller can't back-claim arbitrarily old pours to inflate the leaderboard.
+    // ISO-8601 UTC timestamps compare lexicographically (recordPourTx stores `…Z`).
+    const cutoff = new Date(Date.now() - CLAIM_WINDOW_MINUTES * 60_000).toISOString();
+    if (existing.ts < cutoff) {
+      return reply.code(409).send({ error: 'conflict', message: 'Pour is too old to claim' });
     }
     const drinker = db.prepare('SELECT id FROM users WHERE id = ? AND is_drinker = 1')
       .get(body.drinkerId);

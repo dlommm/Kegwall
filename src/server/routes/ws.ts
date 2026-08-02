@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { unackedCount } from '../db/notificationsRepo.js';
+import { toPublicTapState } from '../core/state.js';
 
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
@@ -21,8 +22,16 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
   // `version` rides every snapshot so long-lived kiosk clients can detect an app
   // update (server restarted on a new release) and reload themselves — otherwise a
   // wall TV keeps running the pre-update JS bundle forever. See useTapStates.ts.
+  // This feed is broadcast to every connected client (wall TVs + the admin taps page).
+  // `costCents` (operator cost) is stripped via toPublicTapState — no client reads it, and
+  // it must not ride an unauthenticated frame. Hidden taps stay (the admin taps page needs
+  // them; the wall client filters them, and sub-epic 3 gates this feed behind a display token).
   const snapshot = () =>
-    JSON.stringify({ type: 'snapshot', taps: app.ctx.state.getTapStates(), version: app.ctx.version });
+    JSON.stringify({
+      type: 'snapshot',
+      taps: app.ctx.state.getTapStates().map(toPublicTapState),
+      version: app.ctx.version,
+    });
 
   /** Sends `msg` to every currently-connected client (skipping any not `OPEN` -- a socket
    * mid-close/error shouldn't throw the broadcast off for the rest). Shared by every

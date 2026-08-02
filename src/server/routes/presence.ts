@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { timingSafeEqual, createHash } from 'node:crypto';
 import { z } from 'zod';
 import { requireRole } from './auth.js';
 import { motionSourceSchema, parseMotionSources } from '../db/settings.js';
@@ -24,10 +25,32 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
   // cheaper to duplicate than to plumb out of crud.ts.
   const admin = { preHandler: requireRole('admin') };
 
-  const requireToken = (token: unknown): { code: number; error: string } | null => {
+  /** Constant-time token compare over SHA-256 digests (always equal-length, so
+   * `timingSafeEqual` never throws on a length mismatch and the comparison leaks no
+   * information about how many leading characters matched). */
+  const tokensMatch = (a: string, b: string): boolean => {
+    const ha = createHash('sha256').update(a).digest();
+    const hb = createHash('sha256').update(b).digest();
+    return timingSafeEqual(ha, hb);
+  };
+
+  /** Prefer `Authorization: Bearer <token>`; fall back to the legacy `?token=` query
+   * param (deprecated — it lands in access logs; kept one release for the display agent
+   * and existing integrations, see docs/setup). */
+  const extractToken = (req: FastifyRequest): string | undefined => {
+    const auth = req.headers.authorization;
+    if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
+      const t = auth.slice('Bearer '.length).trim();
+      if (t) return t;
+    }
+    const q = (req.query as { token?: unknown } | undefined)?.token;
+    return typeof q === 'string' && q ? q : undefined;
+  };
+
+  const requireToken = (token: string | undefined): { code: number; error: string } | null => {
     const expected = app.ctx.settings.get('presenceWebhookToken');
     if (!expected) return { code: 503, error: 'presence token not configured' };
-    if (token !== expected) return { code: 401, error: 'bad token' };
+    if (!token || !tokensMatch(token, expected)) return { code: 401, error: 'bad token' };
     return null;
   };
 
@@ -48,22 +71,25 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
   }
   const openStreams = new Set<OpenStream>();
 
-  app.post('/api/presence/motion', async (req, reply) => {
-    const { token, source } = z.object({
-      token: z.string().optional(),
+  app.post('/api/presence/motion', {
+    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    const { source } = z.object({
       // Task 3: which configured motionSources entry fired this webhook, if any — routed
       // through the registry (ctx.motion.trigger) instead of calling presence.motion()
       // directly, so lastTriggeredAt bookkeeping and the unknown-id "wake everything"
       // fallback both live in exactly one place (core/motionSources.ts).
       source: z.string().optional(),
     }).parse(req.query);
-    const denied = requireToken(token);
+    const denied = requireToken(extractToken(req));
     if (denied) return reply.code(denied.code).send({ error: denied.error });
     app.ctx.motion.trigger(source ?? null);
     return { ok: true };
   });
 
-  app.post('/api/presence/wake', async (req) => {
+  app.post('/api/presence/wake', {
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+  }, async (req) => {
     const { wall, source } = z.object({
       wall: z.string().optional(),
       source: z.enum(['touch', 'camera']).default('touch'),
@@ -194,10 +220,12 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
     return reply.code(204).send();
   });
 
-  app.get('/api/presence/stream', (req, reply) => {
-    const { wall, token } = z.object({ wall: z.string(), token: z.string().optional() })
+  app.get('/api/presence/stream', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  }, (req, reply) => {
+    const { wall } = z.object({ wall: z.string(), token: z.string().optional() })
       .parse(req.query);
-    const denied = requireToken(token);
+    const denied = requireToken(extractToken(req));
     if (denied) return reply.code(denied.code).send({ error: denied.error });
     const state = app.ctx.presence.stateOf(wall);
     if (state === undefined) return reply.code(404).send({ error: 'no such wall' });
