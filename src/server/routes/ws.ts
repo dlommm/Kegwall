@@ -104,6 +104,17 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
     }));
   });
 
+  // Displays & Presence hub Task 3: motion-source wake relay — lets an open admin/kiosk
+  // client show "motion just fired" without polling GET /api/presence/sources. Broadcast
+  // to every client like the rest of this feed (same as display_power_changed above);
+  // `sourceId` defaults to `null` for a legacy/anonymous wake (no registry entry fired
+  // it — see core/motionSources.ts's `trigger()`).
+  app.ctx.bus.on('motion_detected', (e) => {
+    broadcast(JSON.stringify({
+      type: 'motion', sourceId: e.sourceId ?? null, wallSlug: e.wallSlug, ts: e.ts,
+    }));
+  });
+
   // Heartbeat (Phase 3 final review, finding I1): ingest sources only trigger
   // `state_changed` on an actual change, and a Pro-only/idle taproom can go well past the
   // client's 60s staleness window without one — that's a perfectly healthy socket showing

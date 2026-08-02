@@ -1,38 +1,53 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { requireRole } from './auth.js';
+import { motionSourceSchema, parseMotionSources } from '../db/settings.js';
+import { parseWallConfig } from '../core/wallConfig.js';
+import { NotFoundError } from '../core/errors.js';
+import { registerConfiguredSources } from '../ingest/bootstrap.js';
 
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
 export interface PresenceRoutesOptions { pingIntervalMs?: number }
 
+/**
+ * Displays & Presence hub Task 3: sources CRUD writes through `settings.set('motionSources',
+ * ...)`, which is one of `SOURCE_RESTART_KEYS` (core/restartKeys.ts) — a PATCH to
+ * `/api/settings` touching that key trips this exact stop/reconfigure/start cycle
+ * (routes/crud.ts). These are dedicated CRUD routes, not that PATCH, so nothing there
+ * fires automatically; this reuses crud.ts's mechanism verbatim so a motion source
+ * add/edit/remove here ALSO reconfigures the live GPIO/BLE/mqtt transports. Same
+ * `isStarted()` guard and rationale as that route: false in every test that builds the
+ * app with the default `startSources: false`, so this never spins up a real transport
+ * mid-test.
+ */
+async function restartSourcesIfLive(app: FastifyInstance): Promise<void> {
+  if (!app.ctx.sources.isStarted()) return;
+  await app.ctx.sources.stopAll();
+  registerConfiguredSources(app.ctx);
+  await app.ctx.sources.startAll();
+}
+
 /** Presence wake surfaces (spec Part A/A2-A3): the token-gated external motion webhook
  * + agent SSE stream, and the public user-interaction wake endpoint (same trust level
- * as the wall pages themselves — worst case someone turns screens ON). */
+ * as the wall pages themselves — worst case someone turns screens ON). Task 3 adds the
+ * admin-only motion-source CRUD/status surface and explicit display-state override. */
 export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesOptions = {}) {
+  const db = app.ctx.db;
+  // Same `requireRole('admin')` guard idiom as routes/crud.ts:75 — replicated rather than
+  // imported as an object (crud.ts's `admin` binding is module-private) since both route
+  // modules are called directly (not `app.register()`'d, see app.ts) against the same
+  // Fastify instance, so `requireRole` itself (the actual auth logic, from './auth.js')
+  // is the only piece that needs to be shared; the tiny `{ preHandler }` wrapper is
+  // cheaper to duplicate than to plumb out of crud.ts.
+  const admin = { preHandler: requireRole('admin') };
+
   const requireToken = (token: unknown): { code: number; error: string } | null => {
     const expected = app.ctx.settings.get('presenceWebhookToken');
     if (!expected) return { code: 503, error: 'presence token not configured' };
     if (token !== expected) return { code: 401, error: 'bad token' };
     return null;
   };
-
-  app.post('/api/presence/motion', async (req, reply) => {
-    const { token } = z.object({ token: z.string().optional() }).parse(req.query);
-    const denied = requireToken(token);
-    if (denied) return reply.code(denied.code).send({ error: denied.error });
-    const { wall } = z.object({ wall: z.string().optional() }).parse(req.body ?? {});
-    app.ctx.presence.motion(wall ?? null, 'webhook');
-    return { ok: true };
-  });
-
-  app.post('/api/presence/wake', async (req) => {
-    const { wall, source } = z.object({
-      wall: z.string().optional(),
-      source: z.enum(['touch', 'camera']).default('touch'),
-    }).parse(req.body ?? {});
-    app.ctx.presence.motion(wall ?? null, source);
-    return { ok: true };
-  });
 
   const pingIntervalMs = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
 
@@ -44,11 +59,129 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
   // `clients` set) is torn down the same way: tracked in a registration-scoped collection,
   // reaped by a single `onClose` hook below.
   interface OpenStream {
+    wall: string; // Task 3: lets GET /api/presence/sources report live agent counts per wall.
     unsubscribe: () => void;
     ping: ReturnType<typeof setInterval>;
     raw: import('node:http').ServerResponse;
   }
   const openStreams = new Set<OpenStream>();
+
+  app.post('/api/presence/motion', async (req, reply) => {
+    const { token, source } = z.object({
+      token: z.string().optional(),
+      // Task 3: which configured motionSources entry fired this webhook, if any — routed
+      // through the registry (ctx.motion.trigger) instead of calling presence.motion()
+      // directly, so lastTriggeredAt bookkeeping and the unknown-id "wake everything"
+      // fallback both live in exactly one place (core/motionSources.ts).
+      source: z.string().optional(),
+    }).parse(req.query);
+    const denied = requireToken(token);
+    if (denied) return reply.code(denied.code).send({ error: denied.error });
+    app.ctx.motion.trigger(source ?? null);
+    return { ok: true };
+  });
+
+  app.post('/api/presence/wake', async (req) => {
+    const { wall, source } = z.object({
+      wall: z.string().optional(),
+      source: z.enum(['touch', 'camera']).default('touch'),
+    }).parse(req.body ?? {});
+    if (source === 'camera') {
+      // Task 3: routes through the registry's camera sentinel (see core/motionSources.ts)
+      // rather than presence.motion() directly, so a tablet camera wake keeps that
+      // derived source row's lastTriggeredAt fresh for GET /api/presence/sources. No
+      // wall means no sentinel to stamp — falls back to trigger(null)'s existing
+      // "wake everything" behavior, same as an anonymous webhook.
+      app.ctx.motion.trigger(wall ? `camera:${wall}` : null);
+    } else {
+      app.ctx.presence.motion(wall ?? null, source);
+    }
+    return { ok: true };
+  });
+
+  // POST /api/presence/state — admin override (Task 3): lets the admin UI force a wall
+  // (or, with no `wall`, every wall) into a specific power stage on demand, independent
+  // of any motion wake. `presence.setState` already holds the stage until the next
+  // motion (no idle timer re-armed), same semantics as a screensaver-triggered 'off'.
+  app.post('/api/presence/state', admin, async (req) => {
+    const { wall, state } = z.object({
+      wall: z.string().optional(),
+      state: z.enum(['active', 'screensaver', 'off']),
+    }).parse(req.body);
+    app.ctx.presence.setState(wall ?? null, state);
+    return { ok: true };
+  });
+
+  // --- motion-source CRUD/status (Task 3) ---------------------------------------------
+  // GET /api/presence/sources: the admin Sources page's single read — configured sources
+  // (registry snapshot, enabled-only per MotionSourceRegistry.sources()), derived camera
+  // rows (one per wall with displayPower.cameraMotion on, status read back from the
+  // registry's `camera:<slug>` sentinel entries — see motionSources.ts's ledgered fix),
+  // and live agent (open SSE stream) counts per wall.
+  app.get('/api/presence/sources', admin, async () => {
+    const sources = app.ctx.motion.snapshot();
+
+    const walls = db.prepare('SELECT slug, config FROM walls').all() as
+      { slug: string; config: string }[];
+    const camera = walls
+      .map((w) => ({ slug: w.slug, config: parseWallConfig(JSON.parse(w.config)) }))
+      .filter((w) => w.config.displayPower.cameraMotion)
+      .map((w) => ({
+        wallSlug: w.slug,
+        enabled: true,
+        lastTriggeredAt: app.ctx.motion.statusOf(`camera:${w.slug}`).lastTriggeredAt,
+      }));
+
+    const agentCounts = new Map<string, number>();
+    for (const entry of openStreams) {
+      agentCounts.set(entry.wall, (agentCounts.get(entry.wall) ?? 0) + 1);
+    }
+    const agents = [...agentCounts.entries()].map(([wall, connections]) => ({ wall, connections }));
+
+    return { sources, camera, agents };
+  });
+
+  app.post('/api/presence/sources', admin, async (req, reply) => {
+    // Body is a MotionSource sans `id` — `crypto.randomUUID()` is a Node global (no
+    // import needed, same as core/motionSources.ts's migrateMotionTopics), spread AFTER
+    // the body so a client-supplied `id` (there shouldn't be one, but the type is
+    // Record<string, unknown> here, not yet validated) can never override the generated
+    // one. motionSourceSchema.parse validates the whole shape, including the per-type
+    // `config` requirement (mqtt needs topic+match, gpio needs line).
+    const raw = (req.body ?? {}) as Record<string, unknown>;
+    const source = motionSourceSchema.parse({ ...raw, id: crypto.randomUUID() });
+    const existing = parseMotionSources(app.ctx.settings.get('motionSources') as unknown[]);
+    app.ctx.settings.set('motionSources', [...existing, source]);
+    await restartSourcesIfLive(app);
+    return reply.code(201).send(source);
+  });
+
+  app.patch('/api/presence/sources/:id', admin, async (req) => {
+    const { id } = req.params as { id: string };
+    const existing = parseMotionSources(app.ctx.settings.get('motionSources') as unknown[]);
+    const idx = existing.findIndex((s) => s.id === id);
+    if (idx === -1) throw new NotFoundError('motion source');
+    // Shallow top-level merge (patch fields replace the corresponding whole field, e.g. a
+    // full `config` object) — the same "client sends back a full sub-object" idiom
+    // settings.sanitizePatch uses, not a deep merge. Re-parsed through the same schema as
+    // create so a patch can't leave a source in an invalid per-type shape.
+    const merged = motionSourceSchema.parse({ ...existing[idx], ...(req.body as object ?? {}) });
+    const next = [...existing];
+    next[idx] = merged;
+    app.ctx.settings.set('motionSources', next);
+    await restartSourcesIfLive(app);
+    return merged;
+  });
+
+  app.delete('/api/presence/sources/:id', admin, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const existing = parseMotionSources(app.ctx.settings.get('motionSources') as unknown[]);
+    // Idempotent, same as crud.ts's beer/tap/keg deletes -- an unknown id is simply a
+    // no-op 204 rather than a 404.
+    app.ctx.settings.set('motionSources', existing.filter((s) => s.id !== id));
+    await restartSourcesIfLive(app);
+    return reply.code(204).send();
+  });
 
   app.get('/api/presence/stream', (req, reply) => {
     const { wall, token } = z.object({ wall: z.string(), token: z.string().optional() })
@@ -71,7 +204,7 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
       if (e.wallSlug === wall) send(e.state);
     });
     const ping = setInterval(() => reply.raw.write(': ping\n\n'), pingIntervalMs);
-    const entry: OpenStream = { unsubscribe, ping, raw: reply.raw };
+    const entry: OpenStream = { wall, unsubscribe, ping, raw: reply.raw };
     openStreams.add(entry);
     req.raw.on('close', () => {
       // `Set.delete` returns false if already removed — guards against the onClose hook

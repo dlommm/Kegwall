@@ -60,6 +60,19 @@ describe('MotionSourceRegistry', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  // Task 3 ledgered fix: GET /api/presence/sources must be able to surface a derived
+  // camera row's lastTriggeredAt by reading statusOf('camera:<slug>') — trigger()'s
+  // camera sentinel branch has to stamp that entry itself, since there's no stored
+  // registry row for it to stamp.
+  it('trigger(camera:<slug>) wakes that wall as camera and stamps its own sentinel status entry', () => {
+    const { presence, registry } = makeRegistry();
+    const spy = vi.spyOn(presence, 'motion');
+    expect(registry.statusOf('camera:main').lastTriggeredAt).toBeNull();
+    registry.trigger('camera:main');
+    expect(spy).toHaveBeenCalledWith('main', 'camera', 'camera:main');
+    expect(registry.statusOf('camera:main').lastTriggeredAt).not.toBeNull();
+  });
+
   it('markHealth round-trips through statusOf and snapshot', () => {
     const { settings, registry } = makeRegistry();
     settings.set('motionSources', [SRC] as never);

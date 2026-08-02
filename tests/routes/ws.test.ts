@@ -238,3 +238,18 @@ describe('display_power relay', () => {
     ws.close();
   });
 });
+
+// Displays & Presence hub Task 3: motion_detected relay — mirrors display_power_changed's
+// broadcast-to-everyone shape (no per-wall routing at the WS layer).
+describe('motion relay', () => {
+  it('relays a motion_detected bus event as {type:"motion", sourceId, wallSlug, ts}', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws); // snapshot
+    const next = nextMessage(ws);
+    const ts = new Date().toISOString();
+    app.ctx.bus.emit('motion_detected', { wallSlug: 'main', source: 'mqtt', sourceId: 'abc', ts });
+    const msg = await next;
+    expect(msg).toEqual({ type: 'motion', sourceId: 'abc', wallSlug: 'main', ts });
+    ws.close();
+  });
+});

@@ -65,7 +65,10 @@ export class MotionSourceRegistry {
    *  - a registry id (looked up among ALL stored sources, enabled or not) — wakes that
    *    source's `wallSlug` and stamps its `lastTriggeredAt`;
    *  - the `camera:<wallSlug>` sentinel (tablet camera rows are derived, not stored) —
-   *    wakes that wall as a 'camera' source, stamps nothing (no registry entry to stamp);
+   *    wakes that wall as a 'camera' source, and stamps ITS OWN status entry (keyed by
+   *    the full sentinel string, e.g. `"camera:main"`) rather than a registry entry —
+   *    Task 3's GET /api/presence/sources reads this back via `statusOf('camera:' +
+   *    slug)` so a derived camera row can surface `lastTriggeredAt` too;
    *  - `null` (anonymous/legacy webhook) — wakes ALL walls, stamps nothing.
    * A DISABLED source id is silently ignored (no wake at all — an admin turned it off on
    * purpose). An id that matches NO stored source (unknown/stale) falls back to waking
@@ -81,6 +84,11 @@ export class MotionSourceRegistry {
     if (sourceId.startsWith(CAMERA_SOURCE_PREFIX)) {
       const wallSlug = sourceId.slice(CAMERA_SOURCE_PREFIX.length) || null;
       this.presence.motion(wallSlug, 'camera', sourceId);
+      // Task 3 ledgered fix: stamp the sentinel's OWN status entry (there's no stored
+      // `motionSources` row for a camera row to stamp instead — see the doc comment
+      // above) so `statusOf('camera:' + slug)` reflects the wake.
+      const prev = this.statuses.get(sourceId) ?? DEFAULT_STATUS;
+      this.statuses.set(sourceId, { ...prev, lastTriggeredAt: new Date().toISOString() });
       return;
     }
     const found = this.allSources().find((s) => s.id === sourceId);

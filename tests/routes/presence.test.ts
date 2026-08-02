@@ -1,16 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../../src/server/app.js';
 import type { FastifyInstance } from 'fastify';
+import type { InjectOptions } from 'light-my-request';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 let app: FastifyInstance;
+let adminCookies: { session: string };
+
+// Task 3: the same admin-session pattern crud.test.ts uses (POST /api/auth/setup
+// creates the first admin user and returns a session cookie) — shared by every admin-
+// gated presence route test below.
+function injectAsAdmin(opts: InjectOptions) {
+  return app.inject({ ...opts, cookies: adminCookies });
+}
+
 beforeEach(async () => {
   app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
   app.ctx.db.prepare('INSERT INTO walls (slug, name, config) VALUES (?, ?, ?)')
     .run('main', 'Main', JSON.stringify({}));
   app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
+  const setup = await app.inject({
+    method: 'POST', url: '/api/auth/setup',
+    payload: { username: 'dan', displayName: 'Dan', password: 'hunter22' },
+  });
+  const c = setup.cookies.find((c: any) => c.name === 'session')!;
+  adminCookies = { session: c.value };
 });
 afterEach(async () => { await app.close(); });
 
@@ -87,5 +103,57 @@ describe('GET /api/presence/stream', () => {
     // Rebuild so the shared afterEach's app.close() has a live app to close (same
     // pattern as ws.test.ts's "stops the ping interval when the app closes" guard).
     app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
+  });
+});
+
+// Task 3: sources CRUD/status routes, webhook attribution, admin state.
+describe('presence sources admin routes', () => {
+  it('CRUD round-trip with generated ids and 401 unauthenticated', async () => {
+    expect((await app.inject({ url: '/api/presence/sources' })).statusCode).toBe(401);
+    const created = await injectAsAdmin({
+      method: 'POST', url: '/api/presence/sources',
+      payload: {
+        name: 'Kitchen PIR', type: 'mqtt', enabled: true, wallSlug: 'main',
+        config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().id;
+    expect(typeof id).toBe('string');
+    const list = await injectAsAdmin({ url: '/api/presence/sources' });
+    expect(list.json().sources).toHaveLength(1);
+    await injectAsAdmin({ method: 'PATCH', url: `/api/presence/sources/${id}`, payload: { enabled: false } });
+    await injectAsAdmin({ method: 'DELETE', url: `/api/presence/sources/${id}` });
+    expect((await injectAsAdmin({ url: '/api/presence/sources' })).json().sources).toHaveLength(0);
+  });
+
+  it('webhook ?source= stamps the source and unknown ids still wake', async () => {
+    app.ctx.settings.set('presenceWebhookToken', 't');
+    const created = await injectAsAdmin({
+      method: 'POST', url: '/api/presence/sources',
+      payload: {
+        name: 'Kitchen PIR', type: 'mqtt', enabled: true, wallSlug: 'main',
+        config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    });
+    const id = created.json().id;
+    await app.inject({ method: 'POST', url: `/api/presence/motion?token=t&source=${id}`, payload: {} });
+    const list = await injectAsAdmin({ url: '/api/presence/sources' });
+    expect(list.json().sources[0].status.lastTriggeredAt).not.toBeNull();
+    app.ctx.presence.setState('main', 'off');
+    await app.inject({ method: 'POST', url: '/api/presence/motion?token=t&source=ghost', payload: {} });
+    expect(app.ctx.presence.stateOf('main')).toBe('active'); // unknown id still wakes
+  });
+
+  it('POST /api/presence/state is admin-only and sets state', async () => {
+    expect((await app.inject({
+      method: 'POST', url: '/api/presence/state',
+      payload: { wall: 'main', state: 'off' },
+    })).statusCode).toBe(401);
+    await injectAsAdmin({
+      method: 'POST', url: '/api/presence/state',
+      payload: { wall: 'main', state: 'off' },
+    });
+    expect(app.ctx.presence.stateOf('main')).toBe('off');
   });
 });
