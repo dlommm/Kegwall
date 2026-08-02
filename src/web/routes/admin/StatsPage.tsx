@@ -7,7 +7,9 @@ import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
   getHostStatsHistory, getKegCosts, getMonthlySpend, getPourHistory,
+  getBeerHistory, getPourerHistory,
   type HostStatsHistoryPoint, type KegCostRow, type MonthlySpendRow, type PourHistoryRow,
+  type BeerHistoryRow, type PourerHistoryRow,
 } from '../../lib/adminApi';
 import { formatVolumeMl } from '../../lib/units';
 import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
@@ -60,6 +62,8 @@ export function StatsPage() {
   const [kegCosts, setKegCosts] = useState<KegCostRow[]>([]);
   const [monthlySpend, setMonthlySpend] = useState<MonthlySpendRow[]>([]);
   const [pourHistory, setPourHistory] = useState<PourHistoryRow[]>([]);
+  const [beerHistory, setBeerHistory] = useState<BeerHistoryRow[]>([]);
+  const [pourerHistory, setPourerHistory] = useState<PourerHistoryRow[]>([]);
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -98,6 +102,14 @@ export function StatsPage() {
     });
     return () => { cancelled = true; };
   }, [days]);
+
+  // Lifetime beer + pourer history tables (Beers / People tabs) — load once.
+  useEffect(() => {
+    let cancelled = false;
+    getBeerHistory().then((result) => { if (!cancelled && result.ok) setBeerHistory(result.data); });
+    getPourerHistory().then((result) => { if (!cancelled && result.ok) setPourerHistory(result.data); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Server-health history (Pi monitoring epic) — the host sampler's last 24h.
   useEffect(() => {
@@ -392,6 +404,41 @@ export function StatsPage() {
             <div className="stats-grid">
               <BeerVolumeChart data={beers} units={units} />
             </div>
+            <section className="stats-section" data-testid="analytics-beer-history">
+              <h3 className="stats-chart__title">Beer history</h3>
+              {beerHistory.length === 0 ? (
+                <p className="admin-page-quiet">No beers poured yet.</p>
+              ) : (
+                <div className="analytics-table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Beer</th>
+                        <th scope="col">First tap</th>
+                        <th scope="col">Kegs</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Rating</th>
+                        <th scope="col">Claimed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {beerHistory.map((row) => (
+                        <tr key={row.beerId} data-testid="beer-history-row">
+                          <td>{row.beerName}</td>
+                          <td className="font-tabular">{row.firstTap ? new Date(row.firstTap).toLocaleDateString() : '—'}</td>
+                          <td className="font-tabular">{row.kegs}</td>
+                          <td className="font-tabular">{formatVolumeMl(row.totalMl, units)}</td>
+                          <td className="font-tabular">
+                            {row.avgRating != null ? `★ ${row.avgRating} (${row.ratingCount})` : '—'}
+                          </td>
+                          <td className="font-tabular">{row.claimPct != null ? `${row.claimPct}%` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           <div hidden={tab !== 'kegs'} data-testid="analytics-panel-kegs">
@@ -477,6 +524,41 @@ export function StatsPage() {
                 onWindowChange={setLeaderboardWindow}
               />
             </div>
+            <section className="stats-section" data-testid="analytics-pourer-history">
+              <h3 className="stats-chart__title">Pourer history</h3>
+              {pourerHistory.length === 0 ? (
+                <p className="admin-page-quiet">No claimed pours yet.</p>
+              ) : (
+                <div className="analytics-table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Pourer</th>
+                        <th scope="col">Pours</th>
+                        <th scope="col">Volume</th>
+                        <th scope="col">Avg pour</th>
+                        <th scope="col">Q</th>
+                        <th scope="col">Favorite</th>
+                        <th scope="col">Last pour</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pourerHistory.map((row) => (
+                        <tr key={row.drinkerId} data-testid="pourer-history-row">
+                          <td>{row.displayName}</td>
+                          <td className="font-tabular">{row.pours}</td>
+                          <td className="font-tabular">{formatVolumeMl(row.volumeMl, units)}</td>
+                          <td className="font-tabular">{formatVolumeMl(row.avgPourMl, units)}</td>
+                          <td className="font-tabular">{row.avgQuality != null ? row.avgQuality : '—'}</td>
+                          <td>{row.favorite ?? '—'}</td>
+                          <td className="font-tabular">{row.lastPour ? new Date(row.lastPour).toLocaleDateString() : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           <div hidden={tab !== 'temps'} data-testid="analytics-panel-temps">

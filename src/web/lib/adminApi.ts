@@ -816,7 +816,18 @@ export function deleteDisplay(id: number): Promise<ApiResult<null>> {
 
 export type {
   AnalyticsKpis, PoursByDay, KegBurnStat, KegCostRow, PourHistoryRow, MonthlySpendRow,
+  BeerHistoryRow, PourerHistoryRow,
 } from '../../server/db/stats.js';
+
+/** GET /api/stats/beer-history — lifetime per-beer table (analytics Beers tab). */
+export function getBeerHistory(): Promise<ApiResult<import('../../server/db/stats.js').BeerHistoryRow[]>> {
+  return request('/api/stats/beer-history');
+}
+
+/** GET /api/stats/pourer-history — lifetime per-pourer table (analytics People tab). */
+export function getPourerHistory(): Promise<ApiResult<import('../../server/db/stats.js').PourerHistoryRow[]>> {
+  return request('/api/stats/pourer-history');
+}
 
 /** GET /api/stats/keg-costs — per-keg owner-cost breakdown for the analytics Kegs tab.
  *  ADMIN ONLY (owner cost). */

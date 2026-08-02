@@ -16,7 +16,7 @@ import {
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
   getSettings, patchSettings, uploadRestore,
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume, getSensors,
-  getMonthlySpend, getPourHistory,
+  getMonthlySpend, getPourHistory, getBeerHistory, getPourerHistory,
   getStatsTemps, getLeaderboard,
   listRecentPours, setPourDrinker,
   listAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
@@ -673,6 +673,15 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getPourHistory(30);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/pour-history?days=30', expect.any(Object));
+  });
+
+  it('getBeerHistory and getPourerHistory hit their endpoints', async () => {
+    mockFetchOnce(200, []);
+    await getBeerHistory();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/beer-history', expect.any(Object));
+    mockFetchOnce(200, []);
+    await getPourerHistory();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/pourer-history', expect.any(Object));
   });
 
   it('getSensors GETs /api/sensors', async () => {

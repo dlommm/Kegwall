@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireRole } from './auth.js';
 import {
   poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard, kegCostRows,
-  pourHistory, monthlySpend,
+  pourHistory, monthlySpend, beerHistory, pourerHistory,
 } from '../db/stats.js';
 import { listTelemetryForDevice } from '../db/telemetry.js';
 import { getMonitorById } from '../db/monitors.js';
@@ -35,6 +35,11 @@ export async function statsRoutes(app: FastifyInstance) {
     const { days } = pourHistoryQuery.parse(req.query);
     return pourHistory(db, days);
   });
+
+  // GET /api/stats/beer-history + /pourer-history — lifetime per-beer / per-pourer tables for
+  // the analytics Beers/People tabs. Viewer role (no cost).
+  app.get('/api/stats/beer-history', viewer, async () => beerHistory(db));
+  app.get('/api/stats/pourer-history', viewer, async () => pourerHistory(db));
 
   // `?days=` is restricted to the three ranges the Stats page's switcher actually offers
   // (7/30/90) — an `z.enum` on the raw string query value (rather than a bare

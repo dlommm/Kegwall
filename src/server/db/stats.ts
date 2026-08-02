@@ -338,6 +338,49 @@ export function analyticsKpis(db: Database.Database, days: number, now = new Dat
   };
 }
 
+/** Lifetime per-beer stats for the analytics Beers tab's Beer-history table (redesign 4e/4j).
+ *  Viewer-safe (no owner cost). */
+export interface BeerHistoryRow {
+  beerId: number;
+  beerName: string;
+  firstTap: string | null;
+  kegs: number;
+  totalMl: number;
+  avgRating: number | null;
+  ratingCount: number;
+  /** % of this beer's pours that were claimed by a drinker, or null when it had no pours. */
+  claimPct: number | null;
+}
+
+export function beerHistory(db: Database.Database): BeerHistoryRow[] {
+  const rows = db.prepare(`
+    SELECT b.id AS beerId, b.name AS beerName,
+           MIN(k.date_tapped) AS firstTap,
+           COUNT(DISTINCT k.id) AS kegs,
+           COALESCE(SUM(p.volume_ml), 0) AS totalMl,
+           AVG(p.rating) AS avgRating,
+           SUM(CASE WHEN p.rating IS NOT NULL THEN 1 ELSE 0 END) AS ratingCount,
+           SUM(CASE WHEN p.drinker_id IS NOT NULL THEN 1 ELSE 0 END) AS claimedPours,
+           COUNT(p.id) AS totalPours
+    FROM beers b
+    LEFT JOIN kegs k ON k.beer_id = b.id
+    LEFT JOIN pours p ON p.keg_id = k.id
+    GROUP BY b.id
+    HAVING kegs > 0 OR totalPours > 0
+    ORDER BY totalMl DESC, b.name COLLATE NOCASE
+  `).all() as any[];
+  return rows.map((r) => ({
+    beerId: r.beerId,
+    beerName: r.beerName,
+    firstTap: r.firstTap ?? null,
+    kegs: r.kegs,
+    totalMl: r.totalMl,
+    avgRating: r.avgRating != null ? Math.round(r.avgRating * 10) / 10 : null,
+    ratingCount: r.ratingCount,
+    claimPct: r.totalPours > 0 ? Math.round((r.claimedPours / r.totalPours) * 100) : null,
+  }));
+}
+
 /** A single pour, hydrated with its beer / tap / drinker, for the analytics Pours-history
  *  table (redesign 4e/4j). No owner cost — viewer-safe. */
 export interface PourHistoryRow {
@@ -349,6 +392,48 @@ export interface PourHistoryRow {
   volumeMl: number;
   quality: number | null;
   source: string;
+}
+
+/** Lifetime per-pourer stats for the analytics People tab's Pourer-history table (redesign
+ *  4e/4j). Claimed pours only. Viewer-safe. */
+export interface PourerHistoryRow {
+  drinkerId: number;
+  displayName: string;
+  pours: number;
+  volumeMl: number;
+  avgPourMl: number;
+  avgQuality: number | null;
+  favorite: string | null;
+  lastPour: string | null;
+}
+
+export function pourerHistory(db: Database.Database): PourerHistoryRow[] {
+  const rows = db.prepare(`
+    SELECT u.id AS drinkerId, u.display_name AS displayName,
+           COUNT(p.id) AS pours, COALESCE(SUM(p.volume_ml), 0) AS volumeMl,
+           AVG(p.quality) AS avgQuality, MAX(p.ts) AS lastPour,
+           (SELECT b2.name FROM pours p2
+              JOIN kegs k2 ON k2.id = p2.keg_id
+              JOIN beers b2 ON b2.id = k2.beer_id
+             WHERE p2.drinker_id = u.id
+             GROUP BY b2.id ORDER BY COUNT(*) DESC, b2.name COLLATE NOCASE LIMIT 1) AS favorite
+    FROM users u
+    JOIN pours p ON p.drinker_id = u.id
+    WHERE u.is_drinker = 1
+    GROUP BY u.id
+    HAVING pours > 0
+    ORDER BY volumeMl DESC, u.display_name COLLATE NOCASE
+  `).all() as any[];
+  return rows.map((r) => ({
+    drinkerId: r.drinkerId,
+    displayName: r.displayName,
+    pours: r.pours,
+    volumeMl: r.volumeMl,
+    avgPourMl: r.pours > 0 ? Math.round(r.volumeMl / r.pours) : 0,
+    avgQuality: r.avgQuality != null ? Math.round(r.avgQuality) : null,
+    favorite: r.favorite ?? null,
+    lastPour: r.lastPour ?? null,
+  }));
 }
 
 /** Recent pours (newest first) over the trailing `days` window, capped at `limit`. */

@@ -7,6 +7,7 @@ import { StatsPage } from '../../../src/web/routes/admin/StatsPage';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getKegCosts, getMonthlySpend, getPourHistory,
+  getBeerHistory, getPourerHistory,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
 import { renderAdminPage, adminContext } from './renderAdminPage';
@@ -25,6 +26,8 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getKegCosts: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getMonthlySpend: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getPourHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getBeerHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getPourerHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
@@ -119,6 +122,34 @@ describe('StatsPage', () => {
     fireEvent.click(screen.getByTestId('stats-range-90'));
     await flush();
     expect(getPourHistory).toHaveBeenCalledWith(90);
+  });
+
+  it('renders the Beer-history table on the Beers tab', async () => {
+    (getBeerHistory as Mock).mockResolvedValue({
+      ok: true,
+      data: [{ beerId: 1, beerName: 'Citra IPA', firstTap: '2026-06-01T00:00:00Z', kegs: 2, totalMl: 38000, avgRating: 4.3, ratingCount: 12, claimPct: 68 }],
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-beers'));
+    const row = screen.getByTestId('beer-history-row');
+    expect(row).toHaveTextContent('Citra IPA');
+    expect(row).toHaveTextContent('★ 4.3 (12)');
+    expect(row).toHaveTextContent('68%');
+  });
+
+  it('renders the Pourer-history table on the People tab', async () => {
+    (getPourerHistory as Mock).mockResolvedValue({
+      ok: true,
+      data: [{ drinkerId: 1, displayName: 'Sam', pours: 127, volumeMl: 46000, avgPourMl: 362, avgQuality: 91, favorite: 'Citra IPA', lastPour: '2026-08-01T00:00:00Z' }],
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-people'));
+    const row = screen.getByTestId('pourer-history-row');
+    expect(row).toHaveTextContent('Sam');
+    expect(row).toHaveTextContent('127');
+    expect(row).toHaveTextContent('Citra IPA');
   });
 
   it('shows the admin monthly-spend table on the Kegs tab', async () => {

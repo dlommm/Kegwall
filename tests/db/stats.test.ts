@@ -7,7 +7,7 @@ import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
 import { createDrinker } from '../../src/server/db/users.js';
 import {
   poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard, kegCostRows,
-  pourHistory, monthlySpend,
+  pourHistory, monthlySpend, beerHistory, pourerHistory,
 } from '../../src/server/db/stats.js';
 import { createSupplier } from '../../src/server/db/suppliers.js';
 import { mkdtempSync } from 'node:fs';
@@ -423,6 +423,42 @@ describe('stats repo', () => {
       expect(rows).toHaveLength(2);
       expect(rows[0]).toMatchObject({ beerName: 'Citra IPA', tapNumber: 3, drinkerName: 'Sam', source: 'udp' });
       expect(rows[1]!.drinkerName).toBeNull(); // unclaimed
+    });
+  });
+
+  describe('beerHistory', () => {
+    it('aggregates kegs, volume, rating, and claim % per beer', () => {
+      const beer = createBeer(db, { name: 'Citra IPA' });
+      const tap = createTap(db, { number: 1 });
+      const keg = createKeg(db, { beerId: beer.id, tapId: tap.id, sizeMl: 19000, volStartMl: 19000, dateTapped: '2026-06-01T00:00:00.000Z' });
+      const sam = createDrinker(db, { displayName: 'Sam' });
+      recordPourTx(db, { kegId: keg.id, volumeMl: 500, ts: isoDaysAgo(1), source: 'udp', drinkerId: sam.id });
+      db.prepare('UPDATE pours SET rating = 4 WHERE keg_id = ?').run(keg.id);
+      recordPourTx(db, { kegId: keg.id, volumeMl: 300, ts: isoDaysAgo(2), source: 'cloud' }); // unclaimed, unrated
+
+      const rows = beerHistory(db);
+      const citra = rows.find((r) => r.beerName === 'Citra IPA')!;
+      expect(citra).toMatchObject({ kegs: 1, totalMl: 800, avgRating: 4, ratingCount: 1 });
+      expect(citra.claimPct).toBe(50); // 1 of 2 pours claimed
+      expect(citra.firstTap).toBe('2026-06-01T00:00:00.000Z');
+    });
+  });
+
+  describe('pourerHistory', () => {
+    it('summarizes each pourer with avg pour, favorite beer, and last pour', () => {
+      const ipa = createBeer(db, { name: 'Citra IPA' });
+      const stout = createBeer(db, { name: 'Stout' });
+      const tap = createTap(db, { number: 1 });
+      const ipaKeg = createKeg(db, { beerId: ipa.id, tapId: tap.id, sizeMl: 19000, volStartMl: 19000 });
+      const stoutKeg = createKeg(db, { beerId: stout.id, sizeMl: 19000, volStartMl: 19000, status: 'on_deck' });
+      const sam = createDrinker(db, { displayName: 'Sam' });
+      recordPourTx(db, { kegId: ipaKeg.id, volumeMl: 400, ts: isoDaysAgo(3), source: 'udp', drinkerId: sam.id });
+      recordPourTx(db, { kegId: ipaKeg.id, volumeMl: 500, ts: isoDaysAgo(1), source: 'udp', drinkerId: sam.id });
+      recordPourTx(db, { kegId: stoutKeg.id, volumeMl: 300, ts: isoDaysAgo(2), source: 'udp', drinkerId: sam.id });
+
+      const rows = pourerHistory(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ displayName: 'Sam', pours: 3, volumeMl: 1200, avgPourMl: 400, favorite: 'Citra IPA' });
     });
   });
 

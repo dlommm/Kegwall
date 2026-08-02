@@ -47,6 +47,11 @@ describe('GET /api/stats/keg-costs (admin-only owner cost)', () => {
     expect(hist.statusCode).toBe(200);
     expect(Array.isArray(hist.json())).toBe(true);
   });
+
+  it('beer-history and pourer-history are viewer-readable', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/stats/beer-history', cookies: viewerCookies })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/stats/pourer-history', cookies: viewerCookies })).statusCode).toBe(200);
+  });
 });
 
 describe('GET /api/stats/pours', () => {
