@@ -5,6 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { recordTelemetrySampled } from '../../src/server/db/telemetry.js';
+import { upsertMonitor } from '../../src/server/db/monitors.js';
 import { insertFaceEmbedding } from '../../src/server/db/faceEmbeddings.js';
 
 let app: FastifyInstance;
@@ -476,6 +477,20 @@ describe('crud routes', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().message).toContain('Govee');
+  });
+
+  it('GET /api/sensors summarizes temp-reporting sensors for the dashboard cards', async () => {
+    const kId = upsertMonitor(app.ctx.db, { type: 'kegtron_pro', identifier: 'probe', portIndex: 0 }).id;
+    recordTelemetrySampled(app.ctx.db, kId, 3, null, '2026-07-31T00:00:00.000Z');
+    const gId = upsertMonitor(app.ctx.db, { type: 'govee_sensor', identifier: 'room', portIndex: 0 }).id;
+    recordTelemetrySampled(app.ctx.db, gId, 6, 55, '2026-07-31T00:00:00.000Z');
+
+    const res = await app.inject({ method: 'GET', url: '/api/sensors', cookies: adminCookies });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ kind: 'kegtron', tempC: 3 });
+    expect(rows[1]).toMatchObject({ kind: 'govee', tempC: 6, humidity: 55 });
   });
 
   it('serves the device-reported keg config on /api/monitors as deviceKeg', async () => {

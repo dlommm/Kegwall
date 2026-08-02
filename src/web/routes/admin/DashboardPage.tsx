@@ -7,15 +7,16 @@ import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
-  getCleaningStatuses, getPoursByDay, getActiveKegStats,
-  type SystemStats, type PoursByDay, type KegBurnStat,
+  getCleaningStatuses, getPoursByDay, getActiveKegStats, getSensors,
+  type SystemStats, type PoursByDay, type KegBurnStat, type SensorSummary,
 } from '../../lib/adminApi';
 import type { CleaningStatus } from '../../../server/db/cleanings.js';
 import { buildTriage } from '../../lib/dashboardTriage';
 import { buildPoursTrend } from '../../lib/poursTrend';
+import { buildSensorCards } from '../../lib/sensorCards';
 import { kicksInDays } from '../../lib/kegForecast';
 import { formatActivityText } from '../../lib/activityText';
-import { formatTempC, formatVolumeMl } from '../../lib/units';
+import { formatTempC, formatTempDelta, formatVolumeMl } from '../../lib/units';
 import { levelStatus } from '../../lib/lookData';
 import { srmToColor } from '../../lib/srm';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
@@ -76,6 +77,7 @@ export function DashboardPage() {
   const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
   const [poursByDay, setPoursByDay] = useState<PoursByDay[]>([]);
   const [kegStats, setKegStats] = useState<KegBurnStat[]>([]);
+  const [sensors, setSensors] = useState<SensorSummary[]>([]);
   const [wallCount, setWallCount] = useState<number | null>(null);
   const [rebootConfirming, setRebootConfirming] = useState(false);
   const [rebooting, setRebooting] = useState(false);
@@ -120,6 +122,9 @@ export function DashboardPage() {
       });
       getActiveKegStats().then((result) => {
         if (!cancelled && result.ok) setKegStats(result.data);
+      });
+      getSensors().then((result) => {
+        if (!cancelled && result.ok) setSensors(result.data);
       });
     };
     poll();
@@ -183,6 +188,7 @@ export function DashboardPage() {
     .filter((d): d is number => d != null)
     .sort((a, b) => a - b)[0] ?? null;
   const downSources = registered.filter((s) => !s.healthy).map((s) => SOURCE_LABELS[s.name]);
+  const sensorCards = buildSensorCards(sensors);
 
   // DESIGN NOTE: undervoltage keeps its own dedicated red banner below (a distinct hardware
   // alarm with SD-card-corruption context), so the NEEDS ATTENTION card is passed
@@ -334,13 +340,57 @@ export function DashboardPage() {
             {nextKickDays != null && ` · next kick ~${nextKickDays} ${nextKickDays === 1 ? 'day' : 'days'}`}
           </span>
         </div>
-        <div className="dashboard-stat" data-testid="dashboard-card-keg-room">
-          <span className="dashboard-stat__label">KEG ROOM</span>
-          <span className="dashboard-stat__value font-display font-tabular" data-testid="dashboard-keg-room-temp">
-            {maxTempC != null ? formatTempC(maxTempC, units) : '—'}
-          </span>
-          <span className="dashboard-stat__note">Kegtron monitors</span>
-        </div>
+        {sensorCards.length > 0 ? (
+          // DESIGN NOTE: README asks each sensor card to carry a 7-day sparkline; that
+          // visualization waits on the Phase 4 Temps analytics tab (where per-sensor history
+          // + retention live). The reading, humidity, and the min–max note here are all real
+          // (from the telemetry table); the warming delta compares against the Kegtron probe.
+          sensorCards.map((s) => (
+            <div
+              key={s.id}
+              className={`dashboard-stat dashboard-sensor-stat${s.warming ? ' dashboard-sensor-stat--warm' : ''}`}
+              data-testid="dashboard-sensor-card"
+              data-warming={s.warming}
+            >
+              <span className="dashboard-stat__label">
+                {s.name}
+                <span
+                  className={`dashboard-sensor-stat__tag dashboard-sensor-stat__tag--${s.kind}`}
+                  data-testid="dashboard-sensor-tag"
+                >
+                  {s.kind === 'kegtron' ? ' · KEGTRON' : ' · GOVEE'}
+                </span>
+              </span>
+              <span
+                className={`dashboard-stat__value font-display font-tabular${s.warming ? ' dashboard-sensor-stat__value--warm' : ''}`}
+                data-testid="dashboard-sensor-temp"
+              >
+                {s.tempC != null ? formatTempC(s.tempC, units) : '—'}
+                {s.humidity != null && (
+                  <span className="dashboard-stat__sub">{` · ${Math.round(s.humidity)}% RH`}</span>
+                )}
+              </span>
+              <span
+                className={`dashboard-stat__note${s.warming ? ' dashboard-stat__note--warn' : ''}`}
+                data-testid="dashboard-sensor-note"
+              >
+                {s.warming && s.deltaVsRefC != null
+                  ? `warming · Δ ${formatTempDelta(s.deltaVsRefC, units)} vs Kegtron`
+                  : s.min7dC != null && s.max7dC != null
+                    ? `${formatTempC(s.min7dC, units)}–${formatTempC(s.max7dC, units)} · 7 d`
+                    : 'no history yet'}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="dashboard-stat" data-testid="dashboard-card-keg-room">
+            <span className="dashboard-stat__label">KEG ROOM</span>
+            <span className="dashboard-stat__value font-display font-tabular" data-testid="dashboard-keg-room-temp">
+              {maxTempC != null ? formatTempC(maxTempC, units) : '—'}
+            </span>
+            <span className="dashboard-stat__note">Kegtron monitors</span>
+          </div>
+        )}
         <div className="dashboard-stat" data-testid="dashboard-card-sources">
           <span className="dashboard-stat__label">SOURCES</span>
           <span className="dashboard-stat__value font-display font-tabular" data-testid="dashboard-sources-count">
@@ -406,14 +456,6 @@ export function DashboardPage() {
                 );
               })}
             </ul>
-          )}
-          {maxTempC != null && (
-            <div className="dashboard-sensors" data-testid="dashboard-sensors">
-              <span className="dashboard-sensor-card">
-                <span className="dashboard-sensor-card__name">KEGTRON</span>
-                <span className="dashboard-sensor-card__value font-tabular">{formatTempC(maxTempC, units)}</span>
-              </span>
-            </div>
           )}
         </section>
 

@@ -39,3 +39,14 @@ export function formatTempC(tempC: number, units: VolumeUnits): string {
   const f = (tempC * 9) / 5 + 32;
   return `${Math.round(f)}°F`;
 }
+
+/**
+ * Formats a temperature DIFFERENCE (not an absolute reading) in display units — scales by
+ * 9/5 for Fahrenheit WITHOUT the +32 offset, keeps one decimal, and always shows the sign.
+ * Used for "warmer/cooler than the reference" deltas on the dashboard sensor cards.
+ */
+export function formatTempDelta(deltaC: number, units: VolumeUnits): string {
+  const v = units === 'metric' ? deltaC : (deltaC * 9) / 5;
+  const rounded = Math.round(v * 10) / 10;
+  return `${rounded >= 0 ? '+' : ''}${rounded}°${units === 'metric' ? 'C' : 'F'}`;
+}

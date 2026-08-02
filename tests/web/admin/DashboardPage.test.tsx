@@ -8,7 +8,7 @@ import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
-  getCleaningStatuses, getPoursByDay, getActiveKegStats, type SystemStats,
+  getCleaningStatuses, getPoursByDay, getActiveKegStats, getSensors, type SystemStats,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { SourceStatus } from '../../../src/server/ingest/manager';
@@ -28,6 +28,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getCleaningStatuses: vi.fn(),
   getPoursByDay: vi.fn(),
   getActiveKegStats: vi.fn(),
+  getSensors: vi.fn(),
 }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
@@ -105,6 +106,7 @@ describe('DashboardPage', () => {
     (getCleaningStatuses as Mock).mockResolvedValue({ ok: true, data: [] });
     (getPoursByDay as Mock).mockResolvedValue({ ok: true, data: [] });
     (getActiveKegStats as Mock).mockResolvedValue({ ok: true, data: [] });
+    (getSensors as Mock).mockResolvedValue({ ok: true, data: [] });
   });
 
   afterEach(() => {
@@ -416,6 +418,40 @@ describe('DashboardPage', () => {
     renderAdminPage(<DashboardPage />);
     await flush();
     expect(screen.getByTestId('dashboard-sources-failing')).toHaveTextContent('Kegtron UDP down');
+  });
+
+  it('renders a stat card per temperature sensor, flagging a warming Govee against the Kegtron probe', async () => {
+    (getSensors as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: 1, name: 'Keezer probe', kind: 'kegtron', tempC: 3, humidity: null, lastSeen: null, min7dC: 2, max7dC: 4,
+        },
+        {
+          id: 2, name: 'Garage', kind: 'govee', tempC: 6, humidity: 55, lastSeen: null, min7dC: 5, max7dC: 8,
+        },
+      ],
+    });
+    renderAdminPage(<DashboardPage />, adminContext('admin', 'metric'));
+    await flush();
+    const cards = screen.getAllByTestId('dashboard-sensor-card');
+    expect(cards).toHaveLength(2);
+    // Kegtron first, healthy.
+    expect(cards[0]).toHaveTextContent('KEGTRON');
+    expect(cards[0]).toHaveAttribute('data-warming', 'false');
+    expect(cards[0]).toHaveTextContent('2°C–4°C · 7 d');
+    // Govee 3°C warmer than the reference → warming, humidity shown, delta in the note.
+    expect(cards[1]).toHaveTextContent('GOVEE');
+    expect(cards[1]).toHaveAttribute('data-warming', 'true');
+    expect(cards[1]).toHaveTextContent('55% RH');
+    expect(cards[1]).toHaveTextContent('warming · Δ +3°C vs Kegtron');
+  });
+
+  it('falls back to the KEG ROOM card when no sensors report', async () => {
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-card-keg-room')).toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-sensor-card')).not.toBeInTheDocument();
   });
 
   it('shows the finish-setup hint only while no wall exists', async () => {

@@ -13,7 +13,7 @@ import {
   listWalls, createWall, updateWall, deleteWall,
   listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser,
   getSettings, patchSettings, uploadRestore,
-  getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
+  getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume, getSensors,
   getStatsTemps, getLeaderboard,
   listRecentPours, setPourDrinker,
   listAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
@@ -613,6 +613,12 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await getActiveKegStats();
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/stats/kegs', expect.any(Object));
+  });
+
+  it('getSensors GETs /api/sensors', async () => {
+    mockFetchOnce(200, []);
+    await getSensors();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/sensors', expect.any(Object));
   });
 
   it('getBeersByVolume GETs /api/stats/beers with a days param', async () => {

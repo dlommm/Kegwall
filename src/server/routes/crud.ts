@@ -12,6 +12,7 @@ import {
   listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
 } from '../db/monitors.js';
 import { listTelemetryForDevice } from '../db/telemetry.js';
+import { sensorSummaries } from '../db/sensors.js';
 import { listWallDevices, setWallDevices } from '../db/wallDevices.js';
 import { listPours } from '../db/pours.js';
 import {
@@ -298,6 +299,11 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       { type: m.type, identifier: m.identifier, portIndex: m.portIndex },
     ),
   })));
+  // GET /api/sensors — one summary row per physical, enabled temperature sensor (Kegtron
+  // probe + Govee), with its current reading and trailing-7-day range, for the dashboard's
+  // per-sensor cards. Viewer role (read-only). No owner-cost or credential data involved.
+  app.get('/api/sensors', viewer, async () => sensorSummaries(db));
+
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);
     const id = parseId(req.params);

@@ -6645,6 +6645,22 @@ h2.admin-field__label-text {
   border-radius: 3px;
 }
 
+/* Per-sensor stat cards (redesign 3b). */
+.dashboard-sensor-stat__tag {
+  font-weight: 600;
+}
+
+.dashboard-sensor-stat__tag--kegtron { color: var(--ok); }
+.dashboard-sensor-stat__tag--govee { color: var(--accent); }
+
+.dashboard-sensor-stat--warm {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+}
+
+.dashboard-sensor-stat__value--warm {
+  color: var(--warn);
+}
+
 .dashboard__body {
   display: grid;
   grid-template-columns: 1.5fr 1fr;

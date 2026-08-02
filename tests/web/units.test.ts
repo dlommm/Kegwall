@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatVolumeMl, formatTempC } from '../../src/web/lib/units';
+import { formatVolumeMl, formatTempC, formatTempDelta } from '../../src/web/lib/units';
 
 describe('formatVolumeMl', () => {
   it('formats US units as fluid ounces to one decimal place', () => {
@@ -34,5 +34,17 @@ describe('formatTempC', () => {
   it('renders Celsius directly (rounded) for metric units', () => {
     expect(formatTempC(4, 'metric')).toBe('4°C');
     expect(formatTempC(3.6, 'metric')).toBe('4°C');
+  });
+});
+
+describe('formatTempDelta', () => {
+  it('scales a delta by 9/5 without the +32 offset for us units, always signed', () => {
+    expect(formatTempDelta(2.4, 'us')).toBe('+4.3°F');
+    expect(formatTempDelta(-1, 'us')).toBe('-1.8°F');
+  });
+
+  it('keeps a metric delta in Celsius with one decimal', () => {
+    expect(formatTempDelta(2.4, 'metric')).toBe('+2.4°C');
+    expect(formatTempDelta(0, 'metric')).toBe('+0°C');
   });
 });

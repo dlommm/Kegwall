@@ -333,6 +333,12 @@ export function listMonitors(): Promise<ApiResult<MonitorWithDeviceKeg[]>> {
   return request('/api/monitors');
 }
 
+/** GET /api/sensors — one summary per physical temperature sensor (Kegtron probe + Govee)
+ * with its current reading + trailing-7-day range; feeds the dashboard's per-sensor cards. */
+export function getSensors(): Promise<ApiResult<SensorSummary[]>> {
+  return request('/api/sensors');
+}
+
 /** POST /api/kegtron/import/:monitorId — creates a beer from a bound Pro monitor's
  * current device config (Kegtron import, swap wizard step 2). */
 export function importKegtronBeer(monitorId: number): Promise<ApiResult<Beer>> {
@@ -726,6 +732,7 @@ export function deleteDisplay(id: number): Promise<ApiResult<null>> {
 // --- Pour Wall overhaul Phase 6: analytics + cleaning + doctor ---------------
 
 export type { AnalyticsKpis, PoursByDay, KegBurnStat } from '../../server/db/stats.js';
+export type { SensorSummary } from '../../server/db/sensors.js';
 export type { CleaningStatus, LineCleaning } from '../../server/db/cleanings.js';
 
 /** GET /api/stats/kpis — the Analytics KPI row (design 10a). */
