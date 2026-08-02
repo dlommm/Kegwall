@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { wallConfigSchema, parseWallConfig, type WallConfig } from '../../src/server/core/wallConfig';
 import {
   WALL_TOKEN_KEYS, defaultFormState, configToFormState, formStateToConfigCandidate,
-  parseWallConfigForm, formatZodIssue,
+  parseWallConfigForm, formatZodIssue, recommendedUiScale,
 } from '../../src/web/lib/wallEditorConfig';
 import { TEMPLATE_DEFAULT_FIELDS } from '../../src/web/lib/cardFields';
 
@@ -48,6 +48,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       columns: 4,
       look: 'ledger',
       glyphMode: 'duotone',
+      display: { sizeIn: 65, resolution: '4k', uiScale: 0.95 },
       takeover: { style: 'dock', minMl: 120 },
       viewRotation: {
         enabled: true,
@@ -243,5 +244,31 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       expect(form.displayPowerOffAfterMinutes).toBeNull();
       expect(form.displayPowerCameraMotion).toBe(false);
     });
+  });
+});
+
+describe('display fit (redesign 1c)', () => {
+  it('wallConfigSchema defaults display to 1080p / 55in / uiScale 1 (visual no-op)', () => {
+    expect(wallConfigSchema.parse({}).display).toEqual({ sizeIn: 55, resolution: '1080p', uiScale: 1 });
+  });
+
+  it('display config round-trips through the form state', () => {
+    const form = configToFormState(wallConfigSchema.parse({ display: { sizeIn: 75, resolution: '4k', uiScale: 0.85 } }));
+    expect(form.displaySizeIn).toBe(75);
+    expect(form.displayResolution).toBe('4k');
+    expect(form.displayUiScale).toBe(0.85);
+    const back = formStateToConfigCandidate(form, []);
+    expect(back.display).toEqual({ sizeIn: 75, resolution: '4k', uiScale: 0.85 });
+  });
+
+  it('recommendedUiScale follows the resolution base + size adjust, clamped and 0.05-snapped', () => {
+    expect(recommendedUiScale(55, '1080p')).toBe(1.0); // base, no adjust
+    expect(recommendedUiScale(32, '1080p')).toBe(1.10); // +0.10
+    expect(recommendedUiScale(75, '1080p')).toBe(0.90); // −0.10
+    expect(recommendedUiScale(32, '720p')).toBe(1.25); // 1.15 + 0.10
+    expect(recommendedUiScale(65, '4k')).toBe(0.90); // 0.95 − 0.05
+    // Clamp: never below 0.7 or above 1.5.
+    expect(recommendedUiScale(75, '4k')).toBeGreaterThanOrEqual(0.7);
+    expect(recommendedUiScale(32, '720p')).toBeLessThanOrEqual(1.5);
   });
 });

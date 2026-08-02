@@ -53,6 +53,32 @@ export interface WallConfigFormState {
   displayPowerOffAfterMinutes: number | null;
   displayPowerCameraMotion: boolean;
   fillStyle: WallConfig['fillStyle'];
+  // Display fit (redesign 1c): physical screen profile + UI scale.
+  displaySizeIn: number;
+  displayResolution: WallConfig['display']['resolution'];
+  displayUiScale: number;
+}
+
+// Display-fit recommended UI scale (redesign 1c). A base from the resolution plus a size
+// adjustment, clamped and snapped to the slider's 0.05 step. Picking a size/resolution in the
+// editor sets the scale to this; the operator nudges from there.
+const RESOLUTION_BASE: Record<WallConfig['display']['resolution'], number> = {
+  '720p': 1.15, '1080p': 1.0, '4k': 0.95,
+};
+
+function sizeScaleAdjust(sizeIn: number): number {
+  if (sizeIn <= 32) return 0.10;
+  if (sizeIn <= 43) return 0.05;
+  if (sizeIn <= 60) return 0; // 50" / 55"
+  if (sizeIn <= 70) return -0.05; // 65"
+  return -0.10; // 75"+
+}
+
+/** Recommended UI scale for a screen size + resolution, clamped 0.7–1.5 and snapped to 0.05. */
+export function recommendedUiScale(sizeIn: number, resolution: WallConfig['display']['resolution']): number {
+  const raw = RESOLUTION_BASE[resolution] + sizeScaleAdjust(sizeIn);
+  const clamped = Math.min(1.5, Math.max(0.7, raw));
+  return Math.round(clamped * 20) / 20; // snap to 0.05
 }
 
 function emptyThemeOverrides(): Record<WallTokenKey, string> {
@@ -125,6 +151,9 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     displayPowerScreensaverAfterMinutes: config.displayPower.screensaverAfterMinutes,
     displayPowerOffAfterMinutes: config.displayPower.offAfterMinutes,
     displayPowerCameraMotion: config.displayPower.cameraMotion,
+    displaySizeIn: config.display.sizeIn,
+    displayResolution: config.display.resolution,
+    displayUiScale: config.display.uiScale,
     fillStyle: config.fillStyle,
   };
 }
@@ -190,6 +219,11 @@ export function formStateToConfigCandidate(
       screensaverAfterMinutes: form.displayPowerScreensaverAfterMinutes,
       offAfterMinutes: form.displayPowerOffAfterMinutes,
       cameraMotion: form.displayPowerCameraMotion,
+    },
+    display: {
+      sizeIn: form.displaySizeIn,
+      resolution: form.displayResolution,
+      uiScale: form.displayUiScale,
     },
     fillStyle: form.fillStyle,
   };

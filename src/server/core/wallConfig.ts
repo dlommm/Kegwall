@@ -94,6 +94,17 @@ export const wallConfigSchema = z.object({
   // exactly as before. Applies to the full/standard/minimal card templates only —
   // `compact`'s tiny liquid swatch keeps the liquid swatch regardless (see TapCard.tsx).
   fillStyle: z.enum(['liquid', 'keg']).default('liquid'),
+  // Display fit (WebUI redesign 1c): the wall's physical screen profile. `uiScale`
+  // multiplies every look's base type scale through the `--ui-scale` CSS variable, so an
+  // operator dials legibility for their exact TV size/resolution without touching CSS. The
+  // editor's Display Fit section computes a recommended scale from resolution + size; the
+  // stored value is whatever the operator nudged to. Defaults (1080p / 55in / 1.0) preserve
+  // current rendering exactly (a stored config parsed with this key absent → uiScale 1.0).
+  display: z.object({
+    sizeIn: z.number().int().min(24).max(120).default(55),
+    resolution: z.enum(['720p', '1080p', '4k']).default('1080p'),
+    uiScale: z.number().min(0.7).max(1.5).default(1),
+  }).default({ sizeIn: 55, resolution: '1080p', uiScale: 1 }),
   // Presence & display power (2026-07-31 spec, Part A): per-wall idle timers. Both
   // measure from the last activity. null = that stage never engages. Replaces the
   // legacy `screensaver` key above as the read path (see parseWallConfig below) —

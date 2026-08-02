@@ -344,6 +344,10 @@ export function WallPage() {
       <div
         className={stale ? 'wall-page__dimmable wall-page__dimmable--stale' : 'wall-page__dimmable'}
         data-testid="wall-page-dimmable"
+        // Per-wall UI scale (redesign 1c, hard requirement): exposed as a CSS variable every
+        // look multiplies its base type scale by (calc(Npx * var(--ui-scale))). Default 1 is a
+        // visual no-op, so walls with no display config render exactly as before.
+        style={{ '--ui-scale': config.display?.uiScale ?? 1 } as React.CSSProperties}
       >
         <ScreenCare stage={effectiveStage} taps={taps} title={title} onWake={() => wake()}>
           {currentViewKind === 'leaderboard' ? (
