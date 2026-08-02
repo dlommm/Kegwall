@@ -115,6 +115,36 @@ describe('WallEditor', () => {
     );
   });
 
+  describe('toolbar + chrome (redesign 1c)', () => {
+    it('Save to TVs is disabled until there are unsaved changes, and the status reflects it', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      expect(screen.getByTestId('wall-editor-save')).toBeDisabled();
+      expect(screen.getByTestId('wall-editor-save')).toHaveTextContent('Save to TVs');
+      expect(screen.getByTestId('wall-editor-status')).toHaveTextContent(/in sync/i);
+
+      fireEvent.change(screen.getByTestId('wall-editor-name'), { target: { value: 'New name' } });
+      expect(screen.getByTestId('wall-editor-save')).toBeEnabled();
+      expect(screen.getByTestId('wall-editor-status')).toHaveTextContent(/unsaved/i);
+    });
+
+    it('the first-time banner can be dismissed', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      expect(screen.getByTestId('wall-editor-banner')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('wall-editor-banner-dismiss'));
+      expect(screen.queryByTestId('wall-editor-banner')).toBeNull();
+    });
+
+    it('settings search hides non-matching sections', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      expect(screen.getByTestId('wall-editor-display-fit')).toBeVisible();
+      fireEvent.change(screen.getByTestId('wall-editor-search'), { target: { value: 'theme' } });
+      expect(screen.getByTestId('wall-editor-display-fit')).not.toBeVisible();
+    });
+  });
+
   describe('Display fit (redesign 1c)', () => {
     it('picking a screen size snaps the UI scale to the recommended value', async () => {
       render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
@@ -319,6 +349,8 @@ describe('WallEditor', () => {
     render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={onSaved} />);
     await flush();
 
+    // Save is dirty-gated (redesign 1c) — make an edit so the button enables, then save.
+    fireEvent.change(screen.getByTestId('wall-editor-name'), { target: { value: 'Main bar renamed' } });
     fireEvent.click(screen.getByTestId('wall-editor-save'));
     await flush();
 

@@ -125,6 +125,17 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [errors, setErrors] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  // Dirty tracking (redesign 1c): the toolbar's status + Save-to-TVs enablement compare the
+  // live form/name/slug against a baseline captured at load and reset on each successful save.
+  // DESIGN NOTE: device-selection-only changes aren't counted as dirty (kept simple — the
+  // config, name and slug cover the vast majority of edits).
+  const [baseline, setBaseline] = useState(() => JSON.stringify({
+    form: configToFormState(safeParseWallConfig(wall.config)), name: wall.name, slug: wall.slug,
+  }));
+  // Dismissible first-time banner (redesign 1c).
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  // Settings search (redesign 1c): live-filters the section fieldsets by keyword.
+  const [settingsQuery, setSettingsQuery] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -217,6 +228,15 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const previewConfig = draftParsed.ok ? draftParsed.config : safeParseWallConfig(currentWall.config);
   const previewResPx = RESOLUTIONS.find((r) => r.value === form.displayResolution)?.px ?? '';
 
+  // Live settings filter: a section shows when the query is empty or matches any of its keywords.
+  const q = settingsQuery.trim().toLowerCase();
+  const matchesQuery = (...keywords: string[]) => q === '' || keywords.some((k) => k.toLowerCase().includes(q));
+
+  const dirty = JSON.stringify({ form, name, slug }) !== baseline;
+  const statusText = dirty
+    ? 'Unsaved changes — TVs unaffected'
+    : (savedNotice ? 'Saved · pushed live to your screens' : 'In sync with live wall');
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     setSavedNotice(false);
@@ -260,23 +280,66 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
     }
 
     setCurrentWall(result.data);
+    setBaseline(JSON.stringify({ form, name, slug }));
     setSavedNotice(true);
     onSaved(result.data);
   }
 
   return (
     <div data-testid="wall-editor">
-      <header className="admin-page-header">
-        <div className="wall-editor__heading">
-          <button type="button" className="wall-editor__back" data-testid="wall-editor-back" onClick={onBack}>
-            &larr; Back to walls
-          </button>
-          <h1 className="admin-page-header__title font-display">{`Edit ${currentWall.name}`}</h1>
-        </div>
+      <header className="wall-editor__toolbar" data-testid="wall-editor-toolbar">
+        <button type="button" className="wall-editor__back" data-testid="wall-editor-back" onClick={onBack}>
+          &larr; Walls
+        </button>
+        <h1 className="wall-editor__toolbar-name font-display">{currentWall.name}</h1>
+        <span className="wall-editor__live-chip" data-testid="wall-editor-live-chip">
+          <span className="wall-editor__live-dot" />
+          LIVE PREVIEW
+        </span>
+        <span
+          className={`wall-editor__status wall-editor__status--${dirty ? 'dirty' : 'clean'}`}
+          data-testid="wall-editor-status"
+        >
+          {statusText}
+        </span>
+        <button
+          type="submit"
+          form="wall-editor-form"
+          className={dirty ? 'wall-editor__save wall-editor__save--dirty' : 'wall-editor__save'}
+          data-testid="wall-editor-save"
+          disabled={!dirty || saving}
+        >
+          {saving ? 'Saving…' : 'Save to TVs'}
+        </button>
       </header>
 
       <div className="wall-editor">
-        <form className="wall-editor__form" data-testid="wall-editor-form" onSubmit={handleSave}>
+        <form id="wall-editor-form" className="wall-editor__form" data-testid="wall-editor-form" onSubmit={handleSave}>
+          {!bannerDismissed && (
+            <div className="wall-editor__banner" data-testid="wall-editor-banner">
+              <span>
+                Everything you change previews instantly on the right. TVs don&rsquo;t change until you hit
+                {' '}<strong>Save to TVs</strong>.
+              </span>
+              <button
+                type="button"
+                className="wall-editor__banner-dismiss"
+                data-testid="wall-editor-banner-dismiss"
+                onClick={() => setBannerDismissed(true)}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <input
+            type="search"
+            className="wall-editor__search"
+            data-testid="wall-editor-search"
+            placeholder="Search settings…"
+            value={settingsQuery}
+            onChange={(e) => setSettingsQuery(e.target.value)}
+          />
           <div className="wall-editor__grid">
             <label className="admin-field">
               <span>Name</span>
@@ -380,7 +443,10 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             </label>
           </div>
 
-          <fieldset className="wall-editor__section">
+          <fieldset
+            className="wall-editor__section"
+            style={{ display: matchesQuery('card fields', 'label image', 'brewery', 'style', 'abv', 'ibu', 'description', 'last pour') ? undefined : 'none' }}
+          >
             <legend>Card fields</legend>
             <div className="wall-editor__field-toggles">
               {FIELD_KEYS.map((key) => (
@@ -397,7 +463,10 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             </div>
           </fieldset>
 
-          <fieldset className="wall-editor__section">
+          <fieldset
+            className="wall-editor__section"
+            style={{ display: matchesQuery('theme', 'color', 'override', 'accent', 'background') ? undefined : 'none' }}
+          >
             <legend>Theme</legend>
             <label className="admin-field">
               <span>Theme</span>
@@ -553,7 +622,10 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             </label>
           </div>
 
-          <fieldset className="wall-editor__section">
+          <fieldset
+            className="wall-editor__section"
+            style={{ display: matchesQuery('header', 'title', 'announcement', 'clock', 'temperature') ? undefined : 'none' }}
+          >
             <legend>Header</legend>
             <label className="admin-field">
               <span>Title</span>
@@ -605,7 +677,10 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             />
           </label>
 
-          <fieldset className="wall-editor__section">
+          <fieldset
+            className="wall-editor__section"
+            style={{ display: matchesQuery('view rotation', 'playlist', 'leaderboard', 'seconds') ? undefined : 'none' }}
+          >
             <legend>View rotation</legend>
             <label className="wall-editor__checkbox">
               <input
@@ -648,7 +723,11 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             ))}
           </fieldset>
 
-          <fieldset className="wall-editor__section" data-testid="wall-editor-display-fit">
+          <fieldset
+            className="wall-editor__section"
+            data-testid="wall-editor-display-fit"
+            style={{ display: matchesQuery('display fit', 'screen size', 'resolution', 'ui scale') ? undefined : 'none' }}
+          >
             <legend>Display fit</legend>
             <label className="admin-field">
               <span>Screen size</span>
@@ -695,7 +774,10 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             </p>
           </fieldset>
 
-          <fieldset className="wall-editor__section">
+          <fieldset
+            className="wall-editor__section"
+            style={{ display: matchesQuery('display power', 'screensaver', 'screens off', 'camera motion') ? undefined : 'none' }}
+          >
             <legend>Display power</legend>
             <label className="admin-field">
               <span>Screensaver after (minutes, blank = never)</span>
@@ -744,13 +826,11 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
           )}
 
           <div className="wall-editor__save-row">
-            <button type="submit" className="beer-form__submit" data-testid="wall-editor-save" disabled={saving}>
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
             <p className="wall-editor__live-note" data-testid="wall-editor-live-note">
-              Saving pushes this layout live to any screen currently showing this wall.
+              Changes preview live on the right. Save to TVs pushes this layout to any screen currently
+              showing this wall.
             </p>
-            {savedNotice && <p data-testid="wall-editor-saved-notice">Saved.</p>}
+            {savedNotice && !dirty && <p data-testid="wall-editor-saved-notice">Saved.</p>}
           </div>
         </form>
 
