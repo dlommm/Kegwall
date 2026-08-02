@@ -50,12 +50,18 @@ export async function featurePackRoutes(app: FastifyInstance) {
     const body = z.object({
       rating: z.number().int().min(1).max(5),
       tags: z.array(z.enum(RATING_TAGS)).max(RATING_TAGS.length).default([]),
+      // The pour's claimant — a rating is bound to whoever claimed the pour, so a passerby
+      // can't rate someone else's pour. The claim flow already knows this id.
+      drinkerId: z.number().int(),
     }).parse(req.body);
     const row = db.prepare('SELECT ts, drinker_id FROM pours WHERE id = ?').get(pourId) as
       { ts: string; drinker_id: number | null } | undefined;
     if (!row) return reply.code(404).send({ error: 'not_found', message: 'No such pour' });
     if (row.drinker_id === null) {
       return reply.code(400).send({ error: 'validation', message: 'Claim the pour before rating it' });
+    }
+    if (row.drinker_id !== body.drinkerId) {
+      return reply.code(403).send({ error: 'forbidden', message: 'Only the claimant can rate this pour' });
     }
     if (Date.now() - new Date(row.ts).getTime() > RATE_WINDOW_HOURS * 3600 * 1000) {
       return reply.code(400).send({ error: 'validation', message: 'Rating window closed' });
@@ -127,7 +133,9 @@ export async function featurePackRoutes(app: FastifyInstance) {
     return app.ctx.session.snapshot(db);
   });
 
-  app.post('/api/public/session/join', async (req, reply) => {
+  app.post('/api/public/session/join', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     const body = z.object({ drinkerId: z.number().int() }).parse(req.body);
     const drinker = getUser(db, body.drinkerId);
     if (!drinker || !drinker.isDrinker) {
@@ -142,7 +150,9 @@ export async function featurePackRoutes(app: FastifyInstance) {
 
   app.get('/api/public/session', async () => app.ctx.session.snapshot(db) ?? { active: false });
 
-  app.post('/api/public/session/end', async (req, reply) => {
+  app.post('/api/public/session/end', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
     const recap = app.ctx.session.end(db);
     if (!recap) return reply.code(409).send({ error: 'conflict', message: 'No active session' });
     app.ctx.log.info('tablet', `Session ended — "${recap.name}", ${recap.totals.reduce((s, t) => s + t.pourCount, 0)} pours`);

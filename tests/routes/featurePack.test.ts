@@ -49,25 +49,39 @@ describe('rate-after-claim (design 6a)', () => {
     const ok = await app.inject({
       method: 'POST',
       url: `/api/public/pours/${claimed.id}/rate`,
-      payload: { rating: 5, tags: ['Crisp', 'Perfect temp'] },
+      payload: { rating: 5, tags: ['Crisp', 'Perfect temp'], drinkerId: sam.id },
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.json().rating).toBe(5);
     expect(ok.json().ratingTags).toEqual(['Crisp', 'Perfect temp']);
 
     expect((await app.inject({
-      method: 'POST', url: `/api/public/pours/${unclaimed.id}/rate`, payload: { rating: 4 },
+      method: 'POST', url: `/api/public/pours/${unclaimed.id}/rate`, payload: { rating: 4, drinkerId: sam.id },
     })).statusCode).toBe(400);
     expect((await app.inject({
-      method: 'POST', url: `/api/public/pours/${stale.id}/rate`, payload: { rating: 4 },
+      method: 'POST', url: `/api/public/pours/${stale.id}/rate`, payload: { rating: 4, drinkerId: sam.id },
     })).statusCode).toBe(400);
     expect((await app.inject({
-      method: 'POST', url: `/api/public/pours/${claimed.id}/rate`, payload: { rating: 9 },
+      method: 'POST', url: `/api/public/pours/${claimed.id}/rate`, payload: { rating: 9, drinkerId: sam.id },
     })).statusCode).toBe(400);
 
     // The rated pour now feeds the wall's per-beer average.
     const wallTaps = (await app.inject({ method: 'GET', url: '/api/public/menu' })).json().taps;
     expect(wallTaps[0].avgRating).toBe(5);
+  });
+
+  it('rejects a rating from someone other than the pour\'s claimant (403)', async () => {
+    const db = app.ctx.db;
+    const sam = createDrinker(db, { displayName: 'Sam' });
+    const mallory = createDrinker(db, { displayName: 'Mallory' });
+    const claimed = recordPourTx(db, {
+      kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp', drinkerId: sam.id,
+    }).pour;
+    const res = await app.inject({
+      method: 'POST', url: `/api/public/pours/${claimed.id}/rate`,
+      payload: { rating: 5, drinkerId: mallory.id },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 

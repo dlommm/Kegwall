@@ -33,14 +33,15 @@ const RATE_TAGS = ['Crisp', 'Perfect temp', 'Foamy', 'Flat', 'Off flavor'] as co
 
 /** Design 6a's rate-after-claim: 5 stars + quick tags, shown right on the
  * claim-success panel. The tap's average shows on the wall/menu once rated. */
-function RateAfterClaim({ pourId }: { pourId: number }) {
+function RateAfterClaim({ pourId, drinkerId }: { pourId: number; drinkerId: number | undefined }) {
   const [rating, setRating] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
   const [state, setState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
 
   async function submit(stars: number, chosenTags: string[]) {
+    if (drinkerId === undefined) { setState('error'); return; }
     setState('saving');
-    const result = await ratePourPublic(pourId, stars, chosenTags);
+    const result = await ratePourPublic(pourId, stars, chosenTags, drinkerId);
     setState(result.ok ? 'done' : 'error');
   }
 
@@ -160,7 +161,7 @@ function DrinkerPickerSheet({
         {status === 'success' && (
           <div className="claim-sheet__notice claim-sheet__notice--success" data-testid="claim-sheet-success" role="status">
             <p>{`Claimed for ${claimedDrinker?.displayName ?? 'you'}.`}</p>
-            <RateAfterClaim pourId={pour.id} />
+            <RateAfterClaim pourId={pour.id} drinkerId={claimedDrinker?.id} />
             <button type="button" className="claim-sheet__done" onClick={onClose}>
               Done
             </button>

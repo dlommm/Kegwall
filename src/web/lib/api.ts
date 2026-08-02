@@ -218,10 +218,11 @@ export function ratePourPublic(
   pourId: number,
   rating: number,
   tags: string[],
+  drinkerId: number,
 ): Promise<ApiResult<Pour>> {
   return request<Pour>(`/api/public/pours/${pourId}/rate`, {
     method: 'POST',
-    body: JSON.stringify({ rating, tags }),
+    body: JSON.stringify({ rating, tags, drinkerId }),
   });
 }
 
