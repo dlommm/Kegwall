@@ -8133,6 +8133,17 @@ h2.admin-field__label-text {
   }
 }
 
+/* Final-review C2: a disabled source stays listed (its only re-enable path is this same
+ * table's Edit modal) but reads as visually inactive, same "dim, don't hide" affordance
+ * as `.dashboard-source-badge--unconfigured` elsewhere in this stylesheet. */
+.presence-panel tr[data-enabled='false'] {
+  opacity: 0.55;
+}
+
+.presence-panel tr[data-enabled='false'] td:not(:last-child) {
+  color: var(--text-faint, var(--text-dim));
+}
+
 .presence-ha-snippet {
   margin: 0.75rem 0 0;
   padding: 0.75rem;

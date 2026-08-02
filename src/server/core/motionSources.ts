@@ -119,6 +119,31 @@ export class MotionSourceRegistry {
   snapshot(): Array<{ source: MotionSource; status: MotionSourceStatus }> {
     return this.sources().map((source) => ({ source, status: this.statusOf(source.id) }));
   }
+
+  /**
+   * Final-review C2: every stored source, enabled or not (same `{source, status}` shape
+   * as `snapshot()`) — used by the admin `GET /api/presence/sources` route so a source an
+   * admin just disabled doesn't vanish from the only surface that can re-enable it.
+   * Transport gating (`sources()`, consumed by `ingest/bootstrap.ts`) is untouched and
+   * stays enabled-only; this is purely an admin-visibility read.
+   */
+  snapshotAll(): Array<{ source: MotionSource; status: MotionSourceStatus }> {
+    return this.allSources().map((source) => ({ source, status: this.statusOf(source.id) }));
+  }
+
+  /** Final-review M2: drops a source's in-memory runtime status when it's actually
+   * deleted (routes/presence.ts's DELETE route) — otherwise a stale health/
+   * lastTriggeredAt entry for an id that no longer has a `motionSources` row sits in
+   * `statuses` forever (unbounded growth across create/delete churn, and a confusing
+   * resurfaced status if that exact id space were ever reused). `Map.delete` on a
+   * missing key is a no-op, matching the route's own idempotent-delete semantics.
+   * Deliberately id-scoped rather than a broad reconcile-against-`allSources()` sweep --
+   * a camera row's `camera:<slug>` sentinel status (stamped by `trigger()` above) has no
+   * corresponding `motionSources` row EVER, so a blanket "drop anything not in
+   * allSources()" pass would wrongly wipe every camera row's `lastTriggeredAt` too. */
+  forgetStatus(id: string): void {
+    this.statuses.delete(id);
+  }
 }
 
 /**

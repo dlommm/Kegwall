@@ -80,6 +80,60 @@ describe('MotionSourceRegistry', () => {
     expect(registry.statusOf('abc-123')).toMatchObject({ healthy: false, detail: 'broker down' });
     expect(registry.snapshot()[0]?.status.healthy).toBe(false);
   });
+
+  // Final-review C2: `snapshotAll()` is what GET /api/presence/sources reads now -- a
+  // disabled source has no other admin surface, so it must stay visible there.
+  describe('snapshotAll', () => {
+    it('includes disabled sources (unlike snapshot, which excludes them)', () => {
+      const { settings, registry } = makeRegistry();
+      settings.set('motionSources', [SRC, { ...SRC, id: 'def-456', enabled: false }] as never);
+      expect(registry.snapshot()).toHaveLength(1); // enabled-only
+      const all = registry.snapshotAll();
+      expect(all).toHaveLength(2);
+      expect(all.map((s) => s.source.id).sort()).toEqual(['abc-123', 'def-456']);
+    });
+
+    it('carries each source\'s own status, same shape as snapshot', () => {
+      const { settings, registry } = makeRegistry();
+      settings.set('motionSources', [{ ...SRC, enabled: false }] as never);
+      registry.markHealth('abc-123', false, 'broker down');
+      expect(registry.snapshotAll()[0]?.status).toMatchObject({ healthy: false, detail: 'broker down' });
+    });
+
+    it('drops malformed entries with a warn log, same as sources()/allSources()', () => {
+      const { settings, registry } = makeRegistry();
+      settings.set('motionSources', [SRC, { id: 'bad' }] as never);
+      expect(registry.snapshotAll()).toHaveLength(1);
+    });
+  });
+
+  // Final-review M2: a deleted source's runtime status (health/lastTriggeredAt) must not
+  // linger in the registry forever once there's no `motionSources` row for it anymore.
+  describe('forgetStatus', () => {
+    it('drops a source\'s status entry so statusOf reverts to the default', () => {
+      const { settings, registry } = makeRegistry();
+      settings.set('motionSources', [SRC] as never);
+      registry.trigger('abc-123');
+      expect(registry.statusOf('abc-123').lastTriggeredAt).not.toBeNull();
+
+      registry.forgetStatus('abc-123');
+      expect(registry.statusOf('abc-123')).toEqual({ lastTriggeredAt: null, healthy: true, detail: '' });
+    });
+
+    it('is a no-op for an id with no status entry (idempotent, matches the DELETE route\'s own idempotency)', () => {
+      const { registry } = makeRegistry();
+      expect(() => registry.forgetStatus('never-existed')).not.toThrow();
+    });
+
+    it('never touches a DIFFERENT id\'s status, including a camera sentinel\'s', () => {
+      const { registry } = makeRegistry();
+      registry.trigger('camera:main');
+      expect(registry.statusOf('camera:main').lastTriggeredAt).not.toBeNull();
+
+      registry.forgetStatus('some-deleted-source-id');
+      expect(registry.statusOf('camera:main').lastTriggeredAt).not.toBeNull();
+    });
+  });
 });
 
 describe('parseMotionSources', () => {

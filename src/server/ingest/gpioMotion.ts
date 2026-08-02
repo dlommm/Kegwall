@@ -35,12 +35,17 @@ export function parseGpiomonLine(line: string): 'rising' | 'falling' | null {
   return null;
 }
 
-/** The exact actionable detail `source_status`/`registry.markHealth` report for every
- * failure mode below (spawn error, non-zero exit) -- deliberately one fixed string (with
- * stderr appended when gpiomon produced any) rather than a different message per failure
- * mode, since the fix an admin needs to make is the same regardless of which particular
- * way "gpiomon isn't usable here" manifested. */
-const UNHEALTHY_DETAIL = 'gpiomon not found — install libgpiod and map /dev/gpiochip0 into the container';
+/** The exact actionable detail `source_status`/`registry.markHealth` report once BOTH
+ * spawn attempts for a source have failed (final-review I3: see `startOne`'s
+ * `spawnAttempt` below for the v1 → v2 `--chip` retry that has to fail twice before this
+ * ever fires) -- deliberately
+ * one fixed string (with stderr appended when gpiomon produced any) rather than a
+ * different message per failure mode, since the fix an admin needs to make is the same
+ * regardless of which particular way "gpiomon isn't usable here" manifested. Widened from
+ * the pre-I3 wording (which only ever said "gpiomon not found") to cover the OTHER half
+ * of the retry: a libgpiod version mismatch, where the binary IS found but rejects the
+ * arg syntax the other major version uses. */
+const UNHEALTHY_DETAIL = 'gpiomon failed — install libgpiod (v1 or v2) and map /dev/gpiochip0 into the container';
 
 /** How long a gpiomon child runs with no output before being declared healthy anyway
  * (per-source `markHealth(id, true, ...)`) -- a PIR sensor that simply hasn't seen motion
@@ -123,77 +128,118 @@ export class GpioMotionSource implements Source {
     this.children = [];
   }
 
+  /**
+   * Spawns gpiomon for one configured source, with ONE retry (final-review I3) before
+   * ever reporting unhealthy: `gpiomon`'s CLI arg syntax changed between libgpiod v1
+   * (`gpiomon <chip> <line>`, positional) and v2 (`gpiomon --chip <chip> <line>`) — a
+   * host running the "wrong" major version for whichever form is tried first fails
+   * immediately with a misleading detail that looks like "not found" when the binary is
+   * actually right there. The first unexpected exit/error for a source's CURRENT attempt
+   * (whichever form it used) gets exactly one respawn in the OTHER form before this
+   * source is finally reported unhealthy — `retried` (shared across both attempts, via
+   * this closure) is what caps it at one, and `finalReported` (also shared) is what
+   * guards the eventual healthy/unhealthy verdict to at most once total, mirroring
+   * fix-round-1's single-attempt `reported` gate one level up.
+   */
   private startOne(source: GpioMotionSourceOptions['sources'][number]): void {
-    let child: ChildProcessWithoutNullStreams;
-    try {
-      child = this.spawnFn('gpiomon', [source.chip, String(source.line)]);
-    } catch (err) {
-      // A synchronous throw out of spawnFn itself (the fake test seam can do this; real
-      // Node `spawn()` normally reports ENOENT via the async 'error' event below instead)
-      // -- still must not propagate out of start().
-      this.reportUnhealthy(source.id, err instanceof Error ? err.message : String(err));
-      return;
-    }
-    this.children.push(child);
+    let retried = false;
+    let finalReported = false;
 
-    let stderrText = '';
-    // `reported` gates BOTH the healthy-grace-timer AND every failure path so a child
-    // reports its health determination AT MOST once -- e.g. an ENOENT 'error' event
-    // immediately followed by an 'exit' for the same dead process must not double-report.
-    let reported = false;
     const reportHealthyOnce = (): void => {
-      if (this.stopped || reported) return;
-      reported = true;
-      clearTimeout(graceTimer);
+      if (this.stopped || finalReported) return;
+      finalReported = true;
       this.reportHealthy(source.id);
     };
-    const reportUnhealthyOnce = (): void => {
-      if (this.stopped || reported) return;
-      reported = true;
-      clearTimeout(graceTimer);
-      this.reportUnhealthy(source.id, stderrText);
-    };
-    const graceTimer = setTimeout(reportHealthyOnce, HEALTHY_GRACE_MS);
-    // Never let this timer alone keep the process (or a test's fake-timer runner) alive.
-    graceTimer.unref?.();
 
-    child.stdout.on('data', (chunk: Buffer | string) => {
-      if (this.stopped) return; // a killed child's buffered stdout flushing late must
-                                 // not trigger a debounced wake.
-      reportHealthyOnce(); // any output at all proves gpiomon is attached and streaming.
-      for (const rawLine of chunk.toString().split('\n')) {
-        const line = rawLine.trim();
-        if (line) this.handleLine(source, line);
+    const spawnAttempt = (isRetry: boolean): void => {
+      if (this.stopped) return; // I3: never spawn into a torn-down source (also what
+                                 // makes "stop() lands during the retry window" a no-op).
+      let stderrText = '';
+      // `attemptDone` gates THIS attempt's own failure path so an ENOENT 'error' event
+      // immediately followed by an 'exit' for the SAME dead child triggers at most one
+      // retry/report decision — the same "reported once" idiom fix-round-1 used, now
+      // scoped per attempt rather than per source (there are up to two attempts now).
+      let attemptDone = false;
+      let graceTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const onAttemptFailed = (): void => {
+        if (attemptDone) return;
+        attemptDone = true;
+        clearTimeout(graceTimer);
+        if (this.stopped || finalReported) return;
+        if (!isRetry && !retried) {
+          // The FIRST attempt's first failure, whichever event reported it — retry once,
+          // in the other libgpiod arg form, before giving up on this source.
+          retried = true;
+          spawnAttempt(true);
+          return;
+        }
+        // Either this WAS the retry, or (defensively) a retry was somehow already spent —
+        // both attempts are now exhausted, so this is the final, widened-detail verdict.
+        finalReported = true;
+        this.reportUnhealthy(source.id, stderrText);
+      };
+
+      const args = isRetry
+        ? ['--chip', source.chip, String(source.line)] // libgpiod v2 form
+        : [source.chip, String(source.line)]; // libgpiod v1 form (tried first)
+      let child: ChildProcessWithoutNullStreams;
+      try {
+        child = this.spawnFn('gpiomon', args);
+      } catch (err) {
+        // A synchronous throw out of spawnFn itself (the fake test seam can do this; real
+        // Node `spawn()` normally reports ENOENT via the async 'error' event below instead)
+        // -- still must not propagate out of start().
+        stderrText = err instanceof Error ? err.message : String(err);
+        onAttemptFailed();
+        return;
       }
-    });
+      this.children.push(child);
 
-    child.stderr.on('data', (chunk: Buffer | string) => {
-      if (this.stopped) return;
-      stderrText += chunk.toString();
-    });
+      graceTimer = setTimeout(reportHealthyOnce, HEALTHY_GRACE_MS);
+      // Never let this timer alone keep the process (or a test's fake-timer runner) alive.
+      graceTimer.unref?.();
 
-    // Real Node's ENOENT-style spawn failure surfaces here, asynchronously, rather than
-    // as a synchronous throw -- see the try/catch above for the (test-only) other case.
-    child.on('error', () => {
-      if (this.stopped) return;
-      reportUnhealthyOnce();
-    });
+      child.stdout.on('data', (chunk: Buffer | string) => {
+        if (this.stopped) return; // a killed child's buffered stdout flushing late must
+                                   // not trigger a debounced wake.
+        reportHealthyOnce(); // any output at all proves gpiomon is attached and streaming.
+        for (const rawLine of chunk.toString().split('\n')) {
+          const line = rawLine.trim();
+          if (line) this.handleLine(source, line);
+        }
+      });
 
-    // Fix-round-1 review finding (F1+F2): a gpiomon process that exits ON ITS OWN, for
-    // ANY reason -- code 0, non-zero, or killed by a signal -- is unexpected and
-    // unhealthy, full stop, as long as `stop()` hasn't been called yet: a well-behaved
-    // gpiomon runs forever watching the line until killed, so there's no such thing as
-    // "gpiomon finished successfully" while this source is still meant to be live. The
-    // PREVIOUS `code === 0` special case was wrong in the other direction too: `kill()`
-    // (SIGTERM, from `stop()` above) typically surfaces here as `code: null, signal:
-    // 'SIGTERM'`, not `code: 0` -- so that check neither protected the real stop() path
-    // NOR correctly distinguished it from a genuine failure. The `this.stopped` guard
-    // (checked first, inside `reportUnhealthyOnce`) is what actually distinguishes
-    // "we killed it on purpose" from "it died on its own" now.
-    child.on('exit', () => {
-      if (this.stopped) return;
-      reportUnhealthyOnce();
-    });
+      child.stderr.on('data', (chunk: Buffer | string) => {
+        if (this.stopped) return;
+        stderrText += chunk.toString();
+      });
+
+      // Real Node's ENOENT-style spawn failure surfaces here, asynchronously, rather than
+      // as a synchronous throw -- see the try/catch above for the (test-only) other case.
+      child.on('error', () => {
+        if (this.stopped) return;
+        onAttemptFailed();
+      });
+
+      // Fix-round-1 review finding (F1+F2): a gpiomon process that exits ON ITS OWN, for
+      // ANY reason -- code 0, non-zero, or killed by a signal -- is unexpected and
+      // unhealthy, full stop, as long as `stop()` hasn't been called yet: a well-behaved
+      // gpiomon runs forever watching the line until killed, so there's no such thing as
+      // "gpiomon finished successfully" while this source is still meant to be live. The
+      // PREVIOUS `code === 0` special case was wrong in the other direction too: `kill()`
+      // (SIGTERM, from `stop()` above) typically surfaces here as `code: null, signal:
+      // 'SIGTERM'`, not `code: 0` -- so that check neither protected the real stop() path
+      // NOR correctly distinguished it from a genuine failure. The `this.stopped` guard
+      // (checked first, inside `onAttemptFailed`) is what actually distinguishes
+      // "we killed it on purpose" from "it died on its own" now.
+      child.on('exit', () => {
+        if (this.stopped) return;
+        onAttemptFailed();
+      });
+    };
+
+    spawnAttempt(false);
   }
 
   private handleLine(source: GpioMotionSourceOptions['sources'][number], line: string): void {
@@ -226,10 +272,13 @@ export class GpioMotionSource implements Source {
    * anything -- is appended to the fixed actionable `UNHEALTHY_DETAIL` message per the
    * brief ("stderr captured into the unhealthy detail"), rather than replacing it, so the
    * admin always sees both the fix ("install libgpiod...") and whatever gpiomon itself
-   * said about why. */
+   * said about why. Only the LAST (i.e. retry) attempt's stderr is captured here (I3) --
+   * `startOne`'s `stderrText` resets per attempt, so a v1-syntax attempt's own
+   * "unrecognized option"-style noise never pollutes the v2 retry's actual failure
+   * reason, which is the one that matters once both have failed. */
   private reportUnhealthy(id: string, stderrText: string): void {
     const trimmed = stderrText.trim();
-    const detail = trimmed ? `${UNHEALTHY_DETAIL} (${trimmed})` : UNHEALTHY_DETAIL;
+    const detail = trimmed ? `${UNHEALTHY_DETAIL}; stderr: ${trimmed}` : UNHEALTHY_DETAIL;
     this.bus.emit('source_status', { source: 'motion_gpio', healthy: false, detail, ts: new Date().toISOString() });
     this.registry.markHealth(id, false, detail);
   }

@@ -160,7 +160,128 @@ describe('GpioMotionSource', () => {
     expect(registry.trigger).toHaveBeenCalledTimes(2);
   });
 
-  it('ENOENT spawn error (spawnFn throws synchronously) reports unhealthy with actionable detail, never throws', async () => {
+  // Final-review I3: gpiomon's CLI arg syntax changed between libgpiod v1 (positional
+  // `<chip> <line>`, tried first) and v2 (`--chip <chip> <line>`) -- a host running the
+  // "wrong" version for whichever form is tried first must get exactly ONE retry in the
+  // other form before this source is ever reported unhealthy.
+  describe('libgpiod v1/v2 retry (final-review I3)', () => {
+    it('a v1-arg attempt that dies gets ONE retry in v2 (--chip) form, and is healthy on that retry\'s output', async () => {
+      const { spawnFn, children, calls } = fakeSpawn();
+      const source = new GpioMotionSource({
+        sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+        registry: registry as unknown as MotionSourceRegistry,
+        bus,
+        spawnFn: spawnFn as never,
+      });
+      await source.start();
+
+      children[0]!.emit('exit', 1, null); // v1-syntax gpiomon fails on a libgpiod-v2-only host
+
+      expect(calls).toEqual([
+        ['gpiomon', ['gpiochip0', '4']],
+        ['gpiomon', ['--chip', 'gpiochip0', '4']],
+      ]);
+      expect(registry.markHealth).not.toHaveBeenCalled(); // no verdict yet -- the retry is still pending
+
+      children[1]!.stdout.write('1234.567890 rising gpiochip0 4\n');
+
+      expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: true });
+      expect(registry.markHealth).toHaveBeenCalledTimes(1);
+      expect(registry.markHealth).toHaveBeenCalledWith('gpio-1', true, expect.any(String));
+    });
+
+    it('both the v1 attempt and its v2 retry dying reports unhealthy exactly once, with a widened detail', async () => {
+      const { spawnFn, children, calls } = fakeSpawn();
+      const source = new GpioMotionSource({
+        sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+        registry: registry as unknown as MotionSourceRegistry,
+        bus,
+        spawnFn: spawnFn as never,
+      });
+      await source.start();
+
+      children[0]!.stderr.write('gpiomon: unrecognized option \'--chip\'\n');
+      children[0]!.emit('exit', 1, null);
+      children[1]!.stderr.write('gpiochip0: No such device\n');
+      children[1]!.emit('exit', 1, null);
+
+      expect(calls).toEqual([
+        ['gpiomon', ['gpiochip0', '4']],
+        ['gpiomon', ['--chip', 'gpiochip0', '4']],
+      ]);
+      const unhealthyStatuses = statuses.filter((s) => !s.healthy);
+      expect(unhealthyStatuses).toHaveLength(1);
+      expect(registry.markHealth).toHaveBeenCalledTimes(1);
+      expect(registry.markHealth).toHaveBeenCalledWith(
+        'gpio-1', false, expect.stringContaining('install libgpiod (v1 or v2)'),
+      );
+      // Only the LAST (retry) attempt's stderr is captured -- see reportUnhealthy's doc
+      // comment.
+      expect(registry.markHealth).toHaveBeenCalledWith(
+        'gpio-1', false, expect.stringContaining('No such device'),
+      );
+    });
+
+    it('stop() landing right after the v1 attempt dies (during the retry window) yields no health report', async () => {
+      const { spawnFn, children, calls } = fakeSpawn();
+      const source = new GpioMotionSource({
+        sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+        registry: registry as unknown as MotionSourceRegistry,
+        bus,
+        spawnFn: spawnFn as never,
+      });
+      await source.start();
+
+      children[0]!.emit('exit', 1, null); // v1 attempt dies -- synchronously spawns the v2 retry
+      expect(calls).toEqual([
+        ['gpiomon', ['gpiochip0', '4']],
+        ['gpiomon', ['--chip', 'gpiochip0', '4']],
+      ]);
+
+      await source.stop();
+      // A late exit on the retry child (e.g. the SIGTERM from stop()'s own kill()) must
+      // not report anything either -- same `stopped` guard as every other post-stop()
+      // event.
+      children[1]!.emit('exit', null, 'SIGTERM');
+
+      expect(registry.markHealth).not.toHaveBeenCalled();
+      expect(statuses).toEqual([]);
+    });
+
+    it("error+exit double-firing on a SINGLE attempt (v1 or its v2 retry) still counts as just that one attempt's failure", async () => {
+      const spawnFn = vi.fn(() => Object.assign(new EventEmitter(), {
+        stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(),
+      }) as FakeChild);
+      const source = new GpioMotionSource({
+        sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+        registry: registry as unknown as MotionSourceRegistry,
+        bus,
+        spawnFn: spawnFn as never,
+      });
+      await source.start();
+      const first = spawnFn.mock.results[0]!.value as FakeChild;
+
+      first.emit('error', Object.assign(new Error('spawn gpiomon ENOENT'), { code: 'ENOENT' }));
+      first.emit('exit', null, null); // double-fire on the SAME (v1) attempt -- still one retry
+
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+      expect(spawnFn.mock.calls[1]).toEqual(['gpiomon', ['--chip', 'gpiochip0', '4']]);
+      expect(registry.markHealth).not.toHaveBeenCalled(); // the v2 retry hasn't failed yet
+
+      const second = spawnFn.mock.results[1]!.value as FakeChild;
+      second.emit('error', Object.assign(new Error('spawn gpiomon ENOENT'), { code: 'ENOENT' }));
+      second.emit('exit', null, null); // double-fire on the v2 retry too -- still one final report
+
+      const unhealthyStatuses = statuses.filter((s) => !s.healthy);
+      expect(unhealthyStatuses).toHaveLength(1);
+      expect(registry.markHealth).toHaveBeenCalledTimes(1);
+      expect(registry.markHealth).toHaveBeenCalledWith(
+        'gpio-1', false, expect.stringMatching(/gpiomon failed/i),
+      );
+    });
+  });
+
+  it('ENOENT spawn error (spawnFn throws synchronously on BOTH attempts) retries once in v2 form, then reports unhealthy with the widened detail, never throws', async () => {
     const spawnFn = vi.fn(() => {
       throw Object.assign(new Error('spawn gpiomon ENOENT'), { code: 'ENOENT' });
     });
@@ -173,14 +294,18 @@ describe('GpioMotionSource', () => {
 
     await expect(source.start()).resolves.toBeUndefined();
 
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    expect(spawnFn).toHaveBeenNthCalledWith(1, 'gpiomon', ['gpiochip0', '4']);
+    expect(spawnFn).toHaveBeenNthCalledWith(2, 'gpiomon', ['--chip', 'gpiochip0', '4']);
     expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: false });
-    expect(statuses.at(-1)!.detail).toMatch(/gpiomon not found/i);
+    expect(statuses.at(-1)!.detail).toMatch(/gpiomon failed/i);
+    expect(registry.markHealth).toHaveBeenCalledTimes(1);
     expect(registry.markHealth).toHaveBeenCalledWith(
-      'gpio-1', false, expect.stringMatching(/gpiomon not found/i),
+      'gpio-1', false, expect.stringMatching(/gpiomon failed/i),
     );
   });
 
-  it("ENOENT spawn error (child emits 'error' asynchronously) reports unhealthy, never throws", async () => {
+  it("ENOENT spawn error (child emits 'error' asynchronously) triggers exactly one v2 (--chip) retry", async () => {
     const spawnFn = vi.fn(() => {
       const child = Object.assign(new EventEmitter(), {
         stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(),
@@ -196,33 +321,15 @@ describe('GpioMotionSource', () => {
     });
 
     await expect(source.start()).resolves.toBeUndefined();
+    // A single tick is enough: Node defers a setImmediate scheduled DURING a currently-
+    // executing immediate callback to the NEXT loop iteration, so the v1 attempt's async
+    // 'error' fires (and synchronously spawns the v2 retry) within this one await, while
+    // the v2 retry's OWN async 'error' hasn't fired yet.
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: false });
-    expect(statuses.at(-1)!.detail).toMatch(/gpiomon not found/i);
-    expect(registry.markHealth).toHaveBeenCalledWith(
-      'gpio-1', false, expect.stringMatching(/gpiomon not found/i),
-    );
-  });
-
-  it('captures stderr into the unhealthy detail on a non-zero exit', async () => {
-    const { spawnFn, children } = fakeSpawn();
-    const source = new GpioMotionSource({
-      sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
-      registry: registry as unknown as MotionSourceRegistry,
-      bus,
-      spawnFn: spawnFn as never,
-    });
-    await source.start();
-    const child = children[0]!;
-
-    child.stderr.write('gpiochip0: No such device\n');
-    child.emit('exit', 1);
-
-    expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: false });
-    expect(registry.markHealth).toHaveBeenCalledWith(
-      'gpio-1', false, expect.stringContaining('No such device'),
-    );
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    expect(spawnFn).toHaveBeenNthCalledWith(2, 'gpiomon', ['--chip', 'gpiochip0', '4']);
+    expect(registry.markHealth).not.toHaveBeenCalled(); // still pending -- the retry's own error hasn't fired
   });
 
   it('a killed child\'s late SIGTERM exit after stop() is not reported unhealthy '
@@ -242,9 +349,10 @@ describe('GpioMotionSource', () => {
     expect(statuses).toEqual([]);
   });
 
-  it('an unexpected exit code 0 WITHOUT stop() still reports unhealthy '
-    + '(fix-round-1 F1+F2: any self-exit before stop() is a dead process, code 0 included)', async () => {
-    const { spawnFn, children } = fakeSpawn();
+  it('an unexpected exit code 0 on the v1 attempt triggers the v2 retry rather than an immediate report '
+    + '(fix-round-1 F1+F2: any self-exit before stop() is a dead process, code 0 included; final-review I3: '
+    + 'but now owes one retry before that verdict is final)', async () => {
+    const { spawnFn, children, calls } = fakeSpawn();
     const source = new GpioMotionSource({
       sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
       registry: registry as unknown as MotionSourceRegistry,
@@ -254,36 +362,16 @@ describe('GpioMotionSource', () => {
     await source.start();
     children[0]!.emit('exit', 0, null);
 
+    expect(registry.markHealth).not.toHaveBeenCalled(); // not yet -- one retry is still owed
+    expect(calls).toEqual([
+      ['gpiomon', ['gpiochip0', '4']],
+      ['gpiomon', ['--chip', 'gpiochip0', '4']],
+    ]);
+
+    children[1]!.emit('exit', 0, null); // the v2 retry ALSO exits unexpectedly
     expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: false });
-    expect(registry.markHealth).toHaveBeenCalledWith('gpio-1', false, expect.any(String));
-  });
-
-  it("an ENOENT 'error' immediately followed by 'exit' reports unhealthy exactly once "
-    + '(fix-round-1 F1+F2: reported-once guard)', async () => {
-    const spawnFn = vi.fn(() => {
-      const child = Object.assign(new EventEmitter(), {
-        stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(),
-      }) as FakeChild;
-      return child;
-    });
-    const source = new GpioMotionSource({
-      sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
-      registry: registry as unknown as MotionSourceRegistry,
-      bus,
-      spawnFn: spawnFn as never,
-    });
-    await source.start();
-    const child = spawnFn.mock.results[0]!.value as FakeChild;
-
-    child.emit('error', Object.assign(new Error('spawn gpiomon ENOENT'), { code: 'ENOENT' }));
-    child.emit('exit', null, null); // real Node also fires 'exit' after 'error' in some cases
-
-    const unhealthyStatuses = statuses.filter((s) => !s.healthy);
-    expect(unhealthyStatuses).toHaveLength(1);
     expect(registry.markHealth).toHaveBeenCalledTimes(1);
-    expect(registry.markHealth).toHaveBeenCalledWith(
-      'gpio-1', false, expect.stringMatching(/gpiomon not found/i),
-    );
+    expect(registry.markHealth).toHaveBeenCalledWith('gpio-1', false, expect.any(String));
   });
 
   it('reports healthy on the first stdout line', async () => {

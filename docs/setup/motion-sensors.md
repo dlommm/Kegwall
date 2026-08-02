@@ -131,8 +131,10 @@ Two notes on the hardware itself:
 **Docker**: the container needs the chardev mapped in explicitly (`--device
 /dev/gpiochip0`, or `devices: [/dev/gpiochip0]` in Compose) — see
 [docker.md's GPIO device-mapping section](../install/docker.md#gpio-pir-motion-sensors-device-mapping)
-for both compose files. Without it, the Health column reports `motion_gpio` down with an
-"install libgpiod and map /dev/gpiochip0 into the container" detail.
+for both compose files. Without it, the Health column reports `motion_gpio` down with a
+"gpiomon failed — install libgpiod (v1 or v2) and map /dev/gpiochip0 into the container"
+detail (Kegwall tries both libgpiod v1's and v2's `gpiomon` arg syntax before giving up,
+so this same detail covers a missing device mapping either way).
 
 **Bare metal**: install libgpiod's userspace tools —
 
@@ -233,7 +235,9 @@ you'd rather not create a dedicated source row, but you lose that per-source att
 ## See also
 
 - [docs/install/raspberry-pi.md](../install/raspberry-pi.md#gpio-pir-motion-sensors) —
-  bare-metal `gpiod` install, Bluetooth setup for BLE sources.
+  bare-metal `gpiod` install.
+- [docs/install/raspberry-pi.md](../install/raspberry-pi.md#bluetooth-fallback-kegtron-gen-1--pro) —
+  Bluetooth adapter setup shared with `ble`-type motion sources (Shelly BLU Motion above).
 - [docs/install/docker.md](../install/docker.md#gpio-pir-motion-sensors-device-mapping) —
   `/dev/gpiochip0` device mapping for GPIO PIR sensors in a container.
 - [docs/install/display-agent.md](../install/display-agent.md) — the flip side of

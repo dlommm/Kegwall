@@ -123,8 +123,14 @@ beforeEach(() => {
   (updatePresenceSource as Mock).mockResolvedValue({ ok: true, data: SRC });
   (deletePresenceSource as Mock).mockResolvedValue({ ok: true, data: null });
   (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+  // Final-review C1 test contract: `GET`/`PATCH /api/settings` NEVER return a raw secret
+  // — `presenceWebhookToken` ∈ SECRET_KEYS (db/settings.ts), so the real API always masks
+  // it ('••••' + last4, `SettingsStore.masked()`) in both responses. The default mock
+  // below is unused by most tests (only `patchSettings` calls read it), but it has to be
+  // shaped like the real response so a test that DOESN'T override it still exercises the
+  // masked contract rather than a plaintext value the real server would never send.
   (patchSettings as Mock).mockResolvedValue({
-    ok: true, data: baseSettings({ presenceWebhookToken: 'a-fresh-token' }),
+    ok: true, data: baseSettings({ presenceWebhookToken: '••••eshy' }),
   });
 });
 
@@ -396,8 +402,12 @@ describe('PresencePage', () => {
       expect(screen.getByTestId('source-ble-mac')).toBeInTheDocument();
     });
 
-    it('a webhook-type source row shows its full copy-paste URL with the real token and its id', async () => {
-      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-1' }) });
+    // Final-review C1: `GET /api/settings` only ever returns a MASKED token (real API
+    // contract, `SettingsStore.masked()`) — with no `freshToken` in hand (this page never
+    // generated one this session), the row's URL must render the literal `<token>`
+    // placeholder, and must NEVER interpolate the mask itself (that would 401 on paste).
+    it('a webhook-type source row shows a <token> placeholder URL (never the mask) when only a masked token is known, with a regenerate hint', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: '••••ok-1' }) });
       (getPresenceSources as Mock).mockResolvedValue({
         ok: true,
         data: {
@@ -410,13 +420,16 @@ describe('PresencePage', () => {
       });
       renderPresencePage();
       const url = await screen.findByTestId('source-webhook-url-wh-1');
-      expect(url).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=tok-1&source=wh-1`);
+      expect(url).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=<token>&source=wh-1`);
+      expect(url).not.toHaveTextContent('••••');
+      expect(screen.getByTestId('source-webhook-url-hint-wh-1')).toHaveTextContent(/regenerate the token/i);
     });
 
     // Review fix F2: a webhook-type row's own HA snippet is attributed (`&source=<id>`),
-    // not the generic panel-level one.
-    it('a webhook-type source row has its own attributed HA snippet with &source=<id>', async () => {
-      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-1' }) });
+    // not the generic panel-level one. Final-review C1: same placeholder-until-regenerated
+    // gating as the row's own URL above (they're built from the same `webhookUrl()`).
+    it('a webhook-type source row has its own attributed HA snippet with &source=<id>, placeholder until regenerated', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: '••••ok-1' }) });
       (getPresenceSources as Mock).mockResolvedValue({
         ok: true,
         data: {
@@ -429,7 +442,100 @@ describe('PresencePage', () => {
       });
       renderPresencePage();
       const snippet = await screen.findByTestId('ha-snippet-wh-1');
-      expect(snippet).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=tok-1&source=wh-1`);
+      expect(snippet).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=<token>&source=wh-1`);
+      expect(snippet).not.toHaveTextContent('••••');
+    });
+
+    // Final-review C1 test contract: after a REAL Generate (this tab's own
+    // `crypto.randomUUID()`, kept in `freshToken` state), the row's URL/snippet use the
+    // raw value, and the placeholder hint disappears.
+    it('after Generate, a webhook-type source row\'s URL and HA snippet use the raw generated token', async () => {
+      const uuidSpy = vi.spyOn(crypto, 'randomUUID')
+        .mockReturnValue('22222222-2222-4222-8222-222222222222' as ReturnType<typeof crypto.randomUUID>);
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{
+            source: { ...SRC, id: 'wh-1', type: 'webhook', config: {} },
+            status: { lastTriggeredAt: null, healthy: true, detail: '' },
+          }],
+          camera: [], agents: [],
+        },
+      });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: '••••2222' }) });
+      renderPresencePage();
+      await screen.findByTestId('source-webhook-url-wh-1');
+      expect(screen.getByTestId('source-webhook-url-hint-wh-1')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('webhook-token-generate'));
+      await waitFor(() => expect(patchSettings).toHaveBeenCalled());
+
+      const expectedUrl = `${window.location.origin}/api/presence/motion?`
+        + 'token=22222222-2222-4222-8222-222222222222&source=wh-1';
+      await waitFor(() => expect(screen.getByTestId('source-webhook-url-wh-1')).toHaveTextContent(expectedUrl));
+      expect(screen.getByTestId('ha-snippet-wh-1')).toHaveTextContent(expectedUrl);
+      expect(screen.queryByTestId('source-webhook-url-hint-wh-1')).not.toBeInTheDocument();
+      uuidSpy.mockRestore();
+    });
+
+    // Final-review M7: a webhook-type row's URL used to render a bare `token=` (empty)
+    // when NO token had ever been set at all — folded into the SAME placeholder gating as
+    // the masked-token case above (`webhookUrl()` doesn't distinguish "masked" from
+    // "never set", it only ever cares whether THIS tab has a `freshToken`).
+    it('a webhook-type source row shows the <token> placeholder (never a bare "token=") when no token has ever been set', async () => {
+      // beforeEach's default `getSettings` mock already resolves `presenceWebhookToken:
+      // null` (baseSettings()'s own default) — no token exists anywhere.
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{
+            source: { ...SRC, id: 'wh-1', type: 'webhook', config: {} },
+            status: { lastTriggeredAt: null, healthy: true, detail: '' },
+          }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      const url = await screen.findByTestId('source-webhook-url-wh-1');
+      expect(url).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=<token>&source=wh-1`);
+      expect(url).not.toHaveTextContent('token=&');
+      expect(url.textContent?.endsWith('token=')).toBe(false);
+    });
+
+    // Final-review C2: a disabled source has no other management surface, so it must
+    // stay listed (dimmed) rather than vanish, and its edit/enable path must still work.
+    it('a disabled source still lists, renders dimmed via data-enabled="false", and can be re-enabled through the edit modal', async () => {
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{ source: { ...SRC, enabled: false }, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      const row = await screen.findByTestId('source-row-abc-123');
+      expect(row).toHaveAttribute('data-enabled', 'false');
+
+      fireEvent.click(screen.getByTestId('source-edit-abc-123'));
+      expect(screen.getByTestId('source-enabled')).not.toBeChecked();
+      fireEvent.click(screen.getByTestId('source-enabled'));
+      fireEvent.click(screen.getByTestId('source-save'));
+      await waitFor(() => expect(updatePresenceSource).toHaveBeenCalledWith('abc-123', expect.objectContaining({
+        enabled: true,
+      })));
+    });
+
+    it('an enabled source row does not render dimmed', async () => {
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      const row = await screen.findByTestId('source-row-abc-123');
+      expect(row).toHaveAttribute('data-enabled', 'true');
     });
 
     // Review fix F3: the modal validates client-side before ever calling the api.
@@ -469,30 +575,52 @@ describe('PresencePage', () => {
       expect(screen.queryByTestId('ha-snippet')).not.toBeInTheDocument();
     });
 
-    it('shows the loaded token and the interpolated base URL + HA snippet', async () => {
-      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-2' }) });
+    // Final-review C1 test contract: `GET /api/settings` only ever returns the MASKED
+    // form (real API contract) — with no `freshToken` in hand yet, the base URL/snippet
+    // must render the `<token>` placeholder (never the mask) plus a regenerate hint.
+    it('shows the masked token, but only a <token> placeholder base URL + HA snippet with a regenerate hint', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: '••••ok-2' }) });
       renderPresencePage();
-      expect(await screen.findByTestId('webhook-token-masked')).toHaveTextContent('tok-2');
-      const expectedUrl = `${window.location.origin}/api/presence/motion?token=tok-2`;
+      expect(await screen.findByTestId('webhook-token-masked')).toHaveTextContent('••••ok-2');
+      const expectedUrl = `${window.location.origin}/api/presence/motion?token=<token>`;
       expect(screen.getByTestId('webhook-base-url')).toHaveTextContent(expectedUrl);
+      expect(screen.getByTestId('webhook-base-url')).not.toHaveTextContent('••••');
       expect(screen.getByTestId('ha-snippet')).toHaveTextContent(expectedUrl);
+      expect(screen.getByTestId('ha-snippet')).not.toHaveTextContent('••••');
+      expect(screen.getByTestId('webhook-url-hint')).toHaveTextContent(/regenerate the token/i);
     });
 
-    it('Generate PATCHes a fresh crypto.randomUUID() token and shows the fresh value', async () => {
+    it('Generate PATCHes a fresh crypto.randomUUID() token; the masked field shows the server\'s masked response, and the URL/snippet use the raw value', async () => {
+      const uuidSpy = vi.spyOn(crypto, 'randomUUID')
+        .mockReturnValue('33333333-3333-4333-8333-333333333333' as ReturnType<typeof crypto.randomUUID>);
+      (patchSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ presenceWebhookToken: '••••3333' }),
+      });
       renderPresencePage();
       await screen.findByTestId('webhook-token-masked');
+      expect(screen.getByTestId('webhook-token-masked')).toHaveTextContent('Not set');
       fireEvent.click(screen.getByTestId('webhook-token-generate'));
       await waitFor(() => expect(patchSettings).toHaveBeenCalledTimes(1));
-      const call = (patchSettings as Mock).mock.calls[0]![0];
-      expect(typeof call.presenceWebhookToken).toBe('string');
-      await waitFor(() => expect(screen.getByTestId('webhook-token-masked')).toHaveTextContent('a-fresh-token'));
+      expect(patchSettings).toHaveBeenCalledWith({
+        presenceWebhookToken: '33333333-3333-4333-8333-333333333333',
+      });
+      // The "Webhook token" field shows the server's own masked response, not the raw
+      // client-generated value (that field is a MASKED display, never a real secret).
+      await waitFor(() => expect(screen.getByTestId('webhook-token-masked')).toHaveTextContent('••••3333'));
+      // The copy-paste URL/snippet, in contrast, use the RAW value this tab generated —
+      // never the mask, and no placeholder now that a fresh token is in hand.
+      const expectedUrl = `${window.location.origin}/api/presence/motion?`
+        + 'token=33333333-3333-4333-8333-333333333333';
+      expect(screen.getByTestId('webhook-base-url')).toHaveTextContent(expectedUrl);
+      expect(screen.queryByTestId('webhook-url-hint')).not.toBeInTheDocument();
+      uuidSpy.mockRestore();
     });
 
     // Review fix F2: the panel-level fallback `ha-snippet` is only for the "no webhook
     // source configured yet" case — once one exists, its own row's `ha-snippet-<id>` is
     // the promoted, attributed path and the generic fallback must not also render.
     it('hides the panel-level fallback ha-snippet once a webhook-type source exists', async () => {
-      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-3' }) });
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: '••••ok-3' }) });
       (getPresenceSources as Mock).mockResolvedValue({
         ok: true,
         data: {

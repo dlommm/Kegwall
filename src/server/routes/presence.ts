@@ -69,12 +69,23 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
       source: z.enum(['touch', 'camera']).default('touch'),
     }).parse(req.body ?? {});
     if (source === 'camera') {
-      // Task 3: routes through the registry's camera sentinel (see core/motionSources.ts)
-      // rather than presence.motion() directly, so a tablet camera wake keeps that
-      // derived source row's lastTriggeredAt fresh for GET /api/presence/sources. No
-      // wall means no sentinel to stamp — falls back to trigger(null)'s existing
-      // "wake everything" behavior, same as an anonymous webhook.
-      app.ctx.motion.trigger(wall ? `camera:${wall}` : null);
+      // Task 3 / final-review I2: routes through the registry's camera sentinel (see
+      // core/motionSources.ts) ONLY when `wall` is both present and a real, currently-
+      // configured wall slug (`presence.stateOf(wall) !== undefined` -- the same
+      // "does this wall actually exist" check the SSE stream route already uses) — that's
+      // the one case where `trigger('camera:' + wall)` stamps a real, bounded
+      // `camera:<slug>` status entry an admin can see. A GARBAGE wall string (never a
+      // configured wall) used to stamp the registry's status Map keyed by that raw
+      // client-controlled string forever — unbounded growth from arbitrary public input.
+      // No wall, OR an unrecognized one, wakes that slug (or, with no wall at all, every
+      // wall) directly via `presence.motion()` — no registry stamp, and critically no
+      // `trigger(null)` fallback either: that fallback used to tag the resulting
+      // `motion_detected` event's source as `'webhook'`, mislabeling a genuine camera wake.
+      if (wall !== undefined && app.ctx.presence.stateOf(wall) !== undefined) {
+        app.ctx.motion.trigger(`camera:${wall}`);
+      } else {
+        app.ctx.presence.motion(wall ?? null, 'camera');
+      }
     } else {
       app.ctx.presence.motion(wall ?? null, source);
     }
@@ -102,12 +113,15 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
   // GPIO/BLE/mqtt transports; see that helper's doc comment for the `isStarted()` guard
   // rationale.
   // GET /api/presence/sources: the admin Sources page's single read — configured sources
-  // (registry snapshot, enabled-only per MotionSourceRegistry.sources()), derived camera
-  // rows (one per wall with displayPower.cameraMotion on, status read back from the
-  // registry's `camera:<slug>` sentinel entries — see motionSources.ts's ledgered fix),
-  // and live agent (open SSE stream) counts per wall.
+  // (registry snapshot via `snapshotAll()`, EVERY valid source regardless of `enabled` —
+  // final-review C2: this is the only management surface a disabled source has, so it
+  // must stay listed/editable rather than vanish; transport gating still reads the
+  // enabled-only `sources()` in ingest/bootstrap.ts, untouched), derived camera rows (one
+  // per wall with displayPower.cameraMotion on, status read back from the registry's
+  // `camera:<slug>` sentinel entries — see motionSources.ts's ledgered fix), and live
+  // agent (open SSE stream) counts per wall.
   app.get('/api/presence/sources', admin, async () => {
-    const sources = app.ctx.motion.snapshot();
+    const sources = app.ctx.motion.snapshotAll();
 
     const walls = db.prepare('SELECT slug, config FROM walls').all() as
       { slug: string; config: string }[];
@@ -152,8 +166,13 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
     // Shallow top-level merge (patch fields replace the corresponding whole field, e.g. a
     // full `config` object) — the same "client sends back a full sub-object" idiom
     // settings.sanitizePatch uses, not a deep merge. Re-parsed through the same schema as
-    // create so a patch can't leave a source in an invalid per-type shape.
-    const merged = motionSourceSchema.parse({ ...existing[idx], ...(req.body as object ?? {}) });
+    // create so a patch can't leave a source in an invalid per-type shape. `id` is
+    // spread LAST (final-review I1) — the path id always wins over anything the body
+    // carries (there's no legitimate reason for a PATCH body to include an `id` at all,
+    // but nothing upstream strips one before it gets here, and a body id that happened to
+    // match a DIFFERENT existing source would otherwise silently reassign this row's
+    // identity out from under its own webhook URL / registry status entry).
+    const merged = motionSourceSchema.parse({ ...existing[idx], ...(req.body as object ?? {}), id });
     const next = [...existing];
     next[idx] = merged;
     app.ctx.settings.set('motionSources', next);
@@ -167,6 +186,10 @@ export async function presenceRoutes(app: FastifyInstance, opts: PresenceRoutesO
     // Idempotent, same as crud.ts's beer/tap/keg deletes -- an unknown id is simply a
     // no-op 204 rather than a 404.
     app.ctx.settings.set('motionSources', existing.filter((s) => s.id !== id));
+    // Final-review M2: the deleted source's in-memory runtime status (health/
+    // lastTriggeredAt) has no `motionSources` row to belong to anymore -- drop it too,
+    // rather than leaving it to sit in the registry's status map forever.
+    app.ctx.motion.forgetStatus(id);
     await restartSourcesIfLive(app.ctx);
     return reply.code(204).send();
   });

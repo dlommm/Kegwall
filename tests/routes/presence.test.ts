@@ -56,6 +56,49 @@ describe('POST /api/presence/wake', () => {
     expect(res.statusCode).toBe(200);
     expect(app.ctx.presence.stateOf('main')).toBe('active');
   });
+
+  // Final-review I2: a camera wake for a REAL, currently-configured wall still routes
+  // through the registry's `camera:<slug>` sentinel (`trigger()`) -- its derived Motion
+  // sources row keeps getting a real, bounded `lastTriggeredAt` stamp.
+  it('a camera wake for a real, configured wall stamps that wall\'s camera sentinel status', async () => {
+    expect(app.ctx.motion.statusOf('camera:main').lastTriggeredAt).toBeNull();
+    const res = await app.inject({
+      method: 'POST', url: '/api/presence/wake', payload: { wall: 'main', source: 'camera' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(app.ctx.motion.statusOf('camera:main').lastTriggeredAt).not.toBeNull();
+  });
+
+  // Final-review I2: a camera wake carrying a wall string that ISN'T a real, configured
+  // wall (arbitrary client-controlled public input) used to route through `trigger()`
+  // regardless, stamping the registry's in-memory status Map keyed by that raw garbage
+  // string forever -- unbounded growth from anyone who can POST here. It must now bypass
+  // the registry sentinel entirely for a wall `presence.stateOf()` doesn't recognize.
+  it('a camera wake for an unrecognized wall does not stamp any registry status entry for it', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/presence/wake',
+      payload: { wall: 'not-a-real-wall-xyz', source: 'camera' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(app.ctx.motion.statusOf('camera:not-a-real-wall-xyz').lastTriggeredAt).toBeNull();
+  });
+
+  // Final-review I2: a wall-less camera wake (no `wall` at all) must still wake every
+  // zone AND tag the resulting `motion_detected` event's source as 'camera' -- the
+  // PREVIOUS `trigger(wall ? ... : null)` fallback routed this through `trigger(null)`,
+  // which mislabels the event source as 'webhook' instead of the genuine 'camera' wake it
+  // actually was.
+  it('a wall-less camera wake wakes every zone and tags motion_detected with source "camera"', async () => {
+    app.ctx.presence.setState('main', 'off');
+    const events: { wallSlug: string | null; source: string }[] = [];
+    app.ctx.bus.on('motion_detected', (e) => events.push(e));
+    const res = await app.inject({
+      method: 'POST', url: '/api/presence/wake', payload: { source: 'camera' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(app.ctx.presence.stateOf('main')).toBe('active');
+    expect(events.at(-1)).toMatchObject({ wallSlug: null, source: 'camera' });
+  });
 });
 
 describe('GET /api/presence/stream', () => {
@@ -143,6 +186,78 @@ describe('presence sources admin routes', () => {
     app.ctx.presence.setState('main', 'off');
     await app.inject({ method: 'POST', url: '/api/presence/motion?token=t&source=ghost', payload: {} });
     expect(app.ctx.presence.stateOf('main')).toBe('active'); // unknown id still wakes
+  });
+
+  // Final-review C2: GET /api/presence/sources used to read the enabled-only
+  // `snapshot()`, so disabling a source (its own PATCH) made it vanish from the ONLY
+  // admin surface that could ever re-enable it. It now reads `snapshotAll()`.
+  it('a disabled source still lists (final-review C2)', async () => {
+    const created = await injectAsAdmin({
+      method: 'POST', url: '/api/presence/sources',
+      payload: {
+        name: 'Kitchen PIR', type: 'mqtt', enabled: true, wallSlug: 'main',
+        config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    });
+    const id = created.json().id;
+    await injectAsAdmin({ method: 'PATCH', url: `/api/presence/sources/${id}`, payload: { enabled: false } });
+    const list = await injectAsAdmin({ url: '/api/presence/sources' });
+    expect(list.json().sources).toHaveLength(1);
+    expect(list.json().sources[0].source).toMatchObject({ id, enabled: false });
+  });
+
+  // Final-review I1: a PATCH body carrying its own `id` must never override the path id
+  // — the path id always wins, so a source can't be silently reassigned to a different
+  // row's identity.
+  it('a PATCH body id is ignored -- the path id wins (final-review I1)', async () => {
+    const created = await injectAsAdmin({
+      method: 'POST', url: '/api/presence/sources',
+      payload: {
+        name: 'Kitchen PIR', type: 'mqtt', enabled: true, wallSlug: 'main',
+        config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    });
+    const id = created.json().id;
+    const patched = await injectAsAdmin({
+      method: 'PATCH', url: `/api/presence/sources/${id}`,
+      payload: { id: 'attacker-supplied-id', name: 'Kitchen PIR v2' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().id).toBe(id);
+    const list = await injectAsAdmin({ url: '/api/presence/sources' });
+    expect(list.json().sources.map((s: any) => s.source.id)).toEqual([id]);
+  });
+
+  it('PATCH an unknown source id 404s', async () => {
+    const res = await injectAsAdmin({
+      method: 'PATCH', url: '/api/presence/sources/ghost-id', payload: { name: 'x' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('DELETE an unknown source id is idempotent (204, no error)', async () => {
+    const res = await injectAsAdmin({ method: 'DELETE', url: '/api/presence/sources/ghost-id' });
+    expect(res.statusCode).toBe(204);
+  });
+
+  // Final-review M2: a deleted source's in-memory runtime status must not linger in the
+  // registry forever -- re-creating a DIFFERENT source later must not somehow inherit a
+  // stale status a previous, now-gone source left behind.
+  it('deleting a source drops its runtime status too (final-review M2)', async () => {
+    app.ctx.settings.set('presenceWebhookToken', 't');
+    const created = await injectAsAdmin({
+      method: 'POST', url: '/api/presence/sources',
+      payload: {
+        name: 'Kitchen PIR', type: 'mqtt', enabled: true, wallSlug: 'main',
+        config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    });
+    const id = created.json().id;
+    await app.inject({ method: 'POST', url: `/api/presence/motion?token=t&source=${id}`, payload: {} });
+    expect(app.ctx.motion.statusOf(id).lastTriggeredAt).not.toBeNull();
+
+    await injectAsAdmin({ method: 'DELETE', url: `/api/presence/sources/${id}` });
+    expect(app.ctx.motion.statusOf(id).lastTriggeredAt).toBeNull();
   });
 
   it('POST /api/presence/state is admin-only and sets state', async () => {

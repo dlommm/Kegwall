@@ -310,7 +310,17 @@ export function PresencePage() {
   const [deleting, setDeleting] = useState(false);
 
   // --- Task 5: webhook & agent panel -----------------------------------------------------
+  // `webhookToken` is whatever `GET`/`PATCH /api/settings` last returned — ALWAYS the
+  // masked '••••'+last4 display form (`presenceWebhookToken` ∈ SECRET_KEYS, db/settings.ts's
+  // `SettingsStore.masked()`), used only for the "Webhook token" field's own display.
+  // `freshToken` (final-review C1) is the SEPARATE, real raw value this tab put in hand
+  // itself via `crypto.randomUUID()` the moment `handleGenerateToken` PATCHes it — the
+  // server never echoes a real secret back, so this is the ONLY way this page can ever
+  // know a real, copy-paste-able token; it's `null` on every fresh page load (including
+  // right after a real token was generated in a DIFFERENT tab/session) until this tab's
+  // own Generate button is clicked.
   const [webhookToken, setWebhookToken] = useState<string | null>(null);
+  const [freshToken, setFreshToken] = useState<string | null>(null);
   const [tokenSubmitting, setTokenSubmitting] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
 
@@ -555,29 +565,54 @@ export function PresencePage() {
 
   // --- Task 5: webhook & agent panel -------------------------------------------------------
 
+  /** Final-review C1: generates the token CLIENT-SIDE first (`crypto.randomUUID()`) so
+   * the real value is in hand before the PATCH ever goes out — `patchSettings`'s response
+   * is still used for the "Webhook token" masked DISPLAY field (that's the real,
+   * server-confirmed masked form), but the raw value used to build working copy-paste
+   * URLs comes from `freshToken`, set to the locally-generated UUID, never from the
+   * response (which is masked, per `SettingsStore.masked()` — see this component's doc
+   * comment on `freshToken` above). */
   async function handleGenerateToken() {
     setTokenError(null);
     setTokenSubmitting(true);
-    const result = await patchSettings({ presenceWebhookToken: crypto.randomUUID() });
+    const token = crypto.randomUUID();
+    const result = await patchSettings({ presenceWebhookToken: token });
     setTokenSubmitting(false);
     if (!result.ok) {
       setTokenError(result.message);
       return;
     }
     setWebhookToken(result.data.presenceWebhookToken);
+    setFreshToken(token);
   }
+
+  /** Final-review C1/M7: shown in place of a real token in every copy-paste URL/snippet
+   * below whenever `freshToken` is unknown — this tab has EITHER never generated a token
+   * (so it only ever saw settings' masked '••••'+last4 form, if any token exists at all)
+   * OR no token has ever been set. Interpolating the masked form (or an empty string,
+   * M7's original bug) would either look plausible-but-401 or silently produce a bare
+   * `token=` — a literal, obviously-not-real placeholder is honest about "you don't have
+   * the real value to paste here yet" either way. */
+  const TOKEN_PLACEHOLDER = '<token>';
+
+  /** Whether every URL/snippet below can render a REAL, working token — false any time
+   * this tab hasn't itself generated one this session (see `freshToken`'s doc comment). */
+  const hasFreshToken = freshToken !== null;
 
   /** The full copy-paste webhook URL — `sourceId` omitted gives the generic base URL
    * (Webhook & agent panel), present gives that source's attributed URL (a `webhook`-type
    * row in the Sources table) so `POST`s to it stamp that specific source's
-   * `lastTriggeredAt` (routes/presence.ts's `?source=` handling). Uses whatever
-   * `webhookToken` currently holds — the SAME masked-or-real value the token display
-   * below shows, never re-derived separately (see this component's doc comment on moving,
-   * not duplicating, that display logic from SettingsPage). */
+   * `lastTriggeredAt` (routes/presence.ts's `?source=` handling). Built by hand (not
+   * `URLSearchParams`) specifically so the `freshToken === null` branch's
+   * `TOKEN_PLACEHOLDER` renders as the literal text `<token>` rather than being
+   * percent-encoded into `%3Ctoken%3E`. */
   function webhookUrl(sourceId?: string): string {
-    const params = new URLSearchParams({ token: webhookToken ?? '' });
-    if (sourceId) params.set('source', sourceId);
-    return `${window.location.origin}/api/presence/motion?${params.toString()}`;
+    // Narrows on `freshToken !== null` directly (not the `hasFreshToken` boolean above) so
+    // TypeScript can actually see `freshToken` is a `string` on the `encodeURIComponent`
+    // branch.
+    const tokenPart = `token=${freshToken !== null ? encodeURIComponent(freshToken) : TOKEN_PLACEHOLDER}`;
+    const sourcePart = sourceId ? `&source=${encodeURIComponent(sourceId)}` : '';
+    return `${window.location.origin}/api/presence/motion?${tokenPart}${sourcePart}`;
   }
 
   const sourceRows: SourceRow[] = [
@@ -769,9 +804,22 @@ export function PresencePage() {
                       ? (walls.find((w) => w.slug === row.source.wallSlug)?.name ?? row.source.wallSlug)
                       : 'All walls')
                     : (walls.find((w) => w.slug === row.wallSlug)?.name ?? row.wallSlug);
+                  // Final-review C2: a disabled source stays LISTED (this row comes from
+                  // `snapshotAll()`, not the enabled-only `snapshot()`) — `data-enabled`
+                  // lets the row render dimmed while its Edit button (the only re-enable
+                  // path — the modal's own `source-enabled` checkbox) still works exactly
+                  // like any other row's. A camera row has no `enabled` field of its own
+                  // here (it's simply absent from `cameraRows` once its wall's
+                  // `displayPower.cameraMotion` is off — see routes/presence.ts's
+                  // derivation), so it's always rendered non-dimmed.
+                  const enabled = row.kind === 'source' ? row.source.enabled : true;
                   return (
                     <Fragment key={row.id}>
-                      <tr data-testid={`source-row-${row.id}`} data-blink={blinking[row.id] ? 'true' : 'false'}>
+                      <tr
+                        data-testid={`source-row-${row.id}`}
+                        data-blink={blinking[row.id] ? 'true' : 'false'}
+                        data-enabled={String(enabled)}
+                      >
                         <td>{row.kind === 'source' ? row.source.name : `Tablet camera — ${wallName}`}</td>
                         <td>{row.kind === 'source' ? SOURCE_TYPE_LABEL[row.source.type] : 'Camera'}</td>
                         <td>{wallName}</td>
@@ -818,6 +866,16 @@ export function PresencePage() {
                         <tr>
                           <td colSpan={6}>
                             <code data-testid={`source-webhook-url-${row.id}`}>{webhookUrl(row.id)}</code>
+                            {/* Final-review C1/M7: this row's URL renders unconditionally
+                                (there's no `webhookToken`-gated wrapper the way the panel
+                                below has), so it's the one place M7's "token= empty" bug
+                                lived — `webhookUrl` now always falls back to the
+                                `<token>` placeholder instead, gated the SAME way here. */}
+                            {!hasFreshToken && (
+                              <p className="admin-page-quiet" data-testid={`source-webhook-url-hint-${row.id}`}>
+                                Regenerate the token to get copy-paste-ready URLs.
+                              </p>
+                            )}
                             <details className="presence-ha-snippet-details">
                               <summary>Home Assistant snippet</summary>
                               <pre className="presence-ha-snippet" data-testid={`ha-snippet-${row.id}`}>
@@ -868,6 +926,15 @@ export function PresencePage() {
               <p className="admin-page-quiet" data-testid="webhook-base-url">
                 <code>{webhookUrl()}</code>
               </p>
+              {/* Final-review C1: `webhookToken` being set only proves SOME token exists
+                  (possibly only in its masked '••••'+last4 form, from a page load or a
+                  PREVIOUS tab's Generate) — the URL above is only real/paste-ready when
+                  THIS tab also has `freshToken` in hand. */}
+              {!hasFreshToken && (
+                <p className="admin-page-quiet" data-testid="webhook-url-hint">
+                  Regenerate the token to get copy-paste-ready URLs.
+                </p>
+              )}
               {hasWebhookSource ? (
                 <p className="admin-page-quiet">
                   See a webhook-type row in the Motion sources table above for its own
