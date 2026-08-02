@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../../src/server/app.js';
 import type { FastifyInstance } from 'fastify';
 import WebSocket from 'ws';
+import { createDisplay, pairDisplay } from '../../src/server/db/displays.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -250,6 +251,35 @@ describe('motion relay', () => {
     app.ctx.bus.emit('motion_detected', { wallSlug: 'main', source: 'mqtt', sourceId: 'abc', ts });
     const msg = await next;
     expect(msg).toEqual({ type: 'motion', sourceId: 'abc', wallSlug: 'main', ts });
+    ws.close();
+  });
+});
+
+describe('/ws display-token gating (sub-project A)', () => {
+  it('rejects the upgrade without a token when enforced, accepts with ?displayToken=', async () => {
+    const d = createDisplay(app.ctx.db, { name: 'Wall TV' });
+    const { token } = pairDisplay(app.ctx.db, d.code)!;
+    app.ctx.settings.set('displays', { enforceToken: true });
+
+    // No token → the 401 on the HTTP upgrade surfaces as an error / unexpected-response.
+    const bad = new WebSocket(url);
+    await new Promise<void>((resolve, reject) => {
+      bad.on('open', () => { bad.close(); reject(new Error('unpaired socket should not open')); });
+      bad.on('unexpected-response', () => resolve());
+      bad.on('error', () => resolve());
+    });
+
+    // With the token in the query → connects and receives the snapshot.
+    const good = new WebSocket(`${url}?displayToken=${token}`);
+    const msg = await nextMessage(good);
+    expect(msg.type).toBe('snapshot');
+    good.close();
+  });
+
+  it('still accepts a tokenless upgrade while enforcement is off (default)', async () => {
+    const ws = new WebSocket(url);
+    const msg = await nextMessage(ws);
+    expect(msg.type).toBe('snapshot');
     ws.close();
   });
 });

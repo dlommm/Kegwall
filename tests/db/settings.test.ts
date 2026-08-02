@@ -30,6 +30,7 @@ describe('SettingsStore', () => {
     expect(store.get('displayUnits')).toBe('us');
     expect(store.get('kegtronApiKey')).toBeNull();
     expect(store.get('backfillCursors')).toEqual({});
+    expect(store.get('displays')).toEqual({ enforceToken: false }); // ships dormant
   });
 
   // Final review C1: persisted per-device servings-backfill high-water mark

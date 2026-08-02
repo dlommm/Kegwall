@@ -220,6 +220,11 @@ export const settingsSchema = z.object({
   // GET /api/presence/stream; generated client-side in admin Settings → Integrations;
   // null = those endpoints 503.
   presenceWebhookToken: z.string().nullable().default(null),
+  // Display-token enforcement (native-display epic, sub-project A). Off by default so the
+  // whole pairing/gating mechanism ships dormant: pairing works and tokens mint, but the
+  // display-facing reads (wall/menu/leaderboard/passport/ws) stay public until an operator
+  // pairs their screens and turns this on. No secret — not masked. See routes/displayAuth.ts.
+  displays: z.object({ enforceToken: z.boolean().default(false) }).default({ enforceToken: false }),
   // Face sign-in (Plan B): global gate + cosine-similarity match threshold for the
   // tablet's face recognition. Off by default — the tablet never starts the face
   // camera pipeline (and enroll POSTs 403) until an admin opts the install in.

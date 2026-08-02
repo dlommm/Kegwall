@@ -10,6 +10,7 @@ import { listTaps } from '../db/taps.js';
 import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
 import { toPublicTapState } from '../core/state.js';
+import { requireDisplayToken } from './displayAuth.js';
 import { bestMatch } from '../core/faceMatch.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 
@@ -28,8 +29,11 @@ const AVATAR_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export async function publicRoutes(app: FastifyInstance) {
   const db = app.ctx.db;
+  // Display-facing reads: gated behind the display token when enforcement is on (dormant
+  // otherwise). The guest-phone claim flow below (recent-pours/claim/pourers) stays public.
+  const display = { preHandler: requireDisplayToken(app) };
 
-  app.get('/api/public/wall/:slug', async (req, reply) => {
+  app.get('/api/public/wall/:slug', display, async (req, reply) => {
     const wall = getWallBySlug(db, (req.params as any).slug);
     if (!wall) return reply.code(404).send({ error: 'not_found', message: 'No such wall' });
     const config = wallConfigSchema.parse(wall.config) as WallConfig;
@@ -50,7 +54,7 @@ export async function publicRoutes(app: FastifyInstance) {
     };
   });
 
-  app.get('/api/public/menu', async () => ({
+  app.get('/api/public/menu', display, async () => ({
     siteName: app.ctx.settings.get('siteName'),
     // Hidden taps never reach a public surface; costCents is stripped by toPublicTapState.
     taps: app.ctx.state.getTapStates().filter((t) => !t.hidden).map(toPublicTapState),
@@ -195,8 +199,8 @@ export async function publicRoutes(app: FastifyInstance) {
     return { deleted };
   });
 
-  // Public leaderboard (design 4a view + 6b quality/superlatives) — feeds /board.
-  app.get('/api/public/leaderboard', async (req) => {
+  // Leaderboard (design 4a view + 6b quality/superlatives) — feeds /board, a display surface.
+  app.get('/api/public/leaderboard', display, async (req) => {
     const query = z.object({
       window: z.enum(['week', 'month', 'all']).default('month'),
     }).parse(req.query ?? {});

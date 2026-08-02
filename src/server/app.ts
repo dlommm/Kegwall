@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import { resolve } from 'node:path';
 import { createContext, type AppContext } from './context.js';
 import { authRoutes, hasAnyLoginUser } from './routes/auth.js';
+import { registerDisplayAuth } from './routes/displayAuth.js';
 import { ensureSetupClaimToken } from './core/setupToken.js';
 import { crudRoutes } from './routes/crud.js';
 import { wsRoutes } from './routes/ws.js';
@@ -262,6 +263,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   // register()'d plugins, which would scope authRoutes' onRequest hook (req.user)
   // away from the other modules and break staticRoutes' setNotFoundHandler.
   await authRoutes(app, { dataDir, requireSetupToken });
+  registerDisplayAuth(app); // decorates req.display; must precede routes using requireDisplayToken
   await crudRoutes(app, dataDir);   // direct call — see encapsulation note above; dataDir
                            // lets the beers handlers reclaim a replaced/deleted label file
   await wsRoutes(app, { pingIntervalMs: opts.wsPingIntervalMs }); // direct call —

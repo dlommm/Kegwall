@@ -82,6 +82,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     quietHours: null,
     presenceWebhookToken: null,
     faceSignIn: { enabled: false, threshold: 0.6 },
+    displays: { enforceToken: false },
     alertChannels: {},
     ...overrides,
   };

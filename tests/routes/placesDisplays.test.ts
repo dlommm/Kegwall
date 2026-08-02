@@ -140,3 +140,62 @@ describe('displays (design 7c)', () => {
     expect(bad.statusCode).toBe(400);
   });
 });
+
+describe('display-token gating (sub-project A)', () => {
+  async function makePairedDisplay(): Promise<{ id: number; token: string }> {
+    const created = (await app.inject({
+      method: 'POST', url: '/api/displays', cookies, payload: { name: 'Bar TV' },
+    })).json();
+    const paired = (await app.inject({
+      method: 'POST', url: '/api/public/display/pair', payload: { code: created.code },
+    })).json();
+    expect(paired.token).toMatch(/^[0-9a-f]{64}$/); // token returned once
+    return { id: created.id, token: paired.token };
+  }
+
+  function enforce() {
+    app.ctx.settings.set('displays', { enforceToken: true });
+  }
+
+  beforeEach(() => {
+    app.ctx.db.prepare(`INSERT INTO walls (slug, name, config) VALUES ('main', 'Main', '{}')`).run();
+  });
+
+  it('while enforcement is OFF, the gated reads stay public (dormant default)', async () => {
+    expect((await app.inject({ url: '/api/public/menu' })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/public/wall/main' })).statusCode).toBe(200);
+  });
+
+  it('while enforcement is ON, gated reads 401 without a token and 200 with one', async () => {
+    const { token } = await makePairedDisplay();
+    enforce();
+    for (const url of ['/api/public/menu', '/api/public/wall/main', '/api/public/leaderboard']) {
+      expect((await app.inject({ url })).statusCode).toBe(401);
+      expect((await app.inject({ url, headers: { 'x-display-token': token } })).statusCode).toBe(200);
+    }
+  });
+
+  it('while enforcement is ON, the token is also accepted via the ?displayToken= query', async () => {
+    const { token } = await makePairedDisplay();
+    enforce();
+    expect((await app.inject({ url: `/api/public/menu?displayToken=${token}` })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/public/menu?displayToken=wrong' })).statusCode).toBe(401);
+  });
+
+  it('display/:id stops being enumerable once enforced (needs a token)', async () => {
+    const { id, token } = await makePairedDisplay();
+    enforce();
+    expect((await app.inject({ url: `/api/public/display/${id}` })).statusCode).toBe(401);
+    expect((await app.inject({
+      url: `/api/public/display/${id}`, headers: { 'x-display-token': token },
+    })).statusCode).toBe(200);
+  });
+
+  it('the guest phone claim flow stays public even when enforcement is ON', async () => {
+    await makePairedDisplay();
+    enforce();
+    // recent-pours (the phone claim page's read) is never gated.
+    expect((await app.inject({ url: '/api/public/recent-pours' })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/public/pourers' })).statusCode).toBe(200);
+  });
+});

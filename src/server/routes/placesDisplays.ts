@@ -3,9 +3,10 @@ import { z } from 'zod';
 import { requireRole } from './auth.js';
 import {
   listDisplays, createDisplay, updateDisplay, deleteDisplay, getDisplay,
-  getDisplayByCode, touchDisplay,
+  pairDisplay, touchDisplay,
 } from '../db/displays.js';
 import { updateMonitorDeviceIdentity, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
+import { requireDisplayToken } from './displayAuth.js';
 import { NotFoundError } from '../core/errors.js';
 
 /**
@@ -83,17 +84,20 @@ export async function placesDisplaysRoutes(app: FastifyInstance) {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     const body = z.object({ code: z.string().trim().min(4).max(12) }).parse(req.body);
-    const display = getDisplayByCode(db, body.code);
-    if (!display) {
+    // Mints a per-display secret token and returns it ONCE — the display stores it and
+    // presents it (X-Display-Token / ?displayToken=) on every subsequent gated request.
+    const paired = pairDisplay(db, body.code);
+    if (!paired) {
       return reply.code(404).send({ error: 'not_found', message: 'No display with that code' });
     }
-    touchDisplay(db, display.id);
-    app.ctx.log.info('wall', `Display "${display.name}" paired (code ${display.code})`);
-    return displayView(display.id);
+    app.ctx.log.info('wall', `Display "${paired.display.name}" paired (code ${paired.display.code})`);
+    return { ...displayView(paired.display.id), token: paired.token };
   });
 
-  // The paired TV's refresh call: what should this display show right now?
-  app.get('/api/public/display/:id', async (req, reply) => {
+  // The paired display's refresh call: what should this display show right now? Requires the
+  // display token when enforcement is on (also closes the old primary-key enumeration — an
+  // anonymous caller can no longer walk id=1,2,3… once enforced).
+  app.get('/api/public/display/:id', { preHandler: requireDisplayToken(app) }, async (req, reply) => {
     const id = z.coerce.number().int().parse((req.params as any).id);
     const display = getDisplay(db, id);
     if (!display) {

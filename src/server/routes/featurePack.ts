@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { requireRole } from './auth.js';
+import { requireDisplayToken } from './displayAuth.js';
 import { ratePour } from '../db/pours.js';
 import { listUdpActivity, summarizeUdpActivity } from '../db/udpActivity.js';
 import { getUser } from '../db/users.js';
@@ -71,7 +72,11 @@ export async function featurePackRoutes(app: FastifyInstance) {
 
   // --- Passport (6a): a pourer's own stats/badges --------------------------
 
-  app.get('/api/public/passport/:drinkerId', async (req, reply) => {
+  // Per-person drinking history — real PII and a display surface, so gated behind the
+  // display token when enforcement is on (dormant otherwise).
+  app.get('/api/public/passport/:drinkerId', {
+    preHandler: requireDisplayToken(app),
+  }, async (req, reply) => {
     const drinkerId = z.coerce.number().int().parse((req.params as any).drinkerId);
     const drinker = getUser(db, drinkerId);
     if (!drinker || !drinker.isDrinker) {

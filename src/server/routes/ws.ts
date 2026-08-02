@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { unackedCount } from '../db/notificationsRepo.js';
 import { toPublicTapState } from '../core/state.js';
+import { requireDisplayToken } from './displayAuth.js';
 
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
@@ -140,7 +141,10 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
     clearInterval(pingInterval);
   });
 
-  app.get('/ws', { websocket: true }, (socket) => {
+  // The live feed is a display surface: gated behind the display token (via ?displayToken=,
+  // since a browser WebSocket can't set headers) when enforcement is on. The preHandler runs
+  // on the HTTP upgrade request and rejects it with 401 before the socket opens if unpaired.
+  app.get('/ws', { websocket: true, preHandler: requireDisplayToken(app) }, (socket) => {
     clients.add(socket);
     socket.send(snapshot());
     // Replay current power stages so a reconnecting kiosk lands in the right stage
