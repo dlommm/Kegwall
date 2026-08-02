@@ -646,12 +646,58 @@
 
 .menu-page__header {
   padding-top: 0.5rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .menu-page__site-name {
   font-size: 1.75rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+/* "N on tap" count pill + All/New/Almost-gone filter chips (redesign 2b). */
+.menu-page__count-pill {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.menu-page__filters {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.menu-page__filter-chip {
+  padding: 0.35rem 0.85rem;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu-page__filter-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.menu-page__empty {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 1.5rem 0;
 }
 
 .menu-page__tap-list {
@@ -6292,6 +6338,127 @@ h2.admin-field__label-text {
   letter-spacing: 0.22em;
   color: var(--accent);
 }
+
+/* Redesign 2f: brand word, window pills, medal podium, and trophy chips. */
+.board-look__brand {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-dim);
+}
+
+.board-look__windows {
+  display: flex;
+  gap: 8px;
+}
+
+.board-look__window-pill {
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.board-look__window-pill[data-active='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.board-podium {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: end;
+  gap: 24px;
+  padding: 28px 40px 8px;
+}
+
+.board-podium__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  border: 2px solid;
+  border-radius: 18px;
+  text-align: center;
+}
+
+.board-podium__card--first {
+  padding-top: 40px;
+  padding-bottom: 40px;
+}
+
+.board-podium__avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.board-podium__label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.board-podium__name {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.board-podium__figure--first { font-size: 58px; }
+.board-podium__figure--other { font-size: 44px; }
+
+.board-podium__figure {
+  font-weight: 700;
+  line-height: 1;
+}
+
+.board-podium__caption {
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+.board-row__quality-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.board-row__quality-pill--good {
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+  color: var(--ok);
+}
+
+.board-row__quality-pill--low {
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: var(--warn);
+}
+
+.board-trophy {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.board-trophy--gold { border-color: #E7B93F; color: #E7B93F; }
+.board-trophy--green { border-color: var(--ok); color: var(--ok); }
+.board-trophy--copper { border-color: #C77B4A; color: #C77B4A; }
 
 .board-look__empty {
   flex: 1;

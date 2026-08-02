@@ -30,30 +30,43 @@ describe('formatBoardVolume', () => {
   });
 });
 
-describe('LeaderboardBoard (design 4a + 6b)', () => {
-  it('renders ranked rows with pours, volume and the quality column', () => {
-    render(<LeaderboardBoard data={makeData()} units="us" title="Halfmoon Brewing" />);
+describe('LeaderboardBoard (redesign 2f — podium)', () => {
+  it('puts the top 3 on a medal podium (champion centered) and ranks 4+ in compact rows', () => {
+    const data = makeData({
+      entries: [
+        { drinkerId: 1, displayName: 'Sam', avatarColor: '#D08C4C', pourCount: 127, volumeMl: 46000, avgQuality: 94, qualityCount: 90 },
+        { drinkerId: 2, displayName: 'JT', avatarColor: '#5FD9BC', pourCount: 94, volumeMl: 23000, avgQuality: 88, qualityCount: 40 },
+        { drinkerId: 3, displayName: 'Kim', avatarColor: null, pourCount: 60, volumeMl: 15000, avgQuality: null, qualityCount: 0 },
+        { drinkerId: 4, displayName: 'Lee', avatarColor: null, pourCount: 30, volumeMl: 7000, avgQuality: 72, qualityCount: 10 },
+      ],
+    });
+    render(<LeaderboardBoard data={data} units="us" title="Halfmoon Brewing" />);
+    const cards = screen.getAllByTestId('leaderboard-podium-card');
+    expect(cards).toHaveLength(3);
+    // Visual order: 2nd, 1st (champion), 3rd.
+    expect(cards[0]).toHaveAttribute('data-rank', '2');
+    expect(cards[1]).toHaveAttribute('data-rank', '1');
+    expect(cards[1]).toHaveTextContent('CHAMPION');
+    expect(cards[1]).toHaveTextContent('Sam');
+    expect(cards[1]).toHaveTextContent('12.2 gal');
+    // Rank 4 is a compact row, numbered 4.
     const rows = screen.getAllByTestId('leaderboard-row');
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent('Sam');
-    expect(rows[0]).toHaveTextContent('127 pours');
-    expect(rows[0]).toHaveTextContent('12.2 gal');
-    expect(screen.getAllByTestId('leaderboard-quality')[0]).toHaveTextContent('Q 94');
-    expect(screen.getAllByTestId('leaderboard-quality')[1]).toHaveTextContent('—');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent('Lee');
+    expect(rows[0]).toHaveTextContent('4');
   });
 
-  it('sizes bars relative to the leader', () => {
-    const { container } = render(<LeaderboardBoard data={makeData()} units="us" title="T" />);
-    const fills = container.querySelectorAll('.board-row__bar-fill');
-    expect((fills[0] as HTMLElement).style.width).toBe('100%');
-    expect((fills[1] as HTMLElement).style.width).toBe('50%');
+  it('marks the active window pill', () => {
+    render(<LeaderboardBoard data={makeData({ window: 'month' })} units="us" title="T" />);
+    expect(screen.getByTestId('board-window-month')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByTestId('board-window-week')).toHaveAttribute('data-active', 'false');
   });
 
-  it('renders the footer superlatives', () => {
+  it('renders the footer superlatives as trophy chips', () => {
     render(<LeaderboardBoard data={makeData()} units="us" title="T" />);
     const footer = screen.getByTestId('leaderboard-superlatives');
     expect(footer).toHaveTextContent('MOST POURS: Sam · 127');
-    expect(footer).toHaveTextContent('SMOOTHEST POUR: Sam · 94');
+    expect(footer).toHaveTextContent('SMOOTHEST: Sam · 94');
     expect(footer).toHaveTextContent('BIGGEST POUR: JT · 30.0 oz');
   });
 

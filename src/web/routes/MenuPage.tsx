@@ -8,6 +8,15 @@ import { TapCard } from '../components/TapCard';
 import { ClaimSheet } from '../components/ClaimSheet';
 import { PassportCard } from '../components/PassportCard';
 import { ThemeProvider } from '../themes/ThemeProvider';
+import {
+  filterMenuTaps, onTapCount, type MenuFilter,
+} from '../lib/menuFilter';
+
+const MENU_FILTERS: { key: MenuFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'new', label: 'New' },
+  { key: 'low', label: 'Almost gone' },
+];
 
 const unthemedFullScreen = 'flex min-h-screen flex-col items-center justify-center gap-2 bg-neutral-950 text-center text-neutral-100 px-4';
 
@@ -28,6 +37,7 @@ export function MenuPage() {
   const [units, setUnits] = useState<VolumeUnits>('us');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<MenuFilter>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +61,7 @@ export function MenuPage() {
   const { taps: allTaps } = useTapStates(initialTaps);
   // Hidden taps never render on the public menu (they stay admin-only).
   const taps = allTaps.filter((t) => !t.hidden);
+  const visibleTaps = filterMenuTaps(taps, filter);
 
   return (
     <ThemeProvider className="menu-page">
@@ -73,15 +84,39 @@ export function MenuPage() {
             <h1 className="menu-page__site-name font-display" data-testid="menu-page-site-name">
               {siteName}
             </h1>
+            <span className="menu-page__count-pill font-tabular" data-testid="menu-page-count">
+              {`${onTapCount(taps)} on tap`}
+            </span>
           </header>
 
-          <ul className="menu-page__tap-list" data-testid="menu-page-tap-list">
-            {taps.map((tap) => (
-              <li key={tap.tapId}>
-                <TapCard tap={tap} template="compact" units={units} pricePerPintCents={tap.pricePerPintCents ?? null} />
-              </li>
+          <div className="menu-page__filters" role="group" aria-label="Filter taps" data-testid="menu-page-filters">
+            {MENU_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                className="menu-page__filter-chip"
+                data-testid={`menu-filter-${f.key}`}
+                aria-pressed={filter === f.key}
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </button>
             ))}
-          </ul>
+          </div>
+
+          {visibleTaps.length === 0 ? (
+            <p className="menu-page__empty" data-testid="menu-page-empty">
+              {filter === 'new' ? 'Nothing new right now.' : filter === 'low' ? 'Nothing running low.' : 'No taps pouring yet.'}
+            </p>
+          ) : (
+            <ul className="menu-page__tap-list" data-testid="menu-page-tap-list">
+              {visibleTaps.map((tap) => (
+                <li key={tap.tapId}>
+                  <TapCard tap={tap} template="compact" units={units} pricePerPintCents={tap.pricePerPintCents ?? null} />
+                </li>
+              ))}
+            </ul>
+          )}
 
           <>
             <PassportCard />

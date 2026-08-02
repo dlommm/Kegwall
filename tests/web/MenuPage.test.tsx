@@ -2,7 +2,7 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import type { Mock } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { MenuPage } from '../../src/web/routes/MenuPage';
 import { getMenu } from '../../src/web/lib/api';
@@ -88,6 +88,35 @@ describe('MenuPage', () => {
     renderMenu();
     const cards = await screen.findAllByTestId('tap-card');
     expect(cards).toHaveLength(1);
+  });
+
+  it('shows the on-tap count pill and filters by New / Almost gone (redesign 2b)', async () => {
+    const keg = (over: Partial<NonNullable<TapState['keg']>>): TapState['keg'] => ({
+      id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null,
+      status: 'on_tap', createdAt: '', kegType: null, costCents: null, depositCents: null, supplierId: null,
+      purchasedAt: null, levelPct: 60, remainingMl: 11000, ...over,
+    });
+    const beer = { id: 1, name: 'Beer', brewery: null, style: null, abv: null, ibu: null, srm: 5, description: null, labelImage: null, createdAt: '', markupOverridePct: null, exclusiveSupplierId: null };
+    (getMenu as Mock).mockResolvedValue({ ok: true, data: { siteName: 'X', taps: [], units: 'us' } });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [
+        makeTap(1, { beer, keg: keg({ dateTapped: new Date(Date.now() - 2 * 86400000).toISOString(), levelPct: 80 }) }),
+        makeTap(2, { beer, keg: keg({ dateTapped: '2026-01-01T00:00:00Z', levelPct: 9 }) }),
+      ],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    renderMenu();
+    expect(await screen.findByTestId('menu-page-count')).toHaveTextContent('2 on tap');
+    expect(screen.getAllByTestId('tap-card')).toHaveLength(2);
+
+    fireEvent.click(screen.getByTestId('menu-filter-new'));
+    expect(screen.getAllByTestId('tap-card')).toHaveLength(1); // only the freshly tapped keg
+
+    fireEvent.click(screen.getByTestId('menu-filter-low'));
+    expect(screen.getAllByTestId('tap-card')).toHaveLength(1); // only the 9% keg
+
+    fireEvent.click(screen.getByTestId('menu-filter-all'));
+    expect(screen.getAllByTestId('tap-card')).toHaveLength(2);
   });
 
   it('renders one compact tap card per tap, seeded from getMenu', async () => {

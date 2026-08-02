@@ -16,6 +16,19 @@ function initials(name: string): string {
   return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
 }
 
+/** Medal treatment per podium rank (redesign 2f): gold / silver / bronze rings + labels. */
+const MEDALS: Record<1 | 2 | 3, { color: string; label: string }> = {
+  1: { color: '#E7B93F', label: 'CHAMPION' },
+  2: { color: '#C0C7CE', label: '2ND' },
+  3: { color: '#C77B4A', label: '3RD' },
+};
+
+const WINDOW_TABS = [
+  { key: 'week', label: 'WEEK' },
+  { key: 'month', label: 'MONTH' },
+  { key: 'all', label: 'ALL TIME' },
+] as const;
+
 export interface LeaderboardBoardProps {
   data: LeaderboardResponse;
   units: VolumeUnits;
@@ -23,22 +36,38 @@ export interface LeaderboardBoardProps {
 }
 
 /**
- * The pourer leaderboard as a TV view (design 4a's LEADERBOARD rotation view +
- * 6b's quality column and footer superlatives). Pure/presentational — the
- * `/board` route fetches; Phase 5's rotation playlists reuse it inside the
- * wall. Ranked by volume, bar widths relative to #1, quality column from the
- * flow-consistency score.
+ * The one and only leaderboard as a 1920×1080 TV view (redesign 2f). Top 3 get a medal
+ * podium (2nd · 1st · 3rd, champion centered and tallest); ranks 4+ are compact rows with a
+ * colored quality pill; the footer carries superlatives as trophy chips. Game results post
+ * HERE (Phase 5) as temporary chips — there is deliberately no separate game leaderboard.
+ * Pure/presentational — `/board` fetches; the wall rotation reuses it.
  */
 export function LeaderboardBoard({ data, units, title }: LeaderboardBoardProps) {
-  const top = data.entries[0];
-  const windowLabel = { week: 'THIS WEEK', month: 'THIS MONTH', all: 'ALL TIME' }[data.window];
+  const podium = data.entries.slice(0, 3);
+  const rest = data.entries.slice(3);
+  // Visual order places 2nd on the left, champion center, 3rd right.
+  const visualPodium = [podium[1], podium[0], podium[2]]
+    .map((entry, i) => ({ entry, rank: ([2, 1, 3] as const)[i]! }))
+    .filter((p): p is { entry: NonNullable<typeof p.entry>; rank: 1 | 2 | 3 } => p.entry != null);
   const { superlatives } = data;
 
   return (
     <div className="board-look" data-testid="leaderboard-board">
       <header className="board-look__header">
         <span className="board-look__title font-display">{title}</span>
-        <span className="board-look__window font-display">{`LEADERBOARD · ${windowLabel}`}</span>
+        <span className="board-look__brand font-display">LEADERBOARD</span>
+        <div className="board-look__windows" role="group" aria-label="Leaderboard window">
+          {WINDOW_TABS.map((w) => (
+            <span
+              key={w.key}
+              className="board-look__window-pill"
+              data-active={data.window === w.key}
+              data-testid={`board-window-${w.key}`}
+            >
+              {w.label}
+            </span>
+          ))}
+        </div>
       </header>
 
       {data.entries.length === 0 ? (
@@ -46,46 +75,81 @@ export function LeaderboardBoard({ data, units, title }: LeaderboardBoardProps) 
           No claimed pours yet — pour one and claim it from the menu.
         </p>
       ) : (
-        <div className="board-look__rows">
-          {data.entries.map((entry, i) => (
-            <div key={entry.drinkerId} className="board-row" data-testid="leaderboard-row">
-              <span className="board-row__rank font-display font-tabular">{i + 1}</span>
-              <span className="board-row__avatar font-display" style={{ backgroundColor: entry.avatarColor ?? '#7A6C58' }}>
-                {initials(entry.displayName)}
-              </span>
-              <div className="board-row__main">
-                <span className="board-row__name font-display">{entry.displayName}</span>
-                <div className="board-row__bar">
-                  <div
-                    className="board-row__bar-fill"
-                    style={{ width: `${top && top.volumeMl > 0 ? Math.round((entry.volumeMl / top.volumeMl) * 100) : 0}%` }}
-                  />
+        <>
+          <div className="board-podium" data-testid="leaderboard-podium">
+            {visualPodium.map(({ entry, rank }) => {
+              const medal = MEDALS[rank];
+              return (
+                <div
+                  key={entry.drinkerId}
+                  className={`board-podium__card board-podium__card--${rank === 1 ? 'first' : 'other'}`}
+                  data-testid="leaderboard-podium-card"
+                  data-rank={rank}
+                  style={{
+                    borderColor: medal.color,
+                    background: `color-mix(in srgb, ${medal.color} 10%, transparent)`,
+                  }}
+                >
+                  <span
+                    className="board-podium__avatar font-display"
+                    style={{
+                      backgroundColor: entry.avatarColor ?? '#7A6C58',
+                      boxShadow: `0 0 0 3px var(--bg), 0 0 0 6px ${medal.color}`,
+                    }}
+                  >
+                    {initials(entry.displayName)}
+                  </span>
+                  <span className="board-podium__label" style={{ color: medal.color }}>{medal.label}</span>
+                  <span className="board-podium__name font-display">{entry.displayName}</span>
+                  <span className={`board-podium__figure font-tabular board-podium__figure--${rank === 1 ? 'first' : 'other'}`}>
+                    {formatBoardVolume(entry.volumeMl, units)}
+                  </span>
+                  <span className="board-podium__caption font-tabular" data-testid="leaderboard-quality">
+                    {`${entry.pourCount} pours · ${entry.avgQuality != null ? `Q ${entry.avgQuality}` : '—'}`}
+                  </span>
                 </div>
-              </div>
-              <span className="board-row__figure font-tabular">{`${entry.pourCount} pours`}</span>
-              <span className="board-row__figure font-tabular">{formatBoardVolume(entry.volumeMl, units)}</span>
-              <span className="board-row__quality font-tabular" data-testid="leaderboard-quality">
-                {entry.avgQuality != null ? `Q ${entry.avgQuality}` : '—'}
-              </span>
+              );
+            })}
+          </div>
+
+          {rest.length > 0 && (
+            <div className="board-look__rows">
+              {rest.map((entry, i) => (
+                <div key={entry.drinkerId} className="board-row" data-testid="leaderboard-row">
+                  <span className="board-row__rank font-display font-tabular">{i + 4}</span>
+                  <span className="board-row__avatar font-display" style={{ backgroundColor: entry.avatarColor ?? '#7A6C58' }}>
+                    {initials(entry.displayName)}
+                  </span>
+                  <span className="board-row__name font-display">{entry.displayName}</span>
+                  <span className="board-row__figure font-tabular">{`${entry.pourCount} pours`}</span>
+                  <span className="board-row__figure font-tabular">{formatBoardVolume(entry.volumeMl, units)}</span>
+                  <span
+                    className={`board-row__quality-pill board-row__quality-pill--${entry.avgQuality != null && entry.avgQuality >= 80 ? 'good' : 'low'}`}
+                    data-testid="leaderboard-quality"
+                  >
+                    {entry.avgQuality != null ? `Q ${entry.avgQuality}` : '—'}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       <footer className="board-look__footer" data-testid="leaderboard-superlatives">
         {superlatives.mostPours && (
-          <span className="board-look__superlative">
-            {`MOST POURS: ${superlatives.mostPours.displayName} · ${superlatives.mostPours.pourCount}`}
+          <span className="board-trophy board-trophy--gold">
+            {`🏆 MOST POURS: ${superlatives.mostPours.displayName} · ${superlatives.mostPours.pourCount}`}
           </span>
         )}
         {superlatives.smoothest && (
-          <span className="board-look__superlative">
-            {`SMOOTHEST POUR: ${superlatives.smoothest.displayName} · ${superlatives.smoothest.avgQuality}`}
+          <span className="board-trophy board-trophy--green">
+            {`✨ SMOOTHEST: ${superlatives.smoothest.displayName} · ${superlatives.smoothest.avgQuality}`}
           </span>
         )}
         {superlatives.biggestPour && (
-          <span className="board-look__superlative">
-            {`BIGGEST POUR: ${superlatives.biggestPour.displayName} · ${formatVolumeMl(superlatives.biggestPour.volumeMl, units)}`}
+          <span className="board-trophy board-trophy--copper">
+            {`🍺 BIGGEST POUR: ${superlatives.biggestPour.displayName} · ${formatVolumeMl(superlatives.biggestPour.volumeMl, units)}`}
           </span>
         )}
       </footer>
