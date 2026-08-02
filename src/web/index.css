@@ -6696,6 +6696,48 @@ h2.admin-field__label-text {
   gap: 14px;
 }
 
+/* SERVER HEALTH card meter rows (redesign 3b). */
+.dashboard-server-health .dashboard-meter-row {
+  margin-top: 8px;
+}
+
+.dashboard-meter-row {
+  display: grid;
+  grid-template-columns: 42px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-meter-row__label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.dashboard-meter-row__track {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  overflow: hidden;
+}
+
+.dashboard-meter-row__fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+
+.dashboard-meter-row__val {
+  font-size: 13px;
+  text-align: right;
+  color: var(--text);
+}
+
+.dashboard-server-health .dashboard-card__quiet {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
 .dashboard-tap-list {
   display: flex;
   flex-direction: column;

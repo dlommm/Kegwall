@@ -353,20 +353,6 @@ export function DashboardPage() {
             </span>
           )}
         </div>
-        {stats && (
-          <div className="dashboard-stat" data-testid="dashboard-card-server">
-            <span className="dashboard-stat__label">SERVER</span>
-            <span className="dashboard-stat__value font-display font-tabular" data-testid="dashboard-server-primary">
-              {stats.cpuTempC != null ? formatTempC(stats.cpuTempC, units) : `${stats.cpu.loadPct}%`}
-              {stats.cpuTempC == null && <span className="dashboard-stat__sub"> CPU</span>}
-            </span>
-            <span className="dashboard-stat__note" data-testid="dashboard-server-note">
-              {`CPU ${stats.cpu.loadPct}% · RAM ${stats.memory.usedPct}%`}
-              {stats.disk ? ` · disk ${stats.disk.usedPct}%` : ''}
-              {stats.watts != null ? ` · ${stats.watts} W` : ''}
-            </span>
-          </div>
-        )}
       </div>
 
       <div className="dashboard__body">
@@ -432,6 +418,65 @@ export function DashboardPage() {
         </section>
 
         <div className="dashboard__side">
+          {stats && (
+            <section className="dashboard-card dashboard-server-health" data-testid="dashboard-card-server-health">
+              <div className="dashboard-card__head">
+                <h2 className="dashboard-card__title font-display">SERVER HEALTH</h2>
+                {stats.cpuTempC != null && (
+                  <span className="dashboard-card__hint font-tabular" data-testid="dashboard-server-health-temp">
+                    {formatTempC(stats.cpuTempC, units)}
+                  </span>
+                )}
+              </div>
+              {/* DESIGN NOTE: README asks for 7-day CPU/RAM sparkline bars, but there is no
+                  server-stats history store yet (built in Phase 4's Server analytics tab, with
+                  the retention rules). Rather than fabricate a trend, each row shows the real
+                  current reading as a single meter. RAM uses --ok in lieu of the mock's teal
+                  (closest existing theme token). */}
+              <div className="dashboard-meter-row" data-testid="dashboard-server-cpu">
+                <span className="dashboard-meter-row__label">CPU</span>
+                <span className="dashboard-meter-row__track" aria-hidden="true">
+                  <span
+                    className="dashboard-meter-row__fill"
+                    style={{ width: `${stats.cpu.loadPct}%`, background: 'var(--accent)' }}
+                  />
+                </span>
+                <span className="dashboard-meter-row__val font-tabular">{`${stats.cpu.loadPct}%`}</span>
+              </div>
+              <div className="dashboard-meter-row" data-testid="dashboard-server-ram">
+                <span className="dashboard-meter-row__label">RAM</span>
+                <span className="dashboard-meter-row__track" aria-hidden="true">
+                  <span
+                    className="dashboard-meter-row__fill"
+                    style={{ width: `${stats.memory.usedPct}%`, background: 'var(--ok)' }}
+                  />
+                </span>
+                <span className="dashboard-meter-row__val font-tabular">{`${stats.memory.usedPct}%`}</span>
+              </div>
+              {stats.disk && (
+                <div className="dashboard-meter-row" data-testid="dashboard-server-disk">
+                  <span className="dashboard-meter-row__label">DISK</span>
+                  <span className="dashboard-meter-row__track" aria-hidden="true">
+                    <span
+                      className="dashboard-meter-row__fill"
+                      style={{
+                        width: `${stats.disk.usedPct}%`,
+                        background: stats.disk.usedPct > 60 ? 'var(--warn)' : 'var(--text-dim)',
+                      }}
+                    />
+                  </span>
+                  <span className="dashboard-meter-row__val font-tabular">{`${stats.disk.usedPct}%`}</span>
+                </div>
+              )}
+              <p className="dashboard-card__quiet" data-testid="dashboard-server-note">
+                {`CPU ${stats.cpu.loadPct}% · RAM ${stats.memory.usedPct}%`}
+                {stats.disk ? ` · disk ${stats.disk.usedPct}%` : ''}
+                {stats.watts != null ? ` · ${stats.watts} W` : ''}
+                {` · up ${Math.floor(stats.uptimeSec / 3600)}h`}
+              </p>
+            </section>
+          )}
+
           <section className="dashboard-card" data-testid="dashboard-card-source-health">
             <h2 className="dashboard-card__title font-display">SOURCE HEALTH</h2>
             <ul className="dashboard-source-list" data-testid="dashboard-source-list">

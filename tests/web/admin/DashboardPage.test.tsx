@@ -262,24 +262,37 @@ describe('DashboardPage', () => {
     expect(getPoursSince).toHaveBeenCalledTimes(2);
   });
 
-  it('renders the SERVER card with CPU/RAM/disk, hiding watts when null', async () => {
+  it('renders the SERVER HEALTH card with CPU/RAM/disk meter rows, hiding watts when null', async () => {
     renderAdminPage(<DashboardPage />);
     await flush();
+    expect(screen.getByTestId('dashboard-card-server-health')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-server-cpu')).toHaveTextContent('12%');
+    expect(screen.getByTestId('dashboard-server-ram')).toHaveTextContent('25%');
+    expect(screen.getByTestId('dashboard-server-disk')).toHaveTextContent('50%');
     const note = screen.getByTestId('dashboard-server-note');
     expect(note).toHaveTextContent('CPU 12% · RAM 25% · disk 50%');
     expect(note).not.toHaveTextContent('W');
-    // No SoC temp off-Pi → CPU% is the primary value.
-    expect(screen.getByTestId('dashboard-server-primary')).toHaveTextContent('12%');
   });
 
-  it('shows temp as the primary value and watts in the note when the host reports them', async () => {
+  it('shows the SoC temp in the header and watts in the note when the host reports them', async () => {
     (getSystemStats as Mock).mockResolvedValue({
       ok: true, data: makeStats({ cpuTempC: 52.3, watts: 6.4 }),
     });
     renderAdminPage(<DashboardPage />);
     await flush();
-    expect(screen.getByTestId('dashboard-server-primary')).toHaveTextContent('126');
+    expect(screen.getByTestId('dashboard-server-health-temp')).toHaveTextContent('126');
     expect(screen.getByTestId('dashboard-server-note')).toHaveTextContent('6.4 W');
+  });
+
+  it('turns the disk meter amber past 60% capacity', async () => {
+    (getSystemStats as Mock).mockResolvedValue({
+      ok: true,
+      data: makeStats({ disk: { totalBytes: 64 * 1024 ** 3, availableBytes: 8 * 1024 ** 3, usedPct: 72 } }),
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    const fill = screen.getByTestId('dashboard-server-disk').querySelector('.dashboard-meter-row__fill') as HTMLElement;
+    expect(fill.style.background).toBe('var(--warn)');
   });
 
   it('shows the red undervoltage banner on the sticky since-boot flag', async () => {
