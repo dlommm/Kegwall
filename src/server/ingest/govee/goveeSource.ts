@@ -23,6 +23,9 @@ import type { Source } from '../source.js';
  */
 
 const DEFAULT_POLL_MS = 60_000;
+/** Per-request cap so a hung Govee upstream can't stall the poll loop indefinitely (every
+ * other outbound client in the repo bounds its fetch). Well under the poll interval. */
+const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 
 interface GoveeSourceOptions {
   bus: EventBus;
@@ -34,6 +37,8 @@ interface GoveeSourceOptions {
    * restart. */
   sensorMonitor: (identifier: string) => { enabled: boolean; name: string | null } | null;
   pollMs?: number;
+  /** Per-request fetch timeout (ms); defaults to `DEFAULT_FETCH_TIMEOUT_MS`. Test-injectable. */
+  fetchTimeoutMs?: number;
 }
 
 interface GoveeDevice {
@@ -92,6 +97,7 @@ export class GoveeSource implements Source {
     try {
       const devicesRes = await fetch(`${base}/router/api/v1/user/devices`, {
         headers: { 'Govee-API-Key': config.apiKey },
+        signal: AbortSignal.timeout(this.opts.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS),
       });
       if (!devicesRes.ok) {
         this.status(false, `Govee devices request failed (${devicesRes.status})`);
@@ -136,8 +142,10 @@ export class GoveeSource implements Source {
       }
       const disabledNote = disabled > 0 ? `, ${disabled} disabled` : '';
       this.status(true, `${readings} sensor(s)${disabledNote}, next poll in ${Math.round((this.opts.pollMs ?? DEFAULT_POLL_MS) / 1000)}s`);
-    } catch (err) {
-      this.status(false, err instanceof Error ? err.message : 'Govee poll failed');
+    } catch {
+      // Generic detail, never the raw fetch error — it can embed the request URL. The
+      // !ok branches above already report a precise (non-raw) status code where they can.
+      this.status(false, 'Govee poll failed (network error or timeout)');
     }
   }
 
@@ -153,6 +161,7 @@ export class GoveeSource implements Source {
         requestId: String(Date.now()),
         payload: { sku: device.sku, device: device.device },
       }),
+      signal: AbortSignal.timeout(this.opts.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const body = await res.json() as {
