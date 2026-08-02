@@ -3,6 +3,8 @@ import { ThemeProvider } from '../themes/ThemeProvider';
 import { WallLook } from './looks/WallLook';
 import { WallHeader } from './WallHeader';
 import { WallGrid } from './WallGrid';
+import { PourTakeover } from './takeover/PourTakeover';
+import type { TakeoverState } from '../lib/useTakeover';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import type { TapState } from '../../server/core/state.js';
 
@@ -47,11 +49,40 @@ export interface WallLivePreviewProps {
   title: string;
   units: 'us' | 'metric';
   menuUrl: string;
+  /** Redesign 1c: bump this to run a simulated pour in the currently-selected takeover
+   * style — 0 → 16 oz (473 mL), then a brief hold, then clear. */
+  simulateNonce?: number;
 }
 
-export function WallLivePreview({ config, title, units, menuUrl }: WallLivePreviewProps) {
+const POUR_TOTAL_ML = 473; // full US pint
+const POUR_TICK_MS = 80;
+const POUR_STEP_ML = 8 * 8; // 8mL/80ms real cadence, ×8 so the preview animation is snappy
+const POUR_HOLD_MS = 1800;
+
+export function WallLivePreview({ config, title, units, menuUrl, simulateNonce = 0 }: WallLivePreviewProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.25);
+  const [sim, setSim] = useState<TakeoverState | null>(null);
+
+  // Pour simulation (redesign 1c): animate the "Midnight Porter" sample tap in the selected
+  // takeover style. 'off' shows only the badge (already on the sample tap), so nothing to run.
+  useEffect(() => {
+    if (!simulateNonce || config.takeover.style === 'off') return undefined;
+    const base = SAMPLE_TAPS[1]!; // the pouring sample tap
+    let ml = 0;
+    let hold: ReturnType<typeof setTimeout> | undefined;
+    const tick = setInterval(() => {
+      ml = Math.min(POUR_TOTAL_ML, ml + POUR_STEP_ML);
+      setSim({ phase: 'active', tap: { ...base, pouring: true, curServMl: ml }, pourMl: ml });
+      if (ml >= POUR_TOTAL_ML) {
+        clearInterval(tick);
+        setSim({ phase: 'complete', tap: { ...base, pouring: false, curServMl: null }, pourMl: POUR_TOTAL_ML });
+        hold = setTimeout(() => setSim(null), POUR_HOLD_MS);
+      }
+    }, POUR_TICK_MS);
+    return () => { clearInterval(tick); if (hold) clearTimeout(hold); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- style/nonce captured intentionally at trigger
+  }, [simulateNonce]);
 
   useEffect(() => {
     const el = paneRef.current;
@@ -64,6 +95,10 @@ export function WallLivePreview({ config, title, units, menuUrl }: WallLivePrevi
   }, []);
 
   const uiScale = config.display?.uiScale ?? 1;
+  const spotlightTapId = sim && sim.phase !== 'idle' && config.takeover.style === 'spotlight'
+    ? sim.tap.tapId : null;
+  const overlayStyle = config.takeover.style;
+  const showOverlay = sim !== null && overlayStyle !== 'spotlight' && overlayStyle !== 'off';
 
   return (
     <div className="wall-live-preview" data-testid="wall-live-preview" ref={paneRef}>
@@ -89,7 +124,7 @@ export function WallLivePreview({ config, title, units, menuUrl }: WallLivePrevi
                 fields={config.fields}
                 fillStyle={config.fillStyle}
                 units={units}
-                spotlightTapId={null}
+                spotlightTapId={spotlightTapId}
               />
             </>
           ) : (
@@ -103,8 +138,11 @@ export function WallLivePreview({ config, title, units, menuUrl }: WallLivePrevi
               pageIndex={0}
               pageCount={1}
               rotationSeconds={config.rotationSeconds}
-              spotlightTapId={null}
+              spotlightTapId={spotlightTapId}
             />
+          )}
+          {showOverlay && sim && sim.phase !== 'idle' && (
+            <PourTakeover style={overlayStyle} state={sim} units={units} tempC={2.2} />
           )}
         </ThemeProvider>
       </div>

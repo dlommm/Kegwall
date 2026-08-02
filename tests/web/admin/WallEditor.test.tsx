@@ -143,6 +143,25 @@ describe('WallEditor', () => {
       fireEvent.change(screen.getByTestId('wall-editor-search'), { target: { value: 'theme' } });
       expect(screen.getByTestId('wall-editor-display-fit')).not.toBeVisible();
     });
+
+    it('Simulate a pour runs the selected takeover overlay in the live preview', async () => {
+      render(
+        <WallEditor
+          wall={makeWall({ config: wallConfigSchema.parse({ look: 'ledger', takeover: { style: 'full', minMl: 60 } }) })}
+          onBack={vi.fn()}
+          onSaved={vi.fn()}
+        />,
+      );
+      await flush();
+      vi.useFakeTimers();
+      try {
+        act(() => { fireEvent.click(screen.getByTestId('wall-editor-simulate-pour')); });
+        act(() => { vi.advanceTimersByTime(1200); });
+        expect(screen.getByTestId('takeover-full')).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('Display fit (redesign 1c)', () => {

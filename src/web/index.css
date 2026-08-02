@@ -2968,6 +2968,17 @@ h2.admin-field__label-text {
   color: var(--text);
 }
 
+.wall-editor__simulate {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* Two-pane: the settings rail scrolls while the preview stays put. */
 .wall-editor__preview {
   position: sticky;

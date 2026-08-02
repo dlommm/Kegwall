@@ -136,6 +136,8 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   // Settings search (redesign 1c): live-filters the section fieldsets by keyword.
   const [settingsQuery, setSettingsQuery] = useState('');
+  // Pour simulation (redesign 1c): bumping this runs a simulated pour in the live preview.
+  const [simulateNonce, setSimulateNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -395,6 +397,14 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              className="wall-editor__simulate"
+              data-testid="wall-editor-simulate-pour"
+              onClick={() => setSimulateNonce((n) => n + 1)}
+            >
+              ▶ Simulate a pour
+            </button>
             <label className="admin-field">
               <span>Takeover trigger (mL)</span>
               <input
@@ -846,6 +856,7 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             title={form.headerTitle.trim() || name}
             units="us"
             menuUrl="/menu"
+            simulateNonce={simulateNonce}
           />
         </div>
       </div>
