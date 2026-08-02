@@ -5,21 +5,25 @@ import type { Mock } from 'vitest';
 import {
   act, fireEvent, screen, waitFor,
 } from '@testing-library/react';
-import { PresencePage } from '../../../src/web/routes/admin/PresencePage';
+import { PresencePage, parseEqualsInput } from '../../../src/web/routes/admin/PresencePage';
 import {
-  listWalls, getPresenceSources, setPresenceState, updateWall, type Wall,
+  listWalls, getPresenceSources, setPresenceState, updateWall,
+  createPresenceSource, updatePresenceSource, deletePresenceSource,
+  getSettings, patchSettings, type Wall,
 } from '../../../src/web/lib/adminApi';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import { wallConfigSchema } from '../../../src/server/core/wallConfig';
+import type { MotionSource, Settings } from '../../../src/server/db/settings';
 import { renderAdminPage } from './renderAdminPage';
 
 // ---------------------------------------------------------------------------
-// Displays & Presence hub Task 4: `/admin/presence` — Zones + Display power panels
-// (panels 3-4, motion sources + webhook, land in Task 5). `useTapStates` is mocked the
-// same way DashboardPage.test.tsx mocks it (this page opens the SAME public `/ws` feed,
-// just to ride its `onMessage` escape hatch for `display_power` frames — no taps/
-// snapshot state needed here), and `pushWsFrame` below captures whatever `onMessage`
-// the page last handed to the mocked hook, mirroring useWallData.test.tsx/
+// Displays & Presence hub Task 4/5: `/admin/presence` — all four panels (Task 4: Zones +
+// Display power; Task 5: Motion sources + Webhook & agent, plus old-UI removal from
+// SettingsPage, covered separately in SettingsPage.test.tsx). `useTapStates` is mocked
+// the same way DashboardPage.test.tsx mocks it (this page opens the SAME public `/ws`
+// feed, just to ride its `onMessage` escape hatch for `display_power`/`motion` frames —
+// no taps/snapshot state needed here), and `pushWsFrame` below captures whatever
+// `onMessage` the page last handed to the mocked hook, mirroring useWallData.test.tsx/
 // WallPage.test.tsx's own "capture then call directly" idiom for simulating a pushed
 // WS frame without standing up a real socket.
 // ---------------------------------------------------------------------------
@@ -30,6 +34,11 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getPresenceSources: vi.fn(),
   setPresenceState: vi.fn(),
   updateWall: vi.fn(),
+  createPresenceSource: vi.fn(),
+  updatePresenceSource: vi.fn(),
+  deletePresenceSource: vi.fn(),
+  getSettings: vi.fn(),
+  patchSettings: vi.fn(),
 }));
 
 function makeWall(overrides: Partial<Wall> = {}): Wall {
@@ -43,6 +52,51 @@ function makeWall(overrides: Partial<Wall> = {}): Wall {
     ...overrides,
   };
 }
+
+function baseSettings(overrides: Partial<Settings> = {}): Settings {
+  return {
+    siteName: 'My Taproom',
+    siteLogo: null,
+    displayUnits: 'us',
+    servingSizeMl: 473,
+    logRetentionDays: 30,
+    autoImportBeers: true,
+    govee: null,
+    goveeBaseUrl: 'https://openapi.api.govee.com',
+    updateCheckBaseUrl: 'https://github.com',
+    updateCheckProjectPath: 'dlomm/kegwall',
+    updates: null,
+    osUpdates: null,
+    kegtronApiKey: null,
+    kegtronBaseUrl: 'https://mdash.net',
+    openBreweryBaseUrl: 'https://api.openbrewerydb.org',
+    untappdImageBaseUrl: 'https://untappd.akamaized.net',
+    catalogBeer: null,
+    catalogBeerBaseUrl: 'https://catalog.beer',
+    backfillCursors: {},
+    udpEnabled: false,
+    bleDirectEnabled: false,
+    proBleEnabled: false,
+    mqtt: null,
+    motionSources: [],
+    quietHours: null,
+    presenceWebhookToken: null,
+    faceSignIn: { enabled: false, threshold: 0.6 },
+    alertChannels: {},
+    ...overrides,
+  };
+}
+
+/** A configured mqtt motion source fixture (Task 5's given brief tests use `id:
+ * 'abc-123'` throughout). */
+const SRC: MotionSource = {
+  id: 'abc-123',
+  name: 'Kitchen PIR',
+  type: 'mqtt',
+  enabled: true,
+  wallSlug: 'main',
+  config: { topic: 'home/kitchen/pir', match: { mode: 'any' } },
+};
 
 function pushWsFrame(msg: unknown) {
   const lastCall = (useTapStates as Mock).mock.calls.at(-1) as
@@ -65,6 +119,13 @@ beforeEach(() => {
   });
   (setPresenceState as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
   (updateWall as Mock).mockResolvedValue({ ok: true, data: makeWall() });
+  (createPresenceSource as Mock).mockResolvedValue({ ok: true, data: SRC });
+  (updatePresenceSource as Mock).mockResolvedValue({ ok: true, data: SRC });
+  (deletePresenceSource as Mock).mockResolvedValue({ ok: true, data: null });
+  (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+  (patchSettings as Mock).mockResolvedValue({
+    ok: true, data: baseSettings({ presenceWebhookToken: 'a-fresh-token' }),
+  });
 });
 
 describe('PresencePage', () => {
@@ -172,5 +233,189 @@ describe('PresencePage', () => {
     renderPresencePage();
     expect(await screen.findByTestId('zones-empty')).toBeInTheDocument();
     expect(screen.getByTestId('display-power-empty')).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------------------
+  // Displays & Presence hub Task 5: Motion sources panel
+  // -------------------------------------------------------------------------------------
+  describe('Motion sources panel', () => {
+    it('lists sources with health + last-trigger and blinks on a ws motion frame', async () => {
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: false, detail: 'broker down' } }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      const row = await screen.findByTestId('source-row-abc-123');
+      expect(screen.getByTestId('source-health-abc-123')).toHaveAttribute('data-healthy', 'false');
+      expect(screen.getByTestId('source-last-abc-123')).toHaveTextContent(/never/i);
+      pushWsFrame({ type: 'motion', sourceId: 'abc-123', wallSlug: 'main', ts: 'now' });
+      await waitFor(() => expect(row).toHaveAttribute('data-blink', 'true'));
+    });
+
+    it('creates an mqtt source with a json match rule through the modal', async () => {
+      renderPresencePage();
+      fireEvent.click(await screen.findByTestId('source-add'));
+      fireEvent.change(screen.getByTestId('source-type-select'), { target: { value: 'mqtt' } });
+      fireEvent.change(screen.getByTestId('source-mqtt-topic'), { target: { value: 'zigbee2mqtt/hall' } });
+      fireEvent.change(screen.getByTestId('source-mqtt-match-mode'), { target: { value: 'json' } });
+      fireEvent.change(screen.getByTestId('source-mqtt-json-field'), { target: { value: 'occupancy' } });
+      fireEvent.change(screen.getByTestId('source-mqtt-json-equals'), { target: { value: 'true' } });
+      fireEvent.click(screen.getByTestId('source-save'));
+      await waitFor(() => expect(createPresenceSource).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'mqtt', config: expect.objectContaining({
+          topic: 'zigbee2mqtt/hall', match: { mode: 'json', field: 'occupancy', equals: true },
+        }),
+      })));
+    });
+
+    it('the blink clears itself after ~2s (fake-timer-safe)', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        (getPresenceSources as Mock).mockResolvedValue({
+          ok: true,
+          data: {
+            sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+            camera: [], agents: [],
+          },
+        });
+        renderPresencePage();
+        const row = await screen.findByTestId('source-row-abc-123');
+        pushWsFrame({ type: 'motion', sourceId: 'abc-123', wallSlug: 'main', ts: 'now' });
+        await waitFor(() => expect(row).toHaveAttribute('data-blink', 'true'));
+        await act(async () => { vi.advanceTimersByTime(2000); });
+        expect(row).toHaveAttribute('data-blink', 'false');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('renders a "never" last-triggered camera row labeled "Tablet camera — <wall>" with a working toggle', async () => {
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: { sources: [], camera: [{ wallSlug: 'main', enabled: true, lastTriggeredAt: null }], agents: [] },
+      });
+      renderPresencePage();
+      const row = await screen.findByTestId('source-row-camera:main');
+      expect(row).toHaveTextContent('Tablet camera — Main');
+      expect(screen.getByTestId('source-last-camera:main')).toHaveTextContent(/never/i);
+      fireEvent.click(screen.getByTestId('source-camera-toggle-main'));
+      await waitFor(() => expect(updateWall).toHaveBeenCalledWith(1, expect.objectContaining({
+        config: expect.objectContaining({
+          displayPower: expect.objectContaining({ cameraMotion: false }),
+        }),
+      })));
+    });
+
+    it('editing an existing source pre-fills the modal and PATCHes via updatePresenceSource', async () => {
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      await screen.findByTestId('source-row-abc-123');
+      fireEvent.click(screen.getByTestId('source-edit-abc-123'));
+      expect(screen.getByTestId('source-mqtt-topic')).toHaveValue('home/kitchen/pir');
+      fireEvent.change(screen.getByTestId('source-name'), { target: { value: 'Kitchen PIR v2' } });
+      fireEvent.click(screen.getByTestId('source-save'));
+      await waitFor(() => expect(updatePresenceSource).toHaveBeenCalledWith('abc-123', expect.objectContaining({
+        name: 'Kitchen PIR v2',
+      })));
+    });
+
+    it('deleting a source calls deletePresenceSource and refreshes the table', async () => {
+      (getPresenceSources as Mock).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          sources: [{ source: SRC, status: { lastTriggeredAt: null, healthy: true, detail: '' } }],
+          camera: [], agents: [],
+        },
+      }).mockResolvedValue({ ok: true, data: { sources: [], camera: [], agents: [] } });
+      renderPresencePage();
+      await screen.findByTestId('source-row-abc-123');
+      fireEvent.click(screen.getByTestId('source-delete-abc-123'));
+      await waitFor(() => expect(deletePresenceSource).toHaveBeenCalledWith('abc-123'));
+      await waitFor(() => expect(screen.getByTestId('sources-empty')).toBeInTheDocument());
+    });
+
+    it('switching the modal type select swaps the visible field set', async () => {
+      renderPresencePage();
+      fireEvent.click(await screen.findByTestId('source-add'));
+      expect(screen.getByTestId('source-mqtt-topic')).toBeInTheDocument();
+      fireEvent.change(screen.getByTestId('source-type-select'), { target: { value: 'gpio' } });
+      expect(screen.queryByTestId('source-mqtt-topic')).not.toBeInTheDocument();
+      expect(screen.getByTestId('source-gpio-line')).toBeInTheDocument();
+      expect(screen.getByTestId('source-gpio-active-low')).toBeInTheDocument();
+      fireEvent.change(screen.getByTestId('source-type-select'), { target: { value: 'ble' } });
+      expect(screen.queryByTestId('source-gpio-line')).not.toBeInTheDocument();
+      expect(screen.getByTestId('source-ble-mac')).toBeInTheDocument();
+    });
+
+    it('a webhook-type source row shows its full copy-paste URL with the real token and its id', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-1' }) });
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          sources: [{
+            source: { ...SRC, id: 'wh-1', type: 'webhook', config: {} },
+            status: { lastTriggeredAt: null, healthy: true, detail: '' },
+          }],
+          camera: [], agents: [],
+        },
+      });
+      renderPresencePage();
+      const url = await screen.findByTestId('source-webhook-url-wh-1');
+      expect(url).toHaveTextContent(`${window.location.origin}/api/presence/motion?token=tok-1&source=wh-1`);
+    });
+  });
+
+  // -------------------------------------------------------------------------------------
+  // Displays & Presence hub Task 5: Webhook & agent panel — the token display/generate
+  // mechanics MOVED here from SettingsPage's PresenceBlock (not duplicated).
+  // -------------------------------------------------------------------------------------
+  describe('Webhook & agent panel', () => {
+    it('shows "Not set" when no token has ever been generated, and no URL/snippet yet', async () => {
+      renderPresencePage();
+      expect(await screen.findByTestId('webhook-token-masked')).toHaveTextContent('Not set');
+      expect(screen.queryByTestId('ha-snippet')).not.toBeInTheDocument();
+    });
+
+    it('shows the loaded token and the interpolated base URL + HA snippet', async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ presenceWebhookToken: 'tok-2' }) });
+      renderPresencePage();
+      expect(await screen.findByTestId('webhook-token-masked')).toHaveTextContent('tok-2');
+      const expectedUrl = `${window.location.origin}/api/presence/motion?token=tok-2`;
+      expect(screen.getByTestId('webhook-base-url')).toHaveTextContent(expectedUrl);
+      expect(screen.getByTestId('ha-snippet')).toHaveTextContent(expectedUrl);
+    });
+
+    it('Generate PATCHes a fresh crypto.randomUUID() token and shows the fresh value', async () => {
+      renderPresencePage();
+      await screen.findByTestId('webhook-token-masked');
+      fireEvent.click(screen.getByTestId('webhook-token-generate'));
+      await waitFor(() => expect(patchSettings).toHaveBeenCalledTimes(1));
+      const call = (patchSettings as Mock).mock.calls[0]![0];
+      expect(typeof call.presenceWebhookToken).toBe('string');
+      await waitFor(() => expect(screen.getByTestId('webhook-token-masked')).toHaveTextContent('a-fresh-token'));
+    });
+  });
+});
+
+describe('parseEqualsInput', () => {
+  it("parses 'true' as the boolean true", () => {
+    expect(parseEqualsInput('true')).toBe(true);
+  });
+
+  it("parses '1' as the number 1", () => {
+    expect(parseEqualsInput('1')).toBe(1);
+  });
+
+  it("leaves a non-boolean, non-numeric string like 'x' as-is", () => {
+    expect(parseEqualsInput('x')).toBe('x');
   });
 });

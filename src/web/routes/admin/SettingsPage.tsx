@@ -8,10 +8,9 @@ import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
 import {
   getSettings, patchSettings, uploadLabel, testChannel,
   getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, pollUpdateStatus,
-  triggerOsUpdate, triggerKioskRestart, listWalls,
-  type UpdateCheck, type Wall,
+  triggerOsUpdate, triggerKioskRestart,
+  type UpdateCheck,
 } from '../../lib/adminApi';
-import { postPresenceWake } from '../../lib/api';
 import { BackupPanel } from './BackupPanel';
 
 /**
@@ -31,12 +30,6 @@ const MQTT_DEFAULTS = {
   haPublishEnabled: false,
   haDiscoveryPrefix: 'homeassistant',
   appTopicPrefix: 'kegwall',
-  // Presence (Plan A Task 6 / Task 12): motion-sensor topics, now editable via the
-  // repeater in SourcesGroup below (see ingest/motionMqtt.ts for how they're consumed) --
-  // this constant only supplies the fallback when `mqtt` has never been configured at
-  // all, so SourcesGroup's save preserves whatever's already stored rather than silently
-  // clearing it every time an unrelated MQTT field is saved.
-  motionTopics: [] as Array<{ topic: string; wallSlug: string | null }>,
 };
 
 function triggersRestart(patch: Partial<Settings>): boolean {
@@ -319,45 +312,17 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
   const [mqttPrefix, setMqttPrefix] = useState(mqtt?.gen1TopicPrefix ?? MQTT_DEFAULTS.gen1TopicPrefix);
   const [passwordReplacing, setPasswordReplacing] = useState(false);
   const [newPassword, setNewPassword] = useState('');
-  // Presence (Task 12): the motion-topics repeater — starts as a copy of whatever's
-  // already stored (same "passthrough by default" behavior the old hardcoded
-  // `mqtt?.motionTopics ?? MQTT_DEFAULTS.motionTopics` had), now actually editable.
-  const [motionTopics, setMotionTopics] = useState(mqtt?.motionTopics ?? MQTT_DEFAULTS.motionTopics);
-  const [walls, setWalls] = useState<Wall[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    listWalls().then((result) => {
-      if (!cancelled && result.ok) setWalls(result.data);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const udpDirty = udpEnabled !== settings.udpEnabled;
   const bleDirty = bleDirectEnabled !== settings.bleDirectEnabled;
   const proBleDirty = proBleEnabled !== settings.proBleEnabled;
-  const motionTopicsDirty = JSON.stringify(motionTopics)
-    !== JSON.stringify(mqtt?.motionTopics ?? MQTT_DEFAULTS.motionTopics);
   const mqttDirty = mqttUrl !== (mqtt?.url ?? '')
     || mqttUsername !== (mqtt?.username ?? '')
     || mqttPrefix !== (mqtt?.gen1TopicPrefix ?? MQTT_DEFAULTS.gen1TopicPrefix)
-    || (passwordReplacing && newPassword.trim() !== '')
-    || motionTopicsDirty;
+    || (passwordReplacing && newPassword.trim() !== '');
   const dirty = udpDirty || bleDirty || proBleDirty || mqttDirty;
-
-  function updateMotionTopic(i: number, patch: Partial<{ topic: string; wallSlug: string | null }>) {
-    setMotionTopics((rows) => rows.map((row, j) => (j === i ? { ...row, ...patch } : row)));
-  }
-  function addMotionTopic() {
-    setMotionTopics((rows) => [...rows, { topic: '', wallSlug: null }]);
-  }
-  function removeMotionTopic(i: number) {
-    setMotionTopics((rows) => rows.filter((_, j) => j !== i));
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -373,6 +338,19 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
     if (bleDirty) patch.bleDirectEnabled = bleDirectEnabled;
     if (proBleDirty) patch.proBleEnabled = proBleEnabled;
     if (mqttDirty) {
+      // Displays & Presence hub Task 5: `motionTopics` is deliberately OMITTED from this
+      // patch (not sent as `[]`, not passed through) — the motion-topics repeater that
+      // used to live here is gone; the `motionSources` registry (see PresencePage.tsx's
+      // Sources panel) owns motion configuration now. The key stays in `settingsSchema`
+      // purely so `core/motionSources.ts`'s boot-time `migrateMotionTopics` can still read
+      // and clear a pre-upgrade value — by the time any admin can reach THIS form, that
+      // migration has already run and left `mqtt.motionTopics` at its schema default
+      // (`[]`), so omitting it here and letting the server's own `.default([])` apply is
+      // exactly equivalent to sending `[]` explicitly, without this form needing to know
+      // or care what the stored value is. `patch.mqtt`'s cast is required because
+      // `Settings['mqtt']` (via `z.infer`) treats every `.default()` sub-field, including
+      // `motionTopics`, as REQUIRED on the output type — TypeScript has no way to know the
+      // server fills it in when absent from the wire payload.
       patch.mqtt = {
         url: mqttUrl.trim(),
         username: mqttUsername.trim() || undefined,
@@ -381,12 +359,7 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
         haPublishEnabled: mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled,
         haDiscoveryPrefix: mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix,
         appTopicPrefix: mqtt?.appTopicPrefix ?? MQTT_DEFAULTS.appTopicPrefix,
-        // Blank rows (added but never filled in) are dropped rather than sent to the
-        // server, which requires a non-empty topic (`motionTopics[].topic` schema min 1).
-        motionTopics: motionTopics
-          .map((row) => ({ topic: row.topic.trim(), wallSlug: row.wallSlug }))
-          .filter((row) => row.topic !== ''),
-      };
+      } as Settings['mqtt'];
     }
     const result = await patchSettings(patch);
     setSubmitting(false);
@@ -477,55 +450,6 @@ function SourcesGroup({ settings, onSaved }: GroupProps) {
         onCancelReplace={() => { setPasswordReplacing(false); setNewPassword(''); }}
         onChangeValue={setNewPassword}
       />
-
-      {/* Presence (Task 12): motion topics wake a wall's display (or every wall, when
-          left on "All walls") whenever a non-falsy payload lands on `topic` — see
-          ingest/motionMqtt.ts. */}
-      <div className="wall-editor__section" data-testid="settings-sources-mqtt-motion-topics">
-        <h3 className="channels-group__block-title">Motion topics</h3>
-        <p className="admin-page-quiet">
-          MQTT topics that wake a display&rsquo;s screen (presence spec Part A) — any
-          non-falsy payload on <code>topic</code> counts as motion.
-        </p>
-        {motionTopics.map((row, i) => (
-          // eslint-disable-next-line react/no-array-index-key -- rows are positionally
-          // addressed (add/remove/edit all key off the index), no stable id exists.
-          <div key={i} className="wall-editor__rotation-view" data-testid="settings-sources-mqtt-motion-row">
-            <label className="admin-field">
-              <span>Topic</span>
-              <input
-                type="text"
-                data-testid={`settings-sources-mqtt-motion-topic-${i}`}
-                value={row.topic}
-                onChange={(e) => updateMotionTopic(i, { topic: e.target.value })}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Wall</span>
-              <select
-                data-testid={`settings-sources-mqtt-motion-wall-${i}`}
-                value={row.wallSlug ?? ''}
-                onChange={(e) => updateMotionTopic(i, { wallSlug: e.target.value === '' ? null : e.target.value })}
-              >
-                <option value="">All walls</option>
-                {walls.map((w) => (
-                  <option key={w.id} value={w.slug}>{w.name}</option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              data-testid={`settings-sources-mqtt-motion-remove-${i}`}
-              onClick={() => removeMotionTopic(i)}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-        <button type="button" data-testid="settings-sources-mqtt-motion-add" onClick={addMotionTopic}>
-          Add motion topic
-        </button>
-      </div>
 
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-sources-error">{error}</p>}
       <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-sources-save">
@@ -1227,87 +1151,25 @@ function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
   );
 }
 
-/** Presence integration card (Task 12; spec Part A2/A3): the shared secret gating
- * `POST /api/presence/motion` and `GET /api/presence/stream`, plus the admin's own
- * "wake everything" action. `presenceWebhookToken` is a fully server/client-generated
- * random value with no "type your own" use case — unlike every other masked secret on
- * this page there's no Replace flow, just a Generate button that immediately mints a
- * fresh `crypto.randomUUID()` and saves it via the normal `patchSettings` path (no
- * separate "Save changes" click needed). The masked display itself still reuses the
- * `masked-secret` styling so it reads consistently with its neighbors. "Wake all
- * screens" is deliberately fire-and-forget (`postPresenceWake` never rejects — see
- * api.ts's doc comment), so it has nothing to report beyond "sent". */
-function PresenceBlock({ settings, onSaved }: GroupProps) {
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [waking, setWaking] = useState(false);
-  const [wokeNotice, setWokeNotice] = useState(false);
-
-  async function handleGenerate() {
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = { presenceWebhookToken: crypto.randomUUID() };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, patch);
-  }
-
-  async function handleWakeAll() {
-    setWokeNotice(false);
-    setWaking(true);
-    await postPresenceWake(undefined, 'touch');
-    setWaking(false);
-    setWokeNotice(true);
-  }
-
+/** Presence pointer card (Displays & Presence hub Task 5; spec Part B): the webhook
+ * token display/generate mechanics and "wake all screens" action that used to live here
+ * (Task 12) MOVED to `/admin/presence`'s Webhook & agent panel (PresencePage.tsx), which
+ * also now owns the motion-sources table and the display-power/zone panels — one page
+ * for everything presence-related, per the spec's Goal 1, instead of a second editing
+ * surface here that could drift out of sync with it. This card is just a pointer so an
+ * admin who lands on Settings → Integrations out of habit still finds their way there;
+ * it takes no props (nothing here reads or writes settings anymore). */
+function PresenceBlock() {
   return (
     <div className="channels-group__block" data-testid="settings-integrations-presence">
       <h3 className="channels-group__block-title">Presence</h3>
       <p className="admin-page-quiet">
-        A shared token gates the external motion webhook and the presence-agent stream.
-        Generate one, then point your motion sensor&rsquo;s automation at the URL below.
+        Motion sources, the webhook token, and zone/display-power controls now live on
+        the Displays &amp; Presence hub.
       </p>
-      <div className="admin-field masked-secret" data-testid="settings-integrations-presence-token-field">
-        <span>Webhook token</span>
-        <div className="masked-secret__row">
-          <span className="masked-secret__value" data-testid="settings-integrations-presence-token-masked">
-            {settings.presenceWebhookToken || 'Not set'}
-          </span>
-          <button
-            type="button"
-            data-testid="settings-integrations-presence-generate"
-            disabled={submitting}
-            onClick={handleGenerate}
-          >
-            {submitting ? 'Generating…' : 'Generate'}
-          </button>
-        </div>
-      </div>
-      <p className="admin-page-quiet" data-testid="settings-integrations-presence-webhook-url">
-        <code>POST /api/presence/motion?token=&hellip;</code>
-      </p>
-      {error && (
-        <p className="beer-form__notice" role="alert" data-testid="settings-integrations-presence-error">
-          {error}
-        </p>
-      )}
-      <div className="settings-actions">
-        <button
-          type="button"
-          data-testid="settings-integrations-presence-wake-all"
-          disabled={waking}
-          onClick={handleWakeAll}
-        >
-          {waking ? 'Waking…' : 'Wake all screens'}
-        </button>
-        {wokeNotice && (
-          <p className="admin-page-quiet" data-testid="settings-integrations-presence-woke-notice">Sent.</p>
-        )}
-      </div>
+      <a className="admin-page-quiet" href="/admin/presence" data-testid="presence-hub-link">
+        Open Displays &amp; Presence →
+      </a>
     </div>
   );
 }
@@ -1323,10 +1185,6 @@ interface IntegrationsGroupProps {
    * (and discard any unsaved draft in) the SIBLING SourcesGroup too. See
    * SettingsPage's `catalogBeerVersion`. */
   onCatalogBeerSaved: (updated: Settings, patch: Partial<Settings>) => void;
-  /** For PresenceBlock only — same "own independent key, own counter" precedent as
-   * `onCatalogBeerSaved` (`presenceWebhookToken` shares nothing with `mqtt` or
-   * `catalogBeer` either). See SettingsPage's `presenceVersion`. */
-  onPresenceSaved: (updated: Settings, patch: Partial<Settings>) => void;
   /** For FaceSignInBlock only (Task 9) — same "own independent key, own counter"
    * precedent again: `faceSignIn` shares nothing with `mqtt`/`catalogBeer`/
    * `presenceWebhookToken`. See SettingsPage's `faceSignInVersion`. */
@@ -1430,11 +1288,13 @@ function FaceSignInBlock({ settings, onSaved }: GroupProps) {
 /** Integrations group (Task 8; Untappd creds removed post-v0.1.0 — Untappd stopped
  * granting new developer API credentials, so the integration was removed entirely, see
  * CHANGELOG): Home Assistant publish/discovery-prefix, plus (Wave N) the optional
- * catalog.beer search API key, plus (Task 12) the Presence card, plus (Task 9) the Face
- * sign-in card — independent blocks, each with its own form and Save button, same "outer
- * `<section>`, independent `<form>` blocks inside" shape as ChannelsGroup below. */
+ * catalog.beer search API key, plus (Displays & Presence hub Task 5) a pointer card to
+ * the Presence hub, plus (Task 9) the Face sign-in card — independent blocks, each with
+ * its own form and Save button (`PresenceBlock` is the one exception — a static link, no
+ * form), same "outer `<section>`, independent `<form>` blocks inside" shape as
+ * ChannelsGroup below. */
 function IntegrationsGroup({
-  settings, onSaved, onCatalogBeerSaved, onPresenceSaved, onFaceSignInSaved,
+  settings, onSaved, onCatalogBeerSaved, onFaceSignInSaved,
 }: IntegrationsGroupProps) {
   return (
     <section className="settings-group" data-testid="settings-group-integrations" aria-labelledby="settings-integrations-title">
@@ -1442,7 +1302,7 @@ function IntegrationsGroup({
       <HomeAssistantBlock settings={settings} onSaved={onSaved} />
       <CatalogBeerBlock settings={settings} onSaved={onCatalogBeerSaved} />
       <GoveeBlock settings={settings} onSaved={onCatalogBeerSaved} />
-      <PresenceBlock settings={settings} onSaved={onPresenceSaved} />
+      <PresenceBlock />
       <FaceSignInBlock settings={settings} onSaved={onFaceSignInSaved} />
     </section>
   );
@@ -1847,7 +1707,7 @@ function ChannelsGroup({ settings, onSaved }: GroupProps) {
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
-type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'presence' | 'faceSignIn' | 'channels' | 'updates';
+type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'faceSignIn' | 'channels' | 'updates';
 
 /**
  * `/admin/settings` (Task 8, admin-only route — same "no role branching needed" situation
@@ -1868,11 +1728,11 @@ type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'presence' | 'faceS
  * and so discard any unsaved draft in, the SIBLING SourcesGroup on every catalog.beer
  * save, even though catalog.beer shares nothing with `mqtt`).
  *
- * `presenceVersion` is the same precedent again for `PresenceBlock` — `presenceWebhookToken`
- * shares nothing with `mqtt` or `catalogBeer` either.
- *
  * `faceSignInVersion` (Task 9) is the same precedent once more for `FaceSignInBlock` —
- * `faceSignIn` shares nothing with `mqtt`, `catalogBeer`, or `presenceWebhookToken` either.
+ * `faceSignIn` shares nothing with `mqtt` or `catalogBeer` either.
+ *
+ * There's no `presenceVersion` counter — `PresenceBlock` (Displays & Presence hub Task 5)
+ * is a static pointer card now, nothing here for it to re-derive a draft from.
  */
 type SettingsTabId = 'general' | 'sources' | 'integrations' | 'system';
 
@@ -1907,7 +1767,6 @@ export function SettingsPage() {
   const [kegtronVersion, setKegtronVersion] = useState(0);
   const [mqttVersion, setMqttVersion] = useState(0);
   const [catalogBeerVersion, setCatalogBeerVersion] = useState(0);
-  const [presenceVersion, setPresenceVersion] = useState(0);
   const [faceSignInVersion, setFaceSignInVersion] = useState(0);
   const [updatesVersion, setUpdatesVersion] = useState(0);
   const [notice, setNotice] = useState<'saved' | 'restarted' | null>(null);
@@ -1922,7 +1781,6 @@ export function SettingsPage() {
         setKegtronVersion((v) => v + 1);
         setMqttVersion((v) => v + 1);
         setCatalogBeerVersion((v) => v + 1);
-        setPresenceVersion((v) => v + 1);
         setFaceSignInVersion((v) => v + 1);
         setUpdatesVersion((v) => v + 1);
       } else {
@@ -1942,7 +1800,6 @@ export function SettingsPage() {
     else if (group === 'kegtron') setKegtronVersion((v) => v + 1);
     else if (group === 'mqtt') setMqttVersion((v) => v + 1);
     else if (group === 'catalogBeer') setCatalogBeerVersion((v) => v + 1);
-    else if (group === 'presence') setPresenceVersion((v) => v + 1);
     else if (group === 'faceSignIn') setFaceSignInVersion((v) => v + 1);
     // 'channels': no version bump/remount — see ChannelsGroup's doc comment for why each
     // of its 5 blocks manages its own post-save local-state reset instead.
@@ -2022,11 +1879,10 @@ export function SettingsPage() {
       </div>
       <div className="settings-groups" hidden={tab !== 'integrations'} data-testid="settings-panel-integrations">
         <IntegrationsGroup
-          key={`integrations-${mqttVersion}-${catalogBeerVersion}-${presenceVersion}-${faceSignInVersion}`}
+          key={`integrations-${mqttVersion}-${catalogBeerVersion}-${faceSignInVersion}`}
           settings={settings}
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
           onCatalogBeerSaved={(updated, patch) => handleGroupSaved('catalogBeer', updated, patch)}
-          onPresenceSaved={(updated, patch) => handleGroupSaved('presence', updated, patch)}
           onFaceSignInSaved={(updated, patch) => handleGroupSaved('faceSignIn', updated, patch)}
         />
         <ChannelsGroup

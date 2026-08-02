@@ -933,3 +933,32 @@ export function setPresenceState(
     body: JSON.stringify(wall !== undefined ? { wall, state } : { state }),
   });
 }
+
+// --- Displays & Presence hub Task 5: motion-sources table + webhook panel --------------
+
+/** POST /api/presence/sources — admin role. `body` is a `MotionSource` sans `id` (the
+ * server stamps one via `crypto.randomUUID()` and re-validates the whole shape through
+ * `motionSourceSchema`, including the per-type `config` requirement — see routes/
+ * presence.ts); 201 on success. Backs the Sources panel's add-source modal. */
+export function createPresenceSource(
+  body: Omit<MotionSource, 'id'>,
+): Promise<ApiResult<MotionSource>> {
+  return request('/api/presence/sources', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** PATCH /api/presence/sources/:id — admin role. A shallow top-level merge server-side (a
+ * patched `config` REPLACES the whole field rather than deep-merging into it — same
+ * "client sends back a full sub-object" idiom as `settings.sanitizePatch`), re-parsed
+ * through the same `motionSourceSchema` as create so a patch can't leave a source in an
+ * invalid per-type shape. Backs the Sources panel's edit modal. */
+export function updatePresenceSource(
+  id: string, patch: Partial<Omit<MotionSource, 'id'>>,
+): Promise<ApiResult<MotionSource>> {
+  return request(`/api/presence/sources/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
+/** DELETE /api/presence/sources/:id — admin role; idempotent 204 (an unknown id is a
+ * no-op, not a 404 — see routes/presence.ts, same idiom as `deleteBeer`/`deleteTap`). */
+export function deletePresenceSource(id: string): Promise<ApiResult<null>> {
+  return request(`/api/presence/sources/${id}`, { method: 'DELETE' });
+}

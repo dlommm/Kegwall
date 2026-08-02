@@ -8113,3 +8113,34 @@ h2.admin-field__label-text {
   color: var(--danger);
   font-size: 12px;
 }
+
+/* --- Displays & Presence hub Task 5: Motion sources + Webhook & agent panels -------- */
+/* `tr[data-blink="true"]` is a purely visual highlight — tests assert the `data-blink`
+ * attribute itself (fake-timer-safe), never this animation running. */
+.presence-panel tr[data-blink='true'] {
+  animation: presence-source-blink 1s ease-in-out 2;
+}
+
+@keyframes presence-source-blink {
+  0%, 100% { background: transparent; }
+  50% { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presence-panel tr[data-blink='true'] {
+    animation: none;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+}
+
+.presence-ha-snippet {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: 0.4rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono-numeric, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
