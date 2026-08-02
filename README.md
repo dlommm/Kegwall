@@ -73,9 +73,13 @@ automations, and deep wall customization.
   discovery (entities appear automatically, no HA YAML) and two event topics for pour/alert
   automations. The app works completely without it.
 - **Display power control** — motion wakes displays, idle stages into a screensaver, older
-  idle turns displays off completely. The [display agent](docs/install/display-agent.md) is
-  a zero-dependency script (bash + curl) that runs real screen on/off commands: HDMI-CEC
-  for TVs, DPMS for X11 kiosks, or backlight control for Pi touchscreens.
+  idle turns displays off completely. The **Displays & Presence** admin hub configures
+  motion sources (GPIO PIR/mmWave, BLE BTHome beacons like Shelly BLU Motion, MQTT/
+  zigbee2mqtt, or an HA webhook — see [docs/setup/motion-sensors.md](docs/setup/motion-sensors.md)
+  for the hardware buying/wiring guide) alongside per-wall timing and a live zone/agent
+  overview. The [display agent](docs/install/display-agent.md) is a zero-dependency
+  script (bash + curl) that runs real screen on/off commands: HDMI-CEC for TVs, DPMS for
+  X11 kiosks, or backlight control for Pi touchscreens.
 - **Backup + recovery** — one-click backup download and staged restore from the admin UI,
   with a documented manual recovery path if a restore ever goes wrong.
 
@@ -155,6 +159,7 @@ direct BLE), reverse proxy/HTTPS, and backup/updating — is in
 | [docs/install/android-tablet.md](docs/install/android-tablet.md) | The Android kiosk APK for the kegerator tablet (built by CI, sideloaded) |
 | [docs/setup/kegtron-cloud.md](docs/setup/kegtron-cloud.md) | Kegtron Pro API key + optional UDP for faster local updates |
 | [docs/setup/home-assistant.md](docs/setup/home-assistant.md) | MQTT discovery, entities published, event topics for automations |
+| [docs/setup/motion-sensors.md](docs/setup/motion-sensors.md) | Motion sensor buying/wiring guide — mmWave, PIR/GPIO, BLE (Shelly BLU Motion), Zigbee via zigbee2mqtt, HA webhook |
 | [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md) | On-device browser face matching for tablet sign-in, privacy model, enable/enroll/delete flow |
 | [docs/recovery.md](docs/recovery.md) | Backup, restore, and manual crash-loop recovery |
 | [docs/customization.md](docs/customization.md) | Wall layout, themes, custom CSS trust model, screensaver |

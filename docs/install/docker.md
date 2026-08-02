@@ -90,11 +90,14 @@ docker compose -f docker-compose.host-network.yml up -d
 
 ## GPIO PIR motion sensors (device mapping)
 
-The Displays & Presence hub's GPIO motion transport (`Settings -> Sources`, a `gpio`-type
-motion source) spawns the libgpiod CLI (`gpiomon`) against a chardev like `/dev/gpiochip0`
+The Displays & Presence hub's GPIO motion transport (a `gpio`-type source added on the
+hub's own **Motion sources** panel, `/admin/presence` — not `Settings -> Sources`, which
+only holds the shared MQTT broker connection and a few enable toggles) spawns the
+libgpiod CLI (`gpiomon`) against a chardev like `/dev/gpiochip0`
 — see [docs/install/raspberry-pi.md](raspberry-pi.md#gpio-pir-motion-sensors) for the
-bare-metal `apt install gpiod` setup, and `docs/setup/motion-sensors.md` for the
-sensor buying/wiring guide. That device is **not**
+bare-metal `apt install gpiod` setup, and
+[docs/setup/motion-sensors.md](../setup/motion-sensors.md) for the sensor buying/wiring
+guide. That device is **not**
 visible inside a container by default, in either networking mode above, since device
 passthrough is orthogonal to `network_mode` — a bridge-network container (the default
 `deploy/docker-compose.yml`) needs it exactly as much as a host-network one

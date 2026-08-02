@@ -9,7 +9,9 @@ on/off, Pi touchscreen backlight sysfs, or any shell command you provide.
 
 The server's `/api/presence/stream` endpoint emits SSE events for each wall:
 `data: {"state":"active|screensaver|off"}`. The agent subscribes with a wall slug and
-token (from **Settings → Integrations → Presence card**), reconnects on network hiccup
+token (from the **Displays & Presence** hub's Webhook & agent panel, `/admin/presence`
+— **Settings → Integrations** has a pointer card there if you land on it out of habit),
+reconnects on network hiccup
 (screens stay ON as a safe default while unreachable), and runs your command recipes
 when the wall's presence state changes — motion wakes the display, idle triggers the
 screensaver, and older idle turns it off completely.
@@ -175,16 +177,19 @@ plug or an IR receiver command) when this event fires. This lets you use HA's ow
 automation engine and services — no shell scripts needed. See
 [docs/setup/home-assistant.md](../setup/home-assistant.md) for the full MQTT setup.
 
-For motion integration (if you want HA automations to trigger on motion), instead
-point an HA automation at the server's `POST /api/presence/motion?token=…` endpoint
-(requires a presence token from Settings → Integrations), or configure an MQTT
-motion topic in the admin UI (Settings → Sources → MQTT motion topics) for any
-motion sensor you're running separately.
+For motion integration (if you want HA automations to trigger on motion, or you're
+wiring up a physical motion sensor), see
+[docs/setup/motion-sensors.md](../setup/motion-sensors.md) — it covers the motion
+webhook (`POST /api/presence/motion?token=…&source=…`) plus GPIO, BLE, and MQTT/
+zigbee2mqtt sensor options, all configured as sources on the **Displays & Presence**
+hub's Motion sources panel (`/admin/presence`).
 
 ## See also
 
 - [raspberry-pi.md](raspberry-pi.md#kiosk-mode-tap-wall-on-the-server-pis-screen) —
   Pi kiosk setup, which often pairs with the display agent for real backlight control.
+- [docs/setup/motion-sensors.md](../setup/motion-sensors.md) — motion sensor hardware
+  (mmWave, PIR/GPIO, BLE, Zigbee) that feeds the presence state this agent reacts to.
 - [docs/setup/home-assistant.md](../setup/home-assistant.md) — MQTT discovery and event topics.
 - [docs/customization.md](../customization.md#display-power) — display power (screensaver
   after / screens off after / camera motion wake) configuration and timing.

@@ -206,9 +206,11 @@ the last 5 minutes), MQTT is the fallback — see `bleSource.ts`/`mqttSource.ts`
 
 ## GPIO PIR motion sensors
 
-The Displays & Presence hub's GPIO motion transport (`Settings -> Sources`, a `gpio`-type
-motion source) shells out to the libgpiod CLI (`gpiomon`) rather than talking to
-`/dev/gpiochip0` directly, so it needs libgpiod's userspace tools installed:
+The Displays & Presence hub's GPIO motion transport (a `gpio`-type source added on the
+hub's own **Motion sources** panel, `/admin/presence` — not `Settings -> Sources`, which
+only holds the shared MQTT broker connection and a few enable toggles) shells out to the
+libgpiod CLI (`gpiomon`) rather than talking to `/dev/gpiochip0` directly, so it needs
+libgpiod's userspace tools installed:
 
 ```sh
 sudo apt install gpiod
@@ -222,7 +224,7 @@ see [docker.md's GPIO device-mapping section](docker.md#gpio-pir-motion-sensors-
 
 For wiring a PIR sensor (HC-SR501/AM312) to a GPIO pin, choosing a GPIO line number, and
 the rest of the supported motion-sensor hardware (mmWave, BLE, Zigbee), see
-`docs/setup/motion-sensors.md` — the dedicated sensors guide.
+[docs/setup/motion-sensors.md](../setup/motion-sensors.md) — the dedicated sensors guide.
 
 ## See also
 
