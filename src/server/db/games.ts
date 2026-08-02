@@ -140,6 +140,68 @@ export function listParticipants(db: Database.Database, sessionId: number): Game
     .map((r: any) => ({ sessionId: r.session_id, drinkerId: r.drinker_id, team: r.team ?? null }));
 }
 
+export interface GameStripPlayer {
+  drinkerId: number;
+  displayName: string;
+  avatarColor: string | null;
+  team: string | null;
+  /** Volume this player has poured (claimed) since the session started, in mL. */
+  volumeMl: number;
+}
+
+export interface GameStrip {
+  sessionId: number;
+  gameName: string;
+  premise: string;
+  tracking: GameTracking;
+  winRule: string;
+  metric: string;
+  startedAt: string;
+  settings: Record<string, unknown> | null;
+  players: GameStripPlayer[];
+}
+
+/**
+ * The live wall GAME STRIP model (redesign 5c): the active game plus each participant's
+ * claimed-pour volume since kickoff, leader first. Null when no game is running. Public-safe —
+ * no owner cost or account data, just pourer display names + progress.
+ */
+export function activeGameStrip(db: Database.Database): GameStrip | null {
+  const session = getActiveSession(db);
+  if (!session) return null;
+  const game = getGame(db, session.gameId);
+  if (!game) return null;
+  const rows = db.prepare(`
+    SELECT gp.drinker_id AS drinkerId, u.display_name AS displayName, u.avatar_color AS avatarColor,
+           gp.team AS team,
+           COALESCE((
+             SELECT SUM(p.volume_ml) FROM pours p
+             WHERE p.drinker_id = gp.drinker_id AND p.ts >= ?
+           ), 0) AS volumeMl
+    FROM game_participants gp
+    JOIN users u ON u.id = gp.drinker_id
+    WHERE gp.session_id = ?
+    ORDER BY volumeMl DESC, u.display_name COLLATE NOCASE
+  `).all(session.startedAt, session.id) as any[];
+  return {
+    sessionId: session.id,
+    gameName: game.name,
+    premise: game.premise,
+    tracking: game.tracking,
+    winRule: game.winRule,
+    metric: game.metric,
+    startedAt: session.startedAt,
+    settings: session.settings,
+    players: rows.map((r) => ({
+      drinkerId: r.drinkerId,
+      displayName: r.displayName,
+      avatarColor: r.avatarColor ?? null,
+      team: r.team ?? null,
+      volumeMl: r.volumeMl,
+    })),
+  };
+}
+
 /** Ends a session and records final results (score + rank per drinker). */
 export function endSession(
   db: Database.Database,

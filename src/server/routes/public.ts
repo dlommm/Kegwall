@@ -11,6 +11,7 @@ import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
 import { toPublicTapState, type TapState } from '../core/state.js';
 import { displayPricePerPintCents } from '../core/pricing.js';
+import { activeGameStrip } from '../db/games.js';
 import { requireDisplayToken } from './displayAuth.js';
 import { bestMatch } from '../core/faceMatch.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
@@ -74,6 +75,10 @@ export async function publicRoutes(app: FastifyInstance) {
       units: app.ctx.settings.get('displayUnits'),
     };
   });
+
+  // GET /api/public/game — the live wall GAME STRIP (redesign 5c), or null when no game runs.
+  // Display-gated like the wall; public-safe (pourer names + progress only, no cost/accounts).
+  app.get('/api/public/game', display, async () => activeGameStrip(db));
 
   app.get('/api/public/menu', display, async () => ({
     siteName: app.ctx.settings.get('siteName'),

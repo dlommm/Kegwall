@@ -33,6 +33,9 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   // here would just see every panel action fail.
   { label: 'Displays & Presence', path: '/admin/presence', adminOnly: true },
   { label: 'Automations', path: '/admin/automations' },
+  // Drinking games library (redesign 5a) — browseable by any role; starting a game is
+  // editor-gated inside the page.
+  { label: 'Games', path: '/admin/games' },
   { label: 'Pourers', path: '/admin/pourers' },
   { label: 'Analytics', path: '/admin/stats' },
   { label: 'Logs', path: '/admin/logs' },

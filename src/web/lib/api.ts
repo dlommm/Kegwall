@@ -122,6 +122,11 @@ export function getMenu(): Promise<ApiResult<MenuResponse>> {
   return request<MenuResponse>('/api/public/menu');
 }
 
+/** GET /api/public/game — the live wall GAME STRIP (redesign 5c), or null when idle. */
+export function getGameStrip(): Promise<ApiResult<import('../../server/db/games.js').GameStrip | null>> {
+  return request('/api/public/game');
+}
+
 export function getDrinkers(): Promise<ApiResult<PublicDrinker[]>> {
   return request<PublicDrinker[]>('/api/public/drinkers');
 }

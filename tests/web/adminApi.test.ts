@@ -7,6 +7,7 @@ import {
   listBeers, createBeer, updateBeer, deleteBeer,
   lookupBreweries, uploadLabel, getLookupConfig,
   listSuppliers, getSupplierStats, getSupplierPriceBook, createSupplier, deleteSupplier,
+  getGames, getActiveGame, startGameSession, endGameSession,
   listTaps, createTap, updateTap, deleteTap,
   listKegs, createKeg, removeOnDeckKeg, listOnDeck, swapTap,
   listMonitors, importKegtronBeer, resetKegtronVolume, bindMonitor, getMonitorTelemetry,
@@ -246,6 +247,24 @@ describe('admin api client', () => {
     mockFetchOnce(200, []);
     await listSuppliers();
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/suppliers', expect.any(Object));
+  });
+
+  it('getGames and getActiveGame hit the games endpoints', async () => {
+    mockFetchOnce(200, []);
+    await getGames();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/games', expect.any(Object));
+    mockFetchOnce(200, null);
+    await getActiveGame();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/games/active', expect.any(Object));
+  });
+
+  it('startGameSession POSTs and endGameSession POSTs to /end', async () => {
+    mockFetchOnce(201, null);
+    await startGameSession({ gameId: 5 });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/games/sessions', expect.objectContaining({ method: 'POST' }));
+    mockFetchOnce(200, { id: 9 });
+    await endGameSession(9);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/games/sessions/9/end', expect.objectContaining({ method: 'POST' }));
   });
 
   it('getSupplierStats and getSupplierPriceBook hit their endpoints', async () => {

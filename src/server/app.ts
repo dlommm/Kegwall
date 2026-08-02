@@ -17,6 +17,7 @@ import { sourcesRoutes } from './routes/sources.js';
 import { kegtronRoutes } from './routes/kegtron.js';
 import { activityRoutes } from './routes/activity.js';
 import { statsRoutes } from './routes/stats.js';
+import { gamesRoutes } from './routes/games.js';
 import { logsRoutes } from './routes/logs.js';
 import { placesDisplaysRoutes } from './routes/placesDisplays.js';
 import { featurePackRoutes } from './routes/featurePack.js';
@@ -285,6 +286,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   }); // direct call — see encapsulation note above
   await activityRoutes(app); // direct call — see encapsulation note above
   await statsRoutes(app);    // direct call — see encapsulation note above
+  await gamesRoutes(app);    // direct call — see encapsulation note above
   await logsRoutes(app);     // direct call — see encapsulation note above
   await placesDisplaysRoutes(app); // direct call — see encapsulation note above
   await featurePackRoutes(app);    // direct call — see encapsulation note above

@@ -23,6 +23,7 @@ import { PourTakeover } from '../components/takeover/PourTakeover';
 import { useTakeover } from '../lib/useTakeover';
 import { BannerLane } from '../components/BannerLane';
 import { QrOverlay } from '../components/QrOverlay';
+import { GameStrip } from '../components/GameStrip';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
 
@@ -426,6 +427,8 @@ export function WallPage() {
             />
           )}
           <PlaylistBar views={rotationViews} activeIndex={rotationIndex} />
+          {/* Additive live game strip (redesign 5c) — renders itself only when a game runs. */}
+          <GameStrip />
           <BannerLane queue={queue} onDismiss={dismiss} />
           {look === 'classic' && config.showQr && <QrOverlay url={menuUrl} />}
           {config.showHostStats && hostStats && (
