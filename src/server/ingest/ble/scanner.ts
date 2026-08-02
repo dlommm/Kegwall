@@ -28,7 +28,18 @@ export interface NobleLike {
 export interface NoblePeripheral {
   id?: string;
   address?: string;
-  advertisement?: { manufacturerData?: Buffer; localName?: string };
+  advertisement?: {
+    manufacturerData?: Buffer;
+    localName?: string;
+    // Task 7: BTHome adverts (bleMotion.ts) carry their payload as GATT service data,
+    // not manufacturer data -- @abandonware/noble already parses the AD structure into
+    // this shape (`[{uuid, data}]`, one entry per advertised service) same as the two
+    // fields above; this is a pure additive type + passthrough extension (this file's
+    // 'discover' handler forwards the whole `peripheral` object to every subscriber
+    // untouched -- see `ensureNoble()` below -- so no other code path needed a change
+    // for a new subscriber to start reading this field).
+    serviceData?: Array<{ uuid: string; data: Buffer }>;
+  };
 }
 
 export interface BleSubscriber {

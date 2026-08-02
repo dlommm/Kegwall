@@ -16,7 +16,9 @@ import { SessionRegistry } from '../../src/server/core/sessionMode.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
 import { PresenceRegistry } from '../../src/server/core/presence.js';
 import { MotionSourceRegistry } from '../../src/server/core/motionSources.js';
-import { registerConfiguredSources, restartSourcesIfLive, resolveGpioSources } from '../../src/server/ingest/bootstrap.js';
+import {
+  registerConfiguredSources, restartSourcesIfLive, resolveGpioSources, resolveBleMotionSources,
+} from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
@@ -274,6 +276,73 @@ describe('registerConfiguredSources', () => {
       expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(true);
     });
   });
+
+  // Task 7, mirroring the motion_gpio gating describe block above.
+  describe('motion_ble gating (Task 7)', () => {
+    const BLE_SOURCE = {
+      id: 'beacon-1', name: 'Hallway BTHome beacon', type: 'ble' as const, enabled: true,
+      wallSlug: 'main', config: { mac: null },
+    };
+
+    it('registers motion_ble when an enabled ble-type motion source exists, with '
+      + 'NEITHER Gen 1 direct nor Pro BLE also enabled (a pure BTHome-only install)', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [BLE_SOURCE] as never);
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_ble')!.registered).toBe(true);
+      // Neither of the other two BLE sources exists to share the scanner with here --
+      // proves motion_ble constructs the scanner on its own when it's the only BLE
+      // consumer, rather than silently no-op'ing for want of one.
+      expect(ctx.sources.status().find((s) => s.name === 'gen1_ble')!.registered).toBe(false);
+      expect(ctx.sources.status().find((s) => s.name === 'pro_ble')!.registered).toBe(false);
+    });
+
+    it('does not register motion_ble when no ble-type motion source exists', () => {
+      const ctx = makeCtx();
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_ble')!.registered).toBe(false);
+    });
+
+    it('does not register motion_ble for a disabled ble-type motion source', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [{ ...BLE_SOURCE, enabled: false }] as never);
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'motion_ble')!.registered).toBe(false);
+    });
+
+    it('drops motion_ble on a rebuild once the last ble-type motion source is removed', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('motionSources', [BLE_SOURCE] as never);
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_ble')!.registered).toBe(true);
+
+      ctx.settings.set('motionSources', []);
+      registerConfiguredSources(ctx);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_ble')!.registered).toBe(false);
+    });
+
+    // Scanner-sharing caveat (brief): when a Gen 1 direct BLE source is ALSO enabled,
+    // both it and motion_ble must register successfully off the SAME `BleScanner`
+    // instance bootstrap constructs once per registration pass (ble/scanner.ts's header
+    // -- two independent noble lifecycles would have one source's stop() strip the
+    // other's discover listener). This can't observe the shared instance directly from
+    // outside `registerConfiguredSources`, but proves both sources register cleanly
+    // together rather than one clobbering the other's construction.
+    it('coexists with gen1_ble on the shared scanner when both are configured', () => {
+      const ctx = makeCtx();
+      ctx.settings.set('bleDirectEnabled', true);
+      ctx.settings.set('motionSources', [BLE_SOURCE] as never);
+
+      registerConfiguredSources(ctx);
+
+      expect(ctx.sources.status().find((s) => s.name === 'gen1_ble')!.registered).toBe(true);
+      expect(ctx.sources.status().find((s) => s.name === 'motion_ble')!.registered).toBe(true);
+    });
+  });
 });
 
 // Fix-round-1 review finding F3: the "applies documented gpio defaults" test above only
@@ -309,6 +378,38 @@ describe('resolveGpioSources (Task 1 adjudication: defaults applied here)', () =
       {
         id: 'pir-1', name: 'Kitchen PIR', type: 'mqtt', enabled: true,
         wallSlug: 'main', config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    ] as never);
+
+    expect(resolved).toEqual([]);
+  });
+});
+
+// Task 7, mirroring the resolveGpioSources describe block above.
+describe('resolveBleMotionSources (Task 7: mac defaulted to null here)', () => {
+  it('resolves an entry with an explicit mac', () => {
+    const resolved = resolveBleMotionSources([{
+      id: 'beacon-1', name: 'Hallway beacon', type: 'ble', enabled: true,
+      wallSlug: 'main', config: { mac: 'AA:BB:CC:DD:EE:FF' },
+    }] as never);
+
+    expect(resolved).toEqual([{ id: 'beacon-1', mac: 'AA:BB:CC:DD:EE:FF' }]);
+  });
+
+  it('defaults an omitted mac to null (any BTHome motion advert wakes this source)', () => {
+    const resolved = resolveBleMotionSources([{
+      id: 'beacon-1', name: 'Hallway beacon', type: 'ble', enabled: true,
+      wallSlug: 'main', config: {},
+    }] as never);
+
+    expect(resolved).toEqual([{ id: 'beacon-1', mac: null }]);
+  });
+
+  it('filters out non-ble-type entries', () => {
+    const resolved = resolveBleMotionSources([
+      {
+        id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: true,
+        wallSlug: 'main', config: { line: 4 },
       },
     ] as never);
 

@@ -12,6 +12,7 @@ import { BleScanner } from './ble/scanner.js';
 import { HaPublisherSource } from './haPublisher.js';
 import { MotionMqttSource } from './motionMqtt.js';
 import { GpioMotionSource } from './gpioMotion.js';
+import { BleMotionSource } from './bleMotion.js';
 
 // ---------------------------------------------------------------------------
 // Task 8: wires the four ingest sources (Tasks 4/6/7) into a single `SourceManager`
@@ -96,12 +97,20 @@ export function registerConfiguredSources(ctx: AppContext): void {
     }));
   }
 
-  // BOTH BLE sources (Gen 1 direct + Pro adverts) must share ONE noble scanner —
-  // noble is a process-wide singleton, and independent lifecycles meant one source's
-  // stop() could strip the other's discover listener (see ble/scanner.ts's header).
-  // Constructed only when at least one BLE source is enabled; refcounted acquire/
-  // release inside the sources handles actual scan start/stop.
-  const bleScanner = (settings.bleDirectEnabled || settings.proBleEnabled)
+  // Task 7: ble-type motion sources (BTHome beacons) resolved up front — needed BEFORE
+  // `bleScanner` below decides whether to construct at all, since a site can run
+  // BleMotionSource with NEITHER Gen 1 direct nor Pro BLE enabled (a pure BTHome-only
+  // BLE install has no Kegtron device to scan for). See `resolveBleMotionSources`'s doc
+  // comment for why this is its own exported function (same `resolveGpioSources`
+  // precedent as Task 6).
+  const bleMotionSources = resolveBleMotionSources(ctx.motion.sources());
+
+  // ALL THREE BLE sources (Gen 1 direct + Pro adverts + Task 7's BTHome motion) must
+  // share ONE noble scanner — noble is a process-wide singleton, and independent
+  // lifecycles meant one source's stop() could strip another's discover listener (see
+  // ble/scanner.ts's header). Constructed only when at least one is enabled/configured;
+  // refcounted acquire/release inside the sources handles actual scan start/stop.
+  const bleScanner = (settings.bleDirectEnabled || settings.proBleEnabled || bleMotionSources.length > 0)
     ? new BleScanner() : undefined;
 
   if (settings.bleDirectEnabled) {
@@ -119,6 +128,17 @@ export function registerConfiguredSources(ctx: AppContext): void {
       // the BLE advert has no serial — only the local name's serial-tail suffix (see
       // db/monitors.ts's reconcileProMonitorByBleName).
       reconcile: (nameSuffix, portIndex) => reconcileProMonitorByBleName(ctx.db, nameSuffix, portIndex),
+    }));
+  }
+
+  // Task 7, same "gated on its own condition, registry-driven" precedent as
+  // `motion_mqtt`/`motion_gpio` above: registers only when at least one enabled
+  // ble-type motion source exists. `bleScanner` is guaranteed non-undefined here —
+  // `bleMotionSources.length > 0` is itself one of the three conditions the
+  // construction check above ORs together.
+  if (bleMotionSources.length > 0) {
+    ctx.sources.register(new BleMotionSource({
+      sources: bleMotionSources, scanner: bleScanner!, registry: ctx.motion, bus: ctx.bus,
     }));
   }
 
@@ -196,6 +216,24 @@ export function resolveGpioSources(
       activeLow: s.config.activeLow ?? false,
       debounceMs: s.config.debounceMs ?? 2000,
     }));
+}
+
+/**
+ * Task 7, same "extracted out of `registerConfiguredSources` so it's directly
+ * unit-testable" precedent as `resolveGpioSources` above: ble-type `motionSources`
+ * entries resolved to `BleMotionSource`'s exact constructor shape. There's only one
+ * field to default here (`config.mac`, nullable-optional in the schema, meaning "any
+ * BTHome motion advert wakes this source" — same convention as `MotionSource.wallSlug:
+ * null` waking every wall) so this reads much thinner than `resolveGpioSources`, but
+ * the extraction is worth it for the same reason: a bootstrap-level defaulting bug is
+ * otherwise only provable via a full `AppContext` round-trip.
+ */
+export function resolveBleMotionSources(
+  sources: MotionSource[],
+): Array<{ id: string; mac: string | null }> {
+  return sources
+    .filter((s) => s.type === 'ble')
+    .map((s) => ({ id: s.id, mac: s.config.mac ?? null }));
 }
 
 /**
