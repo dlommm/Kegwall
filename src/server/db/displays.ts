@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { NotFoundError } from '../core/errors.js';
 
 /**
@@ -23,6 +23,8 @@ export interface Display {
   overrides: DisplayOverrides;
   lastSeen: string | null;
   createdAt: string;
+  /** ISO timestamp of the most recent successful pair, or null if never paired. */
+  pairedAt: string | null;
 }
 
 function rowToDisplay(r: any): Display {
@@ -35,7 +37,12 @@ function rowToDisplay(r: any): Display {
   return {
     id: r.id, name: r.name, code: r.code, wallId: r.wall_id,
     overrides, lastSeen: r.last_seen, createdAt: r.created_at,
+    pairedAt: r.paired_at ?? null,
   };
+}
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 // No 0/O/1/I — the code gets typed on a TV remote or tablet keyboard.
@@ -97,6 +104,33 @@ export function updateDisplay(db: Database.Database, id: number, input: {
 
 export function touchDisplay(db: Database.Database, id: number): void {
   db.prepare('UPDATE displays SET last_seen = ? WHERE id = ?').run(new Date().toISOString(), id);
+}
+
+/**
+ * Pairs the display with the given code: mints a fresh 32-byte secret, stores its SHA-256
+ * hash + `paired_at`, and returns the display plus the RAW token. The raw token is returned
+ * exactly once (it's never stored in plaintext and can't be re-derived). Re-pairing an
+ * already-paired display rotates the token (invalidates the old one). Returns null for an
+ * unknown code. Code match is case-insensitive (getDisplayByCode upper-cases).
+ */
+export function pairDisplay(
+  db: Database.Database, code: string,
+): { display: Display; token: string } | null {
+  const existing = getDisplayByCode(db, code);
+  if (!existing) return null;
+  const token = randomBytes(32).toString('hex');
+  const now = new Date().toISOString();
+  db.prepare('UPDATE displays SET token_hash = ?, paired_at = ?, last_seen = ? WHERE id = ?')
+    .run(hashToken(token), now, now, existing.id);
+  return { display: getDisplay(db, existing.id)!, token };
+}
+
+/** Resolves a raw display token to its display via an indexed SHA-256-hash lookup (same
+ * pattern as sessions.token_hash in core/auth.ts), or null if no display has that token. */
+export function getDisplayByToken(db: Database.Database, token: string): Display | null {
+  if (!token) return null;
+  const r = db.prepare('SELECT * FROM displays WHERE token_hash = ?').get(hashToken(token));
+  return r ? rowToDisplay(r) : null;
 }
 
 export function deleteDisplay(db: Database.Database, id: number): void {
