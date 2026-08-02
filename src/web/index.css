@@ -2785,6 +2785,55 @@ h2.admin-field__label-text {
 }
 
 .wall-create-form__actions,
+/* Redesign 1c: Display Fit — resolution segmented picker + UI scale controls. */
+.wall-editor__seg {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.wall-editor__seg-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.wall-editor__seg-btn--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+
+.wall-editor__seg-main {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.wall-editor__seg-sub {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.wall-editor__reset-scale {
+  min-height: 32px;
+  align-self: flex-start;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
 .wall-editor__save-row {
   display: flex;
   align-items: center;

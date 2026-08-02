@@ -7,7 +7,7 @@ import {
 import { groupMonitors, deviceLabel, type MonitorDeviceGroup } from '../../lib/monitorDevices';
 import {
   configToFormState, parseWallConfigForm, safeParseWallConfig, WALL_TOKEN_KEYS,
-  type WallConfigFormState, type WallTokenKey,
+  recommendedUiScale, type WallConfigFormState, type WallTokenKey,
 } from '../../lib/wallEditorConfig';
 import {
   FIELD_KEYS, TEMPLATE_DEFAULT_FIELDS, type CardTemplate, type FieldKey,
@@ -73,6 +73,14 @@ const TAKEOVER_STYLES: { value: WallConfig['takeover']['style']; label: string }
 const FILL_STYLES: { value: WallConfig['fillStyle']; label: string }[] = [
   { value: 'liquid', label: 'Beer-colored liquid' },
   { value: 'keg', label: 'Keg cutaway' },
+];
+
+// Display fit (redesign 1c): the screen sizes offered + resolution options (with px sublabels).
+const SCREEN_SIZES = [32, 43, 50, 55, 65, 75] as const;
+const RESOLUTIONS: { value: WallConfig['display']['resolution']; label: string; px: string }[] = [
+  { value: '720p', label: '720p', px: '1280×720' },
+  { value: '1080p', label: '1080p', px: '1920×1080' },
+  { value: '4k', label: '4K', px: '3840×2160' },
 ];
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -188,6 +196,18 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
 
   function updateTokenOverride(key: WallTokenKey, value: string) {
     setForm((f) => ({ ...f, themeOverrides: { ...f.themeOverrides, [key]: value } }));
+  }
+
+  // Display fit (redesign 1c): picking a screen size or resolution snaps the UI scale to the
+  // recommended value; the operator then nudges the slider from there.
+  function updateDisplaySize(sizeIn: number) {
+    setForm((f) => ({ ...f, displaySizeIn: sizeIn, displayUiScale: recommendedUiScale(sizeIn, f.displayResolution) }));
+  }
+  function updateDisplayResolution(resolution: WallConfig['display']['resolution']) {
+    setForm((f) => ({ ...f, displayResolution: resolution, displayUiScale: recommendedUiScale(f.displaySizeIn, resolution) }));
+  }
+  function resetUiScale() {
+    setForm((f) => ({ ...f, displayUiScale: recommendedUiScale(f.displaySizeIn, f.displayResolution) }));
   }
 
   const activeTheme = getTheme(form.themeId);
@@ -622,6 +642,53 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
                 </label>
               </div>
             ))}
+          </fieldset>
+
+          <fieldset className="wall-editor__section" data-testid="wall-editor-display-fit">
+            <legend>Display fit</legend>
+            <label className="admin-field">
+              <span>Screen size</span>
+              <select
+                data-testid="wall-editor-display-size"
+                value={form.displaySizeIn}
+                onChange={(e) => updateDisplaySize(Number(e.target.value))}
+              >
+                {SCREEN_SIZES.map((s) => <option key={s} value={s}>{`${s}"`}</option>)}
+              </select>
+            </label>
+            <div className="wall-editor__seg" role="group" aria-label="Resolution" data-testid="wall-editor-display-resolution">
+              {RESOLUTIONS.map((r) => (
+                <button
+                  type="button"
+                  key={r.value}
+                  className={form.displayResolution === r.value ? 'wall-editor__seg-btn wall-editor__seg-btn--active' : 'wall-editor__seg-btn'}
+                  data-testid={`wall-editor-display-resolution-${r.value}`}
+                  aria-pressed={form.displayResolution === r.value}
+                  onClick={() => updateDisplayResolution(r.value)}
+                >
+                  <span className="wall-editor__seg-main">{r.label}</span>
+                  <span className="wall-editor__seg-sub font-tabular">{r.px}</span>
+                </button>
+              ))}
+            </div>
+            <label className="admin-field">
+              <span data-testid="wall-editor-display-ui-scale-label">{`UI scale — ${Math.round(form.displayUiScale * 100)}%`}</span>
+              <input
+                type="range"
+                min={70}
+                max={150}
+                step={5}
+                data-testid="wall-editor-display-ui-scale"
+                value={Math.round(form.displayUiScale * 100)}
+                onChange={(e) => updateField('displayUiScale', Number(e.target.value) / 100)}
+              />
+            </label>
+            <button type="button" className="wall-editor__reset-scale" data-testid="wall-editor-display-ui-scale-reset" onClick={resetUiScale}>
+              Reset to default
+            </button>
+            <p className="admin-page-quiet">
+              Bigger scale = bigger type on the TV. Pick your screen size and resolution and we&rsquo;ll suggest a starting scale you can nudge.
+            </p>
           </fieldset>
 
           <fieldset className="wall-editor__section">

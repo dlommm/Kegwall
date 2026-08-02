@@ -115,6 +115,40 @@ describe('WallEditor', () => {
     );
   });
 
+  describe('Display fit (redesign 1c)', () => {
+    it('picking a screen size snaps the UI scale to the recommended value', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      // Default 55" / 1080p → 100%.
+      expect(screen.getByTestId('wall-editor-display-ui-scale-label')).toHaveTextContent('100%');
+      fireEvent.change(screen.getByTestId('wall-editor-display-size'), { target: { value: '32' } });
+      expect(screen.getByTestId('wall-editor-display-ui-scale-label')).toHaveTextContent('110%');
+    });
+
+    it('resolution snaps the scale; the slider nudges it; reset restores recommended', async () => {
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      fireEvent.click(screen.getByTestId('wall-editor-display-resolution-720p'));
+      expect(screen.getByTestId('wall-editor-display-ui-scale-label')).toHaveTextContent('115%');
+      fireEvent.change(screen.getByTestId('wall-editor-display-ui-scale'), { target: { value: '130' } });
+      expect(screen.getByTestId('wall-editor-display-ui-scale-label')).toHaveTextContent('130%');
+      fireEvent.click(screen.getByTestId('wall-editor-display-ui-scale-reset'));
+      expect(screen.getByTestId('wall-editor-display-ui-scale-label')).toHaveTextContent('115%');
+    });
+
+    it('saving persists the display config', async () => {
+      (updateWall as Mock).mockResolvedValue({ ok: true, data: makeWall() });
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+      await flush();
+      fireEvent.change(screen.getByTestId('wall-editor-display-size'), { target: { value: '65' } });
+      fireEvent.click(screen.getByTestId('wall-editor-display-resolution-4k'));
+      await act(async () => { fireEvent.submit(screen.getByTestId('wall-editor-form')); });
+      expect(updateWall).toHaveBeenCalledWith(1, expect.objectContaining({
+        config: expect.objectContaining({ display: { sizeIn: 65, resolution: '4k', uiScale: 0.9 } }),
+      }));
+    });
+  });
+
   describe('Display power (Task 12)', () => {
     it('loads default (never-engage) displayPower into blank inputs and an unchecked camera checkbox', async () => {
       render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
