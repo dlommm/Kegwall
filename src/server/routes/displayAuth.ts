@@ -30,15 +30,17 @@ export function registerDisplayAuth(app: FastifyInstance): void {
 }
 
 /** preHandler factory: resolves the presented token to `req.display`, then — only when
- * `settings.displays.enforceToken` is on — rejects with 401 if no valid display resolved.
- * While enforcement is off it never denies access (dormant, back-compat). */
+ * `settings.displays.enforceToken` is on — rejects with 401 unless the request carries a
+ * valid display token OR a logged-in session user. The session-user allowance matters
+ * because these endpoints (`/ws`, the wall payload, etc.) are also consumed by authenticated
+ * admin pages via the cookie, and a logged-in staff member is at least as trusted as a
+ * paired display. While enforcement is off it never denies access (dormant, back-compat). */
 export function requireDisplayToken(app: FastifyInstance) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     const token = extractDisplayToken(req);
     req.display = token ? getDisplayByToken(app.ctx.db, token) : null;
     if (!app.ctx.settings.get('displays').enforceToken) return; // dormant → allow
-    if (!req.display) {
-      return reply.code(401).send({ error: 'unauthorized', message: 'This display must be paired' });
-    }
+    if (req.display || req.user) return; // paired display OR logged-in staff
+    return reply.code(401).send({ error: 'unauthorized', message: 'This display must be paired' });
   };
 }

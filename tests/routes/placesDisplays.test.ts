@@ -198,4 +198,11 @@ describe('display-token gating (sub-project A)', () => {
     expect((await app.inject({ url: '/api/public/recent-pours' })).statusCode).toBe(200);
     expect((await app.inject({ url: '/api/public/pourers' })).statusCode).toBe(200);
   });
+
+  it('a logged-in staff session can read gated endpoints without a display token (admin pages)', async () => {
+    enforce();
+    // No display token, but the admin session cookie is present → allowed.
+    expect((await app.inject({ url: '/api/public/menu', cookies })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/public/wall/main', cookies })).statusCode).toBe(200);
+  });
 });
