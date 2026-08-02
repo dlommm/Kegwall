@@ -225,8 +225,20 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
         formAction: ["'self'"],
+        // helmet merges its default `upgrade-insecure-requests` directive in unless told
+        // otherwise. Kegwall is served over plain HTTP on a LAN (a Pi/NUC at the kegerator,
+        // no TLS) — that directive makes the browser rewrite every asset request to https://,
+        // which the server doesn't serve, so the whole UI fails to load (ERR_CONNECTION_REFUSED
+        // on the JS/CSS). Setting it to null removes it. An operator who fronts the app with a
+        // TLS reverse proxy gets HTTPS from the proxy, which can add these itself.
+        upgradeInsecureRequests: null,
       },
     },
+    // HSTS is HTTPS-only AND sticky — a browser that sees `Strict-Transport-Security` over
+    // http://<lan-ip> caches "always use HTTPS for this origin" for a year and then refuses
+    // the plain-HTTP app until the entry is manually cleared. Kegwall's default access is
+    // HTTP on a LAN, so it must NOT advertise HSTS; a TLS reverse proxy is where HSTS belongs.
+    strictTransportSecurity: false,
     // The app and its assets are same-origin; COEP would block the labels/uploads served
     // without a Cross-Origin-Resource-Policy header and buys nothing here.
     crossOriginEmbedderPolicy: false,

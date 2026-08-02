@@ -30,6 +30,16 @@ describe('app', () => {
     expect(csp).toContain("object-src 'none'");
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
+
+  it('does NOT advertise HSTS or upgrade-insecure-requests (served over HTTP on a LAN)', async () => {
+    // Both are HTTPS-only and break the plain-HTTP LAN deployment: upgrade-insecure-requests
+    // rewrites asset URLs to https:// (which the server doesn't serve → the UI won't load),
+    // and HSTS is sticky (a browser refuses http:// for a year once it sees it). See app.ts.
+    app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/api/health' });
+    expect(res.headers['strict-transport-security']).toBeUndefined();
+    expect(res.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
+  });
 });
 
 describe('SqliteError mapping in the global error handler', () => {
