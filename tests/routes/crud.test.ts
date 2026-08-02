@@ -37,6 +37,25 @@ describe('crud routes', () => {
     expect(list.json()).toHaveLength(1);
   });
 
+  it('rejects a beer labelImage that is an external URL (only /labels paths allowed)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/beers', cookies: adminCookies,
+      payload: { name: 'Beacon', labelImage: 'https://attacker.example/pixel.png' },
+    });
+    expect(res.statusCode).toBe(400);
+    // A real uploaded path is accepted.
+    const ok = await app.inject({
+      method: 'POST', url: '/api/beers', cookies: adminCookies,
+      payload: { name: 'Fine', labelImage: '/labels/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png' },
+    });
+    expect(ok.statusCode).toBe(201);
+  });
+
+  it('returns 400 (not 500) for a non-numeric :id param', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/beers/abc', cookies: adminCookies });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('viewer can read but not write', async () => {
     await app.inject({
       method: 'POST', url: '/api/users', cookies: adminCookies,

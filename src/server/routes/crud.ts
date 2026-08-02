@@ -27,12 +27,25 @@ import { SOURCE_RESTART_KEYS } from '../core/restartKeys.js';
 import { deleteLabelIfUnreferenced } from '../core/labelStore.js';
 import { join } from 'node:path';
 
+// labelImage must be an app-managed upload path (`/labels/<uuid>.<ext>`), never an
+// arbitrary URL — otherwise an editor could point it at a third-party host and turn every
+// public wall view into a beacon leaking the venue's IP/User-Agent. `downloadAndStoreLabel`
+// and the upload endpoint both already produce exactly this shape; `null` clears it.
+const LABEL_IMAGE_RE = /^\/labels\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpg|webp)$/;
+
 const beerSchema = z.object({
   name: z.string().min(1),
   brewery: z.string().nullish(), style: z.string().nullish(),
   abv: z.number().nullish(), ibu: z.number().nullish(), srm: z.number().nullish(),
-  description: z.string().nullish(), labelImage: z.string().nullish(),
+  description: z.string().nullish(),
+  labelImage: z.string().regex(LABEL_IMAGE_RE, 'labelImage must be an uploaded /labels path').nullish(),
 });
+
+/** Parses a `:id` route param to a positive integer, turning `NaN` (e.g. `/api/beers/abc`)
+ * into a clean 400 via the ZodError handler instead of a bare-thrown 500 from better-sqlite3. */
+function parseId(params: unknown): number {
+  return z.coerce.number().int().parse((params as { id?: unknown }).id);
+}
 
 export interface Wall { id: number; slug: string; name: string; config: unknown }
 
@@ -82,12 +95,12 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   app.post('/api/beers', editor, async (req, reply) =>
     reply.code(201).send(createBeer(db, beerSchema.parse(req.body))));
   app.get('/api/beers/:id', viewer, async (req) => {
-    const beer = getBeer(db, Number((req.params as any).id));
+    const beer = getBeer(db, parseId(req.params));
     if (!beer) throw new NotFoundError('beer');
     return beer;
   });
   app.patch('/api/beers/:id', editor, async (req) => {
-    const id = Number((req.params as any).id);
+    const id = parseId(req.params);
     const before = getBeer(db, id);
     const updated = updateBeer(db, id, beerSchema.partial().parse(req.body));
     // If the label image changed, reclaim the old file (no other beer references it).
@@ -97,7 +110,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     return updated;
   });
   app.delete('/api/beers/:id', editor, async (req, reply) => {
-    const id = Number((req.params as any).id);
+    const id = parseId(req.params);
     const before = getBeer(db, id);
     deleteBeer(db, id);
     if (before) deleteLabelIfUnreferenced(db, labelsDir, before.labelImage);
@@ -130,12 +143,12 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   app.patch('/api/taps/:id', editor, async (req) => {
     const body = tapSchema.partial().parse(req.body);
     assertValidDrinkerId(db, body.defaultDrinkerId);
-    const tap = updateTap(db, Number((req.params as any).id), body);
+    const tap = updateTap(db, parseId(req.params), body);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return tap;
   });
   app.delete('/api/taps/:id', editor, async (req, reply) => {
-    deleteTap(db, Number((req.params as any).id));
+    deleteTap(db, parseId(req.params));
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return reply.code(204).send();
   });
@@ -167,7 +180,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     { message: 'beerId, sizeMl, and volStartMl are required unless fromKegId (promoting an on-deck keg) is given' },
   );
   app.post('/api/taps/:id/swap', editor, async (req, reply) => {
-    const tapId = Number((req.params as any).id);
+    const tapId = parseId(req.params);
     if (!getTap(db, tapId)) throw new NotFoundError('tap');
     const body = swapSchema.parse(req.body);
     // Captured BEFORE swapKeg (which kicks it, inside its own transaction) so the
@@ -198,7 +211,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // (Task 5), in queue order. Registered ahead of no other tap route conflicts with it
   // (Fastify matches the literal `/on-deck` segment before `/api/taps/:id` alone would).
   app.get('/api/taps/:id/on-deck', viewer, async (req) => {
-    const tapId = Number((req.params as any).id);
+    const tapId = parseId(req.params);
     if (!getTap(db, tapId)) throw new NotFoundError('tap');
     return listOnDeckForTap(db, tapId);
   });
@@ -240,7 +253,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     }).refine((v) => v.status !== undefined || v.costCents !== undefined, {
       message: 'nothing to update',
     }).parse(req.body);
-    const keg = getKeg(db, Number((req.params as any).id));
+    const keg = getKeg(db, parseId(req.params));
     if (!keg) throw new NotFoundError('keg');
     if (body.costCents !== undefined) {
       db.prepare('UPDATE kegs SET cost_cents = ? WHERE id = ?').run(body.costCents, keg.id);
@@ -268,7 +281,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // throws ValidationError (400) for any keg not currently 'on_deck' — a tapped/kicked/
   // archived keg is real history, not a queue entry, and is never deletable this way.
   app.delete('/api/kegs/:id', editor, async (req, reply) => {
-    removeOnDeckKeg(db, Number((req.params as any).id));
+    removeOnDeckKeg(db, parseId(req.params));
     return reply.code(204).send();
   });
 
@@ -287,7 +300,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   })));
   app.post('/api/monitors/:id/bind', editor, async (req) => {
     const body = z.object({ tapId: z.number().int().nullable() }).parse(req.body);
-    const id = Number((req.params as any).id);
+    const id = parseId(req.params);
     // Govee sensors measure the room, not a keg line — binding one to a tap would
     // feed nonsense into pour attribution. The UI never offers it; guard the API too.
     const target = getMonitorById(db, id);
@@ -312,7 +325,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // Device-wide: any port row of a device answers with the whole device's telemetry
   // (Kegtron reports temp once per device, recorded on the port-0 row).
   app.get('/api/monitors/:id/telemetry', viewer, async (req) => {
-    const monitorId = Number((req.params as any).id);
+    const monitorId = parseId(req.params);
     const mon = getMonitorById(db, monitorId);
     if (!mon) throw new NotFoundError('monitor');
     const { hours } = telemetryQuerySchema.parse(req.query);
@@ -339,7 +352,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   app.patch('/api/pours/:id/drinker', editor, async (req) => {
     const body = z.object({ drinkerId: z.number().int().nullable() }).parse(req.body);
     assertValidDrinkerId(db, body.drinkerId);
-    const pour = setPourDrinker(db, Number((req.params as any).id), body.drinkerId);
+    const pour = setPourDrinker(db, parseId(req.params), body.drinkerId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     return pour;
   });
@@ -363,7 +376,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // sample code omitted it.
   app.get('/api/walls/:id', viewer, async (req) => {
     const r = db.prepare('SELECT * FROM walls WHERE id = ?')
-      .get(Number((req.params as any).id)) as any;
+      .get(parseId(req.params)) as any;
     if (!r) throw new NotFoundError('wall');
     return { id: r.id, slug: r.slug, name: r.name, config: parseWallConfig(JSON.parse(r.config)) };
   });
@@ -372,7 +385,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     return reply.code(201).send(createWall(db, body));
   });
   app.patch('/api/walls/:id', editor, async (req) => {
-    const id = Number((req.params as any).id);
+    const id = parseId(req.params);
     const existing = db.prepare('SELECT * FROM walls WHERE id = ?').get(id) as any;
     if (!existing) throw new NotFoundError('wall');
     const body = wallSchema.partial().parse(req.body);
@@ -387,7 +400,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   });
   app.delete('/api/walls/:id', editor, async (req, reply) => {
     // wall_devices rows go with it via ON DELETE CASCADE (migration 011).
-    db.prepare('DELETE FROM walls WHERE id = ?').run(Number((req.params as any).id));
+    db.prepare('DELETE FROM walls WHERE id = ?').run(parseId(req.params));
     app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     return reply.code(204).send();
   });
@@ -407,12 +420,12 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     if (!db.prepare('SELECT id FROM walls WHERE id = ?').get(id)) throw new NotFoundError('wall');
   };
   app.get('/api/walls/:id/devices', viewer, async (req) => {
-    const id = Number((req.params as any).id);
+    const id = parseId(req.params);
     requireWall(id);
     return listWallDevices(db, id);
   });
   app.put('/api/walls/:id/devices', editor, async (req) => {
-    const id = Number((req.params as any).id);
+    const id = parseId(req.params);
     requireWall(id);
     const { devices } = wallDevicesBody.parse(req.body);
     for (const d of devices) {
@@ -446,13 +459,13 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     return reply.code(201).send(user);
   });
   app.patch('/api/users/:id', admin, async (req) =>
-    updateUser(db, Number((req.params as any).id), z.object({
+    updateUser(db, parseId(req.params), z.object({
       displayName: z.string().optional(), role: z.enum(['admin', 'editor', 'viewer']).optional(),
       password: z.string().min(8).optional(), avatarColor: z.string().nullish(),
       isDrinker: z.boolean().optional(),
     }).parse(req.body)));
   app.delete('/api/users/:id', admin, async (req, reply) => {
-    deleteUser(db, Number((req.params as any).id));
+    deleteUser(db, parseId(req.params));
     return reply.code(204).send();
   });
 
