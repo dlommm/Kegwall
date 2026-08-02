@@ -45,6 +45,24 @@ describe('LogsPage (design 5d)', () => {
     mockLogs(makeResponse());
   });
 
+  it('shows a "show similar" chip on repeated error signatures and filters to it on click (redesign 4b)', async () => {
+    mockLogs({
+      entries: [
+        { id: 3, ts: '2026-07-29T20:00:00.000Z', level: 'error', source: 'kegtron', message: 'Cloud API timeout after 10s', detail: null },
+        { id: 2, ts: '2026-07-29T19:59:00.000Z', level: 'error', source: 'kegtron', message: 'Cloud API timeout after 12s', detail: null },
+        { id: 1, ts: '2026-07-29T19:58:00.000Z', level: 'info', source: 'pours', message: 'Pour complete', detail: null },
+      ],
+      counts: { info: 1, warn: 0, error: 2 }, total: 3, retentionDays: 30,
+    });
+    renderAdminPage(<LogsPage />);
+    await flush();
+    // Two errors share the digit-normalized signature → chip shows "· 2".
+    const chips = screen.getAllByTestId('logs-row-similar');
+    expect(chips[0]).toHaveTextContent('show similar · 2');
+    fireEvent.click(chips[0]!);
+    expect(screen.getByTestId('logs-search')).toHaveValue('Cloud API timeout after');
+  });
+
   it('renders the stream with level badges, source, and the footer counts', async () => {
     renderAdminPage(<LogsPage />);
     await flush();

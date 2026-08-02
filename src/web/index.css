@@ -1898,6 +1898,19 @@
   text-align: right;
 }
 
+/* Logs "show similar" chip (4b). */
+.logs-row__similar {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  background: none;
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* Doctor verdict banner (4c). */
 .doctor-verdict {
   padding: 0.7rem 1rem;

@@ -1,5 +1,5 @@
 import {
-  useCallback, useEffect, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
   getLogs, logsQueryString, type LogEntry, type LogsResponse,
@@ -20,6 +20,12 @@ const SOURCE_LABELS: Record<LogSource, string> = {
   app: 'App', kegtron: 'Kegtron', wall: 'Wall', tablet: 'Tablet', sensors: 'Sensors', automations: 'Automations', pours: 'Pours', faces: 'Faces',
 };
 const LEVEL_LABELS: Record<LogLevel, string> = { info: 'Info', warn: 'Warn', error: 'Error' };
+
+/** Collapse a log message to a signature (digit-runs → '#') so near-identical errors that
+ *  differ only by ids/counts group together for the "show similar · N" chip (redesign 4b). */
+function messageSignature(message: string): string {
+  return message.replace(/\d+/g, '#');
+}
 
 function formatTs(ts: string): string {
   const d = new Date(ts);
@@ -47,6 +53,17 @@ export function LogsPage() {
   const [data, setData] = useState<LogsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // How many loaded entries share each error's message signature — powers "show similar · N".
+  const signatureCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of data?.entries ?? []) {
+      if (e.level !== 'error') continue;
+      const sig = messageSignature(e.message);
+      counts.set(sig, (counts.get(sig) ?? 0) + 1);
+    }
+    return counts;
+  }, [data]);
   // Newest row id we've seen — the live tail asks only for rows past it.
   const newestIdRef = useRef<number>(0);
 
@@ -195,6 +212,16 @@ export function LogsPage() {
             <span className="logs-row__source">{entry.source}</span>
             <span className="logs-row__message">
               {entry.message}
+              {entry.level === 'error' && (signatureCounts.get(messageSignature(entry.message)) ?? 0) > 1 && (
+                <button
+                  type="button"
+                  className="logs-row__similar"
+                  data-testid="logs-row-similar"
+                  onClick={() => setSearchInput(entry.message.split(/\d/)[0]!.trim() || entry.message)}
+                >
+                  {`show similar · ${signatureCounts.get(messageSignature(entry.message))}`}
+                </button>
+              )}
               {entry.detail && (
                 <button
                   type="button"
