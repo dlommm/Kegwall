@@ -5994,6 +5994,39 @@ h2.admin-field__label-text {
   color: var(--text-dim);
 }
 
+.tablet-screen__header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* FACE SIGN-IN ON chip + big-roster search (redesign 2d/2g). */
+.tablet-face-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.tablet-pourer-search {
+  min-height: 48px;
+  margin: 12px 0;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 17px;
+}
+
+.tablet-pourer-search::placeholder {
+  color: var(--text-dim);
+}
+
 .tablet-screen__quiet {
   font-size: 13px;
   color: var(--text-dim);

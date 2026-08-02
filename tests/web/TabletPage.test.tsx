@@ -201,6 +201,33 @@ describe('TabletPage (design 3a)', () => {
     expect(screen.getByTestId('tablet-signup-button')).toHaveTextContent('I’M NEW — SIGN ME UP');
   });
 
+  it('big roster: shows a search field that filters the grid by name (redesign 2g)', async () => {
+    (getPourers as Mock).mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 12 }, (_, i) => ({
+        id: i + 1, displayName: i === 0 ? 'Samantha' : `Pourer ${i + 1}`, avatarColor: null, pourCount: i,
+      })),
+    });
+    mockWallData();
+    renderTablet();
+    await flush();
+    const search = screen.getByTestId('tablet-pourer-search');
+    expect(search).toHaveAttribute('placeholder', 'Find your name — 12 pourers');
+    expect(screen.getAllByTestId('tablet-avatar')).toHaveLength(12);
+    fireEvent.change(search, { target: { value: 'saman' } });
+    const filtered = screen.getAllByTestId('tablet-avatar');
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]).toHaveTextContent('Samantha');
+  });
+
+  it('shows a FACE SIGN-IN ON chip when the directory is enabled (redesign 2d)', async () => {
+    (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true } });
+    mockWallData();
+    renderTablet();
+    await flush();
+    expect(screen.getByTestId('tablet-face-chip')).toHaveTextContent('FACE SIGN-IN ON');
+  });
+
   it('tapping an avatar arms the pourer and shows the armed screen', async () => {
     mockWallData();
     renderTablet();

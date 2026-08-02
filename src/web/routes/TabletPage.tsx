@@ -312,6 +312,8 @@ export function TabletPage() {
   const [screen, setScreen] = useState<Screen>({ kind: 'grid' });
   const [pourers, setPourers] = useState<PublicPourer[]>([]);
   const [pourersStatus, setPourersStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  // Big-roster "find your name" search (redesign 2g) — filters the pourer grid client-side.
+  const [pourerQuery, setPourerQuery] = useState('');
   const [signupName, setSignupName] = useState('');
   const [signupColor, setSignupColor] = useState(POURER_COLORS[0]!);
   const [signupError, setSignupError] = useState<string | null>(null);
@@ -866,7 +868,12 @@ export function TabletPage() {
             <div className="tablet-screen" data-testid="tablet-grid">
               <header className="tablet-screen__header">
                 <span className="tablet-screen__title font-display">Who’s pouring?</span>
-                <span className="tablet-screen__clock font-tabular">{clock}</span>
+                <span className="tablet-screen__header-right">
+                  {faces.enabled && (
+                    <span className="tablet-face-chip" data-testid="tablet-face-chip">FACE SIGN-IN ON</span>
+                  )}
+                  <span className="tablet-screen__clock font-tabular">{clock}</span>
+                </span>
               </header>
               {pourersStatus === 'error' && (
                 <p className="tablet-screen__quiet" role="alert">
@@ -875,8 +882,22 @@ export function TabletPage() {
                   <button type="button" className="tablet-screen__link" onClick={loadPourers}>Try again</button>
                 </p>
               )}
+              {pourers.length > 8 && (
+                <input
+                  type="search"
+                  className="tablet-pourer-search"
+                  data-testid="tablet-pourer-search"
+                  placeholder={`Find your name — ${pourers.length} pourers`}
+                  aria-label="Find your name"
+                  value={pourerQuery}
+                  onChange={(e) => setPourerQuery(e.target.value)}
+                />
+              )}
               <div className="tablet-grid__avatars" data-testid="tablet-avatars">
-                {pourers.map((p) => (
+                {(pourerQuery.trim()
+                  ? pourers.filter((p) => p.displayName.toLowerCase().includes(pourerQuery.trim().toLowerCase()))
+                  : pourers
+                ).map((p) => (
                   <button
                     key={p.id}
                     type="button"
