@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { MultipartFile } from '@fastify/multipart';
+import Database from 'better-sqlite3';
 import {
-  mkdtempSync, rmSync, createReadStream, writeFileSync,
+  mkdtempSync, rmSync, createReadStream, writeFileSync, existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,6 +30,41 @@ const SQLITE_MAGIC = 'SQLite format 3\0';
 
 function hasSqliteMagic(buf: Buffer): boolean {
   return buf.length >= 16 && buf.toString('latin1', 0, 16) === SQLITE_MAGIC;
+}
+
+/**
+ * Validates a restore upload beyond its 16-byte header: opens it as a throwaway temp
+ * database, runs SQLite's own `PRAGMA integrity_check`, and confirms it's actually a
+ * Kegwall database (a known table exists). Without this, a truncated/corrupt file — or an
+ * unrelated app's DB — passed the magic check and was staged, only to fail (or boot with a
+ * broken schema) at the NEXT restart, with the original already renamed aside. Returns a
+ * user-facing message on failure, or null when the buffer is a sound Kegwall database.
+ */
+function validateRestoreBuffer(buf: Buffer): string | null {
+  if (!hasSqliteMagic(buf)) {
+    return "That file doesn't look like a SQLite database (bad header)";
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'ktdash-restore-check-'));
+  const candidate = join(dir, 'candidate.db');
+  try {
+    writeFileSync(candidate, buf);
+    const probe = new Database(candidate, { readonly: true });
+    try {
+      const integrity = probe.pragma('integrity_check', { simple: true });
+      if (integrity !== 'ok') return 'That database failed an integrity check and was not staged';
+      const known = probe.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'taps'",
+      ).get();
+      if (!known) return "That database isn't a Kegwall backup (missing expected tables)";
+      return null;
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return 'That database could not be opened';
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -92,11 +128,9 @@ export async function backupRoutes(app: FastifyInstance, dataDir: string) {
       throw err;
     }
 
-    if (!hasSqliteMagic(buf)) {
-      return reply.code(400).send({
-        error: 'validation',
-        message: "That file doesn't look like a SQLite database (bad header)",
-      });
+    const invalid = validateRestoreBuffer(buf);
+    if (invalid) {
+      return reply.code(400).send({ error: 'validation', message: invalid });
     }
 
     writeFileSync(join(dataDir, 'pending-restore.db'), buf);
@@ -104,5 +138,14 @@ export async function backupRoutes(app: FastifyInstance, dataDir: string) {
       ok: true,
       message: 'Restore staged. Restart the server to apply it — this replaces all current data.',
     });
+  });
+
+  // Discards a staged (not-yet-applied) restore so an admin who staged the wrong file can
+  // cancel before the next restart, rather than being stuck with it.
+  app.delete('/api/admin/restore', admin, async () => {
+    const staged = join(dataDir, 'pending-restore.db');
+    const existed = existsSync(staged);
+    if (existed) rmSync(staged, { force: true });
+    return { discarded: existed };
   });
 }

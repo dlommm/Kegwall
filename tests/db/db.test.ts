@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
-import { mkdtempSync, existsSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, copyFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+/** The replaced DB is renamed aside as a timestamped `app.db.<iso>.bak` (with an optional
+ * numeric uniquifier). This matches the main .bak file(s), never the `-wal`/`-shm` sidecars. */
+function bakDbFiles(dir: string): string[] {
+  return readdirSync(dir).filter((f) => /^app\.db\..+\.bak$/.test(f));
+}
+
 describe('openDb: pending-restore application (Task 8)', () => {
-  it('applies a staged pending-restore.db over app.db on boot, keeping a one-shot .bak of the replaced file', () => {
+  it('applies a staged pending-restore.db over app.db on boot, keeping a timestamped .bak of the replaced file', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
     const original = openDb(dir);
     original.prepare(`INSERT INTO beers (name, created_at) VALUES ('Original Beer', ?)`)
@@ -28,16 +34,17 @@ describe('openDb: pending-restore application (Task 8)', () => {
     expect(beers).toEqual(['Restored Beer']);
     reopened.close();
 
-    expect(existsSync(join(dir, 'app.db.bak'))).toBe(true);
+    const baks = bakDbFiles(dir);
+    expect(baks).toHaveLength(1);
     expect(existsSync(join(dir, 'pending-restore.db'))).toBe(false);
 
-    const bak = new Database(join(dir, 'app.db.bak'), { readonly: true });
+    const bak = new Database(join(dir, baks[0]!), { readonly: true });
     const bakBeers = bak.prepare('SELECT name FROM beers').all().map((r: any) => r.name);
     expect(bakBeers).toEqual(['Original Beer']);
     bak.close();
   });
 
-  it('a fresh restore overwrites a previous .bak (one-shot, not a history)', () => {
+  it('successive restores each keep their own timestamped .bak (history preserved, not clobbered)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
     const first = openDb(dir);
     first.prepare(`INSERT INTO beers (name, created_at) VALUES ('Gen 1', ?)`).run(new Date().toISOString());
@@ -52,20 +59,24 @@ describe('openDb: pending-restore application (Task 8)', () => {
     }
 
     stagePending('Gen 2');
-    const second = openDb(dir);
-    second.close();
+    openDb(dir).close();
 
     stagePending('Gen 3');
     const third = openDb(dir);
-    const beers = third.prepare('SELECT name FROM beers').all().map((r: any) => r.name);
-    expect(beers).toEqual(['Gen 3']);
+    expect(third.prepare('SELECT name FROM beers').all().map((r: any) => r.name)).toEqual(['Gen 3']);
     third.close();
 
-    // .bak holds only the most recently replaced generation (Gen 2), not Gen 1.
-    const bak = new Database(join(dir, 'app.db.bak'), { readonly: true });
-    const bakBeers = bak.prepare('SELECT name FROM beers').all().map((r: any) => r.name);
-    expect(bakBeers).toEqual(['Gen 2']);
-    bak.close();
+    // BOTH replaced generations are preserved as separate .bak files — a second restore no
+    // longer erases the copy made by the first.
+    const baks = bakDbFiles(dir);
+    expect(baks).toHaveLength(2);
+    const recovered = baks.flatMap((f) => {
+      const bak = new Database(join(dir, f), { readonly: true });
+      const names = bak.prepare('SELECT name FROM beers').all().map((r: any) => r.name);
+      bak.close();
+      return names;
+    });
+    expect(new Set(recovered)).toEqual(new Set(['Gen 1', 'Gen 2']));
   });
 
   it('is a no-op when no pending-restore.db exists: no .bak created, existing data untouched', () => {
@@ -78,6 +89,6 @@ describe('openDb: pending-restore application (Task 8)', () => {
     expect(db2.prepare('SELECT name FROM beers').all()).toEqual([{ name: 'Steady Beer' }]);
     db2.close();
 
-    expect(existsSync(join(dir, 'app.db.bak'))).toBe(false);
+    expect(bakDbFiles(dir)).toHaveLength(0);
   });
 });

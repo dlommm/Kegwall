@@ -27,11 +27,34 @@ function multipartHeaders() {
 }
 
 const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'latin1');
-const VALID_DB_BYTES = Buffer.concat([SQLITE_HEADER, Buffer.alloc(100, 1)]);
+// Valid magic header but NOT a real, openable database — the restore integrity gate must
+// reject this (it once passed the header-only check). Used for auth tests (which fail
+// before validation) and the corrupt-body test below.
+const MAGIC_ONLY_BYTES = Buffer.concat([SQLITE_HEADER, Buffer.alloc(100, 1)]);
 
 let app: FastifyInstance;
 let dataDir: string;
 let adminCookies: { session: string };
+
+/** A genuine, fully-migrated Kegwall database (has the `taps` table + passes
+ * integrity_check) — the backup endpoint's own output, the exact thing restore accepts. */
+async function realBackupBytes(): Promise<Buffer> {
+  const res = await app.inject({ method: 'GET', url: '/api/admin/backup', cookies: adminCookies });
+  return Buffer.from(res.rawPayload);
+}
+
+/** Grows a real DB past `padBytes` while keeping it a valid, openable database (inserts a
+ * blob), so the >5MB per-call-limit test still exercises a DB the integrity gate accepts. */
+function inflateDb(bytes: Buffer, padBytes: number): Buffer {
+  const dir = mkdtempSync(join(tmpdir(), 'ktdash-inflate-'));
+  const p = join(dir, 'x.db');
+  writeFileSync(p, bytes);
+  const d = new Database(p);
+  d.exec('CREATE TABLE IF NOT EXISTS _pad (b BLOB)');
+  d.prepare('INSERT INTO _pad (b) VALUES (?)').run(Buffer.alloc(padBytes, 7));
+  d.close();
+  return readFileSync(p);
+}
 
 beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ktdash-'));
@@ -98,7 +121,7 @@ describe('POST /api/admin/restore', () => {
   it('rejects an unauthenticated request with 401', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/admin/restore',
-      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', VALID_DB_BYTES),
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', MAGIC_ONLY_BYTES),
     });
     expect(res.statusCode).toBe(401);
   });
@@ -107,7 +130,7 @@ describe('POST /api/admin/restore', () => {
     const editorCookies = await loginAsEditor();
     const res = await app.inject({
       method: 'POST', url: '/api/admin/restore', cookies: editorCookies,
-      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', VALID_DB_BYTES),
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', MAGIC_ONLY_BYTES),
     });
     expect(res.statusCode).toBe(403);
   });
@@ -123,19 +146,43 @@ describe('POST /api/admin/restore', () => {
     expect(existsSync(join(dataDir, 'pending-restore.db'))).toBe(false);
   });
 
+  it('rejects a valid-header-but-corrupt body (integrity check), with 400, staging nothing', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/admin/restore', cookies: adminCookies,
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', MAGIC_ONLY_BYTES),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(existsSync(join(dataDir, 'pending-restore.db'))).toBe(false);
+  });
+
+  it('rejects a valid SQLite file that is not a Kegwall database (missing tables)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-foreign-'));
+    const p = join(dir, 'foreign.db');
+    const foreign = new Database(p);
+    foreign.exec('CREATE TABLE unrelated (x)');
+    foreign.close();
+    const res = await app.inject({
+      method: 'POST', url: '/api/admin/restore', cookies: adminCookies,
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', readFileSync(p)),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(existsSync(join(dataDir, 'pending-restore.db'))).toBe(false);
+  });
+
   it('validates by magic bytes, not the declared mimetype header', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/admin/restore', cookies: adminCookies,
-      // Content-Type header lies (claims image/png); the actual bytes are a real SQLite header.
-      headers: multipartHeaders(), payload: multipartBody('restore.db', 'image/png', VALID_DB_BYTES),
+      // Content-Type header lies (claims image/png); the actual bytes are a real Kegwall DB.
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'image/png', await realBackupBytes()),
     });
     expect(res.statusCode).toBe(200);
   });
 
-  it('accepts a file with a valid SQLite magic header, stages it byte-for-byte, and tells the admin to restart', async () => {
+  it('accepts a real Kegwall database, stages it byte-for-byte, and tells the admin to restart', async () => {
+    const valid = await realBackupBytes();
     const res = await app.inject({
       method: 'POST', url: '/api/admin/restore', cookies: adminCookies,
-      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', VALID_DB_BYTES),
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', valid),
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -144,13 +191,27 @@ describe('POST /api/admin/restore', () => {
 
     const pendingPath = join(dataDir, 'pending-restore.db');
     expect(existsSync(pendingPath)).toBe(true);
-    expect(readFileSync(pendingPath).equals(VALID_DB_BYTES)).toBe(true);
+    expect(readFileSync(pendingPath).equals(valid)).toBe(true);
+  });
+
+  it('DELETE /api/admin/restore discards a staged restore', async () => {
+    await app.inject({
+      method: 'POST', url: '/api/admin/restore', cookies: adminCookies,
+      headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', await realBackupBytes()),
+    });
+    const pendingPath = join(dataDir, 'pending-restore.db');
+    expect(existsSync(pendingPath)).toBe(true);
+    const del = await app.inject({ method: 'DELETE', url: '/api/admin/restore', cookies: adminCookies });
+    expect(del.statusCode).toBe(200);
+    expect(del.json().discarded).toBe(true);
+    expect(existsSync(pendingPath)).toBe(false);
   });
 
   it("accepts a file larger than the label-upload endpoint's 5MB default (proves the "
     + 'per-call 50MB override on req.file() actually raises the ceiling, rather than just '
     + "inheriting uploads.ts's plugin-registration default)", async () => {
-    const overFiveMb = Buffer.concat([SQLITE_HEADER, Buffer.alloc(6 * 1024 * 1024, 1)]);
+    const overFiveMb = inflateDb(await realBackupBytes(), 6 * 1024 * 1024);
+    expect(overFiveMb.length).toBeGreaterThan(5 * 1024 * 1024);
     const res = await app.inject({
       method: 'POST', url: '/api/admin/restore', cookies: adminCookies,
       headers: multipartHeaders(), payload: multipartBody('restore.db', 'application/octet-stream', overFiveMb),

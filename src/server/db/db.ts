@@ -16,8 +16,10 @@ import { runMigrations } from './migrate.js';
  * to replay journal frames from the OLD database against the newly-restored file the
  * instant it's reopened in WAL mode below, corrupting it. `pending-restore.db` itself is
  * written as a single plain buffer (`routes/backup.ts`'s `writeFileSync`, no live
- * connection involved), so it never has sidecars of its own to worry about. Each restore
- * overwrites whatever `.bak` came before it — "one-shot", not a history.
+ * connection involved), so it never has sidecars of its own to worry about. The replaced
+ * database is kept under a TIMESTAMPED name (`app.db.<iso>.bak`) rather than a single
+ * `app.db.bak` — a second restore no longer erases the previous good copy, so a bad
+ * restore is always recoverable by renaming the most recent `.bak` back.
  *
  * No-op (the common case) when no `pending-restore.db` exists.
  */
@@ -26,10 +28,18 @@ function applyPendingRestore(dataDir: string): void {
   if (!existsSync(pendingPath)) return;
 
   const dbPath = join(dataDir, 'app.db');
-  const bakPath = join(dataDir, 'app.db.bak');
+  // Stamped so successive restores don't clobber each other's backups. Timestamp is only
+  // used to name a file, never parsed — safe to compute at boot (openDb is not a workflow).
+  // A numeric uniquifier guards the (production-implausible, but test-reachable) case of two
+  // restores within the same millisecond so no `.bak` is ever silently overwritten.
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  let bakBase = join(dataDir, `app.db.${stamp}.bak`);
+  for (let n = 2; existsSync(bakBase); n += 1) {
+    bakBase = join(dataDir, `app.db.${stamp}.${n}.bak`);
+  }
   for (const suffix of ['', '-wal', '-shm']) {
     const src = dbPath + suffix;
-    if (existsSync(src)) renameSync(src, bakPath + suffix);
+    if (existsSync(src)) renameSync(src, bakBase + suffix);
   }
   renameSync(pendingPath, dbPath);
 }
