@@ -142,7 +142,14 @@ export const ActionSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('mqtt_publish'),
-    topic: z.string().min(1),
+    // A PUBLISH topic must be concrete: `+`/`#` are subscription wildcards, a leading `$`
+    // addresses broker-reserved system topics, and control chars (NUL/CR/LF/TAB) are topic
+    // injection. (Publishing to an arbitrary non-reserved topic stays allowed by design —
+    // mqtt_publish exists to integrate with Home Assistant and other brokers.)
+    topic: z.string().min(1).refine(
+      (t) => !/[+#\u0000-\u001f\u007f]/.test(t) && !t.startsWith('$'),
+      { message: 'mqtt topic must be concrete (no +/# wildcards, no leading $, no control chars)' },
+    ),
     payloadTemplate: z.string(),
   }),
   z.object({

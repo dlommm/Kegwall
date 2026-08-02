@@ -130,6 +130,10 @@ describe('ActionSchema', () => {
     { type: 'webhook', url: 'not-a-url', bodyTemplate: 'x' },
     { type: 'webhook', bodyTemplate: 'x' }, // missing url
     { type: 'mqtt_publish', topic: '', payloadTemplate: 'x' },
+    { type: 'mqtt_publish', topic: 'kegtron/+/alert', payloadTemplate: 'x' }, // + wildcard
+    { type: 'mqtt_publish', topic: 'kegtron/#', payloadTemplate: 'x' }, // # wildcard
+    { type: 'mqtt_publish', topic: '$SYS/broker/load', payloadTemplate: 'x' }, // reserved $ topic
+    { type: 'mqtt_publish', topic: 'keg\nron/x', payloadTemplate: 'x' }, // control char injection
     { type: 'wall_banner', text: 'hi', kind: 'sad' }, // invalid kind
     { type: 'party_mode', minutes: 0 },
     { type: 'party_mode' }, // missing minutes
