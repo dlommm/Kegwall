@@ -225,7 +225,8 @@ describe('GpioMotionSource', () => {
     );
   });
 
-  it('a clean (code 0) exit after stop() is not reported unhealthy', async () => {
+  it('a killed child\'s late SIGTERM exit after stop() is not reported unhealthy '
+    + '(fix-round-1 F1+F2: gpiomon killed by stop() reports code:null, signal:SIGTERM, not code:0)', async () => {
     const { spawnFn, children } = fakeSpawn();
     const source = new GpioMotionSource({
       sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
@@ -235,9 +236,54 @@ describe('GpioMotionSource', () => {
     });
     await source.start();
     await source.stop();
-    children[0]!.emit('exit', 0);
+    children[0]!.emit('exit', null, 'SIGTERM');
 
     expect(registry.markHealth).not.toHaveBeenCalled();
+    expect(statuses).toEqual([]);
+  });
+
+  it('an unexpected exit code 0 WITHOUT stop() still reports unhealthy '
+    + '(fix-round-1 F1+F2: any self-exit before stop() is a dead process, code 0 included)', async () => {
+    const { spawnFn, children } = fakeSpawn();
+    const source = new GpioMotionSource({
+      sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+      registry: registry as unknown as MotionSourceRegistry,
+      bus,
+      spawnFn: spawnFn as never,
+    });
+    await source.start();
+    children[0]!.emit('exit', 0, null);
+
+    expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: false });
+    expect(registry.markHealth).toHaveBeenCalledWith('gpio-1', false, expect.any(String));
+  });
+
+  it("an ENOENT 'error' immediately followed by 'exit' reports unhealthy exactly once "
+    + '(fix-round-1 F1+F2: reported-once guard)', async () => {
+    const spawnFn = vi.fn(() => {
+      const child = Object.assign(new EventEmitter(), {
+        stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(),
+      }) as FakeChild;
+      return child;
+    });
+    const source = new GpioMotionSource({
+      sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+      registry: registry as unknown as MotionSourceRegistry,
+      bus,
+      spawnFn: spawnFn as never,
+    });
+    await source.start();
+    const child = spawnFn.mock.results[0]!.value as FakeChild;
+
+    child.emit('error', Object.assign(new Error('spawn gpiomon ENOENT'), { code: 'ENOENT' }));
+    child.emit('exit', null, null); // real Node also fires 'exit' after 'error' in some cases
+
+    const unhealthyStatuses = statuses.filter((s) => !s.healthy);
+    expect(unhealthyStatuses).toHaveLength(1);
+    expect(registry.markHealth).toHaveBeenCalledTimes(1);
+    expect(registry.markHealth).toHaveBeenCalledWith(
+      'gpio-1', false, expect.stringMatching(/gpiomon not found/i),
+    );
   });
 
   it('reports healthy on the first stdout line', async () => {

@@ -77,6 +77,17 @@ export class GpioMotionSource implements Source {
   private readonly lastTriggerAt = new Map<string, number>();
   private children: ChildProcessWithoutNullStreams[] = [];
 
+  // Fix-round-1 review finding (F1+F2): `stop()` sets this FIRST, before killing any
+  // child, and EVERY child event handler below (stdout data, stderr data, 'error',
+  // 'exit') checks it before doing anything -- a killed child can still fire late/
+  // buffered events (a queued stdout flush, an 'exit' for the SIGTERM `kill()` itself)
+  // well after `stop()` returns, and none of those late events may report health,
+  // trigger a wake, or otherwise touch state for an instance that's no longer live.
+  // Without this, every ordinary restart (`registerConfiguredSources` rebuild via
+  // `restartSourcesIfLive`) risked a spurious unhealthy report from the OLD, just-killed
+  // child racing the NEW instance's own status.
+  private stopped = false;
+
   constructor(opts: GpioMotionSourceOptions) {
     this.sources = opts.sources;
     this.registry = opts.registry;
@@ -89,10 +100,18 @@ export class GpioMotionSource implements Source {
    * name) reports THAT source unhealthy and leaves every other configured source
    * unaffected, same "source isolation" precedent as `manager.ts`'s `startAll()`. */
   async start(): Promise<void> {
+    // Same "reset the stopped flag on (re)start" idiom as `motionMqtt.ts`'s
+    // `MotionMqttSource.start()` -- defensive, since in practice every instance is
+    // start()-ed exactly once (`manager.ts` constructs a fresh instance per
+    // `registerConfiguredSources` rebuild rather than reusing a stopped one).
+    this.stopped = false;
     for (const source of this.sources) this.startOne(source);
   }
 
   async stop(): Promise<void> {
+    // Set BEFORE killing anything -- see the field's doc comment above for why this
+    // ordering matters (a killed child's late events must see `stopped: true`).
+    this.stopped = true;
     for (const child of this.children) {
       try {
         child.kill();
@@ -118,19 +137,30 @@ export class GpioMotionSource implements Source {
     this.children.push(child);
 
     let stderrText = '';
-    let settled = false;
-    const settleHealthy = (): void => {
-      if (settled) return;
-      settled = true;
+    // `reported` gates BOTH the healthy-grace-timer AND every failure path so a child
+    // reports its health determination AT MOST once -- e.g. an ENOENT 'error' event
+    // immediately followed by an 'exit' for the same dead process must not double-report.
+    let reported = false;
+    const reportHealthyOnce = (): void => {
+      if (this.stopped || reported) return;
+      reported = true;
       clearTimeout(graceTimer);
       this.reportHealthy(source.id);
     };
-    const graceTimer = setTimeout(settleHealthy, HEALTHY_GRACE_MS);
+    const reportUnhealthyOnce = (): void => {
+      if (this.stopped || reported) return;
+      reported = true;
+      clearTimeout(graceTimer);
+      this.reportUnhealthy(source.id, stderrText);
+    };
+    const graceTimer = setTimeout(reportHealthyOnce, HEALTHY_GRACE_MS);
     // Never let this timer alone keep the process (or a test's fake-timer runner) alive.
     graceTimer.unref?.();
 
     child.stdout.on('data', (chunk: Buffer | string) => {
-      settleHealthy(); // any output at all proves gpiomon is attached and streaming.
+      if (this.stopped) return; // a killed child's buffered stdout flushing late must
+                                 // not trigger a debounced wake.
+      reportHealthyOnce(); // any output at all proves gpiomon is attached and streaming.
       for (const rawLine of chunk.toString().split('\n')) {
         const line = rawLine.trim();
         if (line) this.handleLine(source, line);
@@ -138,22 +168,31 @@ export class GpioMotionSource implements Source {
     });
 
     child.stderr.on('data', (chunk: Buffer | string) => {
+      if (this.stopped) return;
       stderrText += chunk.toString();
     });
 
     // Real Node's ENOENT-style spawn failure surfaces here, asynchronously, rather than
     // as a synchronous throw -- see the try/catch above for the (test-only) other case.
     child.on('error', () => {
-      settled = true;
-      clearTimeout(graceTimer);
-      this.reportUnhealthy(source.id, stderrText);
+      if (this.stopped) return;
+      reportUnhealthyOnce();
     });
 
-    child.on('exit', (code) => {
-      if (code === 0) return; // a clean exit after being stop()-killed is not a failure.
-      settled = true;
-      clearTimeout(graceTimer);
-      this.reportUnhealthy(source.id, stderrText);
+    // Fix-round-1 review finding (F1+F2): a gpiomon process that exits ON ITS OWN, for
+    // ANY reason -- code 0, non-zero, or killed by a signal -- is unexpected and
+    // unhealthy, full stop, as long as `stop()` hasn't been called yet: a well-behaved
+    // gpiomon runs forever watching the line until killed, so there's no such thing as
+    // "gpiomon finished successfully" while this source is still meant to be live. The
+    // PREVIOUS `code === 0` special case was wrong in the other direction too: `kill()`
+    // (SIGTERM, from `stop()` above) typically surfaces here as `code: null, signal:
+    // 'SIGTERM'`, not `code: 0` -- so that check neither protected the real stop() path
+    // NOR correctly distinguished it from a genuine failure. The `this.stopped` guard
+    // (checked first, inside `reportUnhealthyOnce`) is what actually distinguishes
+    // "we killed it on purpose" from "it died on its own" now.
+    child.on('exit', () => {
+      if (this.stopped) return;
+      reportUnhealthyOnce();
     });
   }
 

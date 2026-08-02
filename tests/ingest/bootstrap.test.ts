@@ -16,7 +16,7 @@ import { SessionRegistry } from '../../src/server/core/sessionMode.js';
 import { SourceManager } from '../../src/server/ingest/manager.js';
 import { PresenceRegistry } from '../../src/server/core/presence.js';
 import { MotionSourceRegistry } from '../../src/server/core/motionSources.js';
-import { registerConfiguredSources, restartSourcesIfLive } from '../../src/server/ingest/bootstrap.js';
+import { registerConfiguredSources, restartSourcesIfLive, resolveGpioSources } from '../../src/server/ingest/bootstrap.js';
 import { reconcileProMonitor, getMonitorByRef, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
@@ -273,6 +273,46 @@ describe('registerConfiguredSources', () => {
 
       expect(ctx.sources.status().find((s) => s.name === 'motion_gpio')!.registered).toBe(true);
     });
+  });
+});
+
+// Fix-round-1 review finding F3: the "applies documented gpio defaults" test above only
+// asserted `registered: true` -- true regardless of what the resolved chip/activeLow/
+// debounceMs values actually were (a `GpioMotionSource` registers successfully either
+// way; it doesn't validate its inputs). `resolveGpioSources` is exported specifically so
+// the DEFAULTING itself is directly assertable against the exact resolved shape.
+describe('resolveGpioSources (Task 1 adjudication: defaults applied here)', () => {
+  it('resolves an entry with only `line` set to the exact documented defaults', () => {
+    const resolved = resolveGpioSources([{
+      id: 'pir-1', name: 'Kitchen PIR', type: 'gpio', enabled: true,
+      wallSlug: 'main', config: { line: 4 },
+    }] as never);
+
+    expect(resolved).toEqual([
+      { id: 'pir-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 },
+    ]);
+  });
+
+  it('preserves explicit values instead of the defaults when the config sets them', () => {
+    const resolved = resolveGpioSources([{
+      id: 'pir-2', name: 'Basement PIR', type: 'gpio', enabled: true,
+      wallSlug: null, config: { chip: 'gpiochip1', line: 17, activeLow: true, debounceMs: 500 },
+    }] as never);
+
+    expect(resolved).toEqual([
+      { id: 'pir-2', chip: 'gpiochip1', line: 17, activeLow: true, debounceMs: 500 },
+    ]);
+  });
+
+  it('filters out non-gpio-type entries', () => {
+    const resolved = resolveGpioSources([
+      {
+        id: 'pir-1', name: 'Kitchen PIR', type: 'mqtt', enabled: true,
+        wallSlug: 'main', config: { topic: 'home/pir', match: { mode: 'any' } },
+      },
+    ] as never);
+
+    expect(resolved).toEqual([]);
   });
 });
 

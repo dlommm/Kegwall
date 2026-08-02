@@ -1,4 +1,5 @@
 import type { AppContext } from '../context.js';
+import type { MotionSource } from '../db/settings.js';
 import { reconcileProMonitor, reconcileProMonitorByBleName } from '../db/monitors.js';
 import { KegtronCloudSource } from './kegtron/cloudSource.js';
 import { KegtronUdpSource } from './kegtron/udpSource.js';
@@ -159,17 +160,34 @@ export function registerConfiguredSources(ctx: AppContext): void {
   // Task 6, same "gated on its own condition, registry-driven" precedent as `motion_mqtt`
   // just above: registers only when at least one enabled gpio-type motion source exists,
   // so an install with none configured reports `motion_gpio: {registered: false}` rather
-  // than a registered-but-inert transport. `config.line` is guaranteed present for every
-  // gpio-type entry by `motionSourceSchema`'s `superRefine` (see db/settings.ts), so the
-  // non-null assertion below is schema-backed, same as `mqttMotionSources.topic`/`match`
-  // above.
-  //
-  // Task 1 adjudication (ledgered, carried into this task): the schema deliberately
-  // leaves `config.chip`/`activeLow`/`debounceMs` bare-optional -- THIS is the one place
-  // those documented defaults (`chip` 'gpiochip0', `activeLow` false, `debounceMs' 2000)
-  // get applied, so `GpioMotionSource` itself only ever sees fully-resolved values (its
-  // constructor's own contract, see gpioMotion.ts).
-  const gpioMotionSources = ctx.motion.sources()
+  // than a registered-but-inert transport. Defaulting itself (chip/activeLow/debounceMs)
+  // lives in `resolveGpioSources` below -- see its own doc comment.
+  const gpioMotionSources = resolveGpioSources(ctx.motion.sources());
+  if (gpioMotionSources.length > 0) {
+    ctx.sources.register(new GpioMotionSource({
+      sources: gpioMotionSources, registry: ctx.motion, bus: ctx.bus,
+    }));
+  }
+}
+
+/**
+ * Task 1 adjudication (ledgered, carried into Task 6 as a binding requirement): the
+ * schema (`db/settings.ts`'s `motionSourceSchema`) deliberately leaves
+ * `config.chip`/`activeLow`/`debounceMs` bare-optional -- THIS is the one place those
+ * documented defaults (`chip` 'gpiochip0', `activeLow` false, `debounceMs` 2000) get
+ * applied, so `GpioMotionSource` itself only ever sees fully-resolved values (its
+ * constructor's own contract, see gpioMotion.ts). Fix-round-1 review finding: extracted
+ * out of `registerConfiguredSources` into its own exported pure function specifically so
+ * the DEFAULTING is directly unit-testable (feed it a `MotionSource[]` literal, assert
+ * the resolved shape) without needing a whole `AppContext`/`registerConfiguredSources`
+ * round-trip to prove the defaults landed. `config.line` is guaranteed present for
+ * every gpio-type entry by `motionSourceSchema`'s `superRefine`, so the non-null
+ * assertion below is schema-backed, same as `mqttMotionSources.topic`/`match` above.
+ */
+export function resolveGpioSources(
+  sources: MotionSource[],
+): Array<{ id: string; chip: string; line: number; activeLow: boolean; debounceMs: number }> {
+  return sources
     .filter((s) => s.type === 'gpio')
     .map((s) => ({
       id: s.id,
@@ -178,11 +196,6 @@ export function registerConfiguredSources(ctx: AppContext): void {
       activeLow: s.config.activeLow ?? false,
       debounceMs: s.config.debounceMs ?? 2000,
     }));
-  if (gpioMotionSources.length > 0) {
-    ctx.sources.register(new GpioMotionSource({
-      sources: gpioMotionSources, registry: ctx.motion, bus: ctx.bus,
-    }));
-  }
 }
 
 /**
