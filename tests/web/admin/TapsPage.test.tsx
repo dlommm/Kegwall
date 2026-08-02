@@ -7,7 +7,7 @@ import { TapsPage } from '../../../src/web/routes/admin/TapsPage';
 import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
-  listBeers, listKegs, listMonitors, deleteTap, listTaps,
+  listBeers, listKegs, listMonitors, deleteTap, listTaps, getActiveKegStats,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { Tap } from '../../../src/server/db/taps';
@@ -130,6 +130,32 @@ describe('TapsPage', () => {
     expect(rows[0]).toHaveTextContent('Citra IPA');
     expect(rows[0]).toHaveTextContent('75%');
     expect(rows[1]).toHaveTextContent('Empty');
+  });
+
+  it('a keg projected to kick within 3 days shows a danger forecast and an accent Swap (redesign 3d)', async () => {
+    const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    (getActiveKegStats as Mock).mockResolvedValue({
+      ok: true,
+      data: [{
+        kegId: 1, beerName: 'Citra IPA', tapNumber: 1, srm: 6,
+        levelPct: 18, remainingMl: 3400, dailyBurnMl: 1700, projectedKickDate: soon,
+      }],
+    });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(1, {
+        beer: {
+          id: 1, name: 'Citra IPA', brewery: null, style: null, abv: null, ibu: null, srm: 6, description: null, labelImage: null, createdAt: '',
+        },
+        keg: {
+          id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 15600, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 18, remainingMl: 3400,
+        },
+      })],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    renderAdminPage(<TapsPage />);
+    const forecast = await screen.findByTestId('taps-row-forecast');
+    expect(forecast).toHaveClass('taps-row__forecast--danger');
+    expect(screen.getByTestId('taps-row-swap')).toHaveClass('taps-row__swap--critical');
   });
 
   it('marks a kicked tap distinctly', async () => {

@@ -6788,6 +6788,19 @@ h2.admin-field__label-text {
   color: var(--text-faint, var(--text-dim));
 }
 
+/* Redesign 3d: a keg kicking within 3 days reads danger-red, and its Swap is the accent primary. */
+.taps-row__forecast--danger {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.taps-row__swap--critical {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: #14100b !important;
+  font-weight: 600;
+}
+
 .taps-row__actions {
   display: flex;
   flex-direction: column;

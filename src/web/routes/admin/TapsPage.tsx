@@ -14,6 +14,7 @@ import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import { formatWholeVolume } from '../../lib/lookData';
 import { matchKegType } from '../../lib/kegAssets';
+import { kicksSoon } from '../../lib/kegForecast';
 import { KegSilhouette } from '../../components/glyphs/KegSilhouette';
 import { TapForm } from './TapForm';
 import { SwapWizard } from './SwapWizard';
@@ -187,6 +188,9 @@ export function TapsPage() {
             const levelPct = tap.keg && !isKicked ? tap.keg.levelPct : 0;
             const expanded = expandedTapId === tap.tapId;
             const stat = tap.keg ? kegStats.find((s) => s.kegId === tap.keg!.id) : undefined;
+            // Redesign 3d: a keg projected to kick within 3 days reads danger-red, and its Swap
+            // becomes the accent primary action.
+            const kickSoon = !isKicked && stat ? kicksSoon(stat.projectedKickDate) : false;
             const kegType = tap.keg ? tap.keg.kegType ?? matchKegType(tap.keg.sizeMl) : null;
             const isLow = !isKicked && tap.keg != null && levelPct <= 15;
             const ML_PER_PINT = 473.176;
@@ -227,7 +231,10 @@ export function TapsPage() {
                           : '—'}
                     </span>
                     {stat && kickDaysLabel(stat) && (
-                      <span className="taps-row__forecast" data-testid="taps-row-forecast">
+                      <span
+                        className={kickSoon ? 'taps-row__forecast taps-row__forecast--danger' : 'taps-row__forecast'}
+                        data-testid="taps-row-forecast"
+                      >
                         {kickDaysLabel(stat)}
                       </span>
                     )}
@@ -243,6 +250,7 @@ export function TapsPage() {
                     {canEdit && (
                       <button
                         type="button"
+                        className={kickSoon ? 'taps-row__swap taps-row__swap--critical' : 'taps-row__swap'}
                         data-testid="taps-row-swap"
                         onClick={() => setWizardState({ tap, promoteKeg: null })}
                       >
