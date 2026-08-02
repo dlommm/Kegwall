@@ -15,8 +15,15 @@ export interface Keg {
   id: number; beerId: number; tapId: number | null; sizeMl: number;
   volStartMl: number; volDispensedMl: number; dateTapped: string | null;
   status: KegStatus; createdAt: string; kegType: KegType | null;
-  /** What the keg cost, in cents (design 6d cost tracking); null = untracked. */
+  /** OWNER COST — admin-only, never serialized to a public surface (hard requirement).
+   *  What the keg cost, in cents (design 6d cost tracking); null = untracked. */
   costCents: number | null;
+  /** OWNER COST — the refundable keg deposit in cents, or null (redesign 4k). */
+  depositCents: number | null;
+  /** Supplier this keg was bought from (redesign 4l), or null. */
+  supplierId: number | null;
+  /** ISO date the keg was purchased (redesign 4k), or null. */
+  purchasedAt: string | null;
 }
 
 export interface Pour {
@@ -57,6 +64,9 @@ function rowToKeg(r: any): Keg {
     dateTapped: r.date_tapped, status: r.status, createdAt: r.created_at,
     kegType: r.keg_type ?? null,
     costCents: r.cost_cents ?? null,
+    depositCents: r.deposit_cents ?? null,
+    supplierId: r.supplier_id ?? null,
+    purchasedAt: r.purchased_at ?? null,
   };
 }
 
@@ -72,6 +82,11 @@ export function createKeg(db: Database.Database, input: {
   /** Manual KegFill asset override (migration 005's `kegs.keg_type`). Omitted/`null`
    * means "auto-match by sizeMl" — see `web/lib/kegAssets.ts`'s `resolveKegAsset`. */
   kegType?: KegType | null;
+  /** OWNER COST fields (redesign 4k/4l), all optional/nullable — the swap wizard's cost step. */
+  costCents?: number | null;
+  depositCents?: number | null;
+  supplierId?: number | null;
+  purchasedAt?: string | null;
 }): Keg {
   const status = input.status ?? 'on_tap';
   // Only swapKeg (which kicks the incumbent first, inside its own transaction)
@@ -84,11 +99,14 @@ export function createKeg(db: Database.Database, input: {
     throw new ConflictError(`tap ${input.tapId} already has an active keg`);
   }
   const res = db.prepare(`INSERT INTO kegs
-      (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, status, created_at, keg_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      (beer_id, tap_id, size_ml, vol_start_ml, date_tapped, status, created_at, keg_type,
+       cost_cents, deposit_cents, supplier_id, purchased_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(input.beerId, input.tapId ?? null, input.sizeMl, input.volStartMl,
       input.dateTapped ?? new Date().toISOString(), status, new Date().toISOString(),
-      input.kegType ?? null);
+      input.kegType ?? null,
+      input.costCents ?? null, input.depositCents ?? null, input.supplierId ?? null,
+      input.purchasedAt ?? null);
   return getKeg(db, Number(res.lastInsertRowid))!;
 }
 

@@ -42,13 +42,21 @@ export interface TapState {
 }
 
 /** Strips operator-only fields from a TapState before it reaches an unauthenticated or
- * display client. Today that's `keg.costCents` (what the operator paid — no wall/menu
- * consumer reads it; it was leaking through the public menu and the global WS snapshot).
- * Hidden-tap filtering is the CALLER's job: the admin snapshot keeps hidden taps, public
- * callers drop them first. `costCents` is nulled rather than deleted so the `TapState`
- * shape stays intact for typed consumers. */
+ * display client. Those are the keg's OWNER-COST fields — `costCents` (what the operator
+ * paid), plus (redesign 4k/4l) `depositCents`, `supplierId`, and `purchasedAt`. No wall/menu/
+ * board/tablet consumer reads any of them; the hard requirement is that owner cost never
+ * appears on a public surface. Hidden-tap filtering is the CALLER's job: the admin snapshot
+ * keeps hidden taps, public callers drop them first. Fields are nulled rather than deleted so
+ * the `TapState` shape stays intact for typed consumers. */
 export function toPublicTapState(t: TapState): TapState {
-  return t.keg ? { ...t, keg: { ...t.keg, costCents: null } } : t;
+  return t.keg
+    ? {
+      ...t,
+      keg: {
+        ...t.keg, costCents: null, depositCents: null, supplierId: null, purchasedAt: null,
+      },
+    }
+    : t;
 }
 
 /** The keg configuration a Kegtron device itself reports for one port — the operator

@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
+import { createSupplier } from '../../src/server/db/suppliers.js';
 import { createDrinker, createUser } from '../../src/server/db/users.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { setWallDevices } from '../../src/server/db/wallDevices.js';
@@ -36,9 +37,12 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); });
 
 describe('public routes', () => {
-  it('public menu drops hidden taps and never leaks keg.costCents', async () => {
+  it('public menu drops hidden taps and never leaks any keg owner-cost field', async () => {
     const db = app.ctx.db;
-    db.prepare('UPDATE kegs SET cost_cents = 12345').run(); // seeded keg now has a cost
+    // Seed EVERY owner-cost field so a regression that forgets one is caught.
+    const supplierId = createSupplier(db, { name: 'Joes Distributing' }).id;
+    db.prepare(`UPDATE kegs SET cost_cents = 12345, deposit_cents = 3000,
+      supplier_id = ?, purchased_at = '2026-05-20'`).run(supplierId);
     const hiddenBeer = createBeer(db, { name: 'Secret Stout' });
     const hiddenTap = createTap(db, { number: 9, hidden: true });
     createKeg(db, { beerId: hiddenBeer.id, sizeMl: 19000, volStartMl: 19000, tapId: hiddenTap.id });
@@ -48,8 +52,16 @@ describe('public routes', () => {
     const body = res.json();
     expect(body.taps.some((t: any) => t.tapNumber === 9)).toBe(false); // hidden tap absent
     for (const t of body.taps) {
-      if (t.keg) expect(t.keg.costCents).toBeNull(); // operator cost never leaks
+      if (t.keg) {
+        expect(t.keg.costCents).toBeNull(); // operator cost never leaks
+        expect(t.keg.depositCents).toBeNull();
+        expect(t.keg.supplierId).toBeNull();
+        expect(t.keg.purchasedAt).toBeNull();
+      }
     }
+    // Belt and suspenders: the raw serialized body carries none of the seeded values.
+    expect(res.body).not.toContain('12345');
+    expect(res.body).not.toContain('2026-05-20');
   });
 
   it('serves wall data by slug and 404s unknown walls', async () => {

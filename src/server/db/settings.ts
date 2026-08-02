@@ -137,6 +137,19 @@ export const settingsSchema = z.object({
   // Pour Wall overhaul Phase 6 (design 6g): auto-cache beers the Kegtron device
   // reports that the local library doesn't know — see core/beerAutoImport.ts.
   autoImportBeers: z.boolean().default(true),
+  // Keg cost → public price-per-pour (WebUI redesign 4k). `enabled` is the master toggle for
+  // showing marked-up prices on public surfaces (menu/wall/board); OFF (the default) means no
+  // price appears anywhere public. `markupPct` is applied to owner cost (245 → cost × 3.45);
+  // `rounding` snaps the per-pint price to the nearest this-many dollars. The OWNER COST that
+  // feeds this never leaves the server — only the computed display price does, and only when
+  // enabled (see core/pricing.ts + routes/public.ts).
+  pricing: z.object({
+    enabled: z.boolean().default(false),
+    markupPct: z.number().min(0).max(2000).default(245),
+    rounding: z.number().refine((v) => [0.05, 0.25, 0.5, 1].includes(v), {
+      message: 'rounding must be one of 0.05, 0.25, 0.5, 1',
+    }).default(0.25),
+  }).default({ enabled: false, markupPct: 245, rounding: 0.25 }),
   // Govee ambient sensors (Phase 6): cloud API key. Same nullable-object +
   // masked-apiKey idiom as `catalogBeer` above. Per-sensor names/enable now live on
   // the sensors' `monitors` rows (admin Monitors page); the old `names` map is
