@@ -235,11 +235,15 @@ describe('WallEditor', () => {
     );
   });
 
-  it('shows a live-preview iframe pointed at the wall URL, and a note that saving goes live', async () => {
+  it('shows an inline live preview that renders the draft config immediately, no save round-trip', async () => {
     render(<WallEditor wall={makeWall({ slug: 'main-bar' })} onBack={vi.fn()} onSaved={vi.fn()} />);
     await flush();
-    expect(screen.getByTestId('wall-editor-preview-frame')).toHaveAttribute('src', '/wall/main-bar');
+    expect(screen.getByTestId('wall-live-preview')).toBeInTheDocument();
     expect(screen.getByTestId('wall-editor-live-note')).toHaveTextContent(/live/i);
+    // Changing the look updates the preview instantly — without saving.
+    fireEvent.change(screen.getByTestId('wall-editor-look'), { target: { value: 'ledger' } });
+    expect(screen.getByTestId('ledger-look')).toBeInTheDocument();
+    expect(updateWall).not.toHaveBeenCalled();
   });
 
   it('Back calls onBack', async () => {
@@ -250,7 +254,7 @@ describe('WallEditor', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('saving sends the edited fields through the validated config to updateWall, then notifies onSaved and reloads the preview', async () => {
+  it('saving sends the edited fields through the validated config to updateWall, then notifies onSaved', async () => {
     const onSaved = vi.fn();
     const savedWall = makeWall({ config: wallConfigSchema.parse({ rotationSeconds: 45 }) });
     (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
@@ -271,7 +275,7 @@ describe('WallEditor', () => {
     expect(screen.getByTestId('wall-editor-saved-notice')).toBeInTheDocument();
   });
 
-  it('renaming the slug and saving points the live preview at the new slug', async () => {
+  it('renaming the slug and saving sends the new slug to updateWall', async () => {
     const savedWall = makeWall({ slug: 'renamed' });
     (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
     render(<WallEditor wall={makeWall({ slug: 'main-bar' })} onBack={vi.fn()} onSaved={vi.fn()} />);
@@ -281,7 +285,7 @@ describe('WallEditor', () => {
     fireEvent.click(screen.getByTestId('wall-editor-save'));
     await flush();
 
-    expect(screen.getByTestId('wall-editor-preview-frame')).toHaveAttribute('src', '/wall/renamed');
+    expect(updateWall).toHaveBeenCalledWith(1, expect.objectContaining({ slug: 'renamed' }));
   });
 
   it('zod-error surfacing: an out-of-range rotation seconds value blocks the save with a friendly message, and never calls updateWall', async () => {

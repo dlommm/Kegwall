@@ -2834,6 +2834,45 @@ h2.admin-field__label-text {
   cursor: pointer;
 }
 
+/* Redesign 1c: live inline preview — a scaled 1920×1080 frame rendering the draft config. */
+.wall-editor__preview-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.wall-live-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #000;
+}
+
+.wall-live-preview__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+}
+
+.wall-live-preview__scope {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .wall-editor__save-row {
   display: flex;
   align-items: center;

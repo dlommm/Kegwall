@@ -15,7 +15,7 @@ import {
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import { THEMES, getTheme } from '../../themes/themes';
 import { WallPagesBuilder } from './WallPagesBuilder';
-import { WallPreview } from './WallPreview';
+import { WallLivePreview } from '../../components/WallLivePreview';
 
 export interface WallEditorProps {
   wall: Wall;
@@ -125,7 +125,6 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [errors, setErrors] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
-  const [previewNonce, setPreviewNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -212,6 +211,12 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
 
   const activeTheme = getTheme(form.themeId);
 
+  // Live preview (redesign 1c): render the DRAFT config directly — no save round-trip. An
+  // in-progress invalid edit falls back to the last saved config so the preview never crashes.
+  const draftParsed = parseWallConfigForm(form, allowedTaps.map((t) => t.id));
+  const previewConfig = draftParsed.ok ? draftParsed.config : safeParseWallConfig(currentWall.config);
+  const previewResPx = RESOLUTIONS.find((r) => r.value === form.displayResolution)?.px ?? '';
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     setSavedNotice(false);
@@ -255,7 +260,6 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
     }
 
     setCurrentWall(result.data);
-    setPreviewNonce((n) => n + 1);
     setSavedNotice(true);
     onSaved(result.data);
   }
@@ -750,13 +754,18 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
           </div>
         </form>
 
-        <div className="wall-editor__preview">
-          <h2 className="admin-field__label-text">Live preview</h2>
-          <WallPreview
-            slug={currentWall.slug}
-            reloadKey={previewNonce}
-            testId="wall-editor-preview-frame"
-            className="wall-editor__preview-frame"
+        <div className="wall-editor__preview" data-testid="wall-editor-preview">
+          <div className="wall-editor__preview-label">
+            <span className="font-tabular" data-testid="wall-editor-preview-label">
+              {`PREVIEWING · ${form.displaySizeIn}-inch · ${previewResPx} · UI scale ${Math.round(form.displayUiScale * 100)}%`}
+            </span>
+            <span className="admin-page-quiet">Full 16:9 frame — exactly what the TV shows.</span>
+          </div>
+          <WallLivePreview
+            config={previewConfig}
+            title={form.headerTitle.trim() || name}
+            units="us"
+            menuUrl="/menu"
           />
         </div>
       </div>
