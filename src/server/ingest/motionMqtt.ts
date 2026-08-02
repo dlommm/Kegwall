@@ -42,7 +42,9 @@ export function isMotionPayload(payload: string): boolean {
  *  - `any` -- delegates to `isMotionPayload` (the pre-Task-2 default behavior, still
  *    used by the legacy-migrated sources -- see `core/motionSources.ts`'s
  *    `migrateMotionTopics`).
- *  - `json` -- the payload must parse as JSON, the parsed value must be an object, and
+ *  - `json` -- the payload must parse as JSON, the parsed value must be a non-array
+ *    object (arrays are explicitly rejected, even though `typeof [] === 'object'` in JS
+ *    -- a JSON array payload is never a valid match regardless of `field`/`equals`), and
  *    `parsed[field]` must `===` (strict, no type coercion) `equals`. This is the
  *    zigbee2mqtt fix: `{"occupancy":false}` under `{field: 'occupancy', equals: true}`
  *    must NOT match -- under the old `isMotionPayload`, ANY non-empty JSON blob
@@ -63,7 +65,7 @@ export function matchesRule(payload: string, rule: MatchRule): boolean {
       } catch {
         return false;
       }
-      if (typeof parsed !== 'object' || parsed === null) return false;
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false;
       return (parsed as Record<string, unknown>)[rule.field] === rule.equals;
     }
   }

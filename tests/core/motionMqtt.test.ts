@@ -32,6 +32,11 @@ describe('matchesRule', () => {
     expect(matchesRule('motion', { mode: 'exact', value: 'motion' })).toBe(true);
     expect(matchesRule(' motion', { mode: 'exact', value: 'motion' })).toBe(false);
   });
+
+  it('json mode rejects array payloads, even one that looks index/length-addressable', () => {
+    expect(matchesRule('[true]', { mode: 'json', field: '0', equals: true })).toBe(false);
+    expect(matchesRule('[1,2]', { mode: 'json', field: 'length', equals: 2 })).toBe(false);
+  });
 });
 
 describe('MotionMqttSource', () => {
