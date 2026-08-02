@@ -470,6 +470,19 @@ export function ClaimSheet() {
         </ul>
       )}
 
+      {/* Sticky bottom claim bar (redesign 2b) — a full-width CTA that floats over the fold
+          so unclaimed pours aren't buried; opens the picker for the most recent one. */}
+      {pours.length > 0 && !selectedPour && (
+        <button
+          type="button"
+          className="claim-sheet__sticky"
+          data-testid="claim-sheet-sticky"
+          onClick={() => setSelectedPour(pours[0]!)}
+        >
+          {`${pours.length} pour${pours.length === 1 ? '' : 's'} waiting to be claimed →`}
+        </button>
+      )}
+
       {selectedPour && (
         <DrinkerPickerSheet
           pour={selectedPour}

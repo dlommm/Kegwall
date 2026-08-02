@@ -60,6 +60,17 @@ describe('ClaimSheet', () => {
     (getRecentPours as Mock).mockResolvedValue({ ok: true, data: [] });
     render(<ClaimSheet />);
     expect(await screen.findByTestId('claim-sheet-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('claim-sheet-sticky')).not.toBeInTheDocument();
+  });
+
+  it('shows a sticky claim bar with the waiting count that opens the picker (redesign 2b)', async () => {
+    render(<ClaimSheet />);
+    const sticky = await screen.findByTestId('claim-sheet-sticky');
+    expect(sticky).toHaveTextContent('1 pour waiting to be claimed');
+    fireEvent.click(sticky);
+    expect(await screen.findByTestId('claim-sheet-drinkers')).toBeInTheDocument();
+    // Bar hides while the picker is open.
+    expect(screen.queryByTestId('claim-sheet-sticky')).not.toBeInTheDocument();
   });
 
   it('opens a drinker picker sheet when a pour is tapped', async () => {

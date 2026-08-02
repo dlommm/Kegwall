@@ -789,6 +789,25 @@
   font-style: italic;
 }
 
+/* Sticky bottom claim bar (redesign 2b). */
+.claim-sheet__sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  border: none;
+  background: linear-gradient(to top, var(--accent) 60%, color-mix(in srgb, var(--accent) 80%, transparent));
+  color: var(--bg);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 -8px 24px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
 .claim-sheet__list {
   display: flex;
   flex-direction: column;
