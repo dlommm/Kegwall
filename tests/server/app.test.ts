@@ -19,6 +19,17 @@ describe('app', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
   });
+
+  it('sets a Content-Security-Policy and nosniff header on responses', async () => {
+    app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/api/health' });
+    const csp = res.headers['content-security-policy'];
+    expect(csp).toBeDefined();
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("object-src 'none'");
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
 });
 
 describe('SqliteError mapping in the global error handler', () => {

@@ -15,8 +15,15 @@ import {
 
 const RANGE_HOURS = ['1', '24', '168', '720'] as const;
 
+// A leading =, +, -, @, TAB, or CR makes Excel/Sheets evaluate the cell as a formula.
+// Log message/detail carry attacker-influenceable text (public session/pourer names,
+// BLE-advert device names, beer names), so a crafted `=cmd|'/c calc'!A1` would run when
+// an admin opens the export. Prefix a single quote to force literal-text interpretation.
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
+
 function csvEscape(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const guarded = FORMULA_LEAD.test(value) ? `'${value}` : value;
+  return /[",\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 }
 
 function toCsv(entries: LogEntry[]): string {

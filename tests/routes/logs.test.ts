@@ -51,6 +51,15 @@ describe('GET /api/logs', () => {
     expect(res.json().entries[0].source).toBe('kegtron');
   });
 
+  it('neutralizes spreadsheet formula injection in exported cells', async () => {
+    insertLog(app.ctx.db, { level: 'info', source: 'tablet', message: '=HYPERLINK("http://evil","x")' });
+    const res = await app.inject({ method: 'GET', url: '/api/logs?format=csv', cookies });
+    // The cell must be prefixed with a single quote so Excel/Sheets treats it as text.
+    expect(res.body).toContain("'=HYPERLINK");
+    // And it must NOT appear as a bare, formula-evaluable leading '='.
+    expect(res.body).not.toMatch(/(^|,)=HYPERLINK/m);
+  });
+
   it('exports CSV with a download disposition', async () => {
     insertLog(app.ctx.db, { level: 'info', source: 'app', message: 'has, comma' });
     const res = await app.inject({ method: 'GET', url: '/api/logs?format=csv', cookies });

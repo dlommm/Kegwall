@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import Database from 'better-sqlite3';
@@ -111,7 +112,23 @@ export interface AppOptions {
 }
 
 export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
+  const app = Fastify({
+    logger: process.env.NODE_ENV === 'test' ? false : {
+      serializers: {
+        // Strip the query string from every logged request URL. Bearer-style secrets can
+        // ride the query (e.g. the deprecated presenceWebhookToken fallback, routes/
+        // presence.ts) and must never land in access logs, journald, or a support bundle.
+        req(request) {
+          return {
+            method: request.method,
+            url: (request.url ?? '').split('?')[0],
+            hostname: request.hostname,
+            remoteAddress: request.ip,
+          };
+        },
+      },
+    },
+  });
   app.decorate('ctx', opts.context ?? createContext(opts.dataDir ?? './data', opts.version));
   // Always torn down on close, even if startSources was never set — registering a
   // source (which createContext() always does) without ever starting it is a safe
@@ -183,6 +200,30 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
   }
 
   await app.register(cookie);
+  // Security headers (CSP + nosniff + frame-ancestors + referrer-policy, etc.). The CSP is
+  // tuned for this SPA: a single external module script (script-src 'self'), runtime-injected
+  // <style> from ThemeProvider and React style= attributes (style-src 'unsafe-inline'),
+  // self/data images (siteLogo, labels, generated art), and same-origin fetch/WS/SSE
+  // (connect-src 'self'). No inline script is used, so script-src stays strict.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        fontSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    // The app and its assets are same-origin; COEP would block the labels/uploads served
+    // without a Cross-Origin-Resource-Policy header and buys nothing here.
+    crossOriginEmbedderPolicy: false,
+  });
   await app.register(rateLimit, { global: false });
 
   app.setErrorHandler((err, req, reply) => {
