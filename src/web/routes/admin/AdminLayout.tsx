@@ -14,14 +14,19 @@ import { ADMIN_NAV_ITEMS, visibleNavItems, pageTitleFor } from './adminNav';
 import type { AdminOutletContext } from './useAdminContext';
 import { NotificationBell } from './NotificationBell';
 
+/** Admin-only routes that no longer have their own nav entry but must stay guarded against
+ * direct URL entry — `/admin/users` (account management, now the People page's admin-only
+ * Accounts tab, redesign 4h). Kept reachable for deep links, but still admin-gated. */
+const EXTRA_ADMIN_ONLY_PATHS = ['/admin/users'];
+
 /** True when `pathname` is (or is nested under) one of `ADMIN_NAV_ITEMS`' admin-only
- * sections (Users, Settings) — the route-guarding half of the role matrix: nav hiding
- * (`visibleNavItems`) keeps a non-admin from clicking there, this catches them typing
- * the URL directly. */
+ * sections (Suppliers, Settings, …) or one of the nav-less admin-only routes above — the
+ * route-guarding half of the role matrix: nav hiding (`visibleNavItems`) keeps a non-admin
+ * from clicking there, this catches them typing the URL directly. */
 function isAdminOnlyPath(pathname: string): boolean {
   return ADMIN_NAV_ITEMS.some(
     (item) => item.adminOnly && (pathname === item.path || pathname.startsWith(`${item.path}/`)),
-  );
+  ) || EXTRA_ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 function initials(name: string): string {

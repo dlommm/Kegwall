@@ -97,7 +97,7 @@ describe('AdminLayout', () => {
     mockFetchOnce(200, user({ role: 'admin' }));
     renderLayout();
     expect(await screen.findByTestId('dashboard-placeholder')).toBeInTheDocument();
-    expect(screen.getByText('Users')).toBeInTheDocument();
+    expect(screen.getByText('People')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Beers')).toBeInTheDocument();
   });
