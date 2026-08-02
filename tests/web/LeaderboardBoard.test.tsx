@@ -70,6 +70,17 @@ describe('LeaderboardBoard (redesign 2f — podium)', () => {
     expect(footer).toHaveTextContent('BIGGEST POUR: JT · 30.0 oz');
   });
 
+  it('shows a game-winner trophy chip when a game posted to the board (redesign 5d)', () => {
+    const data = makeData({
+      superlatives: {
+        mostPours: null, smoothest: null, biggestPour: null,
+        gameWinner: { gameName: 'Keg Race', displayName: 'Sam', endedAt: '2026-08-01T00:00:00Z' },
+      },
+    });
+    render(<LeaderboardBoard data={data} units="us" title="T" />);
+    expect(screen.getByTestId('board-game-winner')).toHaveTextContent('KEG RACE: Sam');
+  });
+
   it('shows a friendly empty state', () => {
     render(
       <LeaderboardBoard

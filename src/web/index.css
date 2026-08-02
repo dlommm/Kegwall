@@ -6741,6 +6741,7 @@ h2.admin-field__label-text {
 .board-trophy--gold { border-color: #E7B93F; color: #E7B93F; }
 .board-trophy--green { border-color: var(--ok); color: var(--ok); }
 .board-trophy--copper { border-color: #C77B4A; color: #C77B4A; }
+.board-trophy--game { border-color: var(--accent); color: var(--accent); }
 
 .board-look__empty {
   flex: 1;

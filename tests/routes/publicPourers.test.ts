@@ -119,7 +119,9 @@ describe('public leaderboard', () => {
     const res = await app.inject({ method: 'GET', url: '/api/public/leaderboard' });
     const body = res.json();
     expect(body.entries).toEqual([]);
-    expect(body.superlatives).toEqual({ mostPours: null, smoothest: null, biggestPour: null });
+    expect(body.superlatives).toEqual({
+      mostPours: null, smoothest: null, biggestPour: null, gameWinner: null,
+    });
   });
 });
 

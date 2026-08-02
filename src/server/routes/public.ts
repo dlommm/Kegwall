@@ -11,7 +11,7 @@ import { leaderboard, biggestClaimedPour } from '../db/stats.js';
 import { wallConfigSchema, type WallConfig } from '../core/wallConfig.js';
 import { toPublicTapState, type TapState } from '../core/state.js';
 import { displayPricePerPintCents } from '../core/pricing.js';
-import { activeGameStrip } from '../db/games.js';
+import { activeGameStrip, recentGameWinner } from '../db/games.js';
 import { requireDisplayToken } from './displayAuth.js';
 import { bestMatch } from '../core/faceMatch.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
@@ -247,6 +247,8 @@ export async function publicRoutes(app: FastifyInstance) {
           ? { displayName: smoothest.displayName, avgQuality: smoothest.avgQuality }
           : null,
         biggestPour: biggestClaimedPour(db, query.window),
+        // Games decorate the ONE board (redesign 5d) — never a separate leaderboard.
+        gameWinner: recentGameWinner(db),
       },
     };
   });

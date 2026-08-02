@@ -152,6 +152,11 @@ export function LeaderboardBoard({ data, units, title }: LeaderboardBoardProps) 
             {`🍺 BIGGEST POUR: ${superlatives.biggestPour.displayName} · ${formatVolumeMl(superlatives.biggestPour.volumeMl, units)}`}
           </span>
         )}
+        {superlatives.gameWinner && (
+          <span className="board-trophy board-trophy--game" data-testid="board-game-winner">
+            {`🎮 ${superlatives.gameWinner.gameName.toUpperCase()}: ${superlatives.gameWinner.displayName}`}
+          </span>
+        )}
       </footer>
     </div>
   );

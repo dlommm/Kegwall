@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { openDb } from '../../src/server/db/db.js';
 import {
   listGames, getGame, getActiveSession, startSession, endSession, addParticipant, listParticipants,
+  recentGameWinner,
 } from '../../src/server/db/games.js';
 import { GAMES_CATALOG } from '../../src/server/db/gamesCatalog.js';
 import { createDrinker } from '../../src/server/db/users.js';
@@ -68,5 +69,19 @@ describe('game sessions', () => {
 
     // Slot is free — a new game can start.
     expect(() => startSession(db, { gameId: games[1]!.id })).not.toThrow();
+  });
+
+  it('recentGameWinner surfaces the last week’s rank-1 winner, and expires after 7 days', () => {
+    const games = listGames(db);
+    const alice = createDrinker(db, { displayName: 'Alice' });
+    const s = startSession(db, { gameId: games[0]!.id, participants: [{ drinkerId: alice.id }] });
+    endSession(db, s.id, [{ drinkerId: alice.id, score: 100, rank: 1 }], '2026-08-01T00:00:00.000Z');
+
+    // 3 days later — still on the board.
+    expect(recentGameWinner(db, new Date('2026-08-04T00:00:00.000Z'))).toMatchObject({
+      gameName: games[0]!.name, displayName: 'Alice',
+    });
+    // 10 days later — expired.
+    expect(recentGameWinner(db, new Date('2026-08-11T00:00:00.000Z'))).toBeNull();
   });
 });

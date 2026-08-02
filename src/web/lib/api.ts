@@ -172,6 +172,8 @@ export interface LeaderboardResponse {
     mostPours: { displayName: string; pourCount: number } | null;
     smoothest: { displayName: string; avgQuality: number | null } | null;
     biggestPour: { drinkerId: number; displayName: string; volumeMl: number; ts: string } | null;
+    /** The week's most recent game winner (redesign 5d) — games decorate this board, never fork it. */
+    gameWinner?: { gameName: string; displayName: string; endedAt: string } | null;
   };
 }
 

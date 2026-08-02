@@ -202,6 +202,31 @@ export function activeGameStrip(db: Database.Database): GameStrip | null {
   };
 }
 
+export interface GameWinnerSuperlative {
+  gameName: string;
+  displayName: string;
+  endedAt: string;
+}
+
+/**
+ * The most recent game winner (rank 1) from a session that ended within the last 7 days —
+ * the "week-long superlative chip" games post to the ONE house leaderboard (redesign 5d).
+ * Null when no game finished this week. `now` is injectable for tests.
+ */
+export function recentGameWinner(db: Database.Database, now = new Date()): GameWinnerSuperlative | null {
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const r = db.prepare(`
+    SELECT g.name AS gameName, u.display_name AS displayName, s.ended_at AS endedAt
+    FROM game_results gr
+    JOIN game_sessions s ON s.id = gr.session_id
+    JOIN games g ON g.id = s.game_id
+    JOIN users u ON u.id = gr.drinker_id
+    WHERE gr.rank = 1 AND s.ended_at IS NOT NULL AND s.ended_at >= ?
+    ORDER BY s.ended_at DESC LIMIT 1
+  `).get(since) as any;
+  return r ? { gameName: r.gameName, displayName: r.displayName, endedAt: r.endedAt } : null;
+}
+
 /** Ends a session and records final results (score + rank per drinker). */
 export function endSession(
   db: Database.Database,
