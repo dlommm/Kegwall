@@ -338,6 +338,81 @@ export function analyticsKpis(db: Database.Database, days: number, now = new Dat
   };
 }
 
+/** A single pour, hydrated with its beer / tap / drinker, for the analytics Pours-history
+ *  table (redesign 4e/4j). No owner cost — viewer-safe. */
+export interface PourHistoryRow {
+  id: number;
+  ts: string;
+  tapNumber: number | null;
+  beerName: string;
+  drinkerName: string | null;
+  volumeMl: number;
+  quality: number | null;
+  source: string;
+}
+
+/** Recent pours (newest first) over the trailing `days` window, capped at `limit`. */
+export function pourHistory(
+  db: Database.Database, days: number, limit = 200, now = new Date(),
+): PourHistoryRow[] {
+  const cutoff = new Date(now.getTime() - days * MS_PER_DAY).toISOString();
+  return db.prepare(`
+    SELECT p.id AS id, p.ts AS ts, t.number AS tapNumber, b.name AS beerName,
+           u.display_name AS drinkerName, p.volume_ml AS volumeMl, p.quality AS quality,
+           p.source AS source
+    FROM pours p
+    JOIN kegs k ON k.id = p.keg_id
+    JOIN beers b ON b.id = k.beer_id
+    LEFT JOIN taps t ON t.id = k.tap_id
+    LEFT JOIN users u ON u.id = p.drinker_id
+    WHERE p.ts >= ?
+    ORDER BY p.ts DESC
+    LIMIT ?
+  `).all(cutoff, limit).map((r: any) => ({
+    id: r.id,
+    ts: r.ts,
+    tapNumber: r.tapNumber ?? null,
+    beerName: r.beerName,
+    drinkerName: r.drinkerName ?? null,
+    volumeMl: r.volumeMl,
+    quality: r.quality ?? null,
+    source: r.source,
+  }));
+}
+
+/** Monthly keg spend row for the analytics Kegs & cost tab (redesign 4e/4j). OWNER COST —
+ *  admin-only route. */
+export interface MonthlySpendRow {
+  month: string;
+  kegs: number;
+  spendCents: number;
+  pricePerPintCents: number | null;
+}
+
+/** Owner spend grouped by purchase month (YYYY-MM), newest first, over all history. */
+export function monthlySpend(db: Database.Database): MonthlySpendRow[] {
+  const ML_PER_PINT_LOCAL = 473.176;
+  const rows = db.prepare(`
+    SELECT substr(COALESCE(purchased_at, created_at), 1, 7) AS month,
+           COUNT(*) AS kegs,
+           COALESCE(SUM(cost_cents), 0) AS spendCents,
+           COALESCE(SUM(size_ml), 0) AS totalMl
+    FROM kegs
+    WHERE cost_cents IS NOT NULL
+    GROUP BY month
+    ORDER BY month DESC
+  `).all() as any[];
+  return rows.map((r) => {
+    const pints = r.totalMl / ML_PER_PINT_LOCAL;
+    return {
+      month: r.month,
+      kegs: r.kegs,
+      spendCents: r.spendCents,
+      pricePerPintCents: pints > 0 ? Math.round(r.spendCents / pints) : null,
+    };
+  });
+}
+
 /** Per-keg cost row for the analytics Kegs & cost tab (redesign 4e/4j). Carries OWNER COST —
  *  its route is admin-only; never serialize this to a public surface. */
 export interface KegCostRow {

@@ -6,7 +6,8 @@ import type { TelemetryPoint } from '../../../server/db/telemetry.js';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
-  getHostStatsHistory, getKegCosts, type HostStatsHistoryPoint, type KegCostRow,
+  getHostStatsHistory, getKegCosts, getMonthlySpend, getPourHistory,
+  type HostStatsHistoryPoint, type KegCostRow, type MonthlySpendRow, type PourHistoryRow,
 } from '../../lib/adminApi';
 import { formatVolumeMl } from '../../lib/units';
 import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
@@ -57,6 +58,8 @@ export function StatsPage() {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [tab, setTab] = useState<AnalyticsTab>('overview');
   const [kegCosts, setKegCosts] = useState<KegCostRow[]>([]);
+  const [monthlySpend, setMonthlySpend] = useState<MonthlySpendRow[]>([]);
+  const [pourHistory, setPourHistory] = useState<PourHistoryRow[]>([]);
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -74,15 +77,27 @@ export function StatsPage() {
   const [heatmap, setHeatmap] = useState<number[][]>([]);
   const [hostStats, setHostStats] = useState<HostStatsHistoryPoint[]>([]);
 
-  // Per-keg owner-cost breakdown (admin-only; the endpoint 403s for non-admins).
+  // Per-keg owner-cost breakdown + monthly spend (admin-only; the endpoints 403 for non-admins).
   useEffect(() => {
     if (!isAdmin) return undefined;
     let cancelled = false;
     getKegCosts().then((result) => {
       if (!cancelled && result.ok) setKegCosts(result.data);
     });
+    getMonthlySpend().then((result) => {
+      if (!cancelled && result.ok) setMonthlySpend(result.data);
+    });
     return () => { cancelled = true; };
   }, [isAdmin]);
+
+  // Pour-history table follows the same day-range switcher as the pours/beers charts.
+  useEffect(() => {
+    let cancelled = false;
+    getPourHistory(days).then((result) => {
+      if (!cancelled && result.ok) setPourHistory(result.data);
+    });
+    return () => { cancelled = true; };
+  }, [days]);
 
   // Server-health history (Pi monitoring epic) — the host sampler's last 24h.
   useEffect(() => {
@@ -336,6 +351,41 @@ export function StatsPage() {
             <div className="stats-grid">
               <HourHistogramRow data={hours} />
             </div>
+            <section className="stats-section" data-testid="analytics-pour-history">
+              <h3 className="stats-chart__title">{`Pour history · ${pourHistory.length} shown`}</h3>
+              {pourHistory.length === 0 ? (
+                <p className="admin-page-quiet">No pours in this window.</p>
+              ) : (
+                <div className="analytics-table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">Tap</th>
+                        <th scope="col">Beer</th>
+                        <th scope="col">Drinker</th>
+                        <th scope="col">Size</th>
+                        <th scope="col">Q</th>
+                        <th scope="col">Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pourHistory.map((row) => (
+                        <tr key={row.id} data-testid="pour-history-row">
+                          <td className="font-tabular">{new Date(row.ts).toLocaleString()}</td>
+                          <td className="font-tabular">{row.tapNumber != null ? `Tap ${row.tapNumber}` : '—'}</td>
+                          <td>{row.beerName}</td>
+                          <td>{row.drinkerName ?? 'Unclaimed'}</td>
+                          <td className="font-tabular">{formatVolumeMl(row.volumeMl, units)}</td>
+                          <td className="font-tabular">{row.quality != null ? row.quality : '—'}</td>
+                          <td className="font-tabular">{row.source.toUpperCase()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           <div hidden={tab !== 'beers'} data-testid="analytics-panel-beers">
@@ -387,6 +437,35 @@ export function StatsPage() {
                     </table>
                   </div>
                 )}
+              </section>
+            )}
+            {isAdmin && monthlySpend.length > 0 && (
+              <section className="stats-section" data-testid="analytics-monthly-spend">
+                <h3 className="stats-chart__title">Monthly spend</h3>
+                <div className="analytics-table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Month</th>
+                        <th scope="col">Kegs</th>
+                        <th scope="col">Spend</th>
+                        <th scope="col">$/pint</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlySpend.map((row) => (
+                        <tr key={row.month} data-testid="monthly-spend-row">
+                          <td className="font-tabular">{row.month}</td>
+                          <td className="font-tabular">{row.kegs}</td>
+                          <td className="font-tabular">{`$${(row.spendCents / 100).toFixed(2)}`}</td>
+                          <td className="font-tabular">
+                            {row.pricePerPintCents != null ? `$${(row.pricePerPintCents / 100).toFixed(2)}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             )}
           </div>

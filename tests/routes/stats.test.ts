@@ -39,6 +39,14 @@ describe('GET /api/stats/keg-costs (admin-only owner cost)', () => {
     expect(admin.statusCode).toBe(200);
     expect(Array.isArray(admin.json())).toBe(true);
   });
+
+  it('monthly-spend is admin-only; pour-history is viewer-readable', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/stats/monthly-spend', cookies: viewerCookies })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/stats/monthly-spend', cookies: adminCookies })).statusCode).toBe(200);
+    const hist = await app.inject({ method: 'GET', url: '/api/stats/pour-history?days=7', cookies: viewerCookies });
+    expect(hist.statusCode).toBe(200);
+    expect(Array.isArray(hist.json())).toBe(true);
+  });
 });
 
 describe('GET /api/stats/pours', () => {

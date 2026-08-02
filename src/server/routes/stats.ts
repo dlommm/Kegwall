@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireRole } from './auth.js';
 import {
   poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard, kegCostRows,
+  pourHistory, monthlySpend,
 } from '../db/stats.js';
 import { listTelemetryForDevice } from '../db/telemetry.js';
 import { getMonitorById } from '../db/monitors.js';
@@ -23,6 +24,17 @@ export async function statsRoutes(app: FastifyInstance) {
   // ADMIN ONLY: it exposes cost/$-per-pint/value-left, which the hard requirement keeps off
   // every non-admin surface (the rest of /api/stats is viewer-role aggregate data).
   app.get('/api/stats/keg-costs', admin, async () => kegCostRows(db));
+
+  // GET /api/stats/monthly-spend — owner spend grouped by purchase month. ADMIN ONLY (cost).
+  app.get('/api/stats/monthly-spend', admin, async () => monthlySpend(db));
+
+  // GET /api/stats/pour-history?days= — recent pours hydrated with beer/tap/drinker for the
+  // Pours-history table. Viewer role (no cost); capped server-side.
+  const pourHistoryQuery = z.object({ days: z.enum(['7', '30', '90']).default('30').transform(Number) });
+  app.get('/api/stats/pour-history', viewer, async (req) => {
+    const { days } = pourHistoryQuery.parse(req.query);
+    return pourHistory(db, days);
+  });
 
   // `?days=` is restricted to the three ranges the Stats page's switcher actually offers
   // (7/30/90) — an `z.enum` on the raw string query value (rather than a bare

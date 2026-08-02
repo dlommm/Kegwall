@@ -815,13 +815,23 @@ export function deleteDisplay(id: number): Promise<ApiResult<null>> {
 // --- Pour Wall overhaul Phase 6: analytics + cleaning + doctor ---------------
 
 export type {
-  AnalyticsKpis, PoursByDay, KegBurnStat, KegCostRow,
+  AnalyticsKpis, PoursByDay, KegBurnStat, KegCostRow, PourHistoryRow, MonthlySpendRow,
 } from '../../server/db/stats.js';
 
 /** GET /api/stats/keg-costs — per-keg owner-cost breakdown for the analytics Kegs tab.
  *  ADMIN ONLY (owner cost). */
 export function getKegCosts(): Promise<ApiResult<import('../../server/db/stats.js').KegCostRow[]>> {
   return request('/api/stats/keg-costs');
+}
+
+/** GET /api/stats/monthly-spend — owner spend by month (analytics Kegs tab). ADMIN ONLY. */
+export function getMonthlySpend(): Promise<ApiResult<import('../../server/db/stats.js').MonthlySpendRow[]>> {
+  return request('/api/stats/monthly-spend');
+}
+
+/** GET /api/stats/pour-history?days= — recent pours w/ beer/tap/drinker (analytics Pours tab). */
+export function getPourHistory(days: 7 | 30 | 90): Promise<ApiResult<import('../../server/db/stats.js').PourHistoryRow[]>> {
+  return request(`/api/stats/pour-history?days=${days}`);
 }
 export type { SensorSummary } from '../../server/db/sensors.js';
 export type { CleaningStatus, LineCleaning } from '../../server/db/cleanings.js';

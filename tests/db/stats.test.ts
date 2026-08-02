@@ -7,6 +7,7 @@ import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
 import { createDrinker } from '../../src/server/db/users.js';
 import {
   poursByDay, hourHistogram, activeKegStats, beersByVolume, leaderboard, kegCostRows,
+  pourHistory, monthlySpend,
 } from '../../src/server/db/stats.js';
 import { createSupplier } from '../../src/server/db/suppliers.js';
 import { mkdtempSync } from 'node:fs';
@@ -406,6 +407,34 @@ describe('stats repo', () => {
       createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, status: 'on_deck' });
       const rows = kegCostRows(db);
       expect(rows[0]).toMatchObject({ costCents: null, pricePerPintCents: null, valueLeftCents: null, supplierName: null });
+    });
+  });
+
+  describe('pourHistory', () => {
+    it('hydrates recent pours with beer, tap, and drinker, newest first', () => {
+      const beer = createBeer(db, { name: 'Citra IPA' });
+      const tap = createTap(db, { number: 3 });
+      const keg = createKeg(db, { beerId: beer.id, tapId: tap.id, sizeMl: 19000, volStartMl: 19000 });
+      const sam = createDrinker(db, { displayName: 'Sam' });
+      recordPourTx(db, { kegId: keg.id, volumeMl: 473, ts: isoDaysAgo(1), source: 'udp', drinkerId: sam.id });
+      recordPourTx(db, { kegId: keg.id, volumeMl: 300, ts: isoDaysAgo(2), source: 'cloud' });
+
+      const rows = pourHistory(db, 30, 100, NOW);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({ beerName: 'Citra IPA', tapNumber: 3, drinkerName: 'Sam', source: 'udp' });
+      expect(rows[1]!.drinkerName).toBeNull(); // unclaimed
+    });
+  });
+
+  describe('monthlySpend', () => {
+    it('groups owner spend by purchase month with $/pint', () => {
+      const beer = createBeer(db, { name: 'Lager' });
+      createKeg(db, { beerId: beer.id, sizeMl: 47318, volStartMl: 47318, status: 'on_deck', costCents: 13100, purchasedAt: '2026-06-01' });
+      createKeg(db, { beerId: beer.id, sizeMl: 47318, volStartMl: 47318, status: 'on_deck', costCents: 13100, purchasedAt: '2026-06-20' });
+      const rows = monthlySpend(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ month: '2026-06', kegs: 2, spendCents: 26200 });
+      expect(rows[0]!.pricePerPintCents).toBe(131); // $262 / 200 pints
     });
   });
 });

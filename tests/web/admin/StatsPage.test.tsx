@@ -6,7 +6,7 @@ import { act, fireEvent, screen } from '@testing-library/react';
 import { StatsPage } from '../../../src/web/routes/admin/StatsPage';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
-  getStatsTemps, getLeaderboard, listMonitors, getKegCosts,
+  getStatsTemps, getLeaderboard, listMonitors, getKegCosts, getMonthlySpend, getPourHistory,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
 import { renderAdminPage, adminContext } from './renderAdminPage';
@@ -23,6 +23,8 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getHourHeatmap: vi.fn().mockResolvedValue({ ok: true, data: { grid: [] } }),
   getHostStatsHistory: vi.fn().mockResolvedValue({ ok: true, data: { points: [] } }),
   getKegCosts: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getMonthlySpend: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getPourHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
@@ -89,11 +91,47 @@ describe('StatsPage', () => {
     expect(row).toHaveTextContent('$65.50'); // value left
   });
 
-  it('hides the keg-cost table from a non-admin (viewer)', async () => {
+  it('hides the keg-cost + monthly-spend tables from a non-admin (viewer)', async () => {
     renderAdminPage(<StatsPage />, adminContext('viewer'));
     await flush();
     expect(getKegCosts).not.toHaveBeenCalled();
+    expect(getMonthlySpend).not.toHaveBeenCalled();
     expect(screen.queryByTestId('analytics-keg-costs')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('analytics-monthly-spend')).not.toBeInTheDocument();
+  });
+
+  it('renders the Pours-history table on the Pours tab and refetches with the range', async () => {
+    (getPourHistory as Mock).mockResolvedValue({
+      ok: true,
+      data: [{
+        id: 1, ts: '2026-08-01T18:00:00.000Z', tapNumber: 3, beerName: 'Citra IPA', drinkerName: 'Sam', volumeMl: 473, quality: 92, source: 'udp',
+      }],
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-pours'));
+    const row = screen.getByTestId('pour-history-row');
+    expect(row).toHaveTextContent('Citra IPA');
+    expect(row).toHaveTextContent('Tap 3');
+    expect(row).toHaveTextContent('Sam');
+    expect(row).toHaveTextContent('UDP');
+    // Range switcher refetches pour history too.
+    fireEvent.click(screen.getByTestId('stats-range-90'));
+    await flush();
+    expect(getPourHistory).toHaveBeenCalledWith(90);
+  });
+
+  it('shows the admin monthly-spend table on the Kegs tab', async () => {
+    (getMonthlySpend as Mock).mockResolvedValue({
+      ok: true, data: [{ month: '2026-06', kegs: 3, spendCents: 39000, pricePerPintCents: 131 }],
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-kegs'));
+    const row = screen.getByTestId('monthly-spend-row');
+    expect(row).toHaveTextContent('2026-06');
+    expect(row).toHaveTextContent('$390.00');
+    expect(row).toHaveTextContent('$1.31');
   });
 
   it('renders the 9-tab hub with Overview active, and switching tabs reveals another panel', async () => {
