@@ -7,7 +7,7 @@ import { StatsPage } from '../../../src/web/routes/admin/StatsPage';
 import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getKegCosts, getMonthlySpend, getPourHistory,
-  getBeerHistory, getPourerHistory, getSensors,
+  getBeerHistory, getPourerHistory, getSensors, getSources, doctorUdpHistory,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
 import { renderAdminPage, adminContext } from './renderAdminPage';
@@ -29,6 +29,8 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getBeerHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getPourerHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getSensors: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getSources: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  doctorUdpHistory: vi.fn().mockResolvedValue({ ok: true, data: { hours: 24, devices: [] } }),
 }));
 
 function makeMonitor(id: number, overrides: Partial<Monitor> = {}): Monitor {
@@ -151,6 +153,23 @@ describe('StatsPage', () => {
     expect(row).toHaveTextContent('Sam');
     expect(row).toHaveTextContent('127');
     expect(row).toHaveTextContent('Citra IPA');
+  });
+
+  it('renders the Devices tab with ingest sources + UDP coverage from real data', async () => {
+    (getSources as Mock).mockResolvedValue({
+      ok: true, data: [{ name: 'kegtron_udp', registered: true, healthy: true, detail: 'streaming', lastEventAt: '2026-08-01T00:00:00Z' }],
+    });
+    (doctorUdpHistory as Mock).mockResolvedValue({
+      ok: true, data: { hours: 24, devices: [{ serial: 'KT-9', totalPackets: 8600, firstSeen: 'x', lastSeen: '2026-08-01T00:00:00Z', coveragePct: 99, gaps: [] }] },
+    });
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('analytics-tab-devices'));
+    expect(screen.getByTestId('ingest-source-row')).toHaveTextContent('kegtron_udp');
+    const udp = screen.getByTestId('udp-device-row');
+    expect(udp).toHaveTextContent('KT-9');
+    expect(udp).toHaveTextContent('8,600');
+    expect(udp).toHaveTextContent('99%');
   });
 
   it('renders the Sensor-history table on the Temps tab', async () => {

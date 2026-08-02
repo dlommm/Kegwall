@@ -7,10 +7,12 @@ import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getAnalyticsKpis, getHourHeatmap,
   getHostStatsHistory, getKegCosts, getMonthlySpend, getPourHistory,
-  getBeerHistory, getPourerHistory, getSensors,
+  getBeerHistory, getPourerHistory, getSensors, getSources, doctorUdpHistory,
   type HostStatsHistoryPoint, type KegCostRow, type MonthlySpendRow, type PourHistoryRow,
-  type BeerHistoryRow, type PourerHistoryRow, type SensorSummary,
+  type BeerHistoryRow, type PourerHistoryRow, type SensorSummary, type UdpDeviceHistory,
 } from '../../lib/adminApi';
+import type { SourceStatus } from '../../../server/ingest/manager.js';
+import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { formatVolumeMl, formatTempC } from '../../lib/units';
 import { groupMonitors, deviceLabel } from '../../lib/monitorDevices';
 import { PoursChart } from './PoursChart';
@@ -87,6 +89,8 @@ export function StatsPage() {
   const [beerHistory, setBeerHistory] = useState<BeerHistoryRow[]>([]);
   const [pourerHistory, setPourerHistory] = useState<PourerHistoryRow[]>([]);
   const [sensors, setSensors] = useState<SensorSummary[]>([]);
+  const [sources, setSources] = useState<SourceStatus[]>([]);
+  const [udpDevices, setUdpDevices] = useState<UdpDeviceHistory[]>([]);
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -132,6 +136,8 @@ export function StatsPage() {
     getBeerHistory().then((result) => { if (!cancelled && result.ok) setBeerHistory(result.data); });
     getPourerHistory().then((result) => { if (!cancelled && result.ok) setPourerHistory(result.data); });
     getSensors().then((result) => { if (!cancelled && result.ok) setSensors(result.data); });
+    getSources().then((result) => { if (!cancelled && result.ok) setSources(result.data); });
+    doctorUdpHistory(24).then((result) => { if (!cancelled && result.ok) setUdpDevices(result.data.devices); });
     return () => { cancelled = true; };
   }, []);
 
@@ -652,10 +658,62 @@ export function StatsPage() {
           </div>
 
           <div hidden={tab !== 'devices'} data-testid="analytics-panel-devices">
-            <p className="admin-page-quiet">
-              Per-source ingest health lives on the Dashboard and Connection doctor; richer
-              ingest analytics (call latency, UDP drops, tablet arms) land here next.
-            </p>
+            <section className="stats-section" data-testid="analytics-ingest-sources">
+              <h3 className="stats-chart__title">Ingest sources</h3>
+              <div className="analytics-table-scroll">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Source</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Detail</th>
+                      <th scope="col">Last event</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sources.map((s) => (
+                      <tr key={s.name} data-testid="ingest-source-row">
+                        <td>{s.name}</td>
+                        <td>{!s.registered ? 'not set up' : s.healthy ? '● OK' : '● down'}</td>
+                        <td>{s.detail || '—'}</td>
+                        <td className="font-tabular">{s.lastEventAt ? formatRelativeTime(s.lastEventAt) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <section className="stats-section" data-testid="analytics-udp-devices">
+              <h3 className="stats-chart__title">UDP packet coverage · last 24h</h3>
+              {udpDevices.length === 0 ? (
+                <p className="admin-page-quiet">No UDP packets received in the last 24 hours.</p>
+              ) : (
+                <div className="analytics-table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Device serial</th>
+                        <th scope="col">Packets</th>
+                        <th scope="col">Coverage</th>
+                        <th scope="col">Gaps</th>
+                        <th scope="col">Last seen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {udpDevices.map((d) => (
+                        <tr key={d.serial} data-testid="udp-device-row">
+                          <td className="font-tabular">{d.serial}</td>
+                          <td className="font-tabular">{d.totalPackets.toLocaleString()}</td>
+                          <td className="font-tabular">{`${d.coveragePct}%`}</td>
+                          <td className="font-tabular">{d.gaps.length}</td>
+                          <td className="font-tabular">{formatRelativeTime(d.lastSeen)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           <div hidden={tab !== 'raw'} data-testid="analytics-panel-raw">
