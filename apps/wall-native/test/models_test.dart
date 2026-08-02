@@ -57,7 +57,8 @@ void main() {
   test('parseColor handles hex and rgba, srmToColor clamps', () {
     expect(parseColor('#0F1216', const Color(0xFF000000)), const Color(0xFF0F1216));
     final rgba = parseColor('rgba(255,255,255,0.04)', const Color(0xFF000000));
-    expect(rgba.alpha, (0.04 * 255).round());
+    // 0.04 * 255 ≈ 10 alpha over white — compare the whole ARGB (no deprecated .alpha getter).
+    expect(rgba, const Color.fromARGB(10, 255, 255, 255));
     // SRM clamps into range and returns a color for any input.
     expect(srmToColor(100), isNotNull);
     expect(srmToColor(null), const Color(0xFFFFE699));

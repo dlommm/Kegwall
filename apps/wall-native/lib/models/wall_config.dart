@@ -1,6 +1,6 @@
-/// The wall's configuration, as returned by `GET /api/public/wall/:slug`. A subset of the
-/// server's `wallConfigSchema` — the fields the native looks actually render. Unknown fields
-/// are ignored so a newer server never breaks an older client.
+// The wall's configuration, as returned by `GET /api/public/wall/:slug`. A subset of the
+// server's `wallConfigSchema` — the fields the native looks actually render. Unknown fields
+// are ignored so a newer server never breaks an older client.
 
 class WallThemeConfig {
   const WallThemeConfig({required this.preset, this.overrides = const {}});

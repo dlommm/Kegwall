@@ -186,7 +186,9 @@ wall-native:
     - cd apps/wall-native
     - flutter --version
     - flutter pub get
-    - flutter analyze
+    # --no-fatal-infos: style/deprecation infos (e.g. withOpacity on a newer stable Flutter)
+    # shouldn't fail the build; real warnings/errors still do.
+    - flutter analyze --no-fatal-infos
     - flutter test
     - flutter build bundle
   artifacts:

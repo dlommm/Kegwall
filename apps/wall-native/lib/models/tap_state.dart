@@ -1,6 +1,6 @@
-/// Dart mirrors of the public JSON the Kegwall server returns. Hand-written `fromJson` (no
-/// codegen) to keep the flutter-pi build toolchain simple. OWNER COST fields are absent from
-/// the public payload, so they're absent here too — the native client never sees keg cost.
+// Dart mirrors of the public JSON the Kegwall server returns. Hand-written `fromJson` (no
+// codegen) to keep the flutter-pi build toolchain simple. OWNER COST fields are absent from
+// the public payload, so they're absent here too — the native client never sees keg cost.
 
 const double _mlPerPint = 473.176;
 
