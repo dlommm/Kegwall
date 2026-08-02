@@ -67,6 +67,19 @@ describe('StatsPage', () => {
     expect(screen.getByTestId('stats-loading')).toBeInTheDocument();
   });
 
+  it('renders the 9-tab hub with Overview active, and switching tabs reveals another panel', async () => {
+    renderAdminPage(<StatsPage />);
+    await flush();
+    expect(screen.getByTestId('analytics-tabs')).toBeInTheDocument();
+    // Overview visible, Kegs & cost hidden by default.
+    expect(screen.getByTestId('analytics-panel-overview')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('analytics-panel-kegs')).toHaveAttribute('hidden');
+    fireEvent.click(screen.getByTestId('analytics-tab-kegs'));
+    expect(screen.getByTestId('analytics-panel-kegs')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('analytics-panel-overview')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('analytics-tab-kegs')).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('the range switcher refetches pours and beers with the new days value for both', async () => {
     renderAdminPage(<StatsPage />);
     await flush();

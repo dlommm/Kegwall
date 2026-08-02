@@ -8829,7 +8829,40 @@ h2.admin-field__label-text {
   background: var(--warn);
 }
 
-/* --- Analytics (10a) ------------------------------------------------------- */
+/* --- Analytics (10a; 9-tab hub 4e/4j) -------------------------------------- */
+
+/* Grafana-style tab strip; horizontally scrolls on narrow screens rather than wrapping. */
+.analytics-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+  scrollbar-width: none;
+}
+
+.analytics-tabs::-webkit-scrollbar { display: none; }
+
+.analytics-tab {
+  flex: none;
+  padding: 0.55rem 0.9rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.analytics-tab:hover { color: var(--text); }
+
+.analytics-tab[aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 
 .analytics-kpis {
   display: grid;

@@ -25,6 +25,22 @@ const DAY_RANGES = [7, 30, 90] as const;
 type DayRange = (typeof DAY_RANGES)[number];
 const DEFAULT_DAYS: DayRange = 30;
 
+/** The analytics hub's 9 tabs (WebUI redesign 4e/4j), Grafana-style. Existing panels are
+ * distributed across them; every panel stays mounted (tab-switch hides via `hidden`) so the
+ * one-shot fetches keep every tab live and deep-links/tests reach any panel. */
+const ANALYTICS_TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'pours', label: 'Pours' },
+  { key: 'beers', label: 'Beers & styles' },
+  { key: 'kegs', label: 'Kegs & cost' },
+  { key: 'people', label: 'People' },
+  { key: 'temps', label: 'Temps' },
+  { key: 'server', label: 'Server' },
+  { key: 'devices', label: 'Devices & ingest' },
+  { key: 'raw', label: 'Raw' },
+] as const;
+type AnalyticsTab = (typeof ANALYTICS_TABS)[number]['key'];
+
 /**
  * `/admin/stats` (Task 9): pours/day, hour-of-day, per-keg depletion, volume-by-beer,
  * temperature, and a drinker leaderboard — six independent viewer-role read endpoints
@@ -38,6 +54,7 @@ const DEFAULT_DAYS: DayRange = 30;
 export function StatsPage() {
   const { units } = useAdminContext();
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [tab, setTab] = useState<AnalyticsTab>('overview');
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -222,79 +239,143 @@ export function StatsPage() {
         </p>
       )}
 
-      {status !== 'loading' && kpis && (
-        <div className="analytics-kpis" data-testid="analytics-kpis">
-          <div className="dashboard-stat">
-            <span className="dashboard-stat__label">POURS</span>
-            <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-pours">{kpis.pours.toLocaleString()}</span>
-          </div>
-          <div className="dashboard-stat">
-            <span className="dashboard-stat__label">VOLUME</span>
-            <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-volume">{formatVolumeMl(kpis.volumeMl, units)}</span>
-          </div>
-          <div className="dashboard-stat">
-            <span className="dashboard-stat__label">KEGS KICKED</span>
-            <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-kicked">{kpis.kegsKicked}</span>
-          </div>
-          <div className="dashboard-stat">
-            <span className="dashboard-stat__label">COST / PINT</span>
-            <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-cost">
-              {kpis.costPerPintCents != null ? `$${(kpis.costPerPintCents / 100).toFixed(2)}` : '—'}
-            </span>
-            <span className="dashboard-stat__note">
-              {kpis.valueOnTapCents > 0 ? `$${(kpis.valueOnTapCents / 100).toFixed(0)} of beer on tap` : 'Set keg costs to track'}
-            </span>
-          </div>
-          <div className="dashboard-stat">
-            <span className="dashboard-stat__label">AVG QUALITY</span>
-            <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-quality">
-              {kpis.avgQuality != null ? kpis.avgQuality : '—'}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {status !== 'loading' && heatmap.length === 7 && (
-        <section className="stats-section" data-testid="analytics-heatmap">
-          <h3 className="stats-chart__title">Busiest hours</h3>
-          <div className="heatmap">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, dow) => {
-              const max = Math.max(1, ...heatmap.flat());
-              return (
-                <div key={day} className="heatmap__row">
-                  <span className="heatmap__day">{day}</span>
-                  {heatmap[dow]!.map((count, hour) => (
-                    <span
-                      // eslint-disable-next-line react/no-array-index-key -- hour is the identity
-                      key={hour}
-                      className="heatmap__cell"
-                      title={`${day} ${hour}:00 — ${count} pour${count === 1 ? '' : 's'}`}
-                      style={{ opacity: count === 0 ? 0.06 : 0.15 + (count / max) * 0.85 }}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       {status !== 'loading' && (
-        <div className="stats-grid">
-          <PoursChart data={pours} units={units} />
-          <HourHistogramRow data={hours} />
-          <KegDepletionCards data={kegs} units={units} />
-          <BeerVolumeChart data={beers} units={units} />
-          <TempChart
-            data={temps} units={units} devices={proDevices}
-            selectedMonitorId={selectedMonitorId} onSelectMonitor={setSelectedMonitorId}
-          />
-          <HostStatsChart data={hostStats} units={units} />
-          <Leaderboard
-            data={leaderboardRows} units={units} window={leaderboardWindow}
-            onWindowChange={setLeaderboardWindow}
-          />
-        </div>
+        <>
+          <nav className="analytics-tabs" role="tablist" aria-label="Analytics sections" data-testid="analytics-tabs">
+            {ANALYTICS_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                className="analytics-tab"
+                data-testid={`analytics-tab-${t.key}`}
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Every panel stays mounted; `hidden` switches tabs so the one-shot fetches keep
+              all tabs live and getByTestId/deep-links reach any panel. */}
+          <div hidden={tab !== 'overview'} data-testid="analytics-panel-overview">
+            {kpis && (
+              <div className="analytics-kpis" data-testid="analytics-kpis">
+                <div className="dashboard-stat">
+                  <span className="dashboard-stat__label">POURS</span>
+                  <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-pours">{kpis.pours.toLocaleString()}</span>
+                </div>
+                <div className="dashboard-stat">
+                  <span className="dashboard-stat__label">VOLUME</span>
+                  <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-volume">{formatVolumeMl(kpis.volumeMl, units)}</span>
+                </div>
+                <div className="dashboard-stat">
+                  <span className="dashboard-stat__label">KEGS KICKED</span>
+                  <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-kicked">{kpis.kegsKicked}</span>
+                </div>
+                <div className="dashboard-stat">
+                  <span className="dashboard-stat__label">COST / PINT</span>
+                  <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-cost">
+                    {kpis.costPerPintCents != null ? `$${(kpis.costPerPintCents / 100).toFixed(2)}` : '—'}
+                  </span>
+                  <span className="dashboard-stat__note">
+                    {kpis.valueOnTapCents > 0 ? `$${(kpis.valueOnTapCents / 100).toFixed(0)} of beer on tap` : 'Set keg costs to track'}
+                  </span>
+                </div>
+                <div className="dashboard-stat">
+                  <span className="dashboard-stat__label">AVG QUALITY</span>
+                  <span className="dashboard-stat__value font-display font-tabular" data-testid="kpi-quality">
+                    {kpis.avgQuality != null ? kpis.avgQuality : '—'}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="stats-grid">
+              <PoursChart data={pours} units={units} />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'pours'} data-testid="analytics-panel-pours">
+            {heatmap.length === 7 && (
+              <section className="stats-section" data-testid="analytics-heatmap">
+                <h3 className="stats-chart__title">Busiest hours</h3>
+                <div className="heatmap">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, dow) => {
+                    const max = Math.max(1, ...heatmap.flat());
+                    return (
+                      <div key={day} className="heatmap__row">
+                        <span className="heatmap__day">{day}</span>
+                        {heatmap[dow]!.map((count, hour) => (
+                          <span
+                            // eslint-disable-next-line react/no-array-index-key -- hour is the identity
+                            key={hour}
+                            className="heatmap__cell"
+                            title={`${day} ${hour}:00 — ${count} pour${count === 1 ? '' : 's'}`}
+                            style={{ opacity: count === 0 ? 0.06 : 0.15 + (count / max) * 0.85 }}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+            <div className="stats-grid">
+              <HourHistogramRow data={hours} />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'beers'} data-testid="analytics-panel-beers">
+            <div className="stats-grid">
+              <BeerVolumeChart data={beers} units={units} />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'kegs'} data-testid="analytics-panel-kegs">
+            <div className="stats-grid">
+              <KegDepletionCards data={kegs} units={units} />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'people'} data-testid="analytics-panel-people">
+            <div className="stats-grid">
+              <Leaderboard
+                data={leaderboardRows} units={units} window={leaderboardWindow}
+                onWindowChange={setLeaderboardWindow}
+              />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'temps'} data-testid="analytics-panel-temps">
+            <div className="stats-grid">
+              <TempChart
+                data={temps} units={units} devices={proDevices}
+                selectedMonitorId={selectedMonitorId} onSelectMonitor={setSelectedMonitorId}
+              />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'server'} data-testid="analytics-panel-server">
+            <div className="stats-grid">
+              <HostStatsChart data={hostStats} units={units} />
+            </div>
+          </div>
+
+          <div hidden={tab !== 'devices'} data-testid="analytics-panel-devices">
+            <p className="admin-page-quiet">
+              Per-source ingest health lives on the Dashboard and Connection doctor; richer
+              ingest analytics (call latency, UDP drops, tablet arms) land here next.
+            </p>
+          </div>
+
+          <div hidden={tab !== 'raw'} data-testid="analytics-panel-raw">
+            <p className="admin-page-quiet">
+              Use “Export all (JSON)” above for the full dataset. Per-dataset CSV/NDJSON
+              export chips land here next.
+            </p>
+          </div>
+        </>
       )}
     </section>
   );
