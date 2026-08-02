@@ -15,6 +15,14 @@ describe('isForbiddenAddress', () => {
     ['169.254.169.254', 'link-local (cloud metadata)'],
     ['169.254.0.1', 'link-local 169.254/16'],
     ['0.0.0.0', 'unspecified'],
+    ['100.64.0.1', 'CGNAT 100.64/10 low end (Tailscale)'],
+    ['100.127.255.255', 'CGNAT 100.64/10 high end'],
+    ['192.0.0.1', '192.0.0.0/24 IETF protocol assignments'],
+    ['198.18.0.1', 'benchmarking 198.18/15 low end'],
+    ['198.19.255.255', 'benchmarking 198.18/15 high end'],
+    ['224.0.0.1', 'multicast 224/4 low end'],
+    ['239.255.255.255', 'multicast 224/4 high end'],
+    ['255.255.255.255', 'limited broadcast'],
   ])('flags %s as forbidden (%s)', (ip) => {
     expect(isForbiddenAddress(ip)).toBe(true);
   });
@@ -27,6 +35,12 @@ describe('isForbiddenAddress', () => {
     ['8.8.8.8', 'a real public IP (Google DNS)'],
     ['1.1.1.1', 'a real public IP (Cloudflare DNS)'],
     ['203.0.113.5', 'TEST-NET-3 documentation range (treated as public — not in scope)'],
+    ['100.63.255.255', 'just below CGNAT 100.64/10'],
+    ['100.128.0.0', 'just above CGNAT 100.64/10'],
+    ['192.0.1.1', 'just above 192.0.0.0/24'],
+    ['198.17.255.255', 'just below benchmarking 198.18/15'],
+    ['198.20.0.0', 'just above benchmarking 198.18/15'],
+    ['223.255.255.255', 'just below multicast 224/4'],
   ])('does not flag %s (%s)', (ip) => {
     expect(isForbiddenAddress(ip)).toBe(false);
   });
