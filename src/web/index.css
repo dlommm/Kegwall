@@ -6604,6 +6604,47 @@ h2.admin-field__label-text {
   color: var(--warn);
 }
 
+/* Stat-card trends (redesign 3b). */
+.dashboard-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+  margin-top: 4px;
+}
+
+.dashboard-spark__bar {
+  flex: 1 1 0;
+  min-height: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--text-dim) 45%, transparent);
+}
+
+.dashboard-spark__bar--today {
+  background: var(--accent);
+}
+
+.dashboard-stat__delta {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-stat__delta--up { color: var(--ok); }
+.dashboard-stat__delta--down { color: var(--warn); }
+
+.dashboard-stat__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.dashboard-stat__pill {
+  width: 16px;
+  height: 6px;
+  border-radius: 3px;
+}
+
 .dashboard__body {
   display: grid;
   grid-template-columns: 1.5fr 1fr;

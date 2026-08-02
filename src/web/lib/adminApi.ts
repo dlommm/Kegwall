@@ -725,7 +725,7 @@ export function deleteDisplay(id: number): Promise<ApiResult<null>> {
 
 // --- Pour Wall overhaul Phase 6: analytics + cleaning + doctor ---------------
 
-export type { AnalyticsKpis } from '../../server/db/stats.js';
+export type { AnalyticsKpis, PoursByDay, KegBurnStat } from '../../server/db/stats.js';
 export type { CleaningStatus, LineCleaning } from '../../server/db/cleanings.js';
 
 /** GET /api/stats/kpis — the Analytics KPI row (design 10a). */

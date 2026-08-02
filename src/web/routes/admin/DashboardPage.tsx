@@ -7,10 +7,13 @@ import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
-  getCleaningStatuses, type SystemStats,
+  getCleaningStatuses, getPoursByDay, getActiveKegStats,
+  type SystemStats, type PoursByDay, type KegBurnStat,
 } from '../../lib/adminApi';
 import type { CleaningStatus } from '../../../server/db/cleanings.js';
 import { buildTriage } from '../../lib/dashboardTriage';
+import { buildPoursTrend } from '../../lib/poursTrend';
+import { kicksInDays } from '../../lib/kegForecast';
 import { formatActivityText } from '../../lib/activityText';
 import { formatTempC, formatVolumeMl } from '../../lib/units';
 import { levelStatus } from '../../lib/lookData';
@@ -71,6 +74,8 @@ export function DashboardPage() {
   const [pourVolumeMl, setPourVolumeMl] = useState(0);
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
+  const [poursByDay, setPoursByDay] = useState<PoursByDay[]>([]);
+  const [kegStats, setKegStats] = useState<KegBurnStat[]>([]);
   const [wallCount, setWallCount] = useState<number | null>(null);
   const [rebootConfirming, setRebootConfirming] = useState(false);
   const [rebooting, setRebooting] = useState(false);
@@ -107,6 +112,14 @@ export function DashboardPage() {
       });
       getCleaningStatuses().then((result) => {
         if (!cancelled && result.ok) setCleanings(result.data);
+      });
+      // 30-day window (not 7): the pours mini-chart shows the last 7 bars, but the
+      // week-over-week delta needs to reach back to the SAME WEEKDAY last week.
+      getPoursByDay(30).then((result) => {
+        if (!cancelled && result.ok) setPoursByDay(result.data);
+      });
+      getActiveKegStats().then((result) => {
+        if (!cancelled && result.ok) setKegStats(result.data);
       });
     };
     poll();
@@ -160,6 +173,16 @@ export function DashboardPage() {
 
   const undervolted = stats?.throttle
     && (stats.throttle.undervoltedNow || stats.throttle.undervoltedSinceBoot);
+
+  // Stat-card trends (redesign 3b) — all from real series, no fabricated history.
+  const poursTrend = buildPoursTrend(poursByDay);
+  const poursTrendMax = Math.max(1, ...poursTrend.bars.map((b) => b.count));
+  // Soonest projected kick across on-tap kegs (server-computed from trailing-7-day burn).
+  const nextKickDays = kegStats
+    .map((k) => kicksInDays(k.projectedKickDate))
+    .filter((d): d is number => d != null)
+    .sort((a, b) => a - b)[0] ?? null;
+  const downSources = registered.filter((s) => !s.healthy).map((s) => SOURCE_LABELS[s.name]);
 
   // DESIGN NOTE: undervoltage keeps its own dedicated red banner below (a distinct hardware
   // alarm with SD-card-corruption context), so the NEEDS ATTENTION card is passed
@@ -269,6 +292,25 @@ export function DashboardPage() {
               {` · ${formatVolumeMl(pourVolumeMl, units)}`}
             </span>
           </span>
+          {poursTrend.bars.length > 0 && (
+            <span className="dashboard-spark" data-testid="dashboard-pours-spark" aria-hidden="true">
+              {poursTrend.bars.map((b) => (
+                <span
+                  key={b.date}
+                  className={`dashboard-spark__bar${b.isToday ? ' dashboard-spark__bar--today' : ''}`}
+                  style={{ height: `${Math.max(6, Math.round((b.count / poursTrendMax) * 100))}%` }}
+                />
+              ))}
+            </span>
+          )}
+          {poursTrend.deltaPct != null && (
+            <span
+              className={`dashboard-stat__delta dashboard-stat__delta--${poursTrend.deltaPct >= 0 ? 'up' : 'down'}`}
+              data-testid="dashboard-pours-delta"
+            >
+              {`${poursTrend.deltaPct >= 0 ? '↑' : '↓'} ${Math.abs(poursTrend.deltaPct)}% ${poursTrend.comparisonLabel}`}
+            </span>
+          )}
         </div>
         <div className="dashboard-stat" data-testid="dashboard-card-on-tap">
           <span className="dashboard-stat__label">ON TAP</span>
@@ -276,8 +318,20 @@ export function DashboardPage() {
             {onTap.length - kicked}
             <span className="dashboard-stat__sub"> taps</span>
           </span>
+          {onTap.some((t) => t.keg!.status !== 'kicked') && (
+            <span className="dashboard-stat__pills" data-testid="dashboard-on-tap-pills" aria-hidden="true">
+              {onTap.filter((t) => t.keg!.status !== 'kicked').map((t) => (
+                <span
+                  key={t.tapId}
+                  className="dashboard-stat__pill"
+                  style={{ background: STATUS_TOKEN[levelStatus(Math.round(t.keg!.levelPct))] }}
+                />
+              ))}
+            </span>
+          )}
           <span className="dashboard-stat__note dashboard-stat__note--warn" data-testid="dashboard-on-tap-note">
             {`${almostGone} almost gone · ${kicked} kicked`}
+            {nextKickDays != null && ` · next kick ~${nextKickDays} ${nextKickDays === 1 ? 'day' : 'days'}`}
           </span>
         </div>
         <div className="dashboard-stat" data-testid="dashboard-card-keg-room">
@@ -293,6 +347,11 @@ export function DashboardPage() {
             {`${healthy.length}/${registered.length}`}
             <span className="dashboard-stat__sub"> healthy</span>
           </span>
+          {downSources.length > 0 && (
+            <span className="dashboard-stat__note dashboard-stat__note--warn" data-testid="dashboard-sources-failing">
+              {`${downSources.join(', ')} down`}
+            </span>
+          )}
         </div>
         {stats && (
           <div className="dashboard-stat" data-testid="dashboard-card-server">

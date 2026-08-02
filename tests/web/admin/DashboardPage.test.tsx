@@ -8,7 +8,7 @@ import { getMenu } from '../../../src/web/lib/api';
 import { useTapStates } from '../../../src/web/lib/useTapStates';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
-  getCleaningStatuses, type SystemStats,
+  getCleaningStatuses, getPoursByDay, getActiveKegStats, type SystemStats,
 } from '../../../src/web/lib/adminApi';
 import type { TapState } from '../../../src/server/core/state';
 import type { SourceStatus } from '../../../src/server/ingest/manager';
@@ -26,6 +26,8 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   listWalls: vi.fn(),
   triggerReboot: vi.fn(),
   getCleaningStatuses: vi.fn(),
+  getPoursByDay: vi.fn(),
+  getActiveKegStats: vi.fn(),
 }));
 
 function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
@@ -101,6 +103,8 @@ describe('DashboardPage', () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [{ id: 1, slug: 'main', name: 'Main', config: {} }] });
     (triggerReboot as Mock).mockResolvedValue({ ok: true, data: { message: 'Rebooting' } });
     (getCleaningStatuses as Mock).mockResolvedValue({ ok: true, data: [] });
+    (getPoursByDay as Mock).mockResolvedValue({ ok: true, data: [] });
+    (getActiveKegStats as Mock).mockResolvedValue({ ok: true, data: [] });
   });
 
   afterEach(() => {
@@ -354,6 +358,51 @@ describe('DashboardPage', () => {
     renderAdminPage(<DashboardPage />);
     await flush();
     expect(screen.queryByTestId('dashboard-triage')).not.toBeInTheDocument();
+  });
+
+  it('renders the pours 7-day sparkline and a week-over-week delta', async () => {
+    const byDay = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date('2026-07-31T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - (29 - i));
+      return {
+        date: d.toISOString().slice(0, 10),
+        count: i === 29 ? 20 : i === 22 ? 16 : 5,
+        volumeMl: 0,
+      };
+    });
+    (getPoursByDay as Mock).mockResolvedValue({ ok: true, data: byDay });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-pours-spark').children).toHaveLength(7);
+    expect(screen.getByTestId('dashboard-pours-delta')).toHaveTextContent('↑ 25% vs last Friday');
+  });
+
+  it('shows the soonest next-kick estimate on the On tap card', async () => {
+    (getActiveKegStats as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          kegId: 1, beerName: 'A', tapNumber: 1, srm: 5, levelPct: 20, remainingMl: 4000, dailyBurnMl: 2000, projectedKickDate: '2099-01-05',
+        },
+        {
+          kegId: 2, beerName: 'B', tapNumber: 2, srm: 5, levelPct: 8, remainingMl: 1000, dailyBurnMl: 2000, projectedKickDate: '2099-01-02',
+        },
+      ],
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2099, 0, 1, 12, 0, 0)); // local Jan 1 — helper parses kick dates as local midnight
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-on-tap-note')).toHaveTextContent('next kick ~1 day');
+  });
+
+  it('lists the failing source under the Sources card', async () => {
+    (getSources as Mock).mockResolvedValue({
+      ok: true, data: [makeSource({ name: 'kegtron_udp', registered: true, healthy: false })],
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    expect(screen.getByTestId('dashboard-sources-failing')).toHaveTextContent('Kegtron UDP down');
   });
 
   it('shows the finish-setup hint only while no wall exists', async () => {
