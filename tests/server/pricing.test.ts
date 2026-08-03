@@ -24,6 +24,19 @@ describe('displayPricePerPintCents', () => {
     expect(overridden).toBeLessThan(base!);
   });
 
+  it('folds sales tax into the displayed price (tax-inclusive), after markup and before rounding', () => {
+    // Base (no tax) rounds to $4.50. With 10% tax: $1.31 × 3.45 = $4.5195 × 1.10 = $4.971 →
+    // nearest $0.25 = $5.00 = 500 cents.
+    const taxed = displayPricePerPintCents({
+      costCents: 13100, sizeMl: 47318, markupPct: 245, taxPct: 10, rounding: 0.25,
+    });
+    expect(taxed).toBe(500);
+    // taxPct 0 (or omitted) matches the no-tax price.
+    expect(displayPricePerPintCents({
+      costCents: 13100, sizeMl: 47318, markupPct: 245, taxPct: 0, rounding: 0.25,
+    })).toBe(450);
+  });
+
   it('returns null when cost is untracked or size is non-positive', () => {
     expect(displayPricePerPintCents({ costCents: null, sizeMl: 47318, markupPct: 245, rounding: 0.25 })).toBeNull();
     expect(displayPricePerPintCents({ costCents: 13100, sizeMl: 0, markupPct: 245, rounding: 0.25 })).toBeNull();

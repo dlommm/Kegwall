@@ -47,6 +47,7 @@ export async function publicRoutes(app: FastifyInstance) {
         costCents: t.keg.costCents,
         sizeMl: t.keg.sizeMl,
         markupPct: pricing.markupPct,
+        taxPct: pricing.taxPct,
         rounding: pricing.rounding,
         overridePct: t.beer?.markupOverridePct ?? null,
       })

@@ -146,10 +146,13 @@ export const settingsSchema = z.object({
   pricing: z.object({
     enabled: z.boolean().default(false),
     markupPct: z.number().min(0).max(2000).default(245),
+    // Sales tax percent folded INTO the displayed price (tax-inclusive), so the menu number is what
+    // the customer pays. 0 (default) = no tax added. Applied after markup, before rounding.
+    taxPct: z.number().min(0).max(100).default(0),
     rounding: z.number().refine((v) => [0.05, 0.25, 0.5, 1].includes(v), {
       message: 'rounding must be one of 0.05, 0.25, 0.5, 1',
     }).default(0.25),
-  }).default({ enabled: false, markupPct: 245, rounding: 0.25 }),
+  }).default({ enabled: false, markupPct: 245, taxPct: 0, rounding: 0.25 }),
   // Govee ambient sensors (Phase 6): cloud API key. Same nullable-object +
   // masked-apiKey idiom as `catalogBeer` above. Per-sensor names/enable now live on
   // the sensors' `monitors` rows (admin Monitors page); the old `names` map is

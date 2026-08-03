@@ -258,12 +258,14 @@ const ROUNDING_OPTIONS = [0.05, 0.25, 0.5, 1] as const;
 function PricingGroup({ settings, onSaved }: GroupProps) {
   const [enabled, setEnabled] = useState(settings.pricing.enabled);
   const [markupPct, setMarkupPct] = useState(String(settings.pricing.markupPct));
+  const [taxPct, setTaxPct] = useState(String(settings.pricing.taxPct));
   const [rounding, setRounding] = useState(settings.pricing.rounding);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const dirty = enabled !== settings.pricing.enabled
     || markupPct !== String(settings.pricing.markupPct)
+    || taxPct !== String(settings.pricing.taxPct)
     || rounding !== settings.pricing.rounding;
 
   async function handleSubmit(e: FormEvent) {
@@ -274,15 +276,20 @@ function PricingGroup({ settings, onSaved }: GroupProps) {
       setError('Markup must be a percent between 0 and 2000.');
       return;
     }
+    const tax = Number(taxPct.trim());
+    if (!Number.isFinite(tax) || tax < 0 || tax > 100) {
+      setError('Sales tax must be a percent between 0 and 100.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
-    const result = await patchSettings({ pricing: { enabled, markupPct: pct, rounding } });
+    const result = await patchSettings({ pricing: { enabled, markupPct: pct, taxPct: tax, rounding } });
     setSubmitting(false);
     if (!result.ok) {
       setError(result.message);
       return;
     }
-    onSaved(result.data, { pricing: { enabled, markupPct: pct, rounding } });
+    onSaved(result.data, { pricing: { enabled, markupPct: pct, taxPct: tax, rounding } });
   }
 
   return (
@@ -309,6 +316,16 @@ function PricingGroup({ settings, onSaved }: GroupProps) {
           />
         </label>
         <label className="admin-field">
+          <span>Sales tax %</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            data-testid="settings-pricing-tax"
+            value={taxPct}
+            onChange={(e) => setTaxPct(e.target.value)}
+          />
+        </label>
+        <label className="admin-field">
           <span>Round to</span>
           <select
             data-testid="settings-pricing-rounding"
@@ -321,6 +338,10 @@ function PricingGroup({ settings, onSaved }: GroupProps) {
           </select>
         </label>
       </div>
+      <p className="admin-page-quiet" data-testid="settings-pricing-tax-note">
+        The menu price is <strong>tax-included</strong> — sales tax is folded in, so the number shown
+        is what the customer pays. Set tax to 0 to show pre-tax prices.
+      </p>
       {/* WHO SEES WHAT — the privacy boundary in plain language. */}
       <p className="settings-pricing__matrix" data-testid="settings-pricing-matrix">
         <strong>Who sees what:</strong>

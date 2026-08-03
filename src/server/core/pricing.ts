@@ -9,6 +9,8 @@ export interface PricingConfig {
   enabled: boolean;
   /** Markup percent applied to owner cost, e.g. 245 → cost × 3.45. */
   markupPct: number;
+  /** Sales tax percent folded into the displayed price (tax-inclusive). 0 = none. */
+  taxPct: number;
   /** Round the marked-up per-pint price to the nearest this-many dollars (0.05/0.25/0.5/1). */
   rounding: number;
 }
@@ -32,9 +34,11 @@ export function displayPricePerPintCents(input: {
   markupPct: number;
   rounding: number;
   overridePct?: number | null;
+  /** Sales tax percent folded into the price (tax-inclusive). Defaults to 0 when omitted. */
+  taxPct?: number | null;
 }): number | null {
   const {
-    costCents, sizeMl, markupPct, rounding, overridePct,
+    costCents, sizeMl, markupPct, rounding, overridePct, taxPct,
   } = input;
   if (costCents == null || sizeMl <= 0) return null;
   const pints = pintsInKeg(sizeMl);
@@ -42,6 +46,8 @@ export function displayPricePerPintCents(input: {
   const costPerPint = costCents / pints;
   const pct = overridePct ?? markupPct;
   const marked = costPerPint * (1 + pct / 100);
+  // Fold sales tax into the shown price (tax-inclusive), then round to the configured increment.
+  const taxed = marked * (1 + (taxPct ?? 0) / 100);
   const roundingCents = Math.max(1, Math.round(rounding * 100));
-  return Math.round(marked / roundingCents) * roundingCents;
+  return Math.round(taxed / roundingCents) * roundingCents;
 }
