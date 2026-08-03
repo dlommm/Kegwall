@@ -42,6 +42,17 @@ describe('StateManager', () => {
     expect(tap.beer!.name).toBe('Citra IPA');
   });
 
+  it('simulatePour marks the tap pouring over the live feed without recording a pour', () => {
+    expect(sm.getTapStates().find((t) => t.tapId === tapId)!.pouring).toBe(false);
+    const res = sm.simulatePour(tapId);
+    expect(res.tapId).toBe(tapId);
+    const during = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(during.pouring).toBe(true);
+    expect(during.curServMl).toBe(0);
+    // A test pour never touches the pours table.
+    expect((db.prepare('SELECT COUNT(*) AS n FROM pours').get() as { n: number }).n).toBe(0);
+  });
+
   it('remembers the device-reported keg config per monitor (deviceKegInfo)', () => {
     expect(sm.deviceKegInfo(ref)).toBeNull();
     bus.emit('volume_update', {

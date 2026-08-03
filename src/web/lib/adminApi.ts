@@ -1008,6 +1008,12 @@ export function triggerKioskRestart(): Promise<ApiResult<{ message: string }>> {
   return request('/api/system/kiosk-restart', { method: 'POST', body: JSON.stringify({}) });
 }
 
+/** Fire a simulated pour on the live wall (POST /api/system/test-pour) — validates the takeover +
+ * push latency on a real display, records nothing. Optional tapId; server picks an active tap. */
+export function testPour(tapId?: number): Promise<ApiResult<{ tapId: number }>> {
+  return request('/api/system/test-pour', { method: 'POST', body: JSON.stringify(tapId != null ? { tapId } : {}) });
+}
+
 /** Per-device UDP receipt timeline (GET /api/doctor/udp-history). */
 export interface UdpDeviceHistory {
   serial: string;

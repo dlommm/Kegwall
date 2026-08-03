@@ -283,6 +283,15 @@ export async function systemRoutes(
   // file + own root path unit; kegwall-kiosk-restart.sh). Chromium keeps running the
   // JS bundle it loaded at page-open, so this is the recovery lever when the display
   // wedges (the version-change auto-reload handles normal updates on its own).
+  // Fire a simulated pour on the live wall (over /ws) — validates the takeover render + push
+  // latency on a real display without a physical pour, and records nothing. Editor-gated.
+  app.post('/api/system/test-pour', { preHandler: requireRole('editor') }, async (req) => {
+    const { tapId } = z.object({ tapId: z.number().int().positive().optional() }).parse((req.body as unknown) ?? {});
+    const res = app.ctx.state.simulatePour(tapId);
+    app.ctx.log.info('app', `Test pour fired on tap ${res.tapId} from the admin UI`);
+    return res;
+  });
+
   app.post('/api/system/kiosk-restart', admin, async (_req, reply) => {
     if (app.ctx.settings.get('updates')?.mode !== 'native') {
       return reply.code(409).send({

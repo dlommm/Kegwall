@@ -8,7 +8,7 @@ import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
 import {
   getSettings, patchSettings, uploadLabel, testChannel,
   getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, pollUpdateStatus,
-  triggerOsUpdate, triggerKioskRestart,
+  triggerOsUpdate, triggerKioskRestart, testPour,
   type UpdateCheck,
 } from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
@@ -1080,6 +1080,8 @@ function KioskRestartBlock() {
     { state: 'idle' } | { state: 'confirming' } | { state: 'started'; message: string } | { state: 'failed'; message: string }
   >({ state: 'idle' });
 
+  const [testPourMsg, setTestPourMsg] = useState('');
+
   async function runRestart() {
     const result = await triggerKioskRestart();
     setRun(result.ok
@@ -1087,12 +1089,20 @@ function KioskRestartBlock() {
       : { state: 'failed', message: result.message });
   }
 
+  async function runTestPour() {
+    setTestPourMsg('Firing a test pour…');
+    const r = await testPour();
+    setTestPourMsg(r.ok
+      ? `Test pour sent to tap ${r.data.tapId} — the takeover should play on the wall now. If it appears instantly, the live socket is healthy.`
+      : `Test pour failed: ${r.message}`);
+  }
+
   return (
     <div className="channels-group__block" data-testid="settings-system-kiosk">
       <h3 className="channels-group__block-title">Display</h3>
       <p className="admin-page-quiet">
-        Restarts the kiosk browser on this Pi&rsquo;s screen (kiosk mode only) — use it
-        if the wall ever looks stuck.
+        Restarts the kiosk display on this screen (kiosk mode only) — use it if the wall ever looks
+        stuck. Works for both the chromium and native (cog/WPE) clients.
       </p>
       <div className="settings-actions">
         {run.state === 'confirming' ? (
@@ -1115,6 +1125,18 @@ function KioskRestartBlock() {
       </div>
       {run.state === 'started' && (
         <p className="admin-page-quiet" data-testid="settings-system-kiosk-started">{run.message}</p>
+      )}
+      <p className="admin-page-quiet" style={{ marginTop: '0.75rem' }}>
+        Fire a simulated pour on the live wall to check the takeover animation and that changes
+        reach the screen instantly. Nothing is recorded.
+      </p>
+      <div className="settings-actions">
+        <button type="button" data-testid="settings-system-test-pour" onClick={runTestPour}>
+          Test pour (live)
+        </button>
+      </div>
+      {testPourMsg && (
+        <p className="admin-page-quiet" data-testid="settings-system-test-pour-result">{testPourMsg}</p>
       )}
       {run.state === 'failed' && (
         <p className="beer-form__notice" role="alert" data-testid="settings-system-kiosk-error">

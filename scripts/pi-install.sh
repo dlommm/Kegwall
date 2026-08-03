@@ -155,6 +155,22 @@ echo "==> Detected: $HOST_KIND ($ARCH) — installing natively (no Docker)"
 echo "==> Installing packages"
 apt-get update -qq
 apt-get install -y -qq curl git ca-certificates python3 make g++
+
+# Auto-set the system timezone from the server's geo-IP location so the wall clock + logs use LOCAL
+# time — the unattended install leaves the box on UTC. Only when it's still on the UTC default (never
+# clobber a timezone someone deliberately set). Best-effort + non-fatal; override anytime with:
+#   sudo timedatectl set-timezone <Area/City>
+CUR_TZ=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo UTC)
+case "$CUR_TZ" in
+  UTC|Etc/UTC|"")
+    GEO_TZ=$(curl -fsSL --max-time 6 "http://ip-api.com/line?fields=timezone" 2>/dev/null || true)
+    if [ -n "$GEO_TZ" ] && [ -f "/usr/share/zoneinfo/$GEO_TZ" ]; then
+      timedatectl set-timezone "$GEO_TZ" 2>/dev/null \
+        || { ln -sf "/usr/share/zoneinfo/$GEO_TZ" /etc/localtime; echo "$GEO_TZ" > /etc/timezone; }
+      echo "==> Timezone set to $GEO_TZ (from geo-IP)"
+    fi
+    ;;
+esac
 if ! command -v node >/dev/null || [ "$(node -e 'console.log(process.versions.node.split(".")[0])')" -lt 24 ]; then
   curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y -qq nodejs

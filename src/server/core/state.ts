@@ -14,6 +14,7 @@ import { listPours, countPoursForDrinker } from '../db/pours.js';
 import { PourDeduper } from './pourDedupe.js';
 import { PourSampleTracker, computePourQuality } from './pourQuality.js';
 import type { TabletArmRegistry } from './tabletArm.js';
+import { ValidationError } from './errors.js';
 
 export interface TapState {
   tapId: number;
@@ -79,6 +80,10 @@ export interface DeviceKegInfo {
 
 export class StateManager {
   private live = new Map<string, { pouring: boolean; curServMl: number | null }>();
+  // Test-pour overlay, keyed by tapId (independent of any bound monitor), so `simulatePour`
+  // works even before Kegtron devices are wired. Read in getTapStates alongside `live`.
+  private simLive = new Map<number, { pouring: boolean; curServMl: number }>();
+  private simTimer: ReturnType<typeof setInterval> | null = null;
   private online = new Map<string, boolean>();
   private deviceKeg = new Map<string, DeviceKegInfo>();
   private deduper = new PourDeduper();
@@ -204,7 +209,7 @@ export class StateManager {
       const beer = keg ? getBeer(this.db, keg.beerId) : null;
       const mon = monitors.find((m) => m.tapId === tap.id);
       const key = mon ? monitorRefKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;
-      const live = key ? this.live.get(key) : undefined;
+      const live = (key ? this.live.get(key) : undefined) ?? this.simLive.get(tap.id);
       const lastPourRow = keg ? listPours(this.db, { kegId: keg.id, limit: 1 })[0] : undefined;
       // Device-level: temp arrives once per physical Kegtron (recorded on port 0),
       // so a tap bound to port 2 reads its DEVICE's telemetry, not its port row's.
@@ -244,5 +249,40 @@ export class StateManager {
         nextUpBeerName: nextUpRow?.name ?? null,
       };
     });
+  }
+
+  /**
+   * Fire a SIMULATED pour on a tap over the live `/ws` feed — the wall's takeover reacts exactly as
+   * it does to a real Kegtron pour, but NOTHING is recorded (no fake pour in the DB, no keg drain).
+   * Used to validate takeover rendering + push latency on a real display: if the takeover appears
+   * on the wall the instant this runs, the socket is healthy. Ramps `curServMl` 0 → 473 mL over a
+   * few seconds, holds briefly, then clears. Overlays `simLive` (keyed by tapId) so it works even
+   * before any device is bound. Returns the tap it ran on.
+   */
+  simulatePour(tapId?: number): { tapId: number } {
+    const taps = listTaps(this.db);
+    const target = tapId != null
+      ? taps.find((t) => t.id === tapId)
+      : (taps.find((t) => getActiveKegForTap(this.db, t.id) != null) ?? taps[0]);
+    if (!target) throw new ValidationError('No tap available to test-pour');
+    const id = target.id;
+    if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+    const changed = () => this.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    const TOTAL = 473; const STEP = 20;
+    let ml = 0;
+    this.simLive.set(id, { pouring: true, curServMl: 0 });
+    changed();
+    this.simTimer = setInterval(() => {
+      ml = Math.min(TOTAL, ml + STEP);
+      this.simLive.set(id, { pouring: true, curServMl: ml });
+      changed();
+      if (ml >= TOTAL) {
+        if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+        const hold = setTimeout(() => { this.simLive.delete(id); changed(); }, 1500);
+        hold.unref?.(); // don't keep the process/test event loop alive for the hold
+      }
+    }, 120);
+    this.simTimer.unref?.(); // ditto for the ramp
+    return { tapId: id };
   }
 }
