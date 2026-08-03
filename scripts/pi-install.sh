@@ -25,12 +25,12 @@
 #                          pi-tablet-setup.sh --local). Without it: SERVER MODE —
 #                          the HDMI output just shows the normal login terminal.
 #                          Kiosk mode defaults to the CHROMIUM display client.
-#   --native-wall          KIOSK MODE using the NATIVE flutter-pi wall client
-#                          (apps/wall-native) on DRM/KMS instead of chromium —
-#                          works on Pi arm64 and amd64 mini-PCs. Implies --kiosk.
-#                          PREVIEW: needs on-device validation; see
-#                          docs/install/native-wall.md. Delegates to
-#                          scripts/native-wall-setup.sh.
+#   --native-wall          KIOSK MODE using the lightweight NATIVE client — cog
+#                          (WPE WebKit) on a cage compositor instead of chromium.
+#                          Renders the same web wall in a much lighter engine
+#                          (smaller footprint, faster boot). Works on Pi arm64 and
+#                          amd64 mini-PCs. Implies --kiosk. Delegates to
+#                          scripts/native-wall-setup.sh. See docs/install/native-wall.md.
 #   --wall-slug <slug>     deprecated alias for --kiosk (slug is always 'main' now —
 #                          the first-run wizard creates that wall)
 #   --os-updates off|auto  OS (apt) update mode; 'auto' installs unattended-upgrades
@@ -115,9 +115,9 @@ if [ "$INTERACTIVE" -eq 1 ]; then
   [ "$BLE_SET" -eq 0 ] && WITH_BLE=$(ask_yn "Enable Bluetooth fallback for Kegtron devices (Gen 1 + Pro)?" N)
   [ "$KIOSK_SET" -eq 0 ] && KIOSK=$(ask_yn "Kiosk mode — show the tap wall on THIS screen at boot? (No = server mode, terminal on HDMI)" N)
   # Which display client, only when kiosk is on and the flag didn't already decide. Chromium is
-  # the tested default; native flutter-pi is a preview (docs/install/native-wall.md).
+  # the tested default; native = cog / WPE WebKit, lighter (docs/install/native-wall.md).
   if [ "$KIOSK" -eq 1 ] && [ "$NATIVE_SET" -eq 0 ]; then
-    NATIVE_WALL=$(ask_yn "Use the NATIVE flutter-pi wall client instead of chromium? (preview — No = chromium)" N)
+    NATIVE_WALL=$(ask_yn "Use the lighter NATIVE wall client (cog / WPE WebKit) instead of chromium? (No = chromium)" N)
   fi
   [ "$OS_SET" -eq 0 ] && { [ "$(ask_yn "Keep the OS updated automatically (unattended-upgrades)?" N)" -eq 1 ] && OS_UPDATES=auto || OS_UPDATES=off; }
   if [ "$OS_UPDATES" = auto ] && [ "$REBOOT_SET" -eq 0 ]; then
@@ -128,7 +128,7 @@ if [ "$INTERACTIVE" -eq 1 ]; then
     echo "  Install dir:   $DIR"
     echo "  Port:          $PORT"
     echo "  BLE fallback:  $([ "$WITH_BLE" -eq 1 ] && echo yes || echo no)"
-    echo "  Display:       $([ "$KIOSK" -eq 1 ] && echo "kiosk mode ($([ "$NATIVE_WALL" -eq 1 ] && echo 'native flutter-pi' || echo 'chromium') tap wall)" || echo 'server mode (terminal on HDMI)')"
+    echo "  Display:       $([ "$KIOSK" -eq 1 ] && echo "kiosk mode ($([ "$NATIVE_WALL" -eq 1 ] && echo 'native cog/WPE' || echo 'chromium') tap wall)" || echo 'server mode (terminal on HDMI)')"
     echo "  OS updates:    $OS_UPDATES$([ "$OS_UPDATES" = auto ] && [ "$AUTO_REBOOT" -eq 1 ] && echo ' + auto-reboot')"
     echo
   } >/dev/tty
@@ -395,7 +395,9 @@ cat > /usr/local/bin/kegwall-kiosk-restart.sh <<KIOSKRESTART
 #!/usr/bin/env bash
 # Kiosk display restart — fired by kegwall-kiosk-restart.path when the admin UI's
 # "Restart kiosk display" button writes the trigger. Recovery lever for a wedged
-# chromium; harmless no-op when kiosk mode isn't installed.
+# display; harmless no-op when no display mode is installed. Works for BOTH display
+# clients: kegwall-wall (native cog/WPE) and kegwall-kiosk (chromium). Restarts
+# whichever is currently active; falls back to the display-mode marker.
 set -euo pipefail
 DIR="$DIR"
 TRIGGER="\$DIR/data/kiosk-restart-requested"
@@ -404,11 +406,21 @@ TRIGGER="\$DIR/data/kiosk-restart-requested"
 REQ=\$(cat "\$TRIGGER")
 rm -f "\$TRIGGER" # loop guard FIRST — see kegwall-update.sh
 [ "\$REQ" = "restart" ] || { echo "kegwall-kiosk-restart: refusing malformed request '\$REQ'" >&2; exit 1; }
-if systemctl cat kegwall-kiosk.service >/dev/null 2>&1; then
-  systemctl restart kegwall-kiosk
-  echo "kegwall-kiosk-restart: done"
+UNIT=""
+for u in kegwall-wall kegwall-kiosk; do
+  systemctl is-active --quiet "\$u" && { UNIT="\$u"; break; }
+done
+if [ -z "\$UNIT" ]; then
+  case "\$(cat /etc/kegwall/display-mode 2>/dev/null || true)" in
+    native)   UNIT=kegwall-wall ;;
+    chromium) UNIT=kegwall-kiosk ;;
+  esac
+fi
+if [ -n "\$UNIT" ] && systemctl cat "\$UNIT.service" >/dev/null 2>&1; then
+  systemctl restart "\$UNIT"
+  echo "kegwall-kiosk-restart: restarted \$UNIT"
 else
-  echo "kegwall-kiosk-restart: no kegwall-kiosk unit installed (not in kiosk mode) — nothing to do"
+  echo "kegwall-kiosk-restart: no display unit installed — nothing to do"
 fi
 KIOSKRESTART
 chmod +x /usr/local/bin/kegwall-kiosk-restart.sh
@@ -451,9 +463,9 @@ CONF
 fi
 
 if [ "$KIOSK" -eq 1 ] && [ "$NATIVE_WALL" -eq 1 ]; then
-  echo "==> Kiosk mode: NATIVE flutter-pi wall client (preview)"
-  # Native client on DRM/KMS — arch-agnostic (Pi arm64 + amd64 mini-PC). Delegates the whole
-  # flutter-pi build + service + config + marker to its own script so this installer stays lean.
+  echo "==> Kiosk mode: NATIVE wall client (cog / WPE WebKit) — lighter than chromium"
+  # Renders the same web wall in WPE via cog+cage — arch-agnostic (Pi arm64 + amd64 mini-PC).
+  # Delegates the deps + service + marker to its own script.
   bash "$DIR/scripts/native-wall-setup.sh" --dir "$DIR" --port "$PORT" --slug main || \
     echo "!! Native wall setup failed — the server itself is fine; see docs/install/native-wall.md and re-run scripts/native-wall-setup.sh later."
 elif [ "$KIOSK" -eq 1 ]; then
@@ -472,5 +484,5 @@ echo " Version: $TAG   Data: $DIR/data"
 echo " First browser visit creates the admin account, then a"
 echo " guided setup walks you through the rest (wall, updates,"
 echo " and every URL for this Pi)."
-[ "$KIOSK" -eq 1 ] && echo " Kiosk mode ($([ "$NATIVE_WALL" -eq 1 ] && echo 'native flutter-pi' || echo 'chromium')): the wall appears on this screen after reboot."
+[ "$KIOSK" -eq 1 ] && echo " Kiosk mode ($([ "$NATIVE_WALL" -eq 1 ] && echo 'native cog/WPE' || echo 'chromium')): the wall appears on this screen after reboot."
 echo "=========================================================="

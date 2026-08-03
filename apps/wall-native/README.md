@@ -1,8 +1,15 @@
-# Kegwall native wall client (`apps/wall-native`)
+# Kegwall native wall client (`apps/wall-native`) — SHELVED
+
+> **Shelved (2026-08-02).** The supported native display path is now **cog / WPE WebKit**
+> (`scripts/native-wall-setup.sh`, `pi-install.sh --native-wall`), which renders the existing web
+> wall in a lightweight engine — see [`docs/install/native-wall.md`](../../docs/install/native-wall.md).
+> This Flutter scaffold duplicated the whole wall UI in Dart for no rendering benefit over WPE, so
+> it's parked here for reference only and isn't wired to any installer. The `wall-native` CI job
+> still compile-checks it.
 
 A native, GPU-accelerated Flutter app that renders the Kegwall tap wall directly on DRM/KMS via
-[`flutter-pi`](https://github.com/ardera/flutter-pi) — **no browser, no desktop**. It replaces
-the cage + chromium kiosk on both **Raspberry Pi (arm64)** and **amd64 mini PCs / Intel NUCs**.
+[`flutter-pi`](https://github.com/ardera/flutter-pi) — **no browser, no desktop**. It was intended
+to replace the cage + chromium kiosk on both **Raspberry Pi (arm64)** and **amd64 mini PCs**.
 
 Design spec: [`docs/superpowers/specs/2026-08-02-native-wall-client-design.md`](../../docs/superpowers/specs/2026-08-02-native-wall-client-design.md).
 

@@ -17,10 +17,11 @@ Debian 13 — see [mini-pc.md](mini-pc.md). CPU temp (coretemp/k10temp) and powe
   plugged in) shows the normal login terminal.
 - **Kiosk mode** — `pi-install.sh` with kiosk enabled: the same server, plus this
   Pi's screen boots straight into the tap wall (cage + chromium — works on Pi OS
-  **Lite**, no desktop needed). The installer also offers a **native** flutter-pi
-  client (`--native-wall`) instead of chromium — a preview; see
-  [native-wall.md](native-wall.md) for that path and for how to tell which display
-  mode a screen is in (`cat /etc/kegwall/display-mode`).
+  **Lite**, no desktop needed). The installer also offers a lighter **native**
+  client (`--native-wall`) — cog / WPE WebKit instead of chromium, rendering the
+  same wall in a smaller, faster engine; see [native-wall.md](native-wall.md) for
+  that path and for how to tell which display mode a screen is in
+  (`cat /etc/kegwall/display-mode`).
 - **Tablet mode** — a SEPARATE touchscreen Pi running only a browser pointed at the
   server's `/tablet` page (`pi-tablet-setup.sh`): no Node, no server components.
 
