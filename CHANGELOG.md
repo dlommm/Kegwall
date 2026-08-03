@@ -2,6 +2,12 @@
 
 ## [1.11.1](https://github.com/dlommm/Kegwall/compare/v1.11.0...v1.11.1) (2026-08-03)
 
+- **Fixed:** "Restart kiosk display" is fast again — the native wall unit gained `TimeoutStopSec=5s`
+  + `KillMode=mixed`, so a restart no longer waits systemd's 90-second stop-timeout for `cage`
+  (which ignores SIGTERM) before killing it. Restarts now take a few seconds.
+- **Docs:** backfilled detailed bullets for v1.8.0–v1.11.0, and codified that every release's
+  changelog entry must be detailed (not a bare header) — see `CONTRIBUTING.md`.
+
 ## [1.11.0](https://github.com/dlommm/Kegwall/compare/v1.10.2...v1.11.0) (2026-08-03)
 
 - **Added:** a live **Test pour** (Settings → System → Display). It fires a simulated pour over the
