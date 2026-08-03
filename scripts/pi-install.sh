@@ -165,6 +165,21 @@ if [ "$WITH_BLE" -eq 1 ]; then
   # nothing ever scans — make sure it's actually on (idempotent, harmless if it was).
   rfkill unblock bluetooth 2>/dev/null || true
   systemctl enable --now bluetooth 2>/dev/null || true
+  # Persist adapter-on across reboots. Some hosts (seen on Intel NUCs) ship BlueZ with
+  # AutoEnable off, so the adapter stays POWEREDOFF and the scanner waits forever.
+  BT_CONF=/etc/bluetooth/main.conf
+  if [ -f "$BT_CONF" ]; then
+    if grep -qE '^[[:space:]]*#?[[:space:]]*AutoEnable[[:space:]]*=' "$BT_CONF"; then
+      sed -i 's/^[[:space:]]*#\?[[:space:]]*AutoEnable[[:space:]]*=.*/AutoEnable=true/' "$BT_CONF"
+    elif grep -q '^\[Policy\]' "$BT_CONF"; then
+      sed -i '/^\[Policy\]/a AutoEnable=true' "$BT_CONF"
+    else
+      printf '\n[Policy]\nAutoEnable=true\n' >> "$BT_CONF"
+    fi
+    systemctl restart bluetooth 2>/dev/null || true
+  fi
+  # Power it on now, too (immediate — AutoEnable covers the next boot).
+  bluetoothctl power on 2>/dev/null || hciconfig hci0 up 2>/dev/null || true
 fi
 
 echo "==> Creating kegwall user + checkout"

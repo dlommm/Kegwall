@@ -52,6 +52,18 @@ Then open `http://<mini-pc-ip>:<port>` and run the first-run wizard.
   glibc.
 - **RAPL watts** need two samples to compute a rate, so the SERVER card's watts figure
   appears from the second stats poll onward (a few seconds after boot).
-- **BLE:** pass `--with-ble` if you're using Gen 1 / Pro BLE transports; it installs
-  `bluez` and enables the adapter. A USB Bluetooth dongle works on a mini PC that has none
-  built in.
+- **BLE:** pass `--with-ble` if you're using Gen 1 / Pro BLE transports; it installs `bluez`,
+  powers the adapter on (and sets BlueZ `AutoEnable=true` so it survives reboots — some NUCs ship
+  it off), and grants the server the `cap_net_raw` capability it needs to open a raw HCI socket. A
+  USB Bluetooth dongle works on a mini PC that has none built in.
+  - The **unattended installer ISO** and the default prompts install **without** BLE. If the
+    admin shows `WAITING FOR BLUETOOTH ADAPTER (STATE: POWEREDOFF)`, enable it after the fact —
+    either re-run the installer with `--with-ble`, or manually:
+    ```bash
+    sudo apt-get install -y bluetooth bluez libbluetooth-dev
+    sudo rfkill unblock bluetooth
+    sudo systemctl enable --now bluetooth
+    sudo bluetoothctl power on
+    sudo setcap cap_net_raw+eip "$(readlink -f "$(command -v node)")"
+    sudo systemctl restart kegwall
+    ```
