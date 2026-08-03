@@ -84,8 +84,10 @@ usermod -aG video,render,input kegwall-kiosk
 ORIGIN=$(printf '%s' "$URL" | sed -E 's#^(https?://[^/]+).*#\1#')
 
 # --- Install the service unit -----------------------------------------------------------------
-# cage -d hides the pointer (this is a TV). `cage -- cog "$URL"` runs cog as the single Wayland
-# client fullscreen; cog auto-selects the fdo/Wayland platform under cage.
+# `cage -- cog "$URL"` runs cog as the single fullscreen Wayland client (cog auto-selects the
+# fdo/Wayland platform under cage). The mouse cursor is hidden by the wall page itself
+# (cursor:none on the document root — see WallPage.tsx), which WPE honors; `cage -d` only affects
+# client-side decorations, not the cursor.
 systemctl disable --now getty@tty1.service 2>/dev/null || true
 cat > /etc/systemd/system/kegwall-wall.service <<UNIT
 [Unit]

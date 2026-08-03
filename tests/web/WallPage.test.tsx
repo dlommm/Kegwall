@@ -135,6 +135,17 @@ describe('WallPage', () => {
     expect(screen.getAllByTestId('tap-card')).toHaveLength(2);
   });
 
+  it('hides the mouse cursor on the document root while mounted, and restores it on unmount', () => {
+    document.documentElement.style.cursor = '';
+    (useWallData as Mock).mockReturnValue(baseResult({
+      wall: { slug: 'main', name: 'Bar', config: makeConfig() }, taps: [makeTap(1)],
+    }));
+    const { unmount } = renderWall();
+    expect(document.documentElement.style.cursor).toBe('none');
+    unmount();
+    expect(document.documentElement.style.cursor).toBe('');
+  });
+
   it('renders a non-classic look instead of the classic header/grid chrome', () => {
     (useWallData as Mock).mockReturnValue(baseResult({
       wall: { slug: 'main', name: 'The Keg Cave', config: makeConfig({ look: 'ledger', showQr: true }) },

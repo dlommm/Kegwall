@@ -39,6 +39,23 @@ curl -fsSL "https://raw.githubusercontent.com/dlommm/Kegwall/$REF/scripts/pi-ins
     && sh /tmp/kegwall-plymouth-setup.sh "$REF"; } || echo "kegwall-firstboot: boot splash skipped"
 
 touch "$MARKER"
+
+# Surface the first-run setup token right here so you can paste it into the wizard without hunting.
+# The server writes it on first startup; wait briefly in case it's still booting.
+TOKENFILE=/opt/kegwall/data/setup-claim-token
+for _ in $(seq 1 30); do [ -s "$TOKENFILE" ] && break; sleep 1; done
+IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+echo
+echo "=================================================================="
+echo "  Kegwall ready:          http://$IP/"
+if [ -s "$TOKENFILE" ]; then
+  echo "  First-run setup token:  $(cat "$TOKENFILE")"
+  echo "  Paste that token into the wizard at the URL above."
+else
+  echo "  Setup token not ready yet — read it with:  sudo cat $TOKENFILE"
+fi
+echo "=================================================================="
+
 # Disarm: the unit is oneshot + guarded by the marker, but disable it too so it never re-runs.
 systemctl disable kegwall-firstboot.service 2>/dev/null || true
 echo "kegwall-firstboot: done"

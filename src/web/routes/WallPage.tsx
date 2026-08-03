@@ -122,6 +122,17 @@ export function WallPage() {
   useKioskScale();
   const { queue, push, dismiss } = useBanners();
 
+  // This page is a TV/kiosk — no pointer belongs on it, ever. Hide it at the DOCUMENT ROOT while the
+  // wall is mounted: stronger than the scoped `.wall-page { cursor: none }` rule (WPE/cog under the
+  // native kiosk didn't reliably honor the scoped rule, and a bare mouse still showed). Restored on
+  // unmount so the admin/menu pages are unaffected.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.style.cursor;
+    root.style.cursor = 'none';
+    return () => { root.style.cursor = prev; };
+  }, []);
+
   // Per-display overrides (design 7c): a paired display opens
   // /wall/:slug?display=<id> — its stored look/theme/takeover overrides are
   // fetched once and merged over the wall's own config below.
