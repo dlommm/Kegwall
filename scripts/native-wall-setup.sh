@@ -113,6 +113,10 @@ UtmpMode=user
 Restart=always
 RestartSec=5
 TimeoutStartSec=300
+# cage ignores SIGTERM, so a plain stop waits the full 90s stop-timeout then SIGKILLs — that's what
+# made "Restart kiosk display" take ~1.5 min. Kill the whole cgroup fast instead.
+TimeoutStopSec=5s
+KillMode=mixed
 ExecStartPre=/bin/sh -c 'until curl -fso /dev/null $ORIGIN/api/health; do sleep 2; done'
 ExecStart=/usr/bin/cage -d -- $COG "$URL"
 
