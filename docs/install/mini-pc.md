@@ -19,6 +19,7 @@ Everything works the same except the Pi-only hardware sensors:
 | Undervoltage / throttle flags | ✅ `vcgencmd` | — not applicable (no PMIC); the panel reads "unavailable" |
 | App self-update, OS apt update, UI reboot | ✅ | ✅ (same systemd units) |
 | Kiosk mode (cage + chromium) | ✅ | ✅ |
+| Native wall client (flutter-pi, `--native-wall`) | ✅ preview | ✅ preview — same DRM/KMS path |
 
 The dashboard **SERVER HEALTH** card and the analytics **Server** tab both degrade
 gracefully: CPU/RAM/disk/temp/watts show real numbers; the undervoltage panel just says
@@ -38,7 +39,9 @@ script.) It installs Node 24 (NodeSource), a `kegwall` system user, the app at i
 release tag, and the systemd units (`kegwall.service` + the app-update / OS-update / reboot
 path units). Answer the prompts (install dir, port, BLE fallback, kiosk vs server mode, OS
 updates) or pass the flags — see the [Raspberry Pi guide](raspberry-pi.md) for the full flag
-list and the systemd/OS-update details, which are identical here.
+list and the systemd/OS-update details, which are identical here. If this mini PC also drives a
+screen, kiosk mode offers chromium (default) or the native flutter-pi client (`--native-wall`,
+preview) — see [native-wall.md](native-wall.md).
 
 Then open `http://<mini-pc-ip>:<port>` and run the first-run wizard.
 

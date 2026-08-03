@@ -24,6 +24,13 @@
 #                          (no desktop needed — cage compositor via
 #                          pi-tablet-setup.sh --local). Without it: SERVER MODE —
 #                          the HDMI output just shows the normal login terminal.
+#                          Kiosk mode defaults to the CHROMIUM display client.
+#   --native-wall          KIOSK MODE using the NATIVE flutter-pi wall client
+#                          (apps/wall-native) on DRM/KMS instead of chromium —
+#                          works on Pi arm64 and amd64 mini-PCs. Implies --kiosk.
+#                          PREVIEW: needs on-device validation; see
+#                          docs/install/native-wall.md. Delegates to
+#                          scripts/native-wall-setup.sh.
 #   --wall-slug <slug>     deprecated alias for --kiosk (slug is always 'main' now —
 #                          the first-run wizard creates that wall)
 #   --os-updates off|auto  OS (apt) update mode; 'auto' installs unattended-upgrades
@@ -43,8 +50,9 @@
 # the real gate — conditional installation would only create version skew).
 #
 # Uninstall: systemctl disable --now kegwall kegwall-update.path
-#   kegwall-os-update.path kegwall-reboot.path kegwall-kiosk 2>/dev/null;
+#   kegwall-os-update.path kegwall-reboot.path kegwall-kiosk kegwall-wall 2>/dev/null;
 #   rm /etc/systemd/system/kegwall*.{service,path} /usr/local/bin/kegwall-*.sh;
+#   rm -rf /etc/kegwall /etc/kegwall-wall;
 #   systemctl enable --now getty@tty1; deluser kegwall; deluser kegwall-kiosk;
 #   rm -rf <dir> (DATA lives in <dir>/data — back it up first).
 set -euo pipefail
@@ -54,11 +62,12 @@ PORT=8080
 REPO_URL=https://github.com/dlommm/Kegwall.git
 WITH_BLE=0
 KIOSK=0
+NATIVE_WALL=0
 OS_UPDATES=off
 AUTO_REBOOT=0
 NON_INTERACTIVE=0
 # Track which values arrived as flags — prompts only fill the unset ones.
-PORT_SET=0 BLE_SET=0 KIOSK_SET=0 OS_SET=0 REBOOT_SET=0
+PORT_SET=0 BLE_SET=0 KIOSK_SET=0 OS_SET=0 REBOOT_SET=0 NATIVE_SET=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -67,6 +76,7 @@ while [ $# -gt 0 ]; do
     --repo-url) REPO_URL="$2"; shift 2 ;;
     --with-ble) WITH_BLE=1; BLE_SET=1; shift ;;
     --kiosk) KIOSK=1; KIOSK_SET=1; shift ;;
+    --native-wall) NATIVE_WALL=1; NATIVE_SET=1; KIOSK=1; KIOSK_SET=1; shift ;; # native implies kiosk
     --wall-slug) KIOSK=1; KIOSK_SET=1; shift 2 ;; # deprecated alias; slug is 'main'
     --os-updates) OS_UPDATES="$2"; OS_SET=1; shift 2 ;;
     --auto-reboot) AUTO_REBOOT=1; REBOOT_SET=1; shift ;;
@@ -104,6 +114,11 @@ if [ "$INTERACTIVE" -eq 1 ]; then
   [ "$PORT_SET" -eq 0 ] && PORT=$(ask "HTTP port for the server" "$PORT")
   [ "$BLE_SET" -eq 0 ] && WITH_BLE=$(ask_yn "Enable Bluetooth fallback for Kegtron devices (Gen 1 + Pro)?" N)
   [ "$KIOSK_SET" -eq 0 ] && KIOSK=$(ask_yn "Kiosk mode — show the tap wall on THIS screen at boot? (No = server mode, terminal on HDMI)" N)
+  # Which display client, only when kiosk is on and the flag didn't already decide. Chromium is
+  # the tested default; native flutter-pi is a preview (docs/install/native-wall.md).
+  if [ "$KIOSK" -eq 1 ] && [ "$NATIVE_SET" -eq 0 ]; then
+    NATIVE_WALL=$(ask_yn "Use the NATIVE flutter-pi wall client instead of chromium? (preview — No = chromium)" N)
+  fi
   [ "$OS_SET" -eq 0 ] && { [ "$(ask_yn "Keep the OS updated automatically (unattended-upgrades)?" N)" -eq 1 ] && OS_UPDATES=auto || OS_UPDATES=off; }
   if [ "$OS_UPDATES" = auto ] && [ "$REBOOT_SET" -eq 0 ]; then
     AUTO_REBOOT=$(ask_yn "Reboot automatically (04:00) when an OS update requires it?" N)
@@ -113,7 +128,7 @@ if [ "$INTERACTIVE" -eq 1 ]; then
     echo "  Install dir:   $DIR"
     echo "  Port:          $PORT"
     echo "  BLE fallback:  $([ "$WITH_BLE" -eq 1 ] && echo yes || echo no)"
-    echo "  Display:       $([ "$KIOSK" -eq 1 ] && echo 'kiosk mode (boots into the tap wall)' || echo 'server mode (terminal on HDMI)')"
+    echo "  Display:       $([ "$KIOSK" -eq 1 ] && echo "kiosk mode ($([ "$NATIVE_WALL" -eq 1 ] && echo 'native flutter-pi' || echo 'chromium') tap wall)" || echo 'server mode (terminal on HDMI)')"
     echo "  OS updates:    $OS_UPDATES$([ "$OS_UPDATES" = auto ] && [ "$AUTO_REBOOT" -eq 1 ] && echo ' + auto-reboot')"
     echo
   } >/dev/tty
@@ -435,8 +450,14 @@ Unattended-Upgrade::Automatic-Reboot-Time "04:00";
 CONF
 fi
 
-if [ "$KIOSK" -eq 1 ]; then
-  echo "==> Kiosk mode: this screen boots into the tap wall"
+if [ "$KIOSK" -eq 1 ] && [ "$NATIVE_WALL" -eq 1 ]; then
+  echo "==> Kiosk mode: NATIVE flutter-pi wall client (preview)"
+  # Native client on DRM/KMS — arch-agnostic (Pi arm64 + amd64 mini-PC). Delegates the whole
+  # flutter-pi build + service + config + marker to its own script so this installer stays lean.
+  bash "$DIR/scripts/native-wall-setup.sh" --dir "$DIR" --port "$PORT" --slug main || \
+    echo "!! Native wall setup failed — the server itself is fine; see docs/install/native-wall.md and re-run scripts/native-wall-setup.sh later."
+elif [ "$KIOSK" -eq 1 ]; then
+  echo "==> Kiosk mode: this screen boots into the tap wall (chromium)"
   # --force: the kiosk answer above IS the consent to own the screen. The wizard
   # creates the 'main' wall on first visit; until then chromium shows the app's
   # not-found page, which resolves itself once the wall exists.
@@ -451,5 +472,5 @@ echo " Version: $TAG   Data: $DIR/data"
 echo " First browser visit creates the admin account, then a"
 echo " guided setup walks you through the rest (wall, updates,"
 echo " and every URL for this Pi)."
-[ "$KIOSK" -eq 1 ] && echo " Kiosk mode: the wall appears on this screen after reboot."
+[ "$KIOSK" -eq 1 ] && echo " Kiosk mode ($([ "$NATIVE_WALL" -eq 1 ] && echo 'native flutter-pi' || echo 'chromium')): the wall appears on this screen after reboot."
 echo "=========================================================="

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { buildApp } from '../../src/server/app.js';
 import { recordHostStats } from '../../src/server/db/hostStatsRepo.js';
 import { createUser } from '../../src/server/db/users.js';
-import { isNewerVersion } from '../../src/server/routes/system.js';
+import { isNewerVersion, readDisplayMode } from '../../src/server/routes/system.js';
 
 let app: FastifyInstance;
 let dataDir: string;
@@ -295,6 +295,39 @@ describe('GET /api/system/urls', () => {
       expect(res.json().install).toBe('native');
     } finally {
       delete process.env.KEGWALL_INSTALL;
+    }
+  });
+
+  it("reports displayMode 'none' with no kiosk marker present", async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/system/urls', cookies: adminCookies });
+    expect(res.json().displayMode).toBe('none');
+  });
+
+  it('reports the display mode the kiosk installer stamped into the marker file', async () => {
+    const marker = join(dataDir, 'display-mode');
+    process.env.KEGWALL_DISPLAY_MODE_MARKER = marker;
+    try {
+      writeFileSync(marker, 'native\n');
+      expect((await app.inject({ method: 'GET', url: '/api/system/urls', cookies: adminCookies })).json().displayMode).toBe('native');
+      writeFileSync(marker, 'chromium\n');
+      expect((await app.inject({ method: 'GET', url: '/api/system/urls', cookies: adminCookies })).json().displayMode).toBe('chromium');
+    } finally {
+      delete process.env.KEGWALL_DISPLAY_MODE_MARKER;
+    }
+  });
+});
+
+describe('readDisplayMode', () => {
+  it('returns none for a missing marker, and ignores a garbage value', () => {
+    process.env.KEGWALL_DISPLAY_MODE_MARKER = join(dataDir, 'does-not-exist');
+    try {
+      expect(readDisplayMode()).toBe('none');
+      const marker = join(dataDir, 'display-mode-garbage');
+      process.env.KEGWALL_DISPLAY_MODE_MARKER = marker;
+      writeFileSync(marker, 'weston\n');
+      expect(readDisplayMode()).toBe('none');
+    } finally {
+      delete process.env.KEGWALL_DISPLAY_MODE_MARKER;
     }
   });
 });

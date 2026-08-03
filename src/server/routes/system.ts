@@ -31,6 +31,27 @@ import { listHostStatsBucketed } from '../db/hostStatsRepo.js';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const RELEASE_TAG_PATTERN = /^v\d+\.\d+\.\d+$/;
 
+/** Default path the kiosk installers stamp with the active display mode (see native-wall.md). */
+export const DISPLAY_MODE_MARKER = '/etc/kegwall/display-mode';
+
+/**
+ * The display mode this device boots into, read from the marker the kiosk installers write:
+ *   - `chromium` — the cage + chromium browser kiosk (scripts/pi-tablet-setup.sh)
+ *   - `native`   — the flutter-pi native wall client (scripts/native-wall-setup.sh)
+ *   - `none`     — no on-device display (server-only box, Docker host, or a browser opened by hand)
+ * This is the one authoritative "how do I know which mode a screen runs" signal — see
+ * docs/install/native-wall.md. Reading a file (not an env var) means a mode switch needs no
+ * app restart to be reflected. The path resolves at call time (env override for tests).
+ */
+export function readDisplayMode(): 'chromium' | 'native' | 'none' {
+  try {
+    const path = process.env.KEGWALL_DISPLAY_MODE_MARKER || DISPLAY_MODE_MARKER;
+    const v = readFileSync(path, 'utf8').trim();
+    if (v === 'chromium' || v === 'native') return v;
+  } catch { /* no marker → this box has no Kegwall-managed display */ }
+  return 'none';
+}
+
 /** Numeric per-segment semver compare — string compare would say 0.9.0 > 0.10.0. */
 export function isNewerVersion(candidate: string, current: string): boolean {
   const a = candidate.split('.').map(Number);
@@ -216,7 +237,7 @@ export async function systemRoutes(
     const install = process.env.KEGWALL_INSTALL === 'native' ? 'native'
       : existsSync('/.dockerenv') ? 'docker'
         : 'unknown';
-    return { port: opts.port ?? 8080, hostname: os.hostname(), addresses, install };
+    return { port: opts.port ?? 8080, hostname: os.hostname(), addresses, install, displayMode: readDisplayMode() };
   });
 
   // Both OS actions clone the native update's trigger-file mechanism: the app writes a

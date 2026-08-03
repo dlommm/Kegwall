@@ -181,6 +181,12 @@ UNIT
 systemctl daemon-reload
 systemctl enable kegwall-kiosk
 
+# Stamp the display-mode marker so the server (GET /api/system/urls → displayMode) and any
+# operator can tell this screen runs the chromium kiosk, not the native flutter-pi client.
+# Single source of truth — see readDisplayMode() in src/server/routes/system.ts.
+install -d -m 755 /etc/kegwall
+printf 'chromium\n' > /etc/kegwall/display-mode
+
 echo
 echo "Kiosk service installed → $URL"
 echo "Start now: sudo systemctl start kegwall-kiosk   (or just reboot)"
