@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.9.0](https://github.com/dlommm/Kegwall/compare/v1.8.0...v1.9.0) (2026-08-03)
+
 ## [1.8.0](https://github.com/dlommm/Kegwall/compare/v1.7.2...v1.8.0) (2026-08-03)
 
 > Entries from v1.7.2 down to v0.7.1 were backfilled from the git history on 2026-08-02
