@@ -37,8 +37,12 @@ update all three in the same change:
 
 1. **Docs** — the page(s) under [`docs/`](docs/README.md) for the area you touched. Adding a page?
    Add it to the docs index (`docs/README.md`) too.
-2. **Changelog** — carried by the conventional-commit subject (see above); semantic-release writes
-   [`CHANGELOG.md`](CHANGELOG.md) from it.
+2. **Changelog** — [`CHANGELOG.md`](CHANGELOG.md) must describe **every release** in detailed,
+   consistent bullets, never a bare version header. It's generated from the conventional-commit
+   subjects (see above), so write those as the changelog line you'd want a user to read. After a
+   release cuts, **check the entry** — if it's header-only or thin, enrich it by hand (an
+   `**Added:**`/`**Fixed:**`/`**Changed:**` bullet per user-visible change, matching the existing
+   style). A release with a header-only changelog entry isn't finished.
 3. **Wiki** — the mirroring page in the
    [GitLab Wiki](https://github.com/dlommm/Kegwall/wiki). The in-repo `docs/` tree
    is the source of truth; the wiki mirrors it. Update it with:

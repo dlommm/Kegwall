@@ -2,15 +2,66 @@
 
 ## [1.11.0](https://github.com/dlommm/Kegwall/compare/v1.10.2...v1.11.0) (2026-08-03)
 
+- **Added:** a live **Test pour** (Settings → System → Display). It fires a simulated pour over the
+  `/ws` feed so the wall's takeover animation plays on the real screen — nothing is recorded (no
+  database pour, no keg drain). A one-click check that a display is live and the takeover renders;
+  if it appears instantly, the socket is healthy.
+- **Added:** the native installer auto-sets the system **timezone from geo-IP** so the wall clock
+  and logs use local time — only when the box is still on the UTC default, and overridable anytime
+  with `sudo timedatectl set-timezone <Area/City>`.
+
 ## [1.10.2](https://github.com/dlommm/Kegwall/compare/v1.10.1...v1.10.2) (2026-08-03)
+
+- **Fixed:** `--with-ble` now reliably powers on the Bluetooth adapter — it sets BlueZ
+  `AutoEnable=true` (persists across reboots; some Intel NUCs ship it off) and powers the adapter on
+  immediately, so the BLE scanner no longer waits forever on `WAITING FOR BLUETOOTH ADAPTER (STATE:
+  POWEREDOFF)`. Docs cover enabling BLE after an unattended install, including the `cap_net_raw`
+  capability grant the scanner needs.
 
 ## [1.10.1](https://github.com/dlommm/Kegwall/compare/v1.10.0...v1.10.1) (2026-08-03)
 
+- **Fixed:** the first-run **setup token** is now printed in your SSH session at the end of an
+  unattended install (and read from `/opt/kegwall/data/setup-claim-token`) instead of leaving you
+  to hunt for it.
+- **Fixed:** the **mouse cursor** is hidden on the wall page via `cursor: none` on the document
+  root, so no pointer shows under cog/WPE or chromium (the earlier scoped rule and `cage -d` didn't
+  hide it).
+
 ## [1.10.0](https://github.com/dlommm/Kegwall/compare/v1.9.0...v1.10.0) (2026-08-03)
+
+- **Added:** a **turnkey unattended installer ISO** (amd64). Flash a USB, boot a bare mini-PC, and
+  it installs Debian + Kegwall with no interaction: guided whole-disk install that auto-targets the
+  **largest fixed disk** (never a USB or the boot medium), a **WiFi** SSID/passphrase prompt only
+  when there's no wired link, SSH enabled, a **forced password change** on first login, then the
+  Kegwall install runs on that first SSH login. Silent branded boot (GRUB hidden, Plymouth logo +
+  spinner). The app is **not** baked into the ISO — it's pulled fresh at first boot, so an old ISO
+  still installs the latest Kegwall. Built and **versioned in CI**, published to the package
+  registry (`latest` + a version-stamped filename). See
+  [docs/install/unattended-debian.md](docs/install/unattended-debian.md).
+- **Added:** a default **`main` wall** is seeded on first server start, so a fresh install's
+  `/wall/main` resolves and renders immediately instead of showing a not-found page.
 
 ## [1.9.0](https://github.com/dlommm/Kegwall/compare/v1.8.0...v1.9.0) (2026-08-03)
 
+- **Changed:** the **native wall client is now cog / WPE WebKit** (`pi-install.sh --native-wall`),
+  rendering the existing web wall in a lightweight engine on the cage compositor — smaller
+  footprint, faster boot, no chromium churn, and no second UI to maintain. It replaces the earlier
+  flutter-pi scaffold (now shelved). A display-mode marker (`/etc/kegwall/display-mode`) plus
+  `GET /api/system/urls` `displayMode` let the server/operator tell native vs chromium, and the
+  native wall auto-starts after setup. See
+  [docs/install/native-wall.md](docs/install/native-wall.md).
+- **Fixed:** the mouse cursor is hidden on the wall page.
+
 ## [1.8.0](https://github.com/dlommm/Kegwall/compare/v1.7.2...v1.8.0) (2026-08-03)
+
+- **Added:** the wall editor's live preview is **resizable** — Compact / Large / Max / Stacked
+  presets (a per-user preference, persisted; never counts as an unsaved edit), so the preview is no
+  longer stuck at a small fixed size.
+- **Added:** a native display path (`--native-wall`) with a **display-mode marker** so the
+  server/operator can tell which client a screen runs. (The native client itself became cog / WPE
+  in v1.9.0.)
+- **Docs:** backfilled the CHANGELOG with real detail for every prior version, added a docs index,
+  and codified the rule that docs, changelog, and wiki move with every change.
 
 > Entries from v1.7.2 down to v0.7.1 were backfilled from the git history on 2026-08-02
 > (the automated `feat:`/`fix:` bodies hadn't been captured into the file). Every version is now
