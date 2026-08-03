@@ -75,6 +75,26 @@ const FILL_STYLES: { value: WallConfig['fillStyle']; label: string }[] = [
   { value: 'keg', label: 'Keg cutaway' },
 ];
 
+// Live-preview size (per-user editing preference, persisted in localStorage — NOT wall config, so
+// it never counts as a dirty edit and never ships to a TV). Drives a modifier class on the
+// .wall-editor grid; the preview frame auto-scales to its pane, so a wider track = a bigger
+// preview. 'stacked' is the biggest: one column, preview full-width on top.
+type PreviewSize = 'm' | 'l' | 'xl' | 'stacked';
+const PREVIEW_SIZE_KEY = 'kegwall:wallEditor:previewSize';
+const PREVIEW_SIZES: { value: PreviewSize; label: string }[] = [
+  { value: 'm', label: 'Compact' },
+  { value: 'l', label: 'Large' },
+  { value: 'xl', label: 'Max' },
+  { value: 'stacked', label: 'Stacked' },
+];
+function loadPreviewSize(): PreviewSize {
+  try {
+    const v = localStorage.getItem(PREVIEW_SIZE_KEY);
+    if (v === 'm' || v === 'l' || v === 'xl' || v === 'stacked') return v;
+  } catch { /* localStorage unavailable (private mode / SSR) — fall through to default */ }
+  return 'l'; // default bigger than the old 26rem cap: the preview was too small before
+}
+
 // Display fit (redesign 1c): the screen sizes offered + resolution options (with px sublabels).
 const SCREEN_SIZES = [32, 43, 50, 55, 65, 75] as const;
 const RESOLUTIONS: { value: WallConfig['display']['resolution']; label: string; px: string }[] = [
@@ -138,6 +158,11 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [settingsQuery, setSettingsQuery] = useState('');
   // Pour simulation (redesign 1c): bumping this runs a simulated pour in the live preview.
   const [simulateNonce, setSimulateNonce] = useState(0);
+  // Live-preview size (per-user; persisted). Default 'l' — the old fixed 26rem column was too small.
+  const [previewSize, setPreviewSize] = useState<PreviewSize>(loadPreviewSize);
+  useEffect(() => {
+    try { localStorage.setItem(PREVIEW_SIZE_KEY, previewSize); } catch { /* ignore persistence failures */ }
+  }, [previewSize]);
 
   useEffect(() => {
     let cancelled = false;
@@ -315,7 +340,7 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
         </button>
       </header>
 
-      <div className="wall-editor">
+      <div className={`wall-editor wall-editor--preview-${previewSize}`} data-preview-size={previewSize}>
         <form id="wall-editor-form" className="wall-editor__form" data-testid="wall-editor-form" onSubmit={handleSave}>
           {!bannerDismissed && (
             <div className="wall-editor__banner" data-testid="wall-editor-banner">
@@ -850,6 +875,25 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               {`PREVIEWING · ${form.displaySizeIn}-inch · ${previewResPx} · UI scale ${Math.round(form.displayUiScale * 100)}%`}
             </span>
             <span className="admin-page-quiet">Full 16:9 frame — exactly what the TV shows.</span>
+            <div
+              className="wall-editor__seg wall-editor__preview-size"
+              role="group"
+              aria-label="Preview size"
+              data-testid="wall-editor-preview-size"
+            >
+              {PREVIEW_SIZES.map((s) => (
+                <button
+                  type="button"
+                  key={s.value}
+                  className={previewSize === s.value ? 'wall-editor__seg-btn wall-editor__seg-btn--active' : 'wall-editor__seg-btn'}
+                  data-testid={`wall-editor-preview-size-${s.value}`}
+                  aria-pressed={previewSize === s.value}
+                  onClick={() => setPreviewSize(s.value)}
+                >
+                  <span className="wall-editor__seg-main">{s.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
           <WallLivePreview
             config={previewConfig}

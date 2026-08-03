@@ -3791,6 +3791,35 @@ h2.admin-field__label-text {
   align-items: start;
 }
 
+/* Live-preview size presets (per-user, persisted in localStorage — an editing preference, not
+   wall config). 'm' is the original narrow column; 'l'/'xl' widen the preview toward dominant
+   (the frame auto-scales to whatever width its pane gets, so a wider track = a bigger preview);
+   'stacked' drops to one column with the preview on top, full-width — the largest the frame gets.
+   The <64rem breakpoint below still force-collapses every preset to one column on small screens. */
+.wall-editor--preview-m {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+}
+.wall-editor--preview-l {
+  grid-template-columns: minmax(0, 1fr) minmax(26rem, 46rem);
+}
+.wall-editor--preview-xl {
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+}
+.wall-editor--preview-stacked {
+  grid-template-columns: 1fr;
+}
+.wall-editor--preview-stacked .wall-editor__preview {
+  position: static;
+  order: -1;
+}
+
+/* The preview-size segmented control sits in the sticky preview header; keep its buttons a touch
+   more compact than the Display-fit segments (single line, no sub-label). */
+.wall-editor__preview-size .wall-editor__seg-btn {
+  min-height: 40px;
+  padding: 6px 6px;
+}
+
 .wall-editor__heading {
   display: flex;
   flex-direction: column;

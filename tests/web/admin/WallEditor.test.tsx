@@ -295,6 +295,35 @@ describe('WallEditor', () => {
     expect(updateWall).not.toHaveBeenCalled();
   });
 
+  it('preview-size control resizes the preview, persists per-user, and never counts as a dirty edit', async () => {
+    localStorage.removeItem('kegwall:wallEditor:previewSize');
+    render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+
+    // Defaults to 'Large' (bigger than the old fixed column) — the grid carries the modifier class.
+    const grid = screen.getByTestId('wall-editor-form').parentElement!;
+    expect(grid).toHaveClass('wall-editor--preview-l');
+    expect(screen.getByTestId('wall-editor-preview-size-l')).toHaveAttribute('aria-pressed', 'true');
+
+    // Switching to 'Stacked' updates the layout and persists the choice to localStorage…
+    fireEvent.click(screen.getByTestId('wall-editor-preview-size-stacked'));
+    expect(grid).toHaveClass('wall-editor--preview-stacked');
+    expect(grid).not.toHaveClass('wall-editor--preview-l');
+    expect(localStorage.getItem('kegwall:wallEditor:previewSize')).toBe('stacked');
+
+    // …and it's a view preference, not wall config: Save stays disabled (no dirty edit).
+    expect(screen.getByTestId('wall-editor-save')).toBeDisabled();
+    expect(updateWall).not.toHaveBeenCalled();
+  });
+
+  it('restores the persisted preview size on next open', async () => {
+    localStorage.setItem('kegwall:wallEditor:previewSize', 'xl');
+    render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+    const grid = screen.getByTestId('wall-editor-form').parentElement!;
+    expect(grid).toHaveClass('wall-editor--preview-xl');
+  });
+
   it('Back calls onBack', async () => {
     const onBack = vi.fn();
     render(<WallEditor wall={makeWall()} onBack={onBack} onSaved={vi.fn()} />);

@@ -2,10 +2,31 @@ import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
+// jsdom in this project's config doesn't expose a working Storage (localStorage.setItem is
+// undefined), yet a few components persist small VIEW preferences there — e.g. the wall editor's
+// live-preview size. Provide a minimal in-memory localStorage so those paths run under test.
+// (The components themselves wrap every access in try/catch, so they also survive its real-world
+// absence — private mode, etc. — this stub just lets tests assert the persistence behaviour.)
+class MemoryStorage implements Storage {
+  private store = new Map<string, string>();
+  get length() { return this.store.size; }
+  clear() { this.store.clear(); }
+  getItem(key: string) { return this.store.has(key) ? this.store.get(key)! : null; }
+  setItem(key: string, value: string) { this.store.set(key, String(value)); }
+  removeItem(key: string) { this.store.delete(key); }
+  key(index: number) { return Array.from(this.store.keys())[index] ?? null; }
+}
+Object.defineProperty(globalThis, 'localStorage', {
+  value: new MemoryStorage(), configurable: true, writable: true,
+});
+
 // We don't enable vitest's `globals: true`, so @testing-library/react's automatic
 // afterEach cleanup never registers itself — do it explicitly instead.
 afterEach(() => {
   cleanup();
+  // Some test files swap in their own localStorage mock (which may not implement clear()); only
+  // reset ours, and never let teardown throw over it.
+  try { globalThis.localStorage?.clear?.(); } catch { /* a test-owned storage mock — leave it */ }
 });
 
 // Recharts' <ResponsiveContainer> (Task 9's stats charts) sizes itself from its DOM
