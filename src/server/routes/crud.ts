@@ -88,6 +88,18 @@ export function createWall(db: any, input: { slug: string; name: string; config?
   return { id: Number(res.lastInsertRowid), slug: input.slug, name: input.name, config };
 }
 
+/**
+ * Seed a default `main` wall on first run so a freshly-installed display (`/wall/main`) resolves and
+ * renders immediately, instead of a not-found page, before anyone opens the admin wizard. Idempotent:
+ * only seeds when there are NO walls at all. The first-run WelcomePage's own `createWall('main')`
+ * already tolerates a pre-existing `main` (409 → use existing), so this never collides.
+ */
+export function ensureDefaultWall(db: any): Wall | null {
+  const { n } = db.prepare('SELECT COUNT(*) AS n FROM walls').get() as { n: number };
+  if (n > 0) return null;
+  return createWall(db, { slug: 'main', name: 'Kegwall' });
+}
+
 export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   const db = app.ctx.db;
   const labelsDir = join(dataDir, 'labels');

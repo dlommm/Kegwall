@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { recordTelemetrySampled } from '../../src/server/db/telemetry.js';
 import { upsertMonitor } from '../../src/server/db/monitors.js';
 import { insertFaceEmbedding } from '../../src/server/db/faceEmbeddings.js';
+import { ensureDefaultWall } from '../../src/server/routes/crud.js';
 
 let app: FastifyInstance;
 let adminCookies: { session: string };
@@ -36,6 +37,21 @@ describe('crud routes', () => {
     expect(create.statusCode).toBe(201);
     const list = await app.inject({ method: 'GET', url: '/api/beers', cookies: adminCookies });
     expect(list.json()).toHaveLength(1);
+  });
+
+  it('ensureDefaultWall seeds a "main" wall once so a fresh install\'s display resolves, idempotently', async () => {
+    // The production entrypoint calls this on startup (not the test harness), so a test app starts
+    // with no walls.
+    const db = app.ctx.db;
+    expect((db.prepare('SELECT COUNT(*) AS n FROM walls').get() as { n: number }).n).toBe(0);
+    const seeded = ensureDefaultWall(db);
+    expect(seeded?.slug).toBe('main');
+    // A restart never adds a duplicate.
+    expect(ensureDefaultWall(db)).toBeNull();
+    expect((db.prepare("SELECT COUNT(*) AS n FROM walls WHERE slug = 'main'").get() as { n: number }).n).toBe(1);
+    // And it now resolves through the API.
+    const res = await app.inject({ method: 'GET', url: '/api/walls', cookies: adminCookies });
+    expect((res.json() as Array<{ slug: string }>).some((w) => w.slug === 'main')).toBe(true);
   });
 
   it('rejects a beer labelImage that is an external URL (only /labels paths allowed)', async () => {

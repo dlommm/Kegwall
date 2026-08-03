@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { buildApp } from './app.js';
+import { ensureDefaultWall } from './routes/crud.js';
 
 // The app runs from source under tsx (no build step), so package.json always sits two
 // levels above this file — true in the Docker image (/app/package.json) and in a
@@ -25,5 +26,10 @@ const app = await buildApp({
   version: pkg.version,
   port,
 });
+// Seed a default `main` wall on first run so a fresh install's display (/wall/main) resolves and
+// renders immediately, before anyone opens the admin wizard. Idempotent (no-op once any wall exists).
+// Done here in the production entrypoint — not in createContext — so the test harness's buildApp
+// starts from a clean slate. See ensureDefaultWall in routes/crud.ts.
+ensureDefaultWall(app.ctx.db);
 await app.listen({ port, host });
 app.ctx.log.info('app', `Server started on ${host}:${port}`);
