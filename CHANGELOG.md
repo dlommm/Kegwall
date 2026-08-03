@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.8.0](https://github.com/dlommm/Kegwall/compare/v1.7.2...v1.8.0) (2026-08-03)
+
 > Entries from v1.7.2 down to v0.7.1 were backfilled from the git history on 2026-08-02
 > (the automated `feat:`/`fix:` bodies hadn't been captured into the file). Every version is now
 > described. Newer versions are appended automatically by semantic-release from conventional commits.
