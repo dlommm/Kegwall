@@ -382,6 +382,15 @@
  * once the WS feed has gone stale (see WallPage.tsx). The 1px ScreenCare drift (below)
  * transitions smoothly so it reads as a barely-perceptible settle rather than a jump.
  */
+.wall-page,
+.wall-page__loading,
+.wall-page__error {
+  /* The wall is a TV/kiosk page — no pointer belongs on it. `cursor: none` hides the mouse in
+     any engine that renders the page (chromium kiosk AND cog/WPE), so it needs no compositor
+     flag. The touch tablet/menu pages are deliberately unaffected. */
+  cursor: none;
+}
+
 .wall-page {
   position: relative;
   min-height: 100vh;
