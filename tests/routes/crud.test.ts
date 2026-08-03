@@ -104,6 +104,32 @@ describe('crud routes', () => {
     expect(swap.json()).toMatchObject({ status: 'on_tap', beerId: beer.id });
   });
 
+  it('adds a supplier + cost to a keg AFTER the fact via PATCH, and the Kegs history reflects it', async () => {
+    const beer = (await app.inject({ method: 'POST', url: '/api/beers', cookies: adminCookies, payload: { name: 'Amber' } })).json();
+    const tap = (await app.inject({ method: 'POST', url: '/api/taps', cookies: adminCookies, payload: { number: 2 } })).json();
+    const supplier = (await app.inject({ method: 'POST', url: '/api/suppliers', cookies: adminCookies, payload: { name: 'Craft Dist.' } })).json();
+    // Tapped with NO supplier/cost.
+    const keg = (await app.inject({
+      method: 'POST', url: `/api/taps/${tap.id}/swap`, cookies: adminCookies,
+      payload: { beerId: beer.id, sizeMl: 19000, volStartMl: 19000 },
+    })).json();
+
+    // Add the supplier + cost after the fact.
+    const patch = await app.inject({
+      method: 'PATCH', url: `/api/kegs/${keg.id}`, cookies: adminCookies,
+      payload: { supplierId: supplier.id, costCents: 13100, depositCents: 3000, purchasedAt: '2026-08-01' },
+    });
+    expect(patch.statusCode).toBe(200);
+
+    const history = await app.inject({ method: 'GET', url: '/api/kegs/history', cookies: adminCookies });
+    expect(history.statusCode).toBe(200);
+    const row = (history.json() as Array<any>).find((r) => r.id === keg.id);
+    expect(row).toMatchObject({
+      beerName: 'Amber', tapNumber: 2, supplierId: supplier.id, supplierName: 'Craft Dist.',
+      costCents: 13100, depositCents: 3000, purchasedAt: '2026-08-01',
+    });
+  });
+
   describe('keg_type (manual asset override, keg-asset fill indicator feature)', () => {
     it('POST /api/taps/:id/swap accepts and persists an explicit kegType', async () => {
       const beer = (await app.inject({

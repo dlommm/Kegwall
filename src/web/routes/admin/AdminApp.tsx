@@ -7,6 +7,7 @@ import { DashboardPage } from './DashboardPage';
 import { BeersPage } from './BeersPage';
 import { TapsPage } from './TapsPage';
 import { SuppliersPage } from './SuppliersPage';
+import { KegsPage } from './KegsPage';
 import { GamesPage } from './GamesPage';
 import { PeoplePage } from './PeoplePage';
 import { MonitorsPage } from './MonitorsPage';
@@ -53,6 +54,7 @@ export default function AdminApp() {
         <Route index element={<DashboardPage />} />
         <Route path="beers" element={<BeersPage />} />
         <Route path="taps" element={<TapsPage />} />
+        <Route path="kegs" element={<KegsPage />} />
         <Route path="suppliers" element={<SuppliersPage />} />
         <Route path="games" element={<GamesPage />} />
         <Route path="monitors" element={<MonitorsPage />} />

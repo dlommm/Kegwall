@@ -19,6 +19,8 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { label: 'Dashboard', path: '/admin' },
   { label: 'Beers', path: '/admin/beers' },
   { label: 'Taps & kegs', path: '/admin/taps' },
+  // Every keg (on tap + past) with editable owner cost/supplier — admin (shows cost).
+  { label: 'Kegs', path: '/admin/kegs', adminOnly: true },
   // Suppliers (redesign 4l): admin-only because the page surfaces the derived price book
   // and YTD spend, both OWNER COST — the editor-role supplier LIST endpoint still backs the
   // swap wizard's supplier dropdown for non-admins.

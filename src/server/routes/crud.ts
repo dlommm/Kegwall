@@ -263,6 +263,32 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       .parse(req.query);
     return listKegs(db, q);
   });
+  // Admin-only keg history for the Kegs page: every keg (on tap now + past), enriched with
+  // beer/tap/supplier names and owner cost/sourcing. Cost is owner-only, so admin — not viewer.
+  app.get('/api/kegs/history', admin, async () => {
+    const rows = db.prepare(`
+      SELECT k.id, k.status, k.beer_id, b.name AS beer_name,
+             k.tap_id, t.number AS tap_number, t.name AS tap_name,
+             k.size_ml, k.vol_start_ml, k.vol_dispensed_ml, k.date_tapped, k.keg_type,
+             k.cost_cents, k.deposit_cents, k.supplier_id, s.name AS supplier_name,
+             k.purchased_at, k.created_at
+      FROM kegs k
+      LEFT JOIN beers b ON b.id = k.beer_id
+      LEFT JOIN taps t ON t.id = k.tap_id
+      LEFT JOIN suppliers s ON s.id = k.supplier_id
+      ORDER BY (k.status = 'on_tap') DESC, COALESCE(k.date_tapped, k.created_at) DESC
+    `).all() as Array<Record<string, any>>;
+    return rows.map((r) => ({
+      id: r.id, status: r.status,
+      beerId: r.beer_id, beerName: r.beer_name,
+      tapId: r.tap_id, tapNumber: r.tap_number, tapName: r.tap_name,
+      sizeMl: r.size_ml, volStartMl: r.vol_start_ml, volDispensedMl: r.vol_dispensed_ml,
+      dateTapped: r.date_tapped, kegType: r.keg_type,
+      costCents: r.cost_cents ?? null, depositCents: r.deposit_cents ?? null,
+      supplierId: r.supplier_id ?? null, supplierName: r.supplier_name ?? null,
+      purchasedAt: r.purchased_at ?? null, createdAt: r.created_at,
+    }));
+  });
   app.post('/api/kegs', editor, async (req, reply) => {
     const body = kegCreateSchema.parse(req.body);
     const keg = createKeg(db, body);
@@ -274,15 +300,29 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   app.patch('/api/kegs/:id', editor, async (req) => {
     const body = z.object({
       status: z.enum(['on_tap', 'kicked', 'archived']).optional(),
-      // Cost tracking (Phase 6, design 6d) — settable/clearable independently of status.
+      // Owner cost/sourcing (redesign 4k/4l) — settable/clearable after the fact from the Kegs page,
+      // independently of status (the swap wizard sets these at tap time; this edits them later).
       costCents: z.number().int().min(0).nullable().optional(),
-    }).refine((v) => v.status !== undefined || v.costCents !== undefined, {
-      message: 'nothing to update',
-    }).parse(req.body);
+      depositCents: z.number().int().min(0).nullable().optional(),
+      supplierId: z.number().int().positive().nullable().optional(),
+      purchasedAt: z.string().nullable().optional(),
+    }).refine(
+      (v) => [v.status, v.costCents, v.depositCents, v.supplierId, v.purchasedAt].some((x) => x !== undefined),
+      { message: 'nothing to update' },
+    ).parse(req.body);
     const keg = getKeg(db, parseId(req.params));
     if (!keg) throw new NotFoundError('keg');
     if (body.costCents !== undefined) {
       db.prepare('UPDATE kegs SET cost_cents = ? WHERE id = ?').run(body.costCents, keg.id);
+    }
+    if (body.depositCents !== undefined) {
+      db.prepare('UPDATE kegs SET deposit_cents = ? WHERE id = ?').run(body.depositCents, keg.id);
+    }
+    if (body.supplierId !== undefined) {
+      db.prepare('UPDATE kegs SET supplier_id = ? WHERE id = ?').run(body.supplierId, keg.id);
+    }
+    if (body.purchasedAt !== undefined) {
+      db.prepare('UPDATE kegs SET purchased_at = ? WHERE id = ?').run(body.purchasedAt, keg.id);
     }
     if (body.status === undefined) return getKeg(db, keg.id);
     db.prepare('UPDATE kegs SET status = ? WHERE id = ?').run(body.status, keg.id);

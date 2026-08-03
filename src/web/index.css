@@ -9840,3 +9840,64 @@ h2.admin-field__label-text {
   cursor: pointer;
   color: color-mix(in srgb, var(--text) 60%, transparent);
 }
+
+/* --- Kegs page (keg history + edit cost/supplier) --- */
+.kegs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+.kegs-toolbar__btn {
+  padding: 0.35rem 0.85rem;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.kegs-toolbar__btn--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+.kegs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.kegs-table th,
+.kegs-table td {
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+.kegs-table th {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kegs-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.kegs-edit__inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.kegs-table__editing input,
+.kegs-table__editing select {
+  padding: 0.3rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+}

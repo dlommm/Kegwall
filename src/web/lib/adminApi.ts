@@ -409,6 +409,40 @@ export function swapTap(
   return request(`/api/taps/${tapId}/swap`, { method: 'POST', body: JSON.stringify(input) });
 }
 
+/** One row of the Kegs page's history — every keg (on tap + past), enriched with beer/tap/supplier
+ * names and owner cost/sourcing (admin-only, from GET /api/kegs/history). */
+export interface KegHistoryRow {
+  id: number;
+  status: KegStatus;
+  beerId: number;
+  beerName: string | null;
+  tapId: number | null;
+  tapNumber: number | null;
+  tapName: string | null;
+  sizeMl: number;
+  volStartMl: number;
+  volDispensedMl: number;
+  dateTapped: string | null;
+  kegType: KegType | null;
+  costCents: number | null;
+  depositCents: number | null;
+  supplierId: number | null;
+  supplierName: string | null;
+  purchasedAt: string | null;
+  createdAt: string;
+}
+
+/** GET /api/kegs/history — every keg with beer/tap/supplier + owner cost (admin). Backs the Kegs page. */
+export function listKegHistory(): Promise<ApiResult<KegHistoryRow[]>> {
+  return request('/api/kegs/history');
+}
+
+/** PATCH /api/kegs/:id — edit an existing keg's cost/supplier/deposit/purchase date (and/or status)
+ * after the fact, e.g. adding a supplier to a keg that was tapped without one. */
+export function updateKeg(id: number, patch: KegCostInput & { status?: KegStatus }): Promise<ApiResult<Keg>> {
+  return request(`/api/kegs/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
 /** A monitor plus `deviceKeg` — the size/starting volume the Kegtron device itself
  * reports (whatever the operator set in Kegtron's own app), used by the swap wizard's
  * prefill. Null until the server has heard a volume update since boot. */
