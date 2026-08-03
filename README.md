@@ -151,13 +151,19 @@ direct BLE), reverse proxy/HTTPS, and backup/updating — is in
 
 ## Documentation
 
+Start at the **[docs index](docs/README.md)** — it maps every guide. The
+[GitLab Wiki](https://github.com/dlommm/Kegwall/wiki) mirrors the same material
+for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
+
 | Doc | Covers |
 |---|---|
 | [docs/install/docker.md](docs/install/docker.md) | Docker/NAS install, env vars, networking modes, reverse proxy + HTTPS, backups |
 | [docs/install/raspberry-pi.md](docs/install/raspberry-pi.md) | Docker or bare-metal on a Pi, direct-BLE setup, kiosk-mode wall display |
 | [docs/install/mini-pc.md](docs/install/mini-pc.md) | Native install on an amd64 mini PC / Intel NUC (Debian 13), no Docker |
+| [docs/install/native-wall.md](docs/install/native-wall.md) | Native flutter-pi wall client (vs chromium kiosk) + how to tell which mode a screen runs |
 | [docs/install/esp32-gen1.md](docs/install/esp32-gen1.md) | Gen 1 (KT-100/KT-200) via an ESP32 BLE-to-MQTT bridge, incl. the payload-shape caveat above |
 | [docs/install/android-tablet.md](docs/install/android-tablet.md) | The Android kiosk APK for the kegerator tablet (built by CI, sideloaded) |
+| [docs/install/display-agent.md](docs/install/display-agent.md) | Zero-dependency agent for real screen power-off (DPMS/backlight) driven by presence |
 | [docs/setup/kegtron-cloud.md](docs/setup/kegtron-cloud.md) | Kegtron Pro API key + optional UDP for faster local updates |
 | [docs/setup/home-assistant.md](docs/setup/home-assistant.md) | MQTT discovery, entities published, event topics for automations |
 | [docs/setup/motion-sensors.md](docs/setup/motion-sensors.md) | Motion sensor buying/wiring guide — mmWave, PIR/GPIO, BLE (Shelly BLU Motion), Zigbee via zigbee2mqtt, HA webhook |
@@ -213,11 +219,23 @@ npm run test:e2e  # Playwright, against a production build
 
 No formal process yet — this is a young project. Bug reports and merge requests are
 welcome; for anything nontrivial, opening an issue first to discuss the approach is
-appreciated. Run the full local gate before sending an MR:
+appreciated. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Run the full
+local gate before sending an MR:
 
 ```sh
 npm test && npm run typecheck && npm run build && npm run test:e2e
 ```
+
+**Docs are part of every change.** A change that adds, removes, or alters a user-visible
+feature, install step, or setting must update the docs in the same commit:
+
+- The **[`docs/`](docs/README.md)** page(s) for the area you touched (and the docs index if you
+  add a page).
+- The **[Wiki](https://github.com/dlommm/Kegwall/wiki)** page mirroring it.
+- **[CHANGELOG.md](CHANGELOG.md)** — carried by your conventional-commit message
+  (`feat:`/`fix:` become the release notes), so write the commit subject as the changelog line.
+
+An MR that changes behaviour without touching docs is incomplete.
 
 ## License
 

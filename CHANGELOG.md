@@ -1,58 +1,189 @@
 # Changelog
 
+> Entries from v1.7.2 down to v0.7.1 were backfilled from the git history on 2026-08-02
+> (the automated `feat:`/`fix:` bodies hadn't been captured into the file). Every version is now
+> described. Newer versions are appended automatically by semantic-release from conventional commits.
+
 ## [1.7.2](https://github.com/dlommm/Kegwall/compare/v1.7.1...v1.7.2) (2026-08-02)
+
+- **Fixed:** the `wall-native` CI job runs `flutter analyze --no-fatal-infos` and the Dart clears
+  its dangling-doc-comment and deprecated-`.alpha` lints, so info-level lints no longer fail the
+  Flutter build.
 
 ## [1.7.1](https://github.com/dlommm/Kegwall/compare/v1.7.0...v1.7.1) (2026-08-02)
 
+- **Fixed:** dropped the HSTS and `upgrade-insecure-requests` response headers — on a plain-HTTP
+  LAN deployment the browser upgraded every asset request to `https://` and got
+  `ERR_CONNECTION_REFUSED`, leaving a blank page (and HSTS stuck for a year). Both headers are
+  HTTPS-only and were never appropriate for the default install.
+
 ## [1.7.0](https://github.com/dlommm/Kegwall/compare/v1.6.0...v1.7.0) (2026-08-02)
+
+- **Added:** native flutter-pi wall client scaffold (`apps/wall-native`, sub-project B,
+  milestone 1) — runtime config + display token, data models, a reconnecting REST + WebSocket
+  data layer, the theme/token port with per-wall UI scale, the Classic look, and a CI build job.
+  Source-only preview; see [docs/install/native-wall.md](docs/install/native-wall.md).
 
 ## [1.6.0](https://github.com/dlommm/Kegwall/compare/v1.5.0...v1.6.0) (2026-08-02)
 
+The big WebUI redesign, plus amd64 / mini-PC support.
+
+- **Added — wall editor:** toolbar with dirty state + Save-to-TVs, a live inline draft preview
+  (no save round-trip), settings search, pour simulation across takeover styles, and a Display Fit
+  section (screen size / resolution / UI-scale with a recommended-scale helper). Label art now
+  renders on every wall look.
+- **Added — dashboard:** a NEEDS ATTENTION triage card, per-stat trends (pours sparkline, on-tap
+  pills + next-kick, failing sources), a dedicated SERVER HEALTH card (CPU/RAM/disk), per-sensor
+  warming alerts, and inline kick forecasts with a Swap chip.
+- **Added — taps & beers:** days-to-kick timeline, cleaning meter, on-deck Swap-now on critical,
+  and beer lookup chips / status column with a label-art add chip.
+- **Added — analytics:** a 9-tab Grafana-style hub with real-data history tables (pours, beers,
+  pourers, sensors, kegs), per-dataset CSV export, and admin-only keg-cost + monthly-spend tables.
+- **Added — cost & pricing:** suppliers + a derived price book, keg cost/supplier/purchase
+  tracking, a per-beer markup override, and a public per-pint menu price. Owner cost is enforced
+  server-side and never leaves the box on any public endpoint.
+- **Added — admin & games:** People page (Users + Pourers merged), sentence-card automations,
+  logs "show similar · N", a doctor Run-all verdict banner, backdated line-cleaning, a 100-game
+  catalog with session lifecycle, a live wall GAME STRIP, a pre-game setup sheet, and game winners
+  posting to the single house leaderboard as a week-long trophy.
+- **Added — tablet & menu:** RECENT jumbo tiles + A–Z rail, big-roster name search, a FACE SIGN-IN
+  chip, a sticky bottom claim bar, New / Almost-gone filters, and a medal-podium leaderboard.
+- **Added — amd64 / mini-PC:** x86 CPU temperature (hwmon coretemp/k10temp) + RAPL package watts,
+  an arch-agnostic native installer, and Debian 13 mini-PC docs.
+- **Fixed:** new keg/beer cost fields made optional to clear web-tsconfig-only type errors; the
+  `/admin/users` route stays admin-guarded after the People merge.
+
 ## [1.5.0](https://github.com/dlommm/Kegwall/compare/v1.4.0...v1.5.0) (2026-08-02)
+
+- **Added:** an optional Home Assistant step in the first-run wizard, an `/admin/home-assistant`
+  route + `HaSetupWizard`, and a `POST /api/doctor/mqtt` one-shot broker connection test
+  (editor-gated) so MQTT credentials can be verified before saving.
 
 ## [1.4.0](https://github.com/dlommm/Kegwall/compare/v1.3.0...v1.4.0) (2026-08-02)
 
+- **Added:** per-display token pairing (sub-project A). A browser pairing gate mints a per-display
+  token on pair (hashed like session tokens) and attaches it to fetch/ws; wall, menu, leaderboard,
+  passport and `/ws` reads can be gated behind it via an enforce flag.
+- **Fixed:** logged-in staff pass the display-token gate without pairing.
+
 ## [1.3.0](https://github.com/dlommm/Kegwall/compare/v1.2.0...v1.3.0) (2026-08-02)
+
+- **Added:** a first-run setup claim token + configurable listen host, Secure cookies over HTTPS
+  with an explicit session `maxAge`, and a helmet Content-Security-Policy.
+- **Fixed (security hardening pass):** SSRF outbound guard blocks CGNAT/multicast/reserved ranges
+  and rejects redirects on the ntfy/Discord/Slack/Pushover senders; broker addresses redacted from
+  errors; rate-limits on tablet disarm, session join/end and uploads; theme-override key/value
+  validation; `mqtt_publish` topic validation (no wildcards/reserved/control chars); `labelImage`
+  restricted to `/labels` paths; backup integrity-check + timestamped `.bak`; public/presence
+  endpoints strip `costCents`/`hidden` and use a timing-safe bearer token with a claim window.
 
 ## [1.2.0](https://github.com/dlommm/Kegwall/compare/v1.1.0...v1.2.0) (2026-08-02)
 
+- **Added:** a Displays & Presence hub (zones + display-power panels), a motion-source registry
+  with per-source MQTT match rules, GPIO PIR (via `gpiomon`) and BLE BTHome motion transports on
+  the shared scanner, and a webhook panel with per-source Home Assistant snippets.
+- **Fixed:** working webhook URLs + disabled-source visibility, GPIO child-event lifecycle guards,
+  and JSON match rules now reject array payloads.
+
 ## [1.1.0](https://github.com/dlommm/Kegwall/compare/v1.0.0...v1.1.0) (2026-08-01)
+
+- **Added:** face sign-in — on-device face matching (`@vladmandic/human` with self-hosted model
+  assets, cosine matching with ambiguity-silent best-match), tablet enrollment with one-tap confirm
+  arming, per-drinker face-data management + delete, `faceSignIn` settings (enable gate + match
+  threshold), and a `face_embeddings` table with a per-drinker cap.
+- **Fixed:** face pipeline tears down on screen change / feature disable, honest enrollment
+  outcomes (stale-cancel race, save verification, camera-error state), and an abortable pipeline
+  start that closes the live-camera window during model load.
 
 ## [1.0.0](https://github.com/dlommm/Kegwall/compare/v0.15.1...v1.0.0) (2026-08-01)
 
+Kegwall 1.0 — the presence & display-power framework (breaking release).
+
+- **Added:** a per-wall display-power state machine; server-driven screensaver / screen-off stages
+  on both walls and the tablet with a wake tap; camera frame-differencing motion input; a
+  zero-dependency display agent (systemd unit + docs) for real DPMS/backlight power-off; MQTT and
+  webhook motion sources; motion / display-power automation triggers with a `wall_scope` condition
+  and a `display_power` action; and `display_power` events published to HA/MQTT and streamed over
+  `/ws` with connect replay.
+- **Fixed:** global-wake dedupe, stale soft-off fallback, webhook-token masking, SSE stream reaping
+  on app close, and screensaver zones re-arming their off-timer across reconfigure.
+
 ## [0.15.1](https://github.com/dlommm/Kegwall/compare/v0.15.0...v0.15.1) (2026-08-01)
+
+- **Fixed:** a periodic multicast re-join keeps Kegtron UDP pours flowing through switches that do
+  IGMP snooping.
 
 ## [0.15.0](https://github.com/dlommm/Kegwall/compare/v0.14.1...v0.15.0) (2026-08-01)
 
+- **Added:** a persistent UDP receipt timeline + a raw-packet ring buffer in the doctor, so
+  Kegtron ingest can be diagnosed after the fact.
+
 ## [0.14.1](https://github.com/dlommm/Kegwall/compare/v0.14.0...v0.14.1) (2026-08-01)
+
+- **Fixed:** the doctor's UDP listen check counts real packets only and shows the raw datagrams.
 
 ## [0.14.0](https://github.com/dlommm/Kegwall/compare/v0.13.0...v0.14.0) (2026-08-01)
 
+- **Added:** host-health history + a wall server-stats strip, a kiosk-restart button, and
+  scale-to-fit for the TV wall.
+
 ## [0.13.0](https://github.com/dlommm/Kegwall/compare/v0.12.0...v0.13.0) (2026-07-31)
+
+- **Added:** a tabbed Settings page (General / Sources / Integrations / System).
 
 ## [0.12.0](https://github.com/dlommm/Kegwall/compare/v0.11.3...v0.12.0) (2026-07-31)
 
+- **Added:** live update progress in the Settings banner + settings-button cleanup.
+- **Fixed:** kiosk clients auto-reload when the server updates to a new release.
+
 ## [0.11.3](https://github.com/dlommm/Kegwall/compare/v0.11.2...v0.11.3) (2026-07-31)
+
+- **Fixed:** wall config changes push to open wall clients (`walls_changed` over WS).
 
 ## [0.11.2](https://github.com/dlommm/Kegwall/compare/v0.11.1...v0.11.2) (2026-07-31)
 
+- **Fixed:** the installer's BLE branch unblocks and enables the Bluetooth adapter.
+
 ## [0.11.1](https://github.com/dlommm/Kegwall/compare/v0.11.0...v0.11.1) (2026-07-31)
+
+- **Fixed:** grant `cap_net_bind_service` when the installer's port is below 1024.
 
 ## [0.11.0](https://github.com/dlommm/Kegwall/compare/v0.10.0...v0.11.0) (2026-07-31)
 
+- **Added:** an interactive Raspberry Pi installer with cage kiosk / tablet modes and
+  OS-update + reboot systemd units, a first-run wizard, dashboard host monitoring, a Kegtron Pro
+  BLE pour fallback (`pro_ble` source), wall auto-assign, and a menu admin link.
+
 ## [0.10.0](https://github.com/dlommm/Kegwall/compare/v0.9.0...v0.10.0) (2026-07-31)
+
+- **Added:** Node 24 LTS across the stack.
+- **Fixed:** React 19.2.8 + react-router 8; pinned `tar`/`glob`/`minimatch`/`brace-expansion` via
+  npm overrides.
 
 ## [0.9.0](https://github.com/dlommm/Kegwall/compare/v0.8.2...v0.9.0) (2026-07-31)
 
+- **Added:** Raspberry Pi deployment with one-click in-app updates.
+
 ## [0.8.2](https://github.com/dlommm/Kegwall/compare/v0.8.1...v0.8.2) (2026-07-30)
+
+- **Fixed:** corrected the UDP wire facts in the doctor message and the Unraid compose notes.
 
 ## [0.8.1](https://github.com/dlommm/Kegwall/compare/v0.8.0...v0.8.1) (2026-07-30)
 
+- **Fixed:** the Unraid compose file defaults to host networking so Kegtron UDP pours arrive.
+
 ## [0.8.0](https://github.com/dlommm/Kegwall/compare/v0.7.2...v0.8.0) (2026-07-30)
+
+- **Added:** the Android tablet kiosk APK, built by CI on every release.
 
 ## [0.7.2](https://github.com/dlommm/Kegwall/compare/v0.7.1...v0.7.2) (2026-07-30)
 
+- **Fixed:** poll for the MQTT round trip in the `mqtt_publish` action test (flake fix).
+
 ## [0.7.1](https://github.com/dlommm/Kegwall/compare/v0.7.0...v0.7.1) (2026-07-30)
+
+- **Fixed:** trigger the registry-image pipeline for release tags explicitly (semantic-release's
+  `[skip ci]` release commit was otherwise leaving tags without an image).
 
 ## [0.7.0](https://github.com/dlommm/Kegwall/compare/v0.6.0...v0.7.0) (2026-07-30)
 
