@@ -120,6 +120,9 @@ UNIT
 
 systemctl daemon-reload
 systemctl enable kegwall-wall
+# Start it now so the wall appears without a reboot. --no-block: don't wait on the ExecStartPre
+# health loop (it returns once cog is launching); cog takes tty1, the SSH session is unaffected.
+systemctl restart --no-block kegwall-wall 2>/dev/null || true
 
 # Stamp the display-mode marker (single source of truth — readDisplayMode() in
 # src/server/routes/system.ts). 'native' == the cog/WPE client.

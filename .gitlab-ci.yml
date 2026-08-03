@@ -196,3 +196,46 @@ wall-native:
     paths:
       - apps/wall-native/build/flutter_assets/
     expire_in: 1 week
+
+# Unattended installer ISO (deploy/debian/) — remaster the stock Debian amd64 netinst with our
+# preseed baked in, so booting it installs Debian + Kegwall with zero interaction. The ISO carries
+# only Debian + the preseed; the app is pulled fresh at first boot (see kegwall-firstboot.sh), so an
+# old ISO still installs the latest Kegwall. Manual + allow_failure: it downloads a full Debian ISO
+# (~600 MB) and needs a boot-test on real hardware/VM before it's trusted. amd64 only (a Pi needs an
+# SD image, not an ISO). See docs/install/unattended-debian.md.
+build-iso:
+  stage: release
+  image: debian:stable
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+  script:
+    - apt-get update -qq
+    - apt-get install -y -qq xorriso isolinux curl ca-certificates
+    - bash scripts/build-kegwall-iso.sh
+    - sha256sum kegwall-installer-amd64.iso | tee kegwall-installer-amd64.iso.sha256
+    # The ISO is ~940 MB — too big for a job artifact (413). Publish it to the project's generic
+    # package registry instead (much larger cap, stable download URL). Every build gets its own
+    # trackable version (release tag, else <app version>-dev.<sha>) AND updates the `latest` alias.
+    - |
+      VER=$(cat iso-version.txt)
+      publish() { # publish <channel> <filename>
+        BASE="$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/kegwall-iso/$1"
+        curl -f --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file kegwall-installer-amd64.iso "$BASE/$2"
+        curl -f --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file kegwall-installer-amd64.iso.sha256 "$BASE/$2.sha256"
+        echo "ISO published → $BASE/$2"
+      }
+      # Versioned path gets a version-stamped filename (self-identifying download); `latest` keeps a
+      # stable filename so its URL never changes.
+      publish "$VER" "kegwall-installer-amd64-$VER.iso"
+      publish latest "kegwall-installer-amd64.iso"
+  artifacts:
+    name: kegwall-iso-checksum
+    paths:
+      - kegwall-installer-amd64.iso.sha256
+    expire_in: never

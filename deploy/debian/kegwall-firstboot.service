@@ -1,0 +1,21 @@
+[Unit]
+Description=Kegwall first-boot install (unattended Debian)
+# Runs once on the first real boot after an unattended Debian install, when systemd is actually
+# running and the network is up — the installer's chroot can't start services. Guarded by a marker
+# file so it never re-runs even if enable/disable races.
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/opt/kegwall/.firstboot-done
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/local/sbin/kegwall-firstboot.sh
+# Long: pi-install pulls Node, git-clones, npm ci + build, and (native) apt-installs cog. Don't let
+# systemd's default timeout kill a slow first-boot install on modest hardware.
+TimeoutStartSec=1800
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

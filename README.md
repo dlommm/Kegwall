@@ -160,6 +160,7 @@ for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 | [docs/install/docker.md](docs/install/docker.md) | Docker/NAS install, env vars, networking modes, reverse proxy + HTTPS, backups |
 | [docs/install/raspberry-pi.md](docs/install/raspberry-pi.md) | Docker or bare-metal on a Pi, direct-BLE setup, kiosk-mode wall display |
 | [docs/install/mini-pc.md](docs/install/mini-pc.md) | Native install on an amd64 mini PC / Intel NUC (Debian 13), no Docker |
+| [docs/install/unattended-debian.md](docs/install/unattended-debian.md) | Turnkey amd64 installer ISO — flash a USB, boot, SSH in; unattended Debian + Kegwall |
 | [docs/install/native-wall.md](docs/install/native-wall.md) | Native flutter-pi wall client (vs chromium kiosk) + how to tell which mode a screen runs |
 | [docs/install/esp32-gen1.md](docs/install/esp32-gen1.md) | Gen 1 (KT-100/KT-200) via an ESP32 BLE-to-MQTT bridge, incl. the payload-shape caveat above |
 | [docs/install/android-tablet.md](docs/install/android-tablet.md) | The Android kiosk APK for the kegerator tablet (built by CI, sideloaded) |

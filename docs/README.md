@@ -13,6 +13,7 @@ and wiki are updated with every change).
 | [install/docker.md](install/docker.md) | Docker / NAS (Unraid), env vars, networking, reverse proxy + HTTPS, backups |
 | [install/raspberry-pi.md](install/raspberry-pi.md) | Raspberry Pi 4/5 — Docker or native (bare-metal), direct-BLE, kiosk display |
 | [install/mini-pc.md](install/mini-pc.md) | amd64 mini PC / Intel NUC — native install on Debian 13 (no Docker) |
+| [install/unattended-debian.md](install/unattended-debian.md) | Turnkey **installer ISO** (amd64) — flash a USB, boot, SSH in; unattended Debian + Kegwall, versioned in the package registry |
 
 ## Display the wall on a screen
 

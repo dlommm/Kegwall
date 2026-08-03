@@ -19,6 +19,7 @@
 #   --dir /opt/kegwall     install directory
 #   --port 8080            HTTP port
 #   --repo-url <url>       git remote
+#   --ref <branch|tag|sha> pin the checkout instead of the newest release tag (testing / pinning)
 #   --with-ble             Bluetooth fallback for Kegtron devices (Gen 1 + Pro)
 #   --kiosk                KIOSK MODE: this Pi's screen boots into the tap wall
 #                          (no desktop needed — cage compositor via
@@ -60,6 +61,7 @@ set -euo pipefail
 DIR=/opt/kegwall
 PORT=8080
 REPO_URL=https://github.com/dlommm/Kegwall.git
+REF=""            # --ref <branch|tag|sha>: pin the checkout (default: newest release tag)
 WITH_BLE=0
 KIOSK=0
 NATIVE_WALL=0
@@ -74,6 +76,7 @@ while [ $# -gt 0 ]; do
     --dir) DIR="$2"; shift 2 ;;
     --port) PORT="$2"; PORT_SET=1; shift 2 ;;
     --repo-url) REPO_URL="$2"; shift 2 ;;
+    --ref) REF="$2"; shift 2 ;;
     --with-ble) WITH_BLE=1; BLE_SET=1; shift ;;
     --kiosk) KIOSK=1; KIOSK_SET=1; shift ;;
     --native-wall) NATIVE_WALL=1; NATIVE_SET=1; KIOSK=1; KIOSK_SET=1; shift ;; # native implies kiosk
@@ -167,17 +170,37 @@ fi
 echo "==> Creating kegwall user + checkout"
 id kegwall >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin kegwall
 if [ ! -d "$DIR/.git" ]; then
-  # FULL clone on purpose — the updater resolves release tags.
-  git clone "$REPO_URL" "$DIR"
+  # FULL clone on purpose — the updater resolves release tags. Handle a pre-existing NON-empty $DIR
+  # (e.g. leftovers from a failed run): git clone refuses a non-empty target, so clone into a temp
+  # and relocate the .git, then restore the tree — instead of erroring out.
+  if [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
+    echo "==> $DIR exists and is non-empty — cloning in place"
+    TMP=$(mktemp -d)
+    git clone "$REPO_URL" "$TMP/repo"
+    mv "$TMP/repo/.git" "$DIR/.git"
+    rm -rf "$TMP"
+    git -C "$DIR" reset --hard HEAD
+  else
+    git clone "$REPO_URL" "$DIR"
+  fi
 fi
 chown -R kegwall: "$DIR"
 cd "$DIR"
-# Install a RELEASE, not main — the reported version then matches the release feed
-# the in-app update check reads. Skip prerelease tags (they contain '-').
-TAG=$(sudo -u kegwall git tag -l 'v*' --sort=-v:refname | grep -v -- - | head -1)
-[ -n "$TAG" ] || { echo "No release tags found in $REPO_URL" >&2; exit 1; }
-echo "==> Checking out $TAG"
-sudo -u kegwall git checkout --force "$TAG"
+# Install a RELEASE, not main — the reported version then matches the release feed the in-app
+# update check reads. Skip prerelease tags (they contain '-'). --ref overrides this to pin an exact
+# branch/tag/sha (used by the unattended-install ISO to test a branch, or to pin a version).
+if [ -n "$REF" ]; then
+  echo "==> Checking out pinned ref $REF"
+  sudo -u kegwall git fetch --force origin "$REF" 2>/dev/null || sudo -u kegwall git fetch --tags origin
+  sudo -u kegwall git checkout --force "$REF"
+  sudo -u kegwall git reset --hard "origin/$REF" 2>/dev/null || true # advance a branch to remote HEAD; harmless for a tag/sha
+  TAG="$REF"
+else
+  TAG=$(sudo -u kegwall git tag -l 'v*' --sort=-v:refname | grep -v -- - | head -1)
+  [ -n "$TAG" ] || { echo "No release tags found in $REPO_URL" >&2; exit 1; }
+  echo "==> Checking out $TAG"
+  sudo -u kegwall git checkout --force "$TAG"
+fi
 sudo -u kegwall npm ci || sudo -u kegwall npm ci --omit=optional
 sudo -u kegwall npm run build
 sudo -u kegwall mkdir -p "$DIR/data"
