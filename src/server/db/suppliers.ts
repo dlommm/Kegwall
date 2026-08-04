@@ -1,6 +1,21 @@
 import type Database from 'better-sqlite3';
 import { NotFoundError } from '../core/errors.js';
 
+export const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+export type DayKey = (typeof DAY_KEYS)[number];
+
+/** One day's open–close range, both `HH:MM` 24-hour strings, close after open. */
+export interface DayHours { open: string; close: string }
+
+/**
+ * Structured weekly opening hours. All seven day keys are always present; `null` means
+ * closed that day. `note` is a one-line free-text rider ("call ahead").
+ */
+export interface SupplierHours {
+  note: string | null;
+  days: Record<DayKey, DayHours | null>;
+}
+
 /**
  * A keg supplier (WebUI redesign 4l). Purely descriptive contact data — the price book is
  * DERIVED from keg purchase history (kegs.supplier_id + cost_cents), never entered here.
@@ -12,7 +27,7 @@ export interface Supplier {
   phone: string | null;
   email: string | null;
   address: string | null;
-  hours: string | null;
+  hours: SupplierHours | null;
   deliveryNotes: string | null;
   notes: string | null;
   createdAt: string;
@@ -24,9 +39,51 @@ export interface SupplierInput {
   phone?: string | null;
   email?: string | null;
   address?: string | null;
-  hours?: string | null;
+  hours?: SupplierHours | null;
   deliveryNotes?: string | null;
   notes?: string | null;
+}
+
+export function emptyDays(): Record<DayKey, DayHours | null> {
+  return { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
+}
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function isDayHours(v: unknown): v is DayHours {
+  return typeof v === 'object' && v !== null
+    && TIME_RE.test((v as any).open) && TIME_RE.test((v as any).close);
+}
+
+/**
+ * The `hours` TEXT column stores `SupplierHours` as JSON. Anything that doesn't parse as
+ * that shape (every pre-existing free-text value) is surfaced as a note-only
+ * `{ note: <raw text>, days: all closed }` — old data keeps rendering, and the first
+ * re-save upgrades it in place.
+ */
+export function parseHours(raw: string | null): SupplierHours | null {
+  if (raw == null || raw === '') return null;
+  try {
+    const v = JSON.parse(raw);
+    if (typeof v === 'object' && v !== null && typeof v.days === 'object' && v.days !== null) {
+      const days = emptyDays();
+      for (const key of DAY_KEYS) {
+        const d = v.days[key];
+        days[key] = isDayHours(d) ? { open: d.open, close: d.close } : null;
+      }
+      return { note: typeof v.note === 'string' && v.note !== '' ? v.note : null, days };
+    }
+  } catch { /* legacy free text — fall through */ }
+  return { note: raw, days: emptyDays() };
+}
+
+/** Inverse of `parseHours`; hours with no open day and no note collapse to SQL NULL. */
+export function serializeHours(hours: SupplierHours | null | undefined): string | null {
+  if (hours == null) return null;
+  const hasOpenDay = DAY_KEYS.some((k) => hours.days[k] != null);
+  const note = hours.note != null && hours.note.trim() !== '' ? hours.note.trim() : null;
+  if (!hasOpenDay && note == null) return null;
+  return JSON.stringify({ note, days: hours.days });
 }
 
 function rowToSupplier(r: any): Supplier {
@@ -37,7 +94,7 @@ function rowToSupplier(r: any): Supplier {
     phone: r.phone ?? null,
     email: r.email ?? null,
     address: r.address ?? null,
-    hours: r.hours ?? null,
+    hours: parseHours(r.hours ?? null),
     deliveryNotes: r.delivery_notes ?? null,
     notes: r.notes ?? null,
     createdAt: r.created_at,
@@ -59,7 +116,7 @@ export function createSupplier(db: Database.Database, input: SupplierInput): Sup
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(
       input.name, input.contactName ?? null, input.phone ?? null, input.email ?? null,
-      input.address ?? null, input.hours ?? null, input.deliveryNotes ?? null, input.notes ?? null,
+      input.address ?? null, serializeHours(input.hours), input.deliveryNotes ?? null, input.notes ?? null,
       new Date().toISOString(),
     );
   return getSupplier(db, Number(res.lastInsertRowid))!;
@@ -73,7 +130,7 @@ export function updateSupplier(db: Database.Database, id: number, input: Supplie
       delivery_notes = ?, notes = ? WHERE id = ?`)
     .run(
       input.name, input.contactName ?? null, input.phone ?? null, input.email ?? null,
-      input.address ?? null, input.hours ?? null, input.deliveryNotes ?? null, input.notes ?? null,
+      input.address ?? null, serializeHours(input.hours), input.deliveryNotes ?? null, input.notes ?? null,
       id,
     );
   return getSupplier(db, id)!;

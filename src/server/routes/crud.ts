@@ -373,13 +373,27 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   // supplier dropdown needs it). The price book + YTD spend expose OWNER COST, so those are
   // admin-only — the hard-requirement privacy boundary. Static `/stats` is declared before the
   // `/:id/*` param routes so it can't be shadowed.
+  // Structured weekly hours (design 2026-08-04): all seven day keys, HH:MM times,
+  // close strictly after open (HH:MM compares correctly as a string), one-line note.
+  const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const dayHoursSchema = z.object({
+    open: z.string().regex(timeRe),
+    close: z.string().regex(timeRe),
+  }).refine((d) => d.close > d.open, { message: 'close must be after open' }).nullable();
+  const supplierHoursSchema = z.object({
+    note: z.string().max(200).nullable(),
+    days: z.object({
+      mon: dayHoursSchema, tue: dayHoursSchema, wed: dayHoursSchema, thu: dayHoursSchema,
+      fri: dayHoursSchema, sat: dayHoursSchema, sun: dayHoursSchema,
+    }),
+  });
   const supplierSchema = z.object({
     name: z.string().min(1).max(120),
     contactName: z.string().max(120).nullish(),
     phone: z.string().max(60).nullish(),
     email: z.string().max(200).nullish(),
     address: z.string().max(400).nullish(),
-    hours: z.string().max(200).nullish(),
+    hours: supplierHoursSchema.nullish(),
     deliveryNotes: z.string().max(1000).nullish(),
     notes: z.string().max(2000).nullish(),
   });

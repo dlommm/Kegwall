@@ -19,6 +19,11 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   deleteSupplier: vi.fn(),
 }));
 
+const NINE_TO_FIVE = { open: '09:00', close: '17:00' };
+const EMPTY_DAYS = {
+  mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null,
+} as const;
+
 function supplier(over: Partial<Supplier> = {}): Supplier {
   return {
     id: 1, name: 'Joes Distributing', contactName: 'Pat', phone: '555-1', email: null,
@@ -94,5 +99,74 @@ describe('SuppliersPage', () => {
   it('shows an empty state when there are no suppliers', async () => {
     renderAdminPage(<SuppliersPage />);
     expect(await screen.findByTestId('suppliers-empty')).toBeInTheDocument();
+  });
+
+  it('shows a card’s weekly hours as compressed runs plus its note', async () => {
+    (listSuppliers as Mock).mockResolvedValue({
+      ok: true,
+      data: [supplier({
+        hours: {
+          note: 'call ahead',
+          days: {
+            mon: NINE_TO_FIVE, tue: NINE_TO_FIVE, wed: NINE_TO_FIVE, thu: NINE_TO_FIVE,
+            fri: NINE_TO_FIVE, sat: null, sun: null,
+          },
+        },
+      })],
+    });
+    renderAdminPage(<SuppliersPage />);
+    const hours = await screen.findByTestId('supplier-card-hours');
+    expect(hours).toHaveTextContent('Mon–Fri');
+    expect(hours).toHaveTextContent('9 AM–5 PM');
+    expect(hours).toHaveTextContent('Sat–Sun');
+    expect(hours).toHaveTextContent('call ahead');
+    expect(screen.getByTestId('supplier-open-badge')).toBeInTheDocument();
+  });
+
+  it('shows no open/closed badge for a legacy note-only supplier', async () => {
+    (listSuppliers as Mock).mockResolvedValue({
+      ok: true,
+      data: [supplier({ hours: { note: 'Mon-Fri 9-5', days: EMPTY_DAYS } })],
+    });
+    renderAdminPage(<SuppliersPage />);
+    expect(await screen.findByTestId('supplier-card-hours')).toHaveTextContent('Mon-Fri 9-5');
+    expect(screen.queryByTestId('supplier-open-badge')).not.toBeInTheDocument();
+  });
+
+  it('submits the weekly grid’s hours, with "Copy to all" stamping one day across the week', async () => {
+    renderAdminPage(<SuppliersPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('suppliers-add-button'));
+    fireEvent.change(screen.getByTestId('supplier-form-name'), { target: { value: 'New Bev' } });
+    fireEvent.click(screen.getByTestId('supplier-hours-open-mon'));
+    fireEvent.change(screen.getByTestId('supplier-hours-to-mon'), { target: { value: '18:00' } });
+    fireEvent.click(screen.getByTestId('supplier-hours-copy-mon'));
+    fireEvent.change(screen.getByTestId('supplier-hours-note'), { target: { value: 'call ahead' } });
+    fireEvent.click(screen.getByTestId('supplier-form-save'));
+    await flush();
+    expect(createSupplier).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'New Bev',
+      hours: {
+        note: 'call ahead',
+        days: {
+          mon: { open: '09:00', close: '18:00' }, tue: { open: '09:00', close: '18:00' },
+          wed: { open: '09:00', close: '18:00' }, thu: { open: '09:00', close: '18:00' },
+          fri: { open: '09:00', close: '18:00' }, sat: { open: '09:00', close: '18:00' },
+          sun: { open: '09:00', close: '18:00' },
+        },
+      },
+    }));
+  });
+
+  it('prefills the hours grid when editing a supplier that already has hours', async () => {
+    (listSuppliers as Mock).mockResolvedValue({
+      ok: true,
+      data: [supplier({ hours: { note: null, days: { ...EMPTY_DAYS, wed: NINE_TO_FIVE } } })],
+    });
+    renderAdminPage(<SuppliersPage />);
+    fireEvent.click(await screen.findByTestId('supplier-edit'));
+    expect(screen.getByTestId('supplier-hours-open-wed')).toBeChecked();
+    expect(screen.getByTestId('supplier-hours-from-wed')).toHaveValue('09:00');
+    expect(screen.getByTestId('supplier-hours-open-thu')).not.toBeChecked();
   });
 });

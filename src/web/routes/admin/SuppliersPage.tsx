@@ -5,6 +5,8 @@ import {
   type Supplier, type SupplierInput, type SupplierStats, type PriceBookEntry,
 } from '../../lib/adminApi';
 import { formatWholeVolume } from '../../lib/lookData';
+import { hoursRuns, isOpenAt } from '../../lib/supplierHours';
+import { SupplierHoursEditor } from './SupplierHoursEditor';
 import { useAdminContext } from './useAdminContext';
 
 /** Owner-cost cents → "$12.00". Admin-only surface, so showing real dollars is fine here. */
@@ -18,10 +20,54 @@ function monogram(name: string): string {
 }
 
 const EMPTY_FORM: SupplierInput = {
-  name: '', contactName: '', phone: '', email: '', address: '', hours: '', deliveryNotes: '', notes: '',
+  name: '', contactName: '', phone: '', email: '', address: '', hours: null, deliveryNotes: '', notes: '',
 };
 
+/** The text-input fields of the supplier form — `hours` is structured and gets its own
+ *  weekly grid editor (see SupplierHoursEditor), so it isn't in this list. */
+const TEXT_FIELDS = [
+  ['name', 'Name'], ['contactName', 'Contact person'], ['phone', 'Phone'], ['email', 'Email'],
+  ['address', 'Address'], ['deliveryNotes', 'Delivery day / notes'],
+] as const;
+
 type FormState = { mode: 'create' } | { mode: 'edit'; supplier: Supplier } | null;
+
+/**
+ * A supplier card's opening hours: consecutive days sharing a range collapse into one
+ * line ("Mon–Fri 9 AM–5 PM"), with a live open/closed badge. The badge is omitted for a
+ * legacy note-only supplier — there's no structured week to judge it against.
+ */
+function SupplierHours({ hours }: { hours: Supplier['hours'] }) {
+  const runs = hoursRuns(hours);
+  const open = isOpenAt(hours, new Date());
+  if (runs.length === 0 && !hours?.note) return null;
+  return (
+    <div className="supplier-card__hours" data-testid="supplier-card-hours">
+      <div className="supplier-card__hours-head">
+        <span className="supplier-card__pricebook-label">HOURS</span>
+        {open != null && (
+          <span
+            className={`supplier-badge supplier-badge--${open ? 'open' : 'closed'}`}
+            data-testid="supplier-open-badge"
+          >
+            {open ? 'OPEN NOW' : 'CLOSED'}
+          </span>
+        )}
+      </div>
+      {runs.length > 0 && (
+        <ul className="supplier-card__hours-list">
+          {runs.map((run) => (
+            <li key={run.days}>
+              <span className="supplier-card__hours-days">{run.days}</span>
+              <span className="font-tabular">{run.hours}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {hours?.note && <p className="supplier-card__hours-note">{hours.note}</p>}
+    </div>
+  );
+}
 
 /**
  * `/admin/suppliers` (redesign 4l): supplier directory + DERIVED price book (from keg
@@ -72,7 +118,7 @@ export function SuppliersPage() {
       phone: supplier.phone ?? '',
       email: supplier.email ?? '',
       address: supplier.address ?? '',
-      hours: supplier.hours ?? '',
+      hours: supplier.hours,
       deliveryNotes: supplier.deliveryNotes ?? '',
       notes: supplier.notes ?? '',
     });
@@ -123,10 +169,7 @@ export function SuppliersPage() {
       {formState && (
         <form className="supplier-form" data-testid="supplier-form" onSubmit={handleSave}>
           <div className="supplier-form__grid">
-            {([
-              ['name', 'Name'], ['contactName', 'Contact person'], ['phone', 'Phone'], ['email', 'Email'],
-              ['address', 'Address'], ['hours', 'Hours'], ['deliveryNotes', 'Delivery day / notes'],
-            ] as const).map(([field, label]) => (
+            {TEXT_FIELDS.map(([field, label]) => (
               <label key={field} className="supplier-form__field">
                 <span>{label}</span>
                 <input
@@ -139,6 +182,10 @@ export function SuppliersPage() {
               </label>
             ))}
           </div>
+          <SupplierHoursEditor
+            value={form.hours ?? null}
+            onChange={(hours) => setForm((f) => ({ ...f, hours }))}
+          />
           <div className="admin-confirm__actions">
             <button type="submit" data-testid="supplier-form-save" disabled={saving || !form.name.trim()}>
               {saving ? 'Saving…' : formState.mode === 'create' ? 'Add supplier' : 'Save supplier'}
@@ -181,9 +228,10 @@ export function SuppliersPage() {
                 {supplier.phone && (<><dt>Phone</dt><dd>{supplier.phone}</dd></>)}
                 {supplier.email && (<><dt>Email</dt><dd>{supplier.email}</dd></>)}
                 {supplier.address && (<><dt>Address</dt><dd>{supplier.address}</dd></>)}
-                {supplier.hours && (<><dt>Hours</dt><dd>{supplier.hours}</dd></>)}
                 {supplier.deliveryNotes && (<><dt>Delivery</dt><dd>{supplier.deliveryNotes}</dd></>)}
               </dl>
+
+              <SupplierHours hours={supplier.hours} />
 
               <div className="supplier-card__pricebook" data-testid="supplier-pricebook">
                 <span className="supplier-card__pricebook-label">PRICE BOOK</span>

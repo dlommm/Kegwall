@@ -594,6 +594,44 @@ describe('crud routes', () => {
     expect((await app.inject({ method: 'DELETE', url: `/api/suppliers/${supplierId}`, cookies: adminCookies })).statusCode).toBe(204);
   });
 
+  it('suppliers: structured weekly hours round-trip; bad times and backwards ranges are rejected', async () => {
+    const closedWeek = {
+      mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null,
+    };
+    const hours = {
+      note: 'call ahead',
+      days: { ...closedWeek, mon: { open: '09:00', close: '17:00' } },
+    };
+    const created = await app.inject({
+      method: 'POST', url: '/api/suppliers', cookies: adminCookies,
+      payload: { name: 'Joes', hours },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().hours).toEqual(hours);
+
+    const id = created.json().id;
+    // A day that closes before it opens is not a real range.
+    const backwards = await app.inject({
+      method: 'PATCH', url: `/api/suppliers/${id}`, cookies: adminCookies,
+      payload: { name: 'Joes', hours: { note: null, days: { ...closedWeek, mon: { open: '17:00', close: '09:00' } } } },
+    });
+    expect(backwards.statusCode).toBe(400);
+
+    // Free text is no longer accepted where a structured week belongs.
+    const freeText = await app.inject({
+      method: 'PATCH', url: `/api/suppliers/${id}`, cookies: adminCookies,
+      payload: { name: 'Joes', hours: 'Mon-Fri 9-5' },
+    });
+    expect(freeText.statusCode).toBe(400);
+
+    // Clearing hours entirely is fine.
+    const cleared = await app.inject({
+      method: 'PATCH', url: `/api/suppliers/${id}`, cookies: adminCookies,
+      payload: { name: 'Joes', hours: null },
+    });
+    expect(cleared.json().hours).toBeNull();
+  });
+
   it('GET /api/sensors summarizes temp-reporting sensors for the dashboard cards', async () => {
     const kId = upsertMonitor(app.ctx.db, { type: 'kegtron_pro', identifier: 'probe', portIndex: 0 }).id;
     recordTelemetrySampled(app.ctx.db, kId, 3, null, '2026-07-31T00:00:00.000Z');

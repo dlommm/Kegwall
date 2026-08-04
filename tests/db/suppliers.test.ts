@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { openDb } from '../../src/server/db/db.js';
 import {
   listSuppliers, getSupplier, createSupplier, updateSupplier, deleteSupplier,
-  supplierPriceBook, supplierStats, priceHistoryForBeerSize,
+  supplierPriceBook, supplierStats, priceHistoryForBeerSize, emptyDays,
+  type SupplierHours,
 } from '../../src/server/db/suppliers.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createKeg } from '../../src/server/db/kegs.js';
@@ -116,5 +117,46 @@ describe('derived price book + stats', () => {
     const hist = priceHistoryForBeerSize(db, beer.id, 19000);
     expect(hist.map((h) => h.supplierName)).toEqual(['B', 'A']);
     expect(hist[0]!.costCents).toBe(8500);
+  });
+});
+
+describe('supplier opening hours', () => {
+  const weekdays: SupplierHours = {
+    note: 'call ahead',
+    days: {
+      ...emptyDays(),
+      mon: { open: '09:00', close: '17:00' },
+      sat: { open: '10:00', close: '14:00' },
+    },
+  };
+
+  it('round-trips a structured week through create and update', () => {
+    const s = createSupplier(db, { name: 'Joes', hours: weekdays });
+    expect(getSupplier(db, s.id)!.hours).toEqual(weekdays);
+
+    const changed: SupplierHours = {
+      note: null,
+      days: { ...emptyDays(), sun: { open: '11:00', close: '15:00' } },
+    };
+    expect(updateSupplier(db, s.id, { name: 'Joes', hours: changed }).hours).toEqual(changed);
+  });
+
+  it('stores no hours at all when every day is closed and there is no note', () => {
+    const s = createSupplier(db, { name: 'Joes', hours: { note: '', days: emptyDays() } });
+    expect(s.hours).toBeNull();
+    expect((db.prepare('SELECT hours FROM suppliers WHERE id = ?').get(s.id) as any).hours).toBeNull();
+  });
+
+  it('surfaces a legacy free-text hours value as a note-only week', () => {
+    const s = createSupplier(db, { name: 'Joes' });
+    db.prepare('UPDATE suppliers SET hours = ? WHERE id = ?').run('Mon-Fri 9-5', s.id);
+    expect(getSupplier(db, s.id)!.hours).toEqual({ note: 'Mon-Fri 9-5', days: emptyDays() });
+  });
+
+  it('drops malformed day entries rather than failing the whole read', () => {
+    const s = createSupplier(db, { name: 'Joes' });
+    db.prepare('UPDATE suppliers SET hours = ? WHERE id = ?')
+      .run(JSON.stringify({ note: null, days: { mon: { open: '9am', close: '5pm' } } }), s.id);
+    expect(getSupplier(db, s.id)!.hours).toEqual({ note: null, days: emptyDays() });
   });
 });

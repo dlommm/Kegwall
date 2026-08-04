@@ -38,6 +38,7 @@ and wiki are updated with every change).
 | Guide | For |
 | --- | --- |
 | [customization.md](customization.md) | Wall layout, themes, custom-CSS trust model, screensaver |
+| [suppliers.md](suppliers.md) | Supplier directory, weekly opening hours, derived price book |
 | [recovery.md](recovery.md) | Backup, restore, and manual crash-loop recovery |
 
 ## Reference

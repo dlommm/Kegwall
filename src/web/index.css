@@ -2371,6 +2371,152 @@
   margin-bottom: 0.35rem;
 }
 
+/* Weekly opening hours — grid editor on the form, compressed runs on the card. */
+.supplier-hours-editor {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.supplier-hours-editor legend {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint, var(--text-dim));
+  padding: 0 0.35rem;
+}
+
+.supplier-hours-editor__days {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.supplier-hours-editor__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+
+.supplier-hours-editor__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 5.5rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.supplier-hours-editor__toggle input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
+}
+
+.supplier-hours-editor__day {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.supplier-hours-editor__row input[type='time'] {
+  padding: 0.4rem 0.5rem;
+  min-height: 40px;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.supplier-hours-editor__dash,
+.supplier-hours-editor__closed {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.supplier-hours-editor__copy {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.supplier-hours-editor__copy:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.supplier-hours-editor__note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.supplier-hours-editor__note input {
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.supplier-card__hours-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.supplier-card__hours-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.supplier-card__hours-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.1rem 0;
+}
+
+.supplier-card__hours-days {
+  color: var(--text-dim);
+}
+
+.supplier-card__hours-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.supplier-badge--open {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+}
+
+.supplier-badge--closed {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text-dim);
+}
+
 .supplier-pricebook-table td {
   font-size: 0.82rem;
   padding: 0.3rem 0.5rem 0.3rem 0;
