@@ -2,6 +2,12 @@
 
 ## [1.13.0](https://github.com/dlommm/Kegwall/compare/v1.12.0...v1.13.0) (2026-08-04)
 
+- **Changed:** temperature and humidity are now shown as **separate readings** everywhere they used
+  to be crowded together. On the dashboard sensor card, humidity is its own labeled line instead of
+  a `· 45% RH` suffix on the temperature; on the wall a Govee sensor renders a temperature chip
+  **and** a separate humidity chip; and the analytics dual-Y-axis chart is split into **two stacked
+  charts** (temperature in °C/°F, humidity on its own 0–100% scale).
+
 ## [1.12.0](https://github.com/dlommm/Kegwall/compare/v1.11.1...v1.12.0) (2026-08-03)
 
 - **Added:** a **Kegs** admin page (admin-only). Lists every keg — on tap now plus all past
