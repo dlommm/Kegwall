@@ -1,11 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { TempChart, formatTimeLabel } from '../../../src/web/routes/admin/TempChart';
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { TempChart, formatTimeLabel, formatTempTick } from '../../../src/web/routes/admin/TempChart';
 import type { TelemetryPoint } from '../../../src/server/db/telemetry';
-
-function makeDevice(monitorId: number, label: string): { monitorId: number; label: string } {
-  return { monitorId, label };
-}
 
 function makeData(): TelemetryPoint[] {
   return [
@@ -14,34 +10,27 @@ function makeData(): TelemetryPoint[] {
   ];
 }
 
+function makeSensor(monitorId: number, label: string, data = makeData()) {
+  return { monitorId, label, data };
+}
+
 describe('TempChart', () => {
   it('renders a temperature line + a humidity line from fixture data', () => {
     const { container } = render(
-      <TempChart
-        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
-        selectedMonitorId={1} onSelectMonitor={vi.fn()}
-      />,
+      <TempChart units="metric" sensors={[makeSensor(1, 'dev-1')]} />,
     );
     expect(container.querySelectorAll('.recharts-line-curve')).toHaveLength(2);
   });
 
   it("gives the humidity series its own (second) Y axis — different scale/unit than temperature", () => {
     const { container } = render(
-      <TempChart
-        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
-        selectedMonitorId={1} onSelectMonitor={vi.fn()}
-      />,
+      <TempChart units="metric" sensors={[makeSensor(1, 'dev-1')]} />,
     );
     expect(container.querySelectorAll('.recharts-yAxis')).toHaveLength(2);
   });
 
   it('renders temperature and humidity as two separate charts', () => {
-    render(
-      <TempChart
-        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
-        selectedMonitorId={1} onSelectMonitor={vi.fn()}
-      />,
-    );
+    render(<TempChart units="metric" sensors={[makeSensor(1, 'dev-1')]} />);
     // Two distinct chart blocks, each with its own subtitle — no shared dual-axis plot.
     expect(screen.getByTestId('temp-chart-temperature')).toBeInTheDocument();
     expect(screen.getByTestId('temp-chart-humidity')).toBeInTheDocument();
@@ -49,45 +38,33 @@ describe('TempChart', () => {
     expect(screen.getByText('Humidity')).toBeInTheDocument();
   });
 
-  it('shows a "no monitor" empty state when there are no Pro monitors at all', () => {
-    render(
-      <TempChart data={[]} units="metric" devices={[]} selectedMonitorId={null} onSelectMonitor={vi.fn()} />,
-    );
+  it('shows a "no monitor" empty state when there are no temperature sensors at all', () => {
+    render(<TempChart units="metric" sensors={[]} />);
     expect(screen.getByTestId('temp-chart-empty')).toHaveTextContent(/trend appears/i);
   });
 
-  it('shows a "no readings" empty state for a monitor with no telemetry yet', () => {
-    render(
-      <TempChart
-        data={[]} units="metric" devices={[makeDevice(1, 'dev-1')]}
-        selectedMonitorId={1} onSelectMonitor={vi.fn()}
-      />,
-    );
+  it('shows a "no readings" empty state for a sensor with no telemetry yet', () => {
+    render(<TempChart units="metric" sensors={[makeSensor(1, 'dev-1', [])]} />);
     expect(screen.getByTestId('temp-chart-no-data')).toBeInTheDocument();
   });
 
-  it('hides the device picker when there is only one Pro device', () => {
+  it('charts every sensor at once, each in its own named section', () => {
     render(
       <TempChart
-        data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
-        selectedMonitorId={1} onSelectMonitor={vi.fn()}
+        units="metric"
+        sensors={[makeSensor(1, 'Keezer'), makeSensor(2, 'Cellar')]}
       />,
     );
-    expect(screen.queryByTestId('temp-chart-monitor-select')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('temp-chart')).toHaveLength(2);
+    expect(screen.getAllByTestId('temp-chart-temperature')).toHaveLength(2);
+    const names = screen.getAllByTestId('temp-chart-sensor-name').map((el) => el.textContent);
+    expect(names).toEqual(['Keezer', 'Cellar']);
   });
 
-  it('shows a device picker and calls onSelectMonitor when there are multiple Pro devices', () => {
-    const onSelectMonitor = vi.fn();
-    render(
-      <TempChart
-        data={makeData()} units="metric"
-        devices={[makeDevice(1, 'dev-1'), makeDevice(2, 'dev-2')]}
-        selectedMonitorId={1} onSelectMonitor={onSelectMonitor}
-      />,
-    );
-    const select = screen.getByTestId('temp-chart-monitor-select');
-    fireEvent.change(select, { target: { value: '2' } });
-    expect(onSelectMonitor).toHaveBeenCalledWith(2);
+  it('labels the temperature Y axis in real degrees, in the viewer’s units', () => {
+    // A bare "4" tells the reader nothing; the axis prints the unit it's actually in.
+    expect(formatTempTick(4, 'metric')).toBe('4°C');
+    expect(formatTempTick(4, 'us')).toBe('39°F');
   });
 
   it('formats a UTC ISO timestamp as a 12-hour clock label', () => {

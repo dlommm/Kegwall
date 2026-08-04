@@ -98,9 +98,8 @@ export function StatsPage() {
   const [hours, setHours] = useState<HourHistogram[]>([]);
   const [kegs, setKegs] = useState<KegBurnStat[]>([]);
 
-  const [proDevices, setProDevices] = useState<{ monitorId: number; label: string }[]>([]);
-  const [selectedMonitorId, setSelectedMonitorId] = useState<number | null>(null);
-  const [temps, setTemps] = useState<TelemetryPoint[]>([]);
+  const [sensorDevices, setSensorDevices] = useState<{ monitorId: number; label: string }[]>([]);
+  const [tempsByMonitor, setTempsByMonitor] = useState<Record<number, TelemetryPoint[]>>({});
 
   const [leaderboardWindow, setLeaderboardWindow] = useState<LeaderboardWindow>('week');
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardEntry[]>([]);
@@ -191,19 +190,16 @@ export function StatsPage() {
       if (kegsRes.ok) setKegs(kegsRes.data);
       if (leaderboardRes.ok) setLeaderboardRows(leaderboardRes.data);
       if (monitorsRes.ok) {
-        // One picker entry per physical DEVICE (a 4-port Kegtron is one temperature
+        // One chart section per physical DEVICE (a 4-port Kegtron is one temperature
         // sensor, not four) — addressed by its anchor row's monitor id; the temps
-        // endpoint answers device-wide for any port row. Govee sensors chart too
-        // (disabled ones don't); Kegtron devices sort first so a new Govee sensor
-        // doesn't silently steal the default chart ('govee_sensor' < 'kegtron_pro'
-        // lexically in the listMonitors ordering).
+        // endpoint answers device-wide for any port row. Disabled devices (hardware at
+        // another location) chart nowhere; Kegtron devices sort first so the serving-temp
+        // reference reads before the room sensors.
         const chartable = monitorsRes.data.filter((m) =>
-          m.type === 'kegtron_pro' || (m.type === 'govee_sensor' && m.enabled));
-        const devices = groupMonitors(chartable)
+          m.enabled && (m.type === 'kegtron_pro' || m.type === 'govee_sensor'));
+        setSensorDevices(groupMonitors(chartable)
           .sort((a, b) => Number(a.type === 'govee_sensor') - Number(b.type === 'govee_sensor'))
-          .map((g) => ({ monitorId: g.anchorId, label: deviceLabel(g) }));
-        setProDevices(devices);
-        setSelectedMonitorId(devices[0]?.monitorId ?? null);
+          .map((g) => ({ monitorId: g.anchorId, label: deviceLabel(g) })));
       }
       const allOk = poursRes.ok && beersRes.ok && hoursRes.ok
         && kegsRes.ok && leaderboardRes.ok && monitorsRes.ok;
@@ -243,20 +239,19 @@ export function StatsPage() {
     };
   }, [leaderboardWindow]);
 
-  // Temp chart's monitor picker.
+  // Every sensor charts at once, so every sensor's readings are fetched — one request per
+  // device, in parallel, keyed by the device's anchor monitor id.
   useEffect(() => {
-    if (selectedMonitorId == null) {
-      setTemps([]);
-      return;
-    }
     let cancelled = false;
-    getStatsTemps(selectedMonitorId).then((result) => {
-      if (!cancelled && result.ok) setTemps(result.data);
+    Promise.all(sensorDevices.map((d) => getStatsTemps(d.monitorId).then(
+      (result) => [d.monitorId, result.ok ? result.data : []] as const,
+    ))).then((entries) => {
+      if (!cancelled) setTempsByMonitor(Object.fromEntries(entries));
     });
     return () => {
       cancelled = true;
     };
-  }, [selectedMonitorId]);
+  }, [sensorDevices]);
 
   return (
     <section data-testid="admin-stats-page">
@@ -612,8 +607,8 @@ export function StatsPage() {
           <div hidden={tab !== 'temps'} data-testid="analytics-panel-temps">
             <div className="stats-grid">
               <TempChart
-                data={temps} units={units} devices={proDevices}
-                selectedMonitorId={selectedMonitorId} onSelectMonitor={setSelectedMonitorId}
+                units={units}
+                sensors={sensorDevices.map((d) => ({ ...d, data: tempsByMonitor[d.monitorId] ?? [] }))}
               />
             </div>
             <section className="stats-section" data-testid="analytics-sensor-history">
