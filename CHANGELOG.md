@@ -2,6 +2,28 @@
 
 ## [1.14.0](https://github.com/dlommm/Kegwall/compare/v1.13.0...v1.14.0) (2026-08-04)
 
+- **Added:** suppliers keep **opening hours per day**. The single free-text Hours field is now a
+  weekly grid — tick a day to open it, set its opening and closing time, untick for *Closed* — with
+  a **Copy to all** button that stamps one day's times across the week, plus a free-text note line
+  for what a grid can't say ("call ahead", "closed public holidays"). Supplier cards collapse days
+  that share hours into runs (`Mon–Fri 9 AM–5 PM · Sat 10 AM–2 PM · Sun Closed`) and show a live
+  **OPEN NOW / CLOSED** badge. No migration: the week is stored as JSON in the existing `hours`
+  column, and a pre-existing free-text value keeps rendering as the hours note until the grid is
+  filled in.
+- **Added:** **any monitor can be disabled**, not just Govee sensors — for hardware that reports in
+  but belongs to another location. A disabled device keeps its card (greyed, `DISABLED` badge) so
+  it can be turned back on, but it stops feeding the system entirely: no volume updates, no pours
+  recorded, no temperature/humidity history, and no charts on Analytics. Its last-seen still
+  updates, so a muted device stays distinguishable from a dead one.
+- **Changed:** the Analytics **Temps** tab charts **every** temperature sensor at once — one titled
+  section per device (Kegtron Pro probe and Govee sensor alike), each with its own temperature and
+  humidity plot — replacing the picker that only ever showed one. A keezer and a cellar sensor can
+  now be read side by side. Devices are titled with their friendly name (set with **Rename** on the
+  Monitors page, which has always worked for Govee sensors too).
+- **Fixed:** the analytics temperature chart's Y axis labelled bare rounded numbers (a meaningless
+  "0…6" scale) regardless of the units setting. It now labels real degrees in your units — `4°C` /
+  `39°F`.
+
 ## [1.13.0](https://github.com/dlommm/Kegwall/compare/v1.12.0...v1.13.0) (2026-08-04)
 
 - **Changed:** temperature and humidity are now shown as **separate readings** everywhere they used
