@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.13.0](https://github.com/dlommm/Kegwall/compare/v1.12.0...v1.13.0) (2026-08-04)
+
 ## [1.12.0](https://github.com/dlommm/Kegwall/compare/v1.11.1...v1.12.0) (2026-08-03)
 
 - **Added:** a **Kegs** admin page (admin-only). Lists every keg — on tap now plus all past
