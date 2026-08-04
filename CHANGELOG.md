@@ -2,6 +2,16 @@
 
 ## [1.12.0](https://github.com/dlommm/Kegwall/compare/v1.11.1...v1.12.0) (2026-08-03)
 
+- **Added:** a **Kegs** admin page (admin-only). Lists every keg — on tap now plus all past
+  (kicked/archived/on-deck) — with beer, tap, size, tapped date, cost and supplier, filterable by
+  status. Each keg's **cost, supplier, deposit, and purchase date are editable after the fact**, so
+  you can add a supplier to a keg that was tapped without one (the swap wizard only set those at tap
+  time). `PATCH /api/kegs/:id` now accepts `supplierId`/`depositCents`/`purchasedAt`, and a new
+  admin `GET /api/kegs/history` backs the page.
+- **Added:** **tax-included** menu pricing. A new *Sales tax %* in Settings → Pricing folds sales
+  tax into the displayed per-pint price (`cost × markup × (1 + tax)`, rounded), so the number shown
+  is what the customer pays (0 = pre-tax, the default). Owner cost still never leaves the server.
+
 ## [1.11.1](https://github.com/dlommm/Kegwall/compare/v1.11.0...v1.11.1) (2026-08-03)
 
 - **Fixed:** "Restart kiosk display" is fast again — the native wall unit gained `TimeoutStopSec=5s`
