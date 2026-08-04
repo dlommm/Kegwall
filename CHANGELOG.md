@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.14.0](https://github.com/dlommm/Kegwall/compare/v1.13.0...v1.14.0) (2026-08-04)
+
 ## [1.13.0](https://github.com/dlommm/Kegwall/compare/v1.12.0...v1.13.0) (2026-08-04)
 
 - **Changed:** temperature and humidity are now shown as **separate readings** everywhere they used
