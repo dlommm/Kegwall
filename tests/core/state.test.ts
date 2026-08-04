@@ -6,7 +6,9 @@ import { StateManager } from '../../src/server/core/state.js';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap, updateTap } from '../../src/server/db/taps.js';
 import { createKeg, getActiveKegForTap } from '../../src/server/db/kegs.js';
-import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
+import {
+  upsertMonitor, bindMonitorToTap, updateMonitorDeviceIdentity, getMonitorByRef,
+} from '../../src/server/db/monitors.js';
 import { createDrinker } from '../../src/server/db/users.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -256,5 +258,45 @@ describe('StateManager', () => {
     const unboundTapId = createTap(db, { number: 2 }).id;
     const tap = sm.getTapStates().find((t) => t.tapId === unboundTapId)!;
     expect(tap.temp).toBeNull();
+  });
+});
+
+// A device the admin disabled (the case: hardware at another location) still exists as a
+// row — its last_seen stays honest and it can be re-enabled — but nothing it reports is
+// allowed into the system.
+describe('StateManager with a disabled device', () => {
+  beforeEach(() => {
+    updateMonitorDeviceIdentity(db, upsertMonitor(db, ref).id, { enabled: false });
+  });
+
+  it('ignores its volume updates', () => {
+    bus.emit('volume_update', {
+      monitor: ref, volStartMl: 19000, volDispensedMl: 4750, sizeMl: 19000,
+      ts: '2026-07-27T01:00:00.000Z',
+    });
+    expect(sm.getTapStates().find((t) => t.tapId === tapId)!.keg!.volDispensedMl).toBe(0);
+    expect(sm.deviceKegInfo(ref)).toBeNull();
+  });
+
+  it('records none of its pours and never shows it pouring', () => {
+    bus.emit('pour_started', { monitor: ref, ts: '2026-07-27T01:00:00.000Z' });
+    expect(sm.getTapStates().find((t) => t.tapId === tapId)!.pouring).toBe(false);
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 400, durationMs: 6000, source: 'cloud',
+      ts: '2026-07-27T01:00:05.000Z',
+    });
+    expect((db.prepare('SELECT COUNT(*) AS n FROM pours').get() as { n: number }).n).toBe(0);
+  });
+
+  it('records none of its telemetry, but keeps its last_seen fresh', () => {
+    bus.emit('telemetry', { monitor: ref, temp: 2.8, humidity: 41, ts: '2026-07-27T01:00:00.000Z' });
+    expect((db.prepare('SELECT COUNT(*) AS n FROM telemetry').get() as { n: number }).n).toBe(0);
+    expect(getMonitorByRef(db, ref)!.lastSeen).not.toBeNull();
+  });
+
+  it('lets everything through again once re-enabled', () => {
+    updateMonitorDeviceIdentity(db, upsertMonitor(db, ref).id, { enabled: true });
+    bus.emit('telemetry', { monitor: ref, temp: 2.8, humidity: 41, ts: '2026-07-27T01:00:00.000Z' });
+    expect(sm.getTapStates().find((t) => t.tapId === tapId)!.temp).toBe(2.8);
   });
 });

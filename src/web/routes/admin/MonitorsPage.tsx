@@ -118,6 +118,11 @@ function Sparkline({ values, testId, label }: { values: (number | null)[]; testI
  * a tap, shows its live volume, and offers per-port Reset volume. A viewer sees
  * everything read-only (no rename/bind/unbind/reset/WiFi controls); the detail expand
  * stays viewer-role like its endpoint.
+ *
+ * Any device can be DISABLED — the case is hardware living at another location. The card
+ * stays (greyed, badged) so it can be re-enabled, but the device stops feeding the system
+ * entirely: no volume updates, no pours, no telemetry (see core/state.ts), and it charts
+ * nowhere on the Stats page.
  */
 export function MonitorsPage() {
   const { me, units } = useAdminContext();
@@ -381,7 +386,7 @@ export function MonitorsPage() {
                   DISABLED
                 </span>
               )}
-              {canEdit && isGovee && (
+              {canEdit && (
                 <button
                   type="button"
                   data-testid="monitors-card-toggle-enabled"

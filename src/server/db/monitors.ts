@@ -9,9 +9,10 @@ export interface Monitor {
   /** Friendly display name ("Main kegerator") — device-level: every port row of a
    * physical device carries the same name; null = unnamed. */
   name: string | null;
-  /** Device-level on/off. Today only Govee sensors ever get disabled (the poller
-   * skips them and their wall chips disappear, while the row stays for the admin to
-   * re-enable); Kegtron rows are always enabled. */
+  /** Device-level on/off. A disabled device (e.g. hardware living at another
+   * location) stays listed for the admin to re-enable, but is skipped everywhere
+   * else: the Govee poller ignores it, and StateManager drops its volume updates,
+   * pours, and telemetry (see core/state.ts). */
   enabled: boolean;
 }
 

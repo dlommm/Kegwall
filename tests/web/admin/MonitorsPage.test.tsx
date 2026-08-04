@@ -190,6 +190,20 @@ describe('MonitorsPage', () => {
     });
   });
 
+  it('a Kegtron device can be disabled too — hardware at another location', async () => {
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1)] });
+    (updateMonitorIdentity as Mock).mockResolvedValue({ ok: true, data: makeMonitor(1, { enabled: false }) });
+    renderAdminPage(<MonitorsPage />);
+    await screen.findAllByTestId('monitors-device-card');
+
+    (listMonitors as Mock).mockResolvedValue({ ok: true, data: [makeMonitor(1, { enabled: false })] });
+    fireEvent.click(screen.getByTestId('monitors-card-toggle-enabled'));
+    await flush();
+
+    expect(updateMonitorIdentity).toHaveBeenCalledWith(1, { enabled: false });
+    expect(screen.getByTestId('monitors-card-disabled-badge')).toHaveTextContent('DISABLED');
+  });
+
   it('shows the device friendly name as the card title when set', async () => {
     (listMonitors as Mock).mockResolvedValue({
       ok: true, data: [makeMonitor(1, { name: 'Main kegerator' })],

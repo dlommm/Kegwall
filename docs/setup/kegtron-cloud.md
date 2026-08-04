@@ -59,6 +59,20 @@ above for beer/keg metadata, historical data, and any device UDP alone can't cov
 both cloud and UDP report the same pour, the app deduplicates it (`PourDeduper`) so it's
 recorded once, not twice.
 
+## Name a device, or turn one off
+
+Every discovered device — Kegtron Pro, Kegtron Gen 1, and Govee sensor alike — gets a card
+on **Monitors** (editor role or higher) with two device-level controls:
+
+- **Rename** gives the device a friendly name ("Keezer", "Cellar sensor"). The name is what
+  the sensor charts on Analytics and the dashboard sensor cards use; unnamed devices fall
+  back to their identifier.
+- **Disable** is for hardware that reports in but isn't part of *this* wall — a keezer at
+  another location, say. A disabled device keeps its card (greyed, with a `DISABLED` badge)
+  so you can turn it back on, but it stops feeding the system entirely: no volume updates,
+  no pours recorded, no temperature/humidity history, and it charts nowhere on Analytics.
+  Its last-seen timestamp still updates, so you can tell it's alive and simply muted.
+
 ## See also
 
 - [docs/install/docker.md](../install/docker.md) — host-network requirement for UDP under

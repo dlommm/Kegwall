@@ -107,7 +107,9 @@ export class StateManager {
     });
 
     this.bus.on('volume_update', (e) => {
-      upsertMonitor(this.db, e.monitor);
+      // A disabled device (hardware at another location) still upserts — last-seen stays
+      // honest and the row stays re-enable-able — but nothing downstream reacts to it.
+      if (!upsertMonitor(this.db, e.monitor).enabled) return;
       // Remember the device's own keg config even for unbound monitors — the swap
       // wizard prefills its Size/Starting volume fields from this.
       this.deviceKeg.set(monitorRefKey(e.monitor), {
@@ -121,13 +123,19 @@ export class StateManager {
       changed(e.ts);
     });
 
+    // A pour from a disabled device never reaches the live wall state (an unknown,
+    // not-yet-discovered device counts as enabled — discovery upserts it soon after).
+    const refEnabled = (ref: MonitorRef) => getMonitorByRef(this.db, ref)?.enabled !== false;
+
     this.bus.on('pour_started', (e) => {
+      if (!refEnabled(e.monitor)) return;
       this.live.set(monitorRefKey(e.monitor), { pouring: true, curServMl: 0 });
       this.samples.begin(e.monitor, Date.parse(e.ts));
       changed(e.ts);
     });
 
     this.bus.on('pour_progress', (e) => {
+      if (!refEnabled(e.monitor)) return;
       this.live.set(monitorRefKey(e.monitor), { pouring: true, curServMl: e.curServMl });
       this.samples.progress(e.monitor, Date.parse(e.ts), e.curServMl);
       changed(e.ts);
@@ -141,7 +149,7 @@ export class StateManager {
       // Samples are taken (and cleared) unconditionally so a suppressed duplicate
       // doesn't leave a stale run to pollute the next pour's score.
       const samples = this.samples.take(e.monitor);
-      if (this.deduper.shouldRecord(e.monitor, e.volumeMl, e.ts)) {
+      if (refEnabled(e.monitor) && this.deduper.shouldRecord(e.monitor, e.volumeMl, e.ts)) {
         const tapId = resolveTapForRef(this.db, e.monitor);
         if (tapId !== null) {
           const keg = getActiveKegForTap(this.db, tapId);
@@ -180,8 +188,10 @@ export class StateManager {
 
     this.bus.on('telemetry', (e) => {
       // Unconditional upsert (not get-or-create): Govee discovery emits are cached to
-      // one per device, so this is what keeps a sensor row's last_seen fresh.
+      // one per device, so this is what keeps a sensor row's last_seen fresh. Disabled
+      // devices keep their last_seen but record no telemetry history.
       const mon = upsertMonitor(this.db, e.monitor);
+      if (!mon.enabled) return;
       recordTelemetrySampled(this.db, mon.id, e.temp, e.humidity, e.ts);
     });
 
