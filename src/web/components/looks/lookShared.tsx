@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { qrCodeSvg } from '../../lib/qr';
 import { usePrefersReducedMotion } from '../../lib/usePrefersReducedMotion';
 import { formatTempC, type VolumeUnits } from '../../lib/units';
@@ -210,16 +210,24 @@ export function SensorChips({ tempC, units, sensors = [] }: SensorChipsProps) {
         </span>
       )}
       {sensors.map((sensor) => (
-        <span key={sensor.sensorId} className="look-sensor-chip look-sensor-chip--ambient" data-testid="look-sensor-chip">
-          <span className="look-sensor-chip__dot look-sensor-chip__dot--ambient" />
-          <span className="look-sensor-chip__name">{sensor.name.toUpperCase()}</span>
+        // Temperature and humidity are SEPARATE chips (design: don't crowd them into one) — the
+        // sensor name labels each, and a sensor missing one reading just omits that chip.
+        <Fragment key={sensor.sensorId}>
           {sensor.tempC != null && (
-            <span className="look-sensor-chip__value">{formatTempC(sensor.tempC, units)}</span>
+            <span className="look-sensor-chip look-sensor-chip--ambient" data-testid="look-sensor-chip">
+              <span className="look-sensor-chip__dot look-sensor-chip__dot--ambient" />
+              <span className="look-sensor-chip__name">{sensor.name.toUpperCase()}</span>
+              <span className="look-sensor-chip__value">{formatTempC(sensor.tempC, units)}</span>
+            </span>
           )}
           {sensor.humidity != null && (
-            <span className="look-sensor-chip__hum">{`${Math.round(sensor.humidity)}%`}</span>
+            <span className="look-sensor-chip look-sensor-chip--ambient" data-testid="look-sensor-chip-humidity">
+              <span className="look-sensor-chip__dot look-sensor-chip__dot--ambient" />
+              <span className="look-sensor-chip__name">{`${sensor.name.toUpperCase()} RH`}</span>
+              <span className="look-sensor-chip__value">{`${Math.round(sensor.humidity)}%`}</span>
+            </span>
           )}
-        </span>
+        </Fragment>
       ))}
     </div>
   );

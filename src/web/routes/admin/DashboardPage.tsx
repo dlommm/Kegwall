@@ -368,10 +368,14 @@ export function DashboardPage() {
                 data-testid="dashboard-sensor-temp"
               >
                 {s.tempC != null ? formatTempC(s.tempC, units) : '—'}
-                {s.humidity != null && (
-                  <span className="dashboard-stat__sub">{` · ${Math.round(s.humidity)}% RH`}</span>
-                )}
               </span>
+              {/* Humidity is its OWN reading, not a suffix on the temperature (design: keep the two
+                  distinct). Only shown when the sensor reports it (Kegtron probes don't). */}
+              {s.humidity != null && (
+                <span className="dashboard-sensor-stat__humidity font-tabular" data-testid="dashboard-sensor-humidity">
+                  {`${Math.round(s.humidity)}% RH`}
+                </span>
+              )}
               <span
                 className={`dashboard-stat__note${s.warming ? ' dashboard-stat__note--warn' : ''}`}
                 data-testid="dashboard-sensor-note"

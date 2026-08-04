@@ -32,67 +32,46 @@ export function formatTimeLabel(ts: string): string {
   return `${twelveHour}:${minute} ${suffix}`;
 }
 
-function TempTooltip({ active, payload, units }: {
-  active?: boolean; payload?: { payload: TelemetryPoint }[]; units: VolumeUnits;
+/** One-metric tooltip: the time, then a single formatted value for whichever chart it's in. */
+function MetricTooltip({ active, payload, format }: {
+  active?: boolean; payload?: { payload: TelemetryPoint }[]; format: (p: TelemetryPoint) => string;
 }) {
   if (!active || !payload?.length) return null;
   const point = payload[0]!.payload;
   return (
     <div className="stats-tooltip" role="tooltip">
       <p className="stats-tooltip__label font-tabular">{formatTimeLabel(point.ts)}</p>
-      <p className="stats-tooltip__value font-tabular">
-        {point.temp != null ? formatTempC(point.temp, units) : 'No reading'}
-      </p>
-      <p className="stats-tooltip__value font-tabular">
-        {point.humidity != null ? `${Math.round(point.humidity)}% humidity` : 'No humidity reading'}
-      </p>
+      <p className="stats-tooltip__value font-tabular">{format(point)}</p>
     </div>
   );
 }
 
+const CHART_MARGIN = { top: 8, right: 8, left: 0, bottom: 0 };
+
 /**
- * `/admin/stats`'s temperature line chart (Task 9; Phase 5 Task 0 spec-parity item adds
- * humidity) — one Kegtron Pro monitor's recent readings. Brass primary line for
- * temperature (same accent as every other chart on this page); humidity is the muted-gray
- * `var(--text-dim)` treatment the binding style reserves for a secondary/comparison
- * series — it's real telemetry from the exact same device, not the chart's main subject.
+ * `/admin/stats`'s environment charts — one Kegtron Pro / Govee sensor's recent readings, shown as
+ * TWO separate charts: temperature and humidity. They were once a single dual-Y-axis chart, but
+ * temperature (°C/°F) and humidity (%) are unrelated units, and a stacked pair of independently
+ * scaled charts reads more cleanly than two lines fighting over one plot. Each uses the brass accent
+ * for its own line.
  *
- * Humidity gets its OWN (right-side) Y axis rather than sharing temperature's, fixed to a
- * 0-100% domain: temp (°C or °F) and humidity (%) are different units with unrelated
- * numeric ranges, so forcing them onto one axis would either flatten humidity's real
- * variation (if scaled to temp's typically-narrow range) or stretch temp's trend into
- * near-invisibility (if scaled to humidity's fixed 0-100 range) — neither reads honestly.
- * Two independently-scaled axes keep both trends visible on their own terms; the legend
- * + differently-colored lines is what lets a viewer tell which axis is which. This is the
- * project's only two-Y-axis chart, so this justification lives here rather than in a
- * shared charts-style doc.
- *
- * Two empty states: no Pro monitor bound at all (nothing to chart, ever) vs. a real
- * monitor with no readings yet (transient, will fill in).
+ * Two empty states: no Pro/Govee sensor bound at all (nothing to chart, ever) vs. a real sensor with
+ * no readings yet (transient, will fill in).
  */
 export function TempChart({
   data, units, devices, selectedMonitorId, onSelectMonitor,
 }: TempChartProps) {
+  const xAxis = (
+    <XAxis
+      dataKey="ts" className="font-tabular" tickFormatter={formatTimeLabel}
+      tick={{ fill: 'var(--text-dim)', fontSize: 10 }} axisLine={false} tickLine={false}
+      interval="preserveStartEnd"
+    />
+  );
   return (
     <div className="stats-chart" data-testid="temp-chart">
       <div className="stats-chart__header">
-        <h3 className="stats-chart__title">Temperature</h3>
-        {/* A plain HTML legend (not Recharts' own <Legend>) — Recharts' Legend measures
-            its own rendered height via getBoundingClientRect to reserve chart space for
-            itself, which this project's jsdom test shim (see tests/web/setup.ts) stubs
-            uniformly for every element, "eating" the whole chart height in tests. A
-            static two-item key next to the title needs no such measurement and is
-            simpler for a chart that only ever has exactly two fixed series anyway. */}
-        <div className="stats-chart__legend" data-testid="temp-chart-legend">
-          <span className="stats-chart__legend-item">
-            <span className="stats-chart__legend-swatch" style={{ backgroundColor: 'var(--accent)' }} aria-hidden="true" />
-            Temperature
-          </span>
-          <span className="stats-chart__legend-item">
-            <span className="stats-chart__legend-swatch" style={{ backgroundColor: 'var(--text-dim)' }} aria-hidden="true" />
-            Humidity
-          </span>
-        </div>
+        <h3 className="stats-chart__title">Temperature &amp; humidity</h3>
         {devices.length > 1 && (
           <select
             className="stats-chart__monitor-select"
@@ -115,38 +94,48 @@ export function TempChart({
           No temperature readings yet for this monitor.
         </p>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-            <XAxis
-              dataKey="ts" className="font-tabular" tickFormatter={formatTimeLabel}
-              tick={{ fill: 'var(--text-dim)', fontSize: 10 }} axisLine={false} tickLine={false}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              yAxisId="temp" className="font-tabular" width={40}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
-              tickFormatter={(v: number) => Math.round(v).toString()}
-            />
-            <YAxis
-              yAxisId="humidity" orientation="right" className="font-tabular" width={36}
-              domain={[0, 100]}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
-              tickFormatter={(v: number) => `${v}%`}
-            />
-            <Tooltip content={<TempTooltip units={units} />} />
-            <Line
-              yAxisId="temp"
-              type="monotone" dataKey="temp" name="Temperature" stroke="var(--accent)"
-              strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
-            />
-            <Line
-              yAxisId="humidity"
-              type="monotone" dataKey="humidity" name="Humidity" stroke="var(--text-dim)"
-              strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <>
+          {/* Temperature — its own chart. */}
+          <div className="stats-chart__metric" data-testid="temp-chart-temperature">
+            <h4 className="stats-chart__subtitle">Temperature</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={data} margin={CHART_MARGIN}>
+                <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+                {xAxis}
+                <YAxis
+                  className="font-tabular" width={40}
+                  tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => Math.round(v).toString()}
+                />
+                <Tooltip content={<MetricTooltip format={(p) => (p.temp != null ? formatTempC(p.temp, units) : 'No reading')} />} />
+                <Line
+                  type="monotone" dataKey="temp" name="Temperature" stroke="var(--accent)"
+                  strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Humidity — its own chart, fixed 0–100% scale. */}
+          <div className="stats-chart__metric" data-testid="temp-chart-humidity">
+            <h4 className="stats-chart__subtitle">Humidity</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={data} margin={CHART_MARGIN}>
+                <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+                {xAxis}
+                <YAxis
+                  className="font-tabular" width={40} domain={[0, 100]}
+                  tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                <Tooltip content={<MetricTooltip format={(p) => (p.humidity != null ? `${Math.round(p.humidity)}% humidity` : 'No humidity reading')} />} />
+                <Line
+                  type="monotone" dataKey="humidity" name="Humidity" stroke="var(--accent)"
+                  strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </>
       )}
     </div>
   );

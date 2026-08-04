@@ -35,16 +35,17 @@ describe('TempChart', () => {
     expect(container.querySelectorAll('.recharts-yAxis')).toHaveLength(2);
   });
 
-  it('labels temperature and humidity in a legend', () => {
+  it('renders temperature and humidity as two separate charts', () => {
     render(
       <TempChart
         data={makeData()} units="metric" devices={[makeDevice(1, 'dev-1')]}
         selectedMonitorId={1} onSelectMonitor={vi.fn()}
       />,
     );
-    // "Temperature" also appears as the chart's own header title, so the legend adds a
-    // SECOND occurrence rather than being the only one.
-    expect(screen.getAllByText('Temperature').length).toBeGreaterThanOrEqual(2);
+    // Two distinct chart blocks, each with its own subtitle — no shared dual-axis plot.
+    expect(screen.getByTestId('temp-chart-temperature')).toBeInTheDocument();
+    expect(screen.getByTestId('temp-chart-humidity')).toBeInTheDocument();
+    expect(screen.getByText('Temperature')).toBeInTheDocument();
     expect(screen.getByText('Humidity')).toBeInTheDocument();
   });
 

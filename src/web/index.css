@@ -9901,3 +9901,21 @@ h2.admin-field__label-text {
   background: color-mix(in srgb, var(--text) 4%, transparent);
   color: var(--text);
 }
+
+/* --- Sensor temp/humidity split (dashboard card + analytics charts) --- */
+.dashboard-sensor-stat__humidity {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+.stats-chart__metric {
+  margin-top: 0.5rem;
+}
+.stats-chart__subtitle {
+  margin: 0.25rem 0 0.1rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
