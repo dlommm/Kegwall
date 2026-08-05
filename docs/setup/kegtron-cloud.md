@@ -59,6 +59,32 @@ above for beer/keg metadata, historical data, and any device UDP alone can't cov
 both cloud and UDP report the same pour, the app deduplicates it (`PourDeduper`) so it's
 recorded once, not twice.
 
+### When UDP goes silent
+
+A powered Kegtron Pro broadcasts about once a second even while idle, so silence always means
+the packets aren't reaching this process. The source reports that itself rather than leaving you
+to guess:
+
+- **Analytics -> Ingest sources** marks `kegtron_udp` **down** after three minutes of silence,
+  with the reason in the detail column. It no longer claims "listening" forever while nothing
+  arrives.
+- **The container log** records one line per start saying whether the multicast group was
+  actually joined, and logs a failed periodic re-join as an error — that failure ejects the
+  process from the group until restart, and used to be swallowed silently:
+
+  ```sh
+  docker logs kegwall 2>&1 | grep kegtron_udp
+  ```
+
+- **Analytics -> UDP packet coverage** falls back to the full 14-day retention window when the
+  last 24 hours are empty, so a stream that died days ago is distinguishable from one that never
+  worked. Counts are buffered in memory and flushed once a minute, so a server restarting more
+  often than that never persists one.
+
+"No packet has EVER arrived" means topology — VLANs, Docker bridge instead of host networking,
+or UDP streaming switched off on the device. "No packets for N minutes" after a healthy period
+means a dropped multicast membership or a device that stopped broadcasting.
+
 ## Name a device, or turn one off
 
 Every discovered device — Kegtron Pro, Kegtron Gen 1, and Govee sensor alike — gets a card

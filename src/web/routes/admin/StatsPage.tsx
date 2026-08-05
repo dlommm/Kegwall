@@ -91,6 +91,9 @@ export function StatsPage() {
   const [sensors, setSensors] = useState<SensorSummary[]>([]);
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [udpDevices, setUdpDevices] = useState<UdpDeviceHistory[]>([]);
+  /** True when nothing arrived in the last 24h and the rows below come from the wider
+   *  14-day retention window — i.e. the stream is dead, not merely quiet. */
+  const [udpStale, setUdpStale] = useState(false);
 
   const [days, setDays] = useState<DayRange>(DEFAULT_DAYS);
   const [pours, setPours] = useState<PoursByDay[]>([]);
@@ -136,7 +139,21 @@ export function StatsPage() {
     getPourerHistory().then((result) => { if (!cancelled && result.ok) setPourerHistory(result.data); });
     getSensors().then((result) => { if (!cancelled && result.ok) setSensors(result.data); });
     getSources().then((result) => { if (!cancelled && result.ok) setSources(result.data); });
-    doctorUdpHistory(24).then((result) => { if (!cancelled && result.ok) setUdpDevices(result.data.devices); });
+    // 24h is the useful window when the stream is alive. When it's empty, ask again over
+    // the full 14-day retention: a stream that died three days ago and one that never
+    // worked at all are the same blank panel otherwise, and they need opposite fixes.
+    doctorUdpHistory(24).then(async (result) => {
+      if (cancelled || !result.ok) return;
+      if (result.data.devices.length > 0) {
+        setUdpDevices(result.data.devices);
+        return;
+      }
+      const wider = await doctorUdpHistory(24 * 14);
+      if (!cancelled && wider.ok && wider.data.devices.length > 0) {
+        setUdpDevices(wider.data.devices);
+        setUdpStale(true);
+      }
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -679,9 +696,23 @@ export function StatsPage() {
               </div>
             </section>
             <section className="stats-section" data-testid="analytics-udp-devices">
-              <h3 className="stats-chart__title">UDP packet coverage · last 24h</h3>
+              <h3 className="stats-chart__title">
+                {udpStale ? 'UDP packet coverage · last 14 days' : 'UDP packet coverage · last 24h'}
+              </h3>
+              {udpStale && (
+                <p className="admin-page-quiet" role="alert" data-testid="udp-stale-warning">
+                  No UDP packets in the last 24 hours — the stream has stopped. These are the
+                  last receipts on record. Check that multicast still reaches this host (under
+                  Docker that means host networking) and that the Ingest sources table above
+                  doesn&rsquo;t report the UDP source down.
+                </p>
+              )}
               {udpDevices.length === 0 ? (
-                <p className="admin-page-quiet">No UDP packets received in the last 24 hours.</p>
+                <p className="admin-page-quiet">
+                  No UDP packets received in the last 14 days — either UDP streaming has never
+                  worked here, or the server has restarted more often than once a minute (counts
+                  are buffered in memory and flushed on the minute).
+                </p>
               ) : (
                 <div className="analytics-table-scroll">
                   <table className="admin-table">

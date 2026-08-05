@@ -43,6 +43,17 @@ const DEFAULT_POUR_TIMEOUT_MS = 2_000;
  * membership timeout that killed the stream on real hardware (see start()). */
 const REJOIN_INTERVAL_MS = 60_000;
 
+/**
+ * How long a bound socket may hear NOTHING before the source reports itself unhealthy.
+ * A powered Kegtron Pro broadcasts once per second per port even while idle (PDF page 4,
+ * "Behavior"), so three minutes of total silence means the packets are not reaching this
+ * process — a dropped multicast membership, a container moved off host networking, the
+ * device's own UDP streaming turned off. Reporting "listening" forever in that state is
+ * what made this failure invisible: the admin UI showed a healthy source and an empty
+ * packet timeline, which reads as "nothing wrong here" instead of "the stream is dead".
+ */
+const STALE_AFTER_MS = 180_000;
+
 export interface KegtronUdpSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
@@ -92,6 +103,11 @@ export interface KegtronUdpSourceOptions {
    * waiting out a real 2s window. Optional and additive, same precedent as
    * mdashClient's timeoutMs / cloudSource's reconnectBaseMs (see their doc comments). */
   pourTimeoutMs?: number;
+  /** Test-only overrides of the multicast re-join cadence and the silence window after
+   *  which the source reports itself unhealthy (production defaults 60s / 3min above) —
+   *  same precedent as pourTimeoutMs, so the staleness path is testable in milliseconds. */
+  rejoinIntervalMs?: number;
+  staleAfterMs?: number;
 }
 
 interface PortState {
@@ -183,12 +199,24 @@ export class KegtronUdpSource implements Source {
   private readonly configuredPort: number;
   private readonly bindAddress: string;
   private readonly pourTimeoutMs: number;
+  private readonly rejoinIntervalMs: number;
+  private readonly staleAfterMs: number;
 
   private socket: dgram.Socket | null = null;
 
   /** IGMP-refresh timer — see the re-join comment in start(). */
   private rejoinTimer: ReturnType<typeof setInterval> | null = null;
   private boundAddress: { address: string; port: number } | null = null;
+  /** True once the initial `addMembership` succeeded — i.e. this is a real multicast
+   * listener rather than the unicast-only bind tests use. Only then is a FAILED
+   * periodic re-join worth shouting about. */
+  private joinedGroup = false;
+  /** When the socket bound, and when the last packet arrived — the two clocks the
+   * staleness check compares against (`null` last-packet = nothing since bind). */
+  private boundAt = 0;
+  private lastPacketAt: number | null = null;
+  /** Latched so the stale transition is logged/emitted once, not every minute. */
+  private reportedStale = false;
   private readonly ports = new Map<string, PortState>();
   private readonly lastTemp = new Map<string, number>();
   private readonly discoveredPorts = new Set<string>();
@@ -203,6 +231,8 @@ export class KegtronUdpSource implements Source {
     this.configuredPort = opts.port ?? DEFAULT_PORT;
     this.bindAddress = opts.bindAddress ?? DEFAULT_BIND_ADDRESS;
     this.pourTimeoutMs = opts.pourTimeoutMs ?? DEFAULT_POUR_TIMEOUT_MS;
+    this.rejoinIntervalMs = opts.rejoinIntervalMs ?? REJOIN_INTERVAL_MS;
+    this.staleAfterMs = opts.staleAfterMs ?? STALE_AFTER_MS;
   }
 
   /** The actual bound {address, port} once start() has succeeded (useful in tests
@@ -283,8 +313,25 @@ export class KegtronUdpSource implements Source {
           } catch { /* wasn't joined (unicast-only bind) — re-add below still tries */ }
           try {
             socket.addMembership(this.group);
-          } catch { /* same unicast-only case as the initial join — harmless */ }
-        }, REJOIN_INTERVAL_MS);
+          } catch (err) {
+            // A re-add that fails after a SUCCESSFUL initial join leaves this process
+            // permanently outside the group — every subsequent packet goes to a socket
+            // that is no longer a member, silently. Swallowing this is what made the
+            // failure undiagnosable, so say so loudly. (When the initial join never
+            // succeeded we're deliberately unicast-only — already logged once at bind,
+            // and not worth repeating every minute.)
+            if (this.joinedGroup) {
+              const detail = err instanceof Error ? err.message : String(err);
+              console.error(
+                `[kegtron_udp] multicast re-join of ${this.group} FAILED — this process is no `
+                + `longer receiving multicast: ${detail}`,
+              );
+              this.joinedGroup = false;
+              this.emitStatus(false, `multicast re-join failed: ${detail}`);
+            }
+          }
+          this.checkStale();
+        }, this.rejoinIntervalMs);
         try {
           // Best-effort: joining fails harmlessly when bound to a specific unicast
           // test address (e.g. 127.0.0.1) rather than the wildcard interface — the
@@ -292,12 +339,22 @@ export class KegtronUdpSource implements Source {
           // which is exactly what tests send (brief: "do NOT require real multicast
           // in tests"). In production (bindAddress '0.0.0.0'), this is the real join.
           socket.addMembership(this.group);
+          this.joinedGroup = true;
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
           console.warn(`[kegtron_udp] addMembership(${this.group}) failed, continuing as unicast-only: ${detail}`);
         }
         const addr = socket.address();
         this.boundAddress = { address: addr.address, port: addr.port };
+        this.boundAt = Date.now();
+        this.lastPacketAt = null;
+        this.reportedStale = false;
+        // One unambiguous line per start, so `docker logs … | grep kegtron_udp` answers
+        // "did it bind, and did it actually join the group?" without any UI access.
+        console.info(
+          `[kegtron_udp] listening on ${addr.address}:${addr.port}, multicast group `
+          + `${this.group} ${this.joinedGroup ? 'joined' : 'NOT joined (unicast-only)'}`,
+        );
         this.emitStatus(true, `listening on ${addr.address}:${addr.port}`);
         resolve();
       });
@@ -308,6 +365,13 @@ export class KegtronUdpSource implements Source {
 
   private handlePacket(msg: Buffer): void {
     if (this.stopped) return;
+    this.lastPacketAt = Date.now();
+    if (this.reportedStale) {
+      // Recovered — say so, so a log/status reader can see the gap close rather than
+      // being left with the last "the stream stopped" line forever.
+      this.reportedStale = false;
+      console.info('[kegtron_udp] packets are arriving again');
+    }
     // Raw tap for the connection doctor + the udp_activity timeline — fires for
     // EVERY datagram, malformed ones included, so "what is actually on the wire"
     // is inspectable from the admin UI.
@@ -453,6 +517,28 @@ export class KegtronUdpSource implements Source {
     if (!this.reconcile) return { type: 'kegtron_pro', identifier: serialNum, portIndex };
     const reconciled = this.reconcile(serialNum, portIndex);
     return reconciled ?? { type: 'kegtron_pro', identifier: `udp:${serialNum}`, portIndex };
+  }
+
+  /**
+   * Called on every re-join tick: a socket that has heard nothing for STALE_AFTER_MS is
+   * reported unhealthy rather than left claiming "listening". Silence measured from the
+   * last packet, or from bind when none has ever arrived — the latter is the "wrong
+   * Docker network / device not broadcasting" case, which otherwise looks identical to a
+   * healthy idle wall.
+   */
+  private checkStale(): void {
+    const since = this.lastPacketAt ?? this.boundAt;
+    if (Date.now() - since < this.staleAfterMs) return;
+    if (this.reportedStale) return;
+    this.reportedStale = true;
+    const minutes = Math.round((Date.now() - since) / 60_000);
+    const detail = this.lastPacketAt == null
+      ? `bound to ${this.bindAddress}:${this.configuredPort} but no packet has EVER arrived `
+        + `(${minutes}m) — check multicast reaches this host (Docker needs host networking) `
+        + 'and that the device has UDP streaming enabled'
+      : `no packets for ${minutes}m — the stream stopped`;
+    console.error(`[kegtron_udp] ${detail}`);
+    this.emitStatus(false, detail);
   }
 
   private emitStatus(healthy: boolean, detail: string): void {

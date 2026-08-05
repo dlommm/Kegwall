@@ -262,3 +262,58 @@ describe('KegtronUdpSource.stop()', () => {
     source = null; // already stopped; afterEach should not double-stop problematically
   });
 });
+
+// A bound socket that hears nothing is the failure mode that used to be invisible: the
+// source kept reporting "listening on 0.0.0.0:50505" forever, so a dropped multicast
+// membership or a container moved off host networking looked identical to a quiet wall.
+describe('KegtronUdpSource staleness', () => {
+  const FAST_REJOIN_MS = 20;
+  const FAST_STALE_MS = 60;
+
+  it('reports itself unhealthy when no packet has EVER arrived since bind', async () => {
+    source = await makeSource({ rejoinIntervalMs: FAST_REJOIN_MS, staleAfterMs: FAST_STALE_MS });
+
+    await vi.waitFor(() => {
+      const stale = byEvent('source_status').find((s) => s.healthy === false);
+      expect(stale?.detail).toMatch(/no packet has EVER arrived/);
+    });
+  });
+
+  it('reports itself unhealthy when a live stream stops, and recovers when it resumes', async () => {
+    source = await makeSource({ rejoinIntervalMs: FAST_REJOIN_MS, staleAfterMs: FAST_STALE_MS });
+    const addr = source.address();
+    const packet = {
+      num: 1, serialNum: 'SN-STALE', portCount: 1, temp: 4,
+      port0: { curServ: 0, volStart: 5000, volDisp: 100, volSize: 5000 },
+    };
+
+    await sendPacket(addr!.port, packet);
+    await vi.waitFor(() => expect(byEvent('volume_update')).toHaveLength(1));
+
+    await vi.waitFor(() => {
+      const stale = byEvent('source_status').find((s) => s.healthy === false);
+      expect(stale?.detail).toMatch(/no packets for/);
+    });
+
+    // A packet after the gap puts the source back to healthy — the status must not stay
+    // latched at "the stream stopped" once traffic returns.
+    await sendPacket(addr!.port, packet);
+    await vi.waitFor(() => {
+      const last = byEvent('source_status').at(-1);
+      expect(last?.healthy).toBe(true);
+    });
+  });
+
+  it('stays healthy while packets keep arriving', async () => {
+    source = await makeSource({ rejoinIntervalMs: FAST_REJOIN_MS, staleAfterMs: 5_000 });
+    const addr = source.address();
+    await sendPacket(addr!.port, {
+      num: 1, serialNum: 'SN-LIVE', portCount: 1, temp: 4,
+      port0: { curServ: 0, volStart: 5000, volDisp: 100, volSize: 5000 },
+    });
+    await vi.waitFor(() => expect(byEvent('volume_update')).toHaveLength(1));
+
+    await new Promise((resolve) => setTimeout(resolve, FAST_REJOIN_MS * 4));
+    expect(byEvent('source_status').every((s) => s.healthy === true)).toBe(true);
+  });
+});
