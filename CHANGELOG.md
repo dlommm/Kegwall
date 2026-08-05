@@ -2,6 +2,25 @@
 
 ## [1.14.1](https://github.com/dlommm/Kegwall/compare/v1.14.0...v1.14.1) (2026-08-05)
 
+- **Fixed:** **UDP silence is now reported instead of hidden.** A bound socket that heard nothing
+  kept claiming `listening on 0.0.0.0:50505` forever, so a Kegtron that moved to another VLAN, a
+  container recreated without host networking, or a device with UDP streaming switched off all
+  looked identical to a quiet wall. A powered Kegtron Pro broadcasts ~1/sec even when idle, so
+  silence is never normal: after three minutes with no packet the source now reports itself
+  **down** in Analytics → Ingest sources, and says which failure it is — *"no packet has EVER
+  arrived since bind"* (topology: VLAN, Docker bridge, device toggle) vs *"no packets for N
+  minutes"* (a dropped membership, or a device that stopped).
+- **Fixed:** the 60-second multicast **re-join failure is no longer swallowed**. A single failed
+  re-add ejects the process from group `239.50.50.50` until restart; it now logs an error and
+  marks the source down instead of failing silently while the UI still showed green.
+- **Added:** one log line per start recording whether the multicast group was actually joined, so
+  `docker logs kegwall 2>&1 | grep kegtron_udp` answers "did it bind, and did it join?" without
+  any UI access.
+- **Changed:** the **UDP packet coverage** panel falls back to the full 14-day retention window
+  when the last 24 hours are empty (and says so), distinguishing a stream that died days ago from
+  one that never worked. Its empty state also notes that counts are buffered in memory and flushed
+  once a minute, so a server restarting more often than that never persists one.
+
 ## [1.14.0](https://github.com/dlommm/Kegwall/compare/v1.13.0...v1.14.0) (2026-08-04)
 
 - **Added:** suppliers keep **opening hours per day**. The single free-text Hours field is now a
