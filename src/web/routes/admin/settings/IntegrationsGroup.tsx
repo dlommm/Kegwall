@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
-import { patchSettings } from '../../../lib/adminApi';
 import { MQTT_DEFAULTS, type GroupProps } from './shared';
 import { MaskedSecretField } from './MaskedSecretField';
+import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Home Assistant publish toggle + discovery prefix (Task 8) — its own form/Save inside
  * the Integrations group. The HA fields live inside the same `mqtt` settings key Sources
@@ -15,36 +15,26 @@ function HomeAssistantBlock({ settings, onSaved }: GroupProps) {
   const mqtt = settings.mqtt;
   const [haPublishEnabled, setHaPublishEnabled] = useState(mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled);
   const [haDiscoveryPrefix, setHaDiscoveryPrefix] = useState(mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = haPublishEnabled !== (mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled)
     || haDiscoveryPrefix !== (mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    if (!mqtt?.url) {
-      setError('Configure an MQTT broker URL in the Sources group first — Home Assistant publishing goes out over MQTT.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {
-      mqtt: {
-        ...mqtt,
-        haPublishEnabled,
-        haDiscoveryPrefix: haDiscoveryPrefix.trim() || MQTT_DEFAULTS.haDiscoveryPrefix,
-      },
-    };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      if (!mqtt?.url) {
+        return 'Configure an MQTT broker URL in the Sources group first — Home Assistant publishing goes out over MQTT.';
+      }
+      return {
+        mqtt: {
+          ...mqtt,
+          haPublishEnabled,
+          haDiscoveryPrefix: haDiscoveryPrefix.trim() || MQTT_DEFAULTS.haDiscoveryPrefix,
+        },
+      };
+    },
+  });
 
   return (
     <form className="channels-group__block" data-testid="settings-integrations-ha" onSubmit={handleSubmit}>
@@ -89,27 +79,18 @@ function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
   const cfg = settings.catalogBeer;
   const [replacing, setReplacing] = useState(false);
   const [newKey, setNewKey] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = replacing && newKey.trim() !== '';
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = { catalogBeer: { apiKey: newKey.trim() } };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReplacing(false);
-    setNewKey('');
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => ({ catalogBeer: { apiKey: newKey.trim() } }),
+    onSuccess: () => {
+      setReplacing(false);
+      setNewKey('');
+    },
+  });
 
   return (
     <form
@@ -159,31 +140,25 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
   const [replacing, setReplacing] = useState(false);
   const [newKey, setNewKey] = useState('');
   const [autoImport, setAutoImport] = useState(settings.autoImportBeers);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = (replacing && newKey.trim() !== '') || autoImport !== settings.autoImportBeers;
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {};
-    if (replacing && newKey.trim() !== '') {
-      patch.govee = { apiKey: newKey.trim() };
-    }
-    if (autoImport !== settings.autoImportBeers) patch.autoImportBeers = autoImport;
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReplacing(false);
-    setNewKey('');
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      const patch: Partial<Settings> = {};
+      if (replacing && newKey.trim() !== '') {
+        patch.govee = { apiKey: newKey.trim() };
+      }
+      if (autoImport !== settings.autoImportBeers) patch.autoImportBeers = autoImport;
+      return patch;
+    },
+    onSuccess: () => {
+      setReplacing(false);
+      setNewKey('');
+    },
+  });
 
   return (
     <form
@@ -270,30 +245,20 @@ function FaceSignInBlock({ settings, onSaved }: GroupProps) {
   const cfg = settings.faceSignIn;
   const [enabled, setEnabled] = useState(cfg.enabled);
   const [threshold, setThreshold] = useState(String(cfg.threshold));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = enabled !== cfg.enabled || threshold !== String(cfg.threshold);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    const parsed = Number(threshold);
-    if (!Number.isFinite(parsed) || parsed < 0.3 || parsed > 0.95) {
-      setError('Match threshold must be between 0.3 and 0.95.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = { faceSignIn: { enabled, threshold: parsed } };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      const parsed = Number(threshold);
+      if (!Number.isFinite(parsed) || parsed < 0.3 || parsed > 0.95) {
+        return 'Match threshold must be between 0.3 and 0.95.';
+      }
+      return { faceSignIn: { enabled, threshold: parsed } };
+    },
+  });
 
   return (
     <form

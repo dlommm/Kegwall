@@ -1,7 +1,8 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
-import { patchSettings, uploadLabel } from '../../../lib/adminApi';
+import { uploadLabel } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
+import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Site group (Task 8; Phase 5 Task 0 adds `siteLogo` upload + `servingSizeMl`):
  * siteName, displayUnits, a site logo (reuses the beers-form label-upload infra — same
@@ -17,13 +18,29 @@ export function SiteGroup({ settings, onSaved }: GroupProps) {
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [servingSizeMl, setServingSizeMl] = useState(String(settings.servingSizeMl));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = siteName !== settings.siteName
     || displayUnits !== settings.displayUnits
     || siteLogo !== settings.siteLogo
     || servingSizeMl !== String(settings.servingSizeMl);
+
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      if (!siteName.trim()) return 'Site name is required.';
+      const servingSize = Number(servingSizeMl.trim());
+      if (!Number.isInteger(servingSize) || servingSize <= 0) {
+        return 'Serving size must be a whole number of mL greater than 0.';
+      }
+      const patch: Partial<Settings> = {};
+      if (siteName !== settings.siteName) patch.siteName = siteName.trim();
+      if (displayUnits !== settings.displayUnits) patch.displayUnits = displayUnits;
+      if (siteLogo !== settings.siteLogo) patch.siteLogo = siteLogo;
+      if (servingSize !== settings.servingSizeMl) patch.servingSizeMl = servingSize;
+      return patch;
+    },
+  });
 
   async function handleLogoFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -38,34 +55,6 @@ export function SiteGroup({ settings, onSaved }: GroupProps) {
     } else {
       setLogoError(result.message);
     }
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    if (!siteName.trim()) {
-      setError('Site name is required.');
-      return;
-    }
-    const servingSize = Number(servingSizeMl.trim());
-    if (!Number.isInteger(servingSize) || servingSize <= 0) {
-      setError('Serving size must be a whole number of mL greater than 0.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {};
-    if (siteName !== settings.siteName) patch.siteName = siteName.trim();
-    if (displayUnits !== settings.displayUnits) patch.displayUnits = displayUnits;
-    if (siteLogo !== settings.siteLogo) patch.siteLogo = siteLogo;
-    if (servingSize !== settings.servingSizeMl) patch.servingSizeMl = servingSize;
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, patch);
   }
 
   return (

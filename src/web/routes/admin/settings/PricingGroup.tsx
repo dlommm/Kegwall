@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { patchSettings } from '../../../lib/adminApi';
+import { useState } from 'react';
 import type { GroupProps } from './shared';
+import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 const ROUNDING_OPTIONS = [0.05, 0.25, 0.5, 1] as const;
 
@@ -15,37 +15,27 @@ export function PricingGroup({ settings, onSaved }: GroupProps) {
   const [markupPct, setMarkupPct] = useState(String(settings.pricing.markupPct));
   const [taxPct, setTaxPct] = useState(String(settings.pricing.taxPct));
   const [rounding, setRounding] = useState(settings.pricing.rounding);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = enabled !== settings.pricing.enabled
     || markupPct !== String(settings.pricing.markupPct)
     || taxPct !== String(settings.pricing.taxPct)
     || rounding !== settings.pricing.rounding;
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    const pct = Number(markupPct.trim());
-    if (!Number.isFinite(pct) || pct < 0 || pct > 2000) {
-      setError('Markup must be a percent between 0 and 2000.');
-      return;
-    }
-    const tax = Number(taxPct.trim());
-    if (!Number.isFinite(tax) || tax < 0 || tax > 100) {
-      setError('Sales tax must be a percent between 0 and 100.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const result = await patchSettings({ pricing: { enabled, markupPct: pct, taxPct: tax, rounding } });
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, { pricing: { enabled, markupPct: pct, taxPct: tax, rounding } });
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      const pct = Number(markupPct.trim());
+      if (!Number.isFinite(pct) || pct < 0 || pct > 2000) {
+        return 'Markup must be a percent between 0 and 2000.';
+      }
+      const tax = Number(taxPct.trim());
+      if (!Number.isFinite(tax) || tax < 0 || tax > 100) {
+        return 'Sales tax must be a percent between 0 and 100.';
+      }
+      return { pricing: { enabled, markupPct: pct, taxPct: tax, rounding } };
+    },
+  });
 
   return (
     <form className="settings-group" data-testid="settings-group-pricing" onSubmit={handleSubmit} aria-labelledby="settings-pricing-title">

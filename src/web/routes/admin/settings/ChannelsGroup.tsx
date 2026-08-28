@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
-import { patchSettings, testChannel } from '../../../lib/adminApi';
+import { testChannel } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
 import { MaskedSecretField } from './MaskedSecretField';
+import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 type AlertChannels = Settings['alertChannels'];
 
@@ -62,31 +63,21 @@ function NtfyBlock({ alertChannels, onSaved }: ChannelBlockProps) {
   const cfg = alertChannels.ntfy;
   const [serverUrl, setServerUrl] = useState(cfg?.serverUrl ?? '');
   const [topic, setTopic] = useState(cfg?.topic ?? '');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = serverUrl !== (cfg?.serverUrl ?? '') || topic !== (cfg?.topic ?? '');
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    if (!serverUrl.trim() || !topic.trim()) {
-      setError('Server URL and topic are both required.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {
-      alertChannels: { ...alertChannels, ntfy: { serverUrl: serverUrl.trim(), topic: topic.trim() } },
-    };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      if (!serverUrl.trim() || !topic.trim()) {
+        return 'Server URL and topic are both required.';
+      }
+      return {
+        alertChannels: { ...alertChannels, ntfy: { serverUrl: serverUrl.trim(), topic: topic.trim() } },
+      };
+    },
+  });
 
   return (
     <form className="channels-group__block" data-testid="settings-channels-ntfy" onSubmit={handleSubmit}>
@@ -127,34 +118,26 @@ function PushoverBlock({ alertChannels, onSaved }: ChannelBlockProps) {
   const [user, setUser] = useState(cfg?.user ?? '');
   const [replacing, setReplacing] = useState(false);
   const [newToken, setNewToken] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = user !== (cfg?.user ?? '') || (replacing && newToken.trim() !== '');
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    const token = replacing && newToken.trim() ? newToken.trim() : cfg?.token;
-    if (!user.trim() || !token) {
-      setError('A Pushover user key and app token are both required.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {
-      alertChannels: { ...alertChannels, pushover: { token, user: user.trim() } },
-    };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReplacing(false);
-    setNewToken('');
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      const token = replacing && newToken.trim() ? newToken.trim() : cfg?.token;
+      if (!user.trim() || !token) {
+        return 'A Pushover user key and app token are both required.';
+      }
+      return {
+        alertChannels: { ...alertChannels, pushover: { token, user: user.trim() } },
+      };
+    },
+    onSuccess: () => {
+      setReplacing(false);
+      setNewToken('');
+    },
+  });
 
   return (
     <form className="channels-group__block" data-testid="settings-channels-pushover" onSubmit={handleSubmit}>
@@ -203,8 +186,6 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
   const [to, setTo] = useState(cfg?.to ?? '');
   const [replacing, setReplacing] = useState(false);
   const [newPassword, setNewPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = host !== (cfg?.host ?? '')
     || port !== String(cfg?.port ?? 587)
@@ -214,40 +195,34 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
     || to !== (cfg?.to ?? '')
     || (replacing && newPassword.trim() !== '');
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    const portNum = Number(port);
-    if (!host.trim() || !Number.isInteger(portNum) || portNum <= 0 || !from.trim() || !to.trim()) {
-      setError('Host, a valid port, from, and to are all required.');
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {
-      alertChannels: {
-        ...alertChannels,
-        smtp: {
-          host: host.trim(),
-          port: portNum,
-          secure,
-          user: user.trim() || undefined,
-          password: replacing && newPassword.trim() ? newPassword.trim() : cfg?.password,
-          from: from.trim(),
-          to: to.trim(),
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => {
+      const portNum = Number(port);
+      if (!host.trim() || !Number.isInteger(portNum) || portNum <= 0 || !from.trim() || !to.trim()) {
+        return 'Host, a valid port, from, and to are all required.';
+      }
+      return {
+        alertChannels: {
+          ...alertChannels,
+          smtp: {
+            host: host.trim(),
+            port: portNum,
+            secure,
+            user: user.trim() || undefined,
+            password: replacing && newPassword.trim() ? newPassword.trim() : cfg?.password,
+            from: from.trim(),
+            to: to.trim(),
+          },
         },
-      },
-    };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReplacing(false);
-    setNewPassword('');
-    onSaved(result.data, patch);
-  }
+      };
+    },
+    onSuccess: () => {
+      setReplacing(false);
+      setNewPassword('');
+    },
+  });
 
   return (
     <form className="channels-group__block" data-testid="settings-channels-smtp" onSubmit={handleSubmit}>
@@ -318,29 +293,20 @@ function WebhookChannelBlock({ name, label, alertChannels, onSaved }: ChannelBlo
   const cfg = alertChannels[name];
   const [replacing, setReplacing] = useState(false);
   const [newUrl, setNewUrl] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const dirty = replacing && newUrl.trim() !== '';
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => ({
       alertChannels: { ...alertChannels, [name]: { webhookUrl: newUrl.trim() } },
-    };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReplacing(false);
-    setNewUrl('');
-    onSaved(result.data, patch);
-  }
+    }),
+    onSuccess: () => {
+      setReplacing(false);
+      setNewUrl('');
+    },
+  });
 
   return (
     <form className="channels-group__block" data-testid={`settings-channels-${name}`} onSubmit={handleSubmit}>

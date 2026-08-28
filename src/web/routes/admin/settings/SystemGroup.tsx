@@ -1,12 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import type { Settings } from '../../../../server/db/settings.js';
+import { useEffect, useState } from 'react';
 import {
-  patchSettings, getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion,
+  getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion,
   pollUpdateStatus, triggerOsUpdate, triggerKioskRestart, testPour,
   type UpdateCheck,
 } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
 import { MaskedSecretField } from './MaskedSecretField';
+import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Update-in-progress state machine — see the block comment in `SystemGroup`. */
 type UpdatePhase =
@@ -51,8 +51,6 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
   const [url, setUrl] = useState(cfg?.watchtowerUrl ?? '');
   const [replacing, setReplacing] = useState(false);
   const [newToken, setNewToken] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const [version, setVersion] = useState<string | null>(null);
   const [check, setCheck] = useState<{ state: 'idle' } | { state: 'running' } | { state: 'done'; result: UpdateCheck }>({ state: 'idle' });
@@ -111,12 +109,12 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
   const savedMode = cfg?.mode ?? 'off';
   const canUpdate = savedMode !== 'off' && !dirty && !busy;
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty || busy) return;
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = {
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    // The "don't save while an update is being triggered/applied" gate.
+    blocked: busy,
+    onSaved,
+    buildPatch: () => ({
       updates: mode === 'off' ? { mode } : {
         mode,
         ...(mode === 'watchtower' ? {
@@ -125,17 +123,12 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
           watchtowerToken: replacing && newToken.trim() !== '' ? newToken.trim() : cfg?.watchtowerToken,
         } : {}),
       },
-    };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setReplacing(false);
-    setNewToken('');
-    onSaved(result.data, patch);
-  }
+    }),
+    onSuccess: () => {
+      setReplacing(false);
+      setNewToken('');
+    },
+  });
 
   async function runCheck() {
     setCheck({ state: 'running' });
@@ -392,8 +385,6 @@ function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
   const cfg = settings.osUpdates;
   const [osMode, setOsMode] = useState<'off' | 'manual' | 'auto'>(cfg?.mode ?? 'off');
   const [autoReboot, setAutoReboot] = useState(cfg?.autoReboot ?? false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<
     { state: 'idle' } | { state: 'confirming' } | { state: 'started'; message: string } | { state: 'failed'; message: string }
   >({ state: 'idle' });
@@ -401,20 +392,11 @@ function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
   const savedOsMode = cfg?.mode ?? 'off';
   const dirty = osMode !== savedOsMode || autoReboot !== (cfg?.autoReboot ?? false);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!dirty) return;
-    setError(null);
-    setSubmitting(true);
-    const patch: Partial<Settings> = { osUpdates: { mode: osMode, autoReboot } };
-    const result = await patchSettings(patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    onSaved(result.data, patch);
-  }
+  const { submitting, error, handleSubmit } = useSettingsGroupForm({
+    dirty,
+    onSaved,
+    buildPatch: () => ({ osUpdates: { mode: osMode, autoReboot } }),
+  });
 
   async function runOsUpdate() {
     const result = await triggerOsUpdate();
