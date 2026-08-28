@@ -40,6 +40,11 @@ export default defineConfig({
     // 5s budget — two releases died on two DIFFERENT such flakes. Assertion failures
     // still fail immediately; only genuinely hung tests report slower.
     testTimeout: 30_000,
+    // Root-level (not per-project) so it runs exactly once per `vitest run`: contains
+    // every test's `mkdtempSync(join(tmpdir(), 'ktdash-'))` dir in one per-run root and
+    // deletes it on teardown — see the file's doc comment for the disk-full failure
+    // mode this prevents.
+    globalSetup: ['tests/globalTmpRoot.ts'],
     projects: [
       {
         extends: true,
