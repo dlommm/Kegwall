@@ -981,7 +981,14 @@ export function TabletPage() {
                     </button>
                   ))}
                 </div>
-                {/* A–Z rail (redesign 2g): thumb-jump to the first name under a letter. */}
+                {/* A–Z rail (redesign 2g): thumb-jump to the first name under a letter.
+                    A11y (WCAG 4.1.2): the rail stays aria-hidden -- it's a redundant
+                    visual affordance (every pourer it jumps to is already reachable as a
+                    real button in the grid), same as the page's other decorative chrome
+                    -- so its buttons must ALSO leave the keyboard focus order via
+                    tabIndex={-1}. Without that, screen-reader/switch users could tab
+                    onto focusable content the accessibility tree says doesn't exist.
+                    Letters remain pointer-tappable (44px targets, index.css). */}
                 {!pourerQuery.trim() && pourers.length > 12 && (
                   <div className="tablet-az-rail" data-testid="tablet-az-rail" aria-hidden="true">
                     {[...new Set(pourers.map((p) => (p.displayName.trim()[0] ?? '#').toUpperCase()))]
@@ -990,6 +997,7 @@ export function TabletPage() {
                         <button
                           key={letter}
                           type="button"
+                          tabIndex={-1}
                           className="tablet-az-rail__letter"
                           data-testid="tablet-az-letter"
                           onClick={() => avatarsRef.current

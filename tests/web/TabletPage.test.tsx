@@ -254,6 +254,30 @@ describe('TabletPage (design 3a)', () => {
     expect(letters[0]).toHaveTextContent('A');
   });
 
+  // WCAG 4.1.2: the rail is aria-hidden (a redundant visual affordance -- every pourer
+  // it jumps to is already a real button in the grid), so its buttons must also be out
+  // of the keyboard focus order; focusable content inside an aria-hidden subtree lets
+  // screen-reader/switch users land on something the a11y tree says doesn't exist.
+  it('the aria-hidden A–Z rail buttons are removed from the tab order (WCAG 4.1.2)', async () => {
+    (getPourers as Mock).mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 14 }, (_, i) => ({
+        id: i + 1, displayName: String.fromCharCode(65 + i) + 'name', avatarColor: null, pourCount: i,
+      })),
+    });
+    mockWallData();
+    renderTablet();
+    await flush();
+    expect(screen.getByTestId('tablet-az-rail')).toHaveAttribute('aria-hidden', 'true');
+    const letters = screen.getAllByTestId('tablet-az-letter');
+    expect(letters.length).toBeGreaterThan(10);
+    for (const letter of letters) {
+      expect(letter).toHaveAttribute('tabindex', '-1');
+    }
+    // The rail's pointer affordance is untouched: a tap still jumps the grid.
+    expect(letters[0]).toHaveTextContent('A');
+  });
+
   it('shows a FACE SIGN-IN ON chip when the directory is enabled (redesign 2d)', async () => {
     (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true } });
     mockWallData();
