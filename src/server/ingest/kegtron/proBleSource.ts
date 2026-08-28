@@ -3,6 +3,7 @@ import type { SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
 import { PourSynthesizer } from '../gen1/pourSynth.js';
 import { BleScanner, type NobleLike, type NoblePeripheral } from '../ble/scanner.js';
+import { ScannerLease } from '../ble/scannerLease.js';
 
 // ---------------------------------------------------------------------------
 // Kegtron PRO BLE advertisement source — the pour FALLBACK path for Pros when UDP
@@ -105,7 +106,7 @@ export class KegtronProBleSource implements Source {
   private readonly scanner: BleScanner;
   private readonly synth: PourSynthesizer;
 
-  private releaseScanner: (() => Promise<void>) | null = null;
+  private readonly lease = new ScannerLease();
   private readonly discovered = new Set<string>();
   /** (mac:port) → RECONCILED ref only — never the `ble:{mac}` fallback — so the (cheap,
    * but per-advert ~1/s) DB lookup runs once per port after it has succeeded, not on
@@ -135,21 +136,13 @@ export class KegtronProBleSource implements Source {
       this.emitStatus(false, 'Pro BLE disabled in settings');
       return;
     }
-    try {
-      this.releaseScanner = await this.scanner.acquire({
-        onPeripheral: (peripheral) => this.handleDiscover(peripheral),
-        onAdapter: (healthy, detail) => { if (!this.stopped) this.emitStatus(healthy, detail); },
-      });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      this.emitStatus(false, detail);
-      return;
-    }
-    if (this.stopped) {
-      const release = this.releaseScanner;
-      this.releaseScanner = null;
-      await release();
-    }
+    // Acquire-failure reporting and the stop()-races-start() interleavings live in
+    // ble/scannerLease.ts (extracted from this source's original inline dance).
+    await this.lease.acquire(this.scanner, {
+      onPeripheral: (peripheral) => this.handleDiscover(peripheral),
+      onStatus: (healthy, detail) => this.emitStatus(healthy, detail),
+      isStopped: () => this.stopped,
+    });
   }
 
   async stop(): Promise<void> {
@@ -157,9 +150,7 @@ export class KegtronProBleSource implements Source {
     this.discovered.clear();
     this.refCache.clear();
     this.synth.dispose();
-    const release = this.releaseScanner;
-    this.releaseScanner = null;
-    if (release) await release();
+    await this.lease.releaseIfHeld();
   }
 
   private handleDiscover(peripheral: NoblePeripheral): void {

@@ -2,6 +2,7 @@ import type { EventBus } from '../core/events.js';
 import type { MotionSourceRegistry } from '../core/motionSources.js';
 import type { Source } from './source.js';
 import type { BleScanner, NoblePeripheral } from './ble/scanner.js';
+import { ScannerLease } from './ble/scannerLease.js';
 import { BTHOME_SERVICE_UUID, parseBthomeServiceData } from './bthome.js';
 
 // ---------------------------------------------------------------------------
@@ -81,7 +82,7 @@ export class BleMotionSource implements Source {
   private readonly registry: MotionSourceRegistry;
   private readonly bus: EventBus;
 
-  private releaseScanner: (() => Promise<void>) | null = null;
+  private readonly lease = new ScannerLease();
   // Encrypted-advert logging is once-per-MAC (not once-per-advert -- a beacon readvertises
   // multiple times a second with allowDuplicates), same "in-memory dedupe set, cleared on
   // stop()" idiom as gen1/bleSource.ts's/proBleSource.ts's own `discovered` sets.
@@ -97,31 +98,20 @@ export class BleMotionSource implements Source {
 
   async start(): Promise<void> {
     this.stopped = false;
-    try {
-      this.releaseScanner = await this.scanner.acquire({
-        onPeripheral: (peripheral) => this.handleDiscover(peripheral),
-        onAdapter: (healthy, detail) => { if (!this.stopped) this.emitStatus(healthy, detail); },
-      });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      this.emitStatus(false, detail);
-      return;
-    }
-    if (this.stopped) {
-      // stop() ran while acquire() was in flight -- same race handled identically by
-      // gen1/bleSource.ts and kegtron/proBleSource.ts's start().
-      const release = this.releaseScanner;
-      this.releaseScanner = null;
-      await release();
-    }
+    // Acquire-failure reporting and the stop()-races-acquire() interleavings live in
+    // ble/scannerLease.ts -- the SAME shared dance gen1/bleSource.ts and
+    // kegtron/proBleSource.ts's start() use.
+    await this.lease.acquire(this.scanner, {
+      onPeripheral: (peripheral) => this.handleDiscover(peripheral),
+      onStatus: (healthy, detail) => this.emitStatus(healthy, detail),
+      isStopped: () => this.stopped,
+    });
   }
 
   async stop(): Promise<void> {
     this.stopped = true;
     this.loggedEncryptedMacs.clear();
-    const release = this.releaseScanner;
-    this.releaseScanner = null;
-    if (release) await release();
+    await this.lease.releaseIfHeld();
   }
 
   private handleDiscover(peripheral: NoblePeripheral): void {

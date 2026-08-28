@@ -3,6 +3,7 @@ import type { SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
 import { PourSynthesizer } from './pourSynth.js';
 import { BleScanner, type NobleLike, type NoblePeripheral } from '../ble/scanner.js';
+import { ScannerLease } from '../ble/scannerLease.js';
 // noble.d.ts (co-located in this directory) supplies an ambient ```declare module
 // '@abandonware/noble'``` fallback for the scanner's dynamic import -- it needs no
 // explicit import here; TypeScript picks up ambient .d.ts files automatically from
@@ -164,7 +165,7 @@ export class Gen1BleSource implements Source {
   private readonly ownsSynth: boolean;
   private readonly scanner: BleScanner;
 
-  private releaseScanner: (() => Promise<void>) | null = null;
+  private readonly lease = new ScannerLease();
   private readonly discovered = new Set<string>();
   private stopped = true;
 
@@ -186,31 +187,20 @@ export class Gen1BleSource implements Source {
       return;
     }
 
-    try {
-      this.releaseScanner = await this.scanner.acquire({
-        onPeripheral: (peripheral) => this.handleDiscover(peripheral),
-        onAdapter: (healthy, detail) => { if (!this.stopped) this.emitStatus(healthy, detail); },
-      });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      this.emitStatus(false, detail);
-      return;
-    }
-    if (this.stopped) {
-      // stop() ran while the import/timeout race was in flight
-      const release = this.releaseScanner;
-      this.releaseScanner = null;
-      await release();
-    }
+    // Acquire-failure reporting and the stop()-races-start() interleavings live in
+    // ble/scannerLease.ts (extracted from this source's original inline dance).
+    await this.lease.acquire(this.scanner, {
+      onPeripheral: (peripheral) => this.handleDiscover(peripheral),
+      onStatus: (healthy, detail) => this.emitStatus(healthy, detail),
+      isStopped: () => this.stopped,
+    });
   }
 
   async stop(): Promise<void> {
     this.stopped = true;
     this.discovered.clear();
     if (this.ownsSynth) this.synth.dispose();
-    const release = this.releaseScanner;
-    this.releaseScanner = null;
-    if (release) await release();
+    await this.lease.releaseIfHeld();
   }
 
   // -- advert handling ------------------------------------------------------------------
