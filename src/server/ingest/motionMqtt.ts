@@ -71,6 +71,33 @@ export function matchesRule(payload: string, rule: MatchRule): boolean {
   }
 }
 
+/**
+ * Standard MQTT topic-filter matching (MQTT 3.1.1 §4.7): `+` matches exactly one topic
+ * level, `#` (valid only as the final level) matches the remaining levels INCLUDING the
+ * parent itself (`sport/#` matches `sport`). Needed because a configured motion topic is
+ * a subscription FILTER while a broker delivers messages under the CONCRETE publish
+ * topic -- `zigbee2mqtt/+/occupancy` subscribes fine, but no publish topic ever string-
+ * equals it, so an exact-match lookup silently drops every message the wildcard
+ * subscription delivered (the source even reports healthy while doing so). Matches the
+ * spec's `$`-topic carve-out too: a filter starting with a wildcard must not match a
+ * `$`-prefixed system topic (`#` must not sweep in `$SYS/...`).
+ */
+export function mqttTopicMatches(filter: string, topic: string): boolean {
+  if (filter === topic) return true; // exact fast path -- the common non-wildcard case
+  const filterLevels = filter.split('/');
+  const topicLevels = topic.split('/');
+  if ((filterLevels[0] === '+' || filterLevels[0] === '#') && topicLevels[0]?.startsWith('$')) {
+    return false;
+  }
+  for (let i = 0; i < filterLevels.length; i++) {
+    const level = filterLevels[i]!;
+    if (level === '#') return true; // matches the parent + any remainder
+    if (i >= topicLevels.length) return false; // topic ran out before the filter did
+    if (level !== '+' && level !== topicLevels[i]) return false;
+  }
+  return filterLevels.length === topicLevels.length;
+}
+
 export interface MotionMqttSourceOptions {
   url: string;
   username?: string;
@@ -162,13 +189,19 @@ export class MotionMqttSource implements Source {
 
   private handleMessage(topic: string, payload: Buffer): void {
     if (this.stopped) return;
-    // A message on a topic this instance never subscribed to (e.g. a broker-side
-    // wildcard quirk) is silently ignored -- there's no source to attribute it to.
-    const sources = this.topicToSources.get(topic);
-    if (!sources) return;
+    // A configured topic is a subscription FILTER; `topic` here is the CONCRETE publish
+    // topic the broker delivered under. Each filter is checked via mqttTopicMatches
+    // (exact equality is its own fast path) -- an exact Map.get(topic) lookup here was
+    // the wildcard bug: `zigbee2mqtt/+/occupancy` subscribed fine and reported healthy,
+    // but no delivered message ever string-equalled the filter, so every one dropped
+    // silently. A message matching NO configured filter (e.g. a broker-side retained-
+    // message quirk) is still ignored -- there's no source to attribute it to.
     const raw = payload.toString();
-    for (const { id, match } of sources) {
-      if (matchesRule(raw, match)) this.registry.trigger(id);
+    for (const [filter, sources] of this.topicToSources) {
+      if (!mqttTopicMatches(filter, topic)) continue;
+      for (const { id, match } of sources) {
+        if (matchesRule(raw, match)) this.registry.trigger(id);
+      }
     }
   }
 
