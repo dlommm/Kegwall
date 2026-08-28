@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react';
 import { PresencePage, parseEqualsInput } from '../../../src/web/routes/admin/PresencePage';
 import {
-  listWalls, getPresenceSources, setPresenceState, updateWall,
+  listWalls, getPresenceSources, setPresenceState, updateWall, getWall,
   createPresenceSource, updatePresenceSource, deletePresenceSource,
   getSettings, patchSettings, type Wall,
 } from '../../../src/web/lib/adminApi';
@@ -34,6 +34,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   getPresenceSources: vi.fn(),
   setPresenceState: vi.fn(),
   updateWall: vi.fn(),
+  getWall: vi.fn(),
   createPresenceSource: vi.fn(),
   updatePresenceSource: vi.fn(),
   deletePresenceSource: vi.fn(),
@@ -121,6 +122,10 @@ beforeEach(() => {
   });
   (setPresenceState as Mock).mockResolvedValue({ ok: true, data: { ok: true } });
   (updateWall as Mock).mockResolvedValue({ ok: true, data: makeWall() });
+  // Stale-base fix: both whole-config write paths (saveDisplayPower / the camera-row
+  // toggle) re-fetch the wall right before PATCHing -- default to "unchanged since
+  // mount" so the pre-existing tests behave as before.
+  (getWall as Mock).mockResolvedValue({ ok: true, data: makeWall() });
   (createPresenceSource as Mock).mockResolvedValue({ ok: true, data: SRC });
   (updatePresenceSource as Mock).mockResolvedValue({ ok: true, data: SRC });
   (deletePresenceSource as Mock).mockResolvedValue({ ok: true, data: null });
@@ -241,6 +246,79 @@ describe('PresencePage', () => {
     renderPresencePage();
     expect(await screen.findByTestId('zones-empty')).toBeInTheDocument();
     expect(screen.getByTestId('display-power-empty')).toBeInTheDocument();
+  });
+
+  // Stale-base fix: the page's `walls` state is fetched once at mount, but
+  // saveDisplayPower and the camera-row toggle rebuild + PATCH the ENTIRE WallConfig --
+  // they must re-base on the server's CURRENT config (getWall) right before writing, or
+  // an admin who left this page open silently reverts every edit a colleague made in
+  // WallEditor since mount.
+  describe('whole-config writes re-base on a fresh fetch (stale-base fix)', () => {
+    /** The wall as a colleague changed it AFTER this page mounted: a different look and
+     * ticker than the mount-time makeWall() snapshot (same displayPower timing, so the
+     * dp assertions stay readable). */
+    function changedWall(): Wall {
+      return makeWall({
+        config: wallConfigSchema.parse({
+          look: 'ledger',
+          ticker: 'Trivia night Thursdays',
+          displayPower: { screensaverAfterMinutes: 30, offAfterMinutes: null, cameraMotion: false },
+        }),
+      });
+    }
+
+    it("saveDisplayPower PATCHes on top of the server's current config, preserving unrelated fields changed since mount", async () => {
+      (getWall as Mock).mockResolvedValue({ ok: true, data: changedWall() });
+      renderPresencePage();
+      fireEvent.click(await screen.findByTestId('dp-camera-main'));
+      fireEvent.click(screen.getByTestId('dp-save-main'));
+      await waitFor(() => expect(updateWall).toHaveBeenCalledTimes(1));
+      expect(getWall).toHaveBeenCalledWith(1);
+      const [, input] = (updateWall as Mock).mock.calls[0]! as [number, { config: any }];
+      // The colleague's newer unrelated fields survive the write...
+      expect(input.config.look).toBe('ledger');
+      expect(input.config.ticker).toBe('Trivia night Thursdays');
+      // ...while this panel's own fields are applied on top.
+      expect(input.config.displayPower).toEqual({
+        screensaverAfterMinutes: 30, offAfterMinutes: null, cameraMotion: true,
+      });
+    });
+
+    it('the camera-row toggle also re-bases on the fresh config, changing only cameraMotion', async () => {
+      (getPresenceSources as Mock).mockResolvedValue({
+        ok: true,
+        data: { sources: [], camera: [{ wallSlug: 'main', enabled: true, lastTriggeredAt: null }], agents: [] },
+      });
+      (getWall as Mock).mockResolvedValue({
+        ok: true,
+        data: makeWall({
+          config: wallConfigSchema.parse({
+            look: 'ledger',
+            ticker: 'Trivia night Thursdays',
+            displayPower: { screensaverAfterMinutes: 30, offAfterMinutes: null, cameraMotion: true },
+          }),
+        }),
+      });
+      renderPresencePage();
+      fireEvent.click(await screen.findByTestId('source-camera-toggle-main'));
+      await waitFor(() => expect(updateWall).toHaveBeenCalledTimes(1));
+      const [, input] = (updateWall as Mock).mock.calls[0]! as [number, { config: any }];
+      expect(input.config.look).toBe('ledger');
+      expect(input.config.ticker).toBe('Trivia night Thursdays');
+      expect(input.config.displayPower).toEqual({
+        screensaverAfterMinutes: 30, offAfterMinutes: null, cameraMotion: false,
+      });
+    });
+
+    it('a failed pre-write fetch surfaces the error and never PATCHes a stale rebuild', async () => {
+      (getWall as Mock).mockResolvedValue({ ok: false, status: 500, message: 'wall fetch died' });
+      renderPresencePage();
+      fireEvent.click(await screen.findByTestId('dp-save-main'));
+      await waitFor(() => expect(screen.getByTestId('dp-errors-main')).toHaveTextContent('wall fetch died'));
+      // PATCHing the mount-time rebuild anyway would be exactly the stale overwrite
+      // this fix removes -- fail the save instead.
+      expect(updateWall).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------------------

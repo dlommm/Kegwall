@@ -509,6 +509,16 @@ export function listWalls(): Promise<ApiResult<Wall[]>> {
   return request('/api/walls');
 }
 
+/** GET /api/walls/:id — one wall, config freshly parsed server-side. Exists for callers
+ * that PATCH a single field group of the config (PresencePage's display-power /
+ * camera-motion writes): the whole-config PATCH body must be rebuilt from the server's
+ * CURRENT config fetched immediately before the write, never from a wall list cached at
+ * mount — rebasing on an hour-stale snapshot would silently revert every unrelated
+ * config edit (look, theme, pages, ...) a colleague made in WallEditor since. */
+export function getWall(id: number): Promise<ApiResult<Wall>> {
+  return request(`/api/walls/${id}`);
+}
+
 /** `config` is left `unknown` on the way IN (the caller — `WallEditor`'s save flow —
  * always runs it through `wallConfigSchema`/`parseWallConfigForm` first, see
  * `wallEditorConfig.ts`; re-typing it here would just duplicate that check with a

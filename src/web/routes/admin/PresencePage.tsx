@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
-  createPresenceSource, deletePresenceSource, getPresenceSources, getSettings, listWalls,
-  patchSettings, setPresenceState, updatePresenceSource, updateWall,
+  createPresenceSource, deletePresenceSource, getPresenceSources, getSettings, getWall,
+  listWalls, patchSettings, setPresenceState, updatePresenceSource, updateWall,
   type PresenceSourcesResponse, type Wall,
 } from '../../lib/adminApi';
 import { isDisplayPowerMessage, type PowerStage } from '../../lib/displayPower';
@@ -444,7 +444,19 @@ export function PresencePage() {
 
   async function saveDisplayPower(wall: Wall) {
     const fields = dpForm[wall.id] ?? dpFieldsFromWall(wall);
-    const baseForm = configToFormState(safeParseWallConfig(wall.config));
+    // Stale-base fix: `wall` comes from the `walls` state fetched once at mount, but
+    // this write rebuilds and PATCHes the ENTIRE WallConfig -- an admin who left this
+    // page open for an hour would otherwise resurrect the mount-time value of every
+    // OTHER config field (look, theme, pages, ticker, ...) a colleague changed in
+    // WallEditor since, wholesale. Re-fetch the wall's CURRENT config immediately
+    // before building the PATCH and layer ONLY the three displayPower fields this
+    // panel owns on top of it.
+    const fresh = await getWall(wall.id);
+    if (!fresh.ok) {
+      setDpErrors((prev) => ({ ...prev, [wall.id]: [fresh.message] }));
+      return;
+    }
+    const baseForm = configToFormState(safeParseWallConfig(fresh.data.config));
     const form: WallConfigFormState = {
       ...baseForm,
       displayPowerScreensaverAfterMinutes: fields.screensaverAfterMinutes,
@@ -546,7 +558,17 @@ export function PresencePage() {
     const wall = walls.find((w) => w.slug === wallSlug);
     if (!wall) return;
     setSourcesActionError(null);
-    const nextConfig = configToFormState(safeParseWallConfig(wall.config));
+    // Stale-base fix -- same re-fetch-before-write as saveDisplayPower above: this
+    // toggle also rebuilds and PATCHes the ENTIRE config, so it must base on the
+    // server's current config, not the mount-time `walls` snapshot, or it silently
+    // reverts concurrent WallEditor edits. Only `cameraMotion` (the one field this
+    // toggle owns) is layered on top of the fresh config.
+    const fresh = await getWall(wall.id);
+    if (!fresh.ok) {
+      setSourcesActionError(fresh.message);
+      return;
+    }
+    const nextConfig = configToFormState(safeParseWallConfig(fresh.data.config));
     nextConfig.displayPowerCameraMotion = enabled;
     const validTapIds = nextConfig.pages.flatMap((page) => page.tapIds);
     const parsed = parseWallConfigForm(nextConfig, validTapIds);
