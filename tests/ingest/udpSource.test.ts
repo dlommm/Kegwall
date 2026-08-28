@@ -109,6 +109,22 @@ describe('KegtronUdpSource.start() with udpEnabled=false', () => {
   });
 });
 
+describe('KegtronUdpSource.start() when the socket cannot bind', () => {
+  it('still resolves (never hangs SourceManager.startAll) and reports unhealthy', async () => {
+    // Regression: bindSocket()'s promise only settled inside the bind() SUCCESS callback,
+    // so a bind failure left start() pending forever — startAll's sequential await never
+    // reached any source registered after UDP, and a settings-save's restartSourcesIfLive
+    // hung the PATCH request with it. 203.0.113.1 (TEST-NET-3) is not a local interface,
+    // so bind() fails with EADDRNOTAVAIL via the socket's async 'error' event.
+    source = await makeSource({ bindAddress: '203.0.113.1' });
+
+    expect(byEvent('source_status')).toEqual([
+      expect.objectContaining({ source: 'kegtron_udp', healthy: false, detail: expect.stringContaining('socket error') }),
+    ]);
+    expect(source.address()).toBeNull();
+  });
+});
+
 describe('KegtronUdpSource full pour replay', () => {
   it('replays the fixture and emits pour_started -> N pour_progress -> pour_completed with the final curServ, plus volume_update/telemetry', async () => {
     source = await makeSource();

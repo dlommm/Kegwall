@@ -281,15 +281,28 @@ export class KegtronUdpSource implements Source {
     return new Promise((resolve) => {
       const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       this.socket = socket;
+      // A bind failure emits 'error' and the success callback below never runs — this
+      // promise MUST still settle, or start() pends forever and SourceManager.startAll's
+      // sequential await never reaches the sources registered after this one (and a
+      // settings-save's restartSourcesIfLive hangs the PATCH request with it).
+      let settled = false;
 
       // Never let an unhandled 'error' crash the process (EventEmitter default) — a
       // bind failure (e.g. port already in use) marks the source unhealthy instead.
       socket.on('error', (err) => {
         this.emitStatus(false, `socket error: ${err.message}`);
+        if (!settled) {
+          settled = true;
+          // The socket never bound; drop our reference so stop() doesn't try to close it.
+          if (this.socket === socket) this.socket = null;
+          try { socket.close(); } catch { /* already closed by the bind failure */ }
+          resolve();
+        }
       });
       socket.on('message', (msg) => this.handlePacket(msg));
 
       socket.bind(this.configuredPort, this.bindAddress, () => {
+        settled = true;
         // stop() may have run while bind() was still in flight (e.g. start()
         // immediately followed by stop()) — this.socket would already be null/closed
         // in that case, so don't resurrect bound-state on top of it.
@@ -313,6 +326,11 @@ export class KegtronUdpSource implements Source {
           } catch { /* wasn't joined (unicast-only bind) — re-add below still tries */ }
           try {
             socket.addMembership(this.group);
+            // A successful re-add means we ARE a member again — un-latch the flag, or a
+            // single transient failure would keep it false forever and the guard below
+            // would silence every FUTURE genuine failure (only the 3-minute stale check
+            // would eventually notice, without this diagnostic).
+            this.joinedGroup = true;
           } catch (err) {
             // A re-add that fails after a SUCCESSFUL initial join leaves this process
             // permanently outside the group — every subsequent packet goes to a socket
