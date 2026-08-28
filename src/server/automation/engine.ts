@@ -14,7 +14,7 @@ import {
 } from '../db/kegs.js';
 import { getBeer } from '../db/beers.js';
 import { getTap } from '../db/taps.js';
-import { resolveTapForRef, listMonitors } from '../db/monitors.js';
+import { resolveTapForRef, listMonitors, groupMonitorsByDevice, deviceAnchorPort } from '../db/monitors.js';
 import { renderTemplate, type TemplateContext } from '../notify/template.js';
 import { InAppChannel } from '../notify/channels/inApp.js';
 import {
@@ -612,16 +612,16 @@ export class AutomationEngine {
   }
 
   /** `checkCleaningDueRule`'s anchor grouping as a ref->ref mapping: among the device's
-   * monitor rows (same type+identifier), the first BOUND port wins, else the lowest —
-   * so an offline burst and its later online burst always key the SAME entity even if
+   * monitor rows (same type+identifier), the first BOUND port wins, else the lowest
+   * (db/monitors.ts's `deviceAnchorPort` — the shared pick both sites use) — so an
+   * offline burst and its later online burst always key the SAME entity even if
    * different ports' events survive the dedupe. An unknown device (no rows yet, e.g. a
    * test-synthesized event) keeps its own ref. */
   private anchorDeviceRef(ref: MonitorRef): MonitorRef {
     const ports = listMonitors(this.db)
-      .filter((m) => m.type === ref.type && m.identifier === ref.identifier)
-      .sort((a, b) => a.portIndex - b.portIndex);
+      .filter((m) => m.type === ref.type && m.identifier === ref.identifier);
     if (ports.length === 0) return ref;
-    const anchor = ports.find((p) => p.tapId !== null) ?? ports[0]!;
+    const anchor = deviceAnchorPort(ports);
     return { type: anchor.type, identifier: anchor.identifier, portIndex: anchor.portIndex };
   }
 
@@ -694,22 +694,19 @@ export class AutomationEngine {
    * tap-scoped `EvalCtx` (so `tap_scope`/alert cooldown/entity-keyed state all work
    * per-device, exactly like any other monitor-derived event) with `daysSinceCleaned`
    * computed fresh from THAT device's `meta.dateCleaned`. Evaluated once per physical
-   * DEVICE (monitors rows grouped by type+identifier — `dateCleaned` is stamped
-   * identically on every port row at cloud discovery), anchored on the first bound
-   * port row (else the lowest port) so the entity-keyed alert cooldown/auto-resolve
-   * state stays stable. A rule with 2 overdue devices fires 2 times (once per device),
+   * DEVICE (monitors rows grouped by type+identifier — db/monitors.ts's
+   * `groupMonitorsByDevice`; `dateCleaned` is stamped identically on every port row at
+   * cloud discovery), anchored on the first bound port row (else the lowest port —
+   * `deviceAnchorPort`, shared with `anchorDeviceRef` below) so the entity-keyed alert
+   * cooldown/auto-resolve state stays stable. A rule with 2 overdue devices fires 2 times (once per device),
    * not once per port — a 4-port Kegtron is one device, not four.
    */
   private checkCleaningDueRule(rule: AutomationRule, now: Date): void {
-    const monitors = listMonitors(this.db).filter((m) => m.type === 'kegtron_pro');
-    const byDevice = new Map<string, typeof monitors>();
-    for (const monitor of monitors) {
-      const key = `${monitor.type}:${monitor.identifier}`;
-      byDevice.set(key, [...(byDevice.get(key) ?? []), monitor]);
-    }
+    const byDevice = groupMonitorsByDevice(
+      listMonitors(this.db).filter((m) => m.type === 'kegtron_pro'),
+    );
     for (const ports of byDevice.values()) {
-      ports.sort((a, b) => a.portIndex - b.portIndex);
-      const anchor = ports.find((p) => p.tapId !== null) ?? ports[0]!;
+      const anchor = deviceAnchorPort(ports);
       const ref: MonitorRef = { type: anchor.type, identifier: anchor.identifier, portIndex: anchor.portIndex };
       const ctx = this.buildMonitorEvalCtx(ref, anchor.tapId, now.toISOString(), {});
       ctx.daysSinceCleaned = computeDaysSinceCleaned(anchor.meta?.dateCleaned, now);

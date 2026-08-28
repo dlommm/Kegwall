@@ -3,7 +3,7 @@ import type Database from 'better-sqlite3';
 import type { EventBus, EventMap } from '../core/events.js';
 import type { TapState } from '../core/state.js';
 import type { Settings, SettingsStore } from '../db/settings.js';
-import { listMonitors, resolveTapForRef, type Monitor } from '../db/monitors.js';
+import { groupMonitorsByDevice, listMonitors, resolveTapForRef, type Monitor } from '../db/monitors.js';
 import { latestTelemetryForDevice } from '../db/telemetry.js';
 import type { Source } from './source.js';
 import { attachMqttLifecycle, emitSourceStatus } from './mqttLifecycle.js';
@@ -228,21 +228,20 @@ function discoveryTopic(cfg: MqttConfig, component: string, nodeId: string, obje
 /** One ANCHOR row per bound Kegtron Pro DEVICE. A physical Kegtron has 1-4 ports
  * (one monitors row each, sharing type+identifier) but reports temperature once per
  * device — publishing per port meant 4 identically-named HA devices, 3 of them with
- * permanently-null temp. Group by identifier, keep devices with at least one bound
+ * permanently-null temp. Group by device (db/monitors.ts's groupMonitorsByDevice),
+ * keep devices with at least one bound
  * port, and represent each with its port-0 row when present (keeps the HA unique_id
  * `kegtron_monitor_{port0RowId}` byte-identical to the old scheme in the common case)
  * else the lowest-port row. */
 function boundProDeviceAnchors(db: Database.Database): Monitor[] {
-  const byDevice = new Map<string, Monitor[]>();
-  for (const m of listMonitors(db)) {
-    if (m.type !== 'kegtron_pro') continue;
-    const key = `${m.type}:${m.identifier}`;
-    byDevice.set(key, [...(byDevice.get(key) ?? []), m]);
-  }
+  const byDevice = groupMonitorsByDevice(listMonitors(db).filter((m) => m.type === 'kegtron_pro'));
   const anchors: Monitor[] = [];
   for (const ports of byDevice.values()) {
     if (!ports.some((p) => p.tapId !== null)) continue;
-    ports.sort((a, b) => a.portIndex - b.portIndex);
+    // Deliberately the LOWEST port row, NOT db/monitors.ts's deviceAnchorPort()
+    // first-bound-else-lowest pick (automation/engine.ts's anchoring): the HA
+    // unique_id `kegtron_monitor_{id}` must stay byte-identical to the old per-port
+    // scheme in the common case -- see this function's doc comment above.
     anchors.push(ports[0]!);
   }
   return anchors;

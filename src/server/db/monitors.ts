@@ -78,6 +78,43 @@ export function listMonitors(db: Database.Database): Monitor[] {
     .all().map(rowToMonitor);
 }
 
+/**
+ * Groups monitor rows by physical DEVICE (`${type}:${identifier}`), each group sorted
+ * by portIndex ascending. A physical Kegtron has 1-4 ports (one monitors row each,
+ * sharing type+identifier) but is ONE device for anchoring/alert/HA purposes —
+ * extracted from the identical grouping loops in ingest/haPublisher.ts
+ * (`boundProDeviceAnchors`) and automation/engine.ts (`checkCleaningDueRule`).
+ * Group iteration order follows the input's first-seen order (Map semantics), so
+ * feeding it `listMonitors()`'s (type, identifier, port_index)-ordered rows preserves
+ * the callers' historical iteration order.
+ */
+export function groupMonitorsByDevice(monitors: Monitor[]): Map<string, Monitor[]> {
+  const byDevice = new Map<string, Monitor[]>();
+  for (const m of monitors) {
+    const key = `${m.type}:${m.identifier}`;
+    byDevice.set(key, [...(byDevice.get(key) ?? []), m]);
+  }
+  for (const ports of byDevice.values()) ports.sort((a, b) => a.portIndex - b.portIndex);
+  return byDevice;
+}
+
+/**
+ * Picks a device's ANCHOR port row from its monitor rows: the first BOUND port
+ * (`tapId !== null`) wins, else the lowest portIndex — so device-level state (entity
+ * keys, alert cooldown/auto-resolve, tap context) always keys the SAME row no matter
+ * which port's event arrived. Shared by automation/engine.ts's `checkCleaningDueRule`
+ * and `anchorDeviceRef` (extracted from their identical inline picks). NOTE:
+ * ingest/haPublisher.ts's `boundProDeviceAnchors` deliberately does NOT use this pick —
+ * it anchors on the lowest port regardless of binding to keep HA unique_ids stable
+ * (see its own comment) — it shares only `groupMonitorsByDevice` above. `ports` must be
+ * non-empty; sorted defensively here so callers may pass unsorted rows (e.g. a raw
+ * filter over `listMonitors()`).
+ */
+export function deviceAnchorPort(ports: Monitor[]): Monitor {
+  const sorted = [...ports].sort((a, b) => a.portIndex - b.portIndex);
+  return sorted.find((p) => p.tapId !== null) ?? sorted[0]!;
+}
+
 /** Sets DEVICE-level identity: the addressed monitor row identifies the physical
  * device, and every port row sharing its (type, identifier) gets the same name /
  * enabled state — a device is one unit no matter how many ports it has. Omitted
