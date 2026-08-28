@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.14.3](https://github.com/dlommm/Kegwall/compare/v1.14.2...v1.14.3) (2026-08-28)
+
 ## [1.14.2](https://github.com/dlommm/Kegwall/compare/v1.14.1...v1.14.2) (2026-08-28)
 
 A hardening release from a full-application review: twenty-one fixes across pricing, ingest,
