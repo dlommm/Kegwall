@@ -11,13 +11,12 @@ import { formatRelativeTime } from '../lib/useRelativeTime';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
 import { startCameraMotion } from '../lib/cameraMotion';
-import { startFacePipeline, type MatchCandidate } from '../lib/faceRecognition';
 import {
   armTablet, createPourer, disarmTablet, getFaces, getPourers,
-  matchFace,
   getSession, startSession, joinSession, endSession, type FaceDirectory, type PublicPourer,
   type SessionSnapshotResponse,
 } from '../lib/api';
+import { useFacePipeline } from '../lib/useFacePipeline';
 import { useFaceEnrollment } from '../lib/useFaceEnrollment';
 import { FaceEnrollPanel } from '../components/FaceEnrollPanel';
 
@@ -133,13 +132,7 @@ export function TabletPage() {
   // matching pipeline below. `enabled`/`threshold` default to the server's own
   // disabled defaults so a slow first fetch never accidentally satisfies the
   // "directory enabled" guard before GET /api/public/faces actually answers.
-  // `facesRef`/`pourersRef` mirror `screenRef` above -- read from event-handler
-  // closures (camera motion, pointer taps) that don't otherwise see a fresh render.
   const [faces, setFaces] = useState<FaceDirectory>({ enabled: false });
-  const facesRef = useRef<FaceDirectory>(faces);
-  facesRef.current = faces;
-  const pourersRef = useRef<PublicPourer[]>(pourers);
-  pourersRef.current = pourers;
 
   const loadFaces = useCallback(() => {
     getFaces().then((result) => {
@@ -189,127 +182,14 @@ export function TabletPage() {
   // pointer fallback needs to know whether camera motion is even in play.
   const cameraMotionEnabled = wall?.config.displayPower.cameraMotion ?? false;
 
-  // Task 7 (face sign-in, Plan B): the one-tap confirm sheet a pipeline match opens.
-  const [faceConfirm, setFaceConfirm] = useState<ActivePourer | null>(null);
-
-  // "At most one pipeline at a time" ref guard: set synchronously the instant a start
-  // is attempted -- before `startFacePipeline`'s own async camera/model-load work even
-  // begins -- so a second motion/tap landing before that promise resolves can never
-  // slip through and start an overlapping session. `facePipelineControllerRef` is this
-  // attempt's cancellation seam (Task 6's `signal`); `facePipelineStopRef` is the
-  // disposer once the pipeline actually starts ticking. Both are read by the
-  // unmount-cleanup effect below.
-  const facePipelineActiveRef = useRef(false);
-  const facePipelineControllerRef = useRef<AbortController | null>(null);
-  const facePipelineStopRef = useRef<(() => void) | null>(null);
-
-  /** A pipeline match: resolve it against the already-loaded pourers list (an
-   * unknown/stale drinkerId -- the directory can lag a deletion -- is ignored
-   * silently, no sheet) and open the one-tap confirm sheet. The pipeline itself always
-   * self-stops right after firing this (faceRecognition.ts's `dispose()` inside
-   * `startFacePipeline`'s tick handler), so clearing the ref guard here is exactly what
-   * lets the NEXT motion/tap start a fresh run -- "Not me" never needs to touch these
-   * refs itself, since by the time it's clickable this has already run.
-   *
-   * Fix round 1 (mis-arm guard): a pipeline started on the grid screen can still be
-   * running when someone arms manually in the meantime (hand-tap an avatar, or
-   * signup) -- `startFacePipeline`'s own promise chain has no way to know the screen
-   * moved on. Without this check, a late `onCandidate` would pop the confirm sheet
-   * over whatever screen is now showing, and "Yes" would call `armTablet` with a
-   * *different* drinkerId than whoever's actually armed -- core/tabletArm.ts silently
-   * replaces the armed slot, so the next pour would attribute to the wrong person.
-   * Reading `screenRef.current` here (not a value closed over when the pipeline
-   * started) catches every screen the tablet could have moved to since then. The
-   * pipeline itself isn't stopped by this -- it already self-stopped by firing
-   * `onCandidate` in the first place -- so no extra cleanup is needed here. */
-  const handleFaceCandidate = useCallback(({ drinkerId }: MatchCandidate) => {
-    facePipelineActiveRef.current = false;
-    facePipelineControllerRef.current = null;
-    facePipelineStopRef.current = null;
-    if (screenRef.current.kind !== 'grid') return;
-    const pourer = pourersRef.current.find((p) => p.id === drinkerId);
-    if (!pourer) return;
-    setFaceConfirm({ id: pourer.id, name: pourer.displayName, color: pourer.avatarColor });
-  }, []);
-
-  /** Starts the face pipeline (Task 6) when the directory is enabled/non-empty and the
-   * grid screen is showing -- called from two sites below: camera motion (the
-   * pipeline's primary trigger) and, when the wall has no camera-motion input at all, a
-   * pointer-tap fallback. Reads `faces`/`screen`/`pourers` via refs since it's invoked
-   * from event-handler closures that don't otherwise see a fresh render. A fresh
-   * `AbortController` per attempt lets the unmount-cleanup effect below close the
-   * live-camera-during-model-load window (see faceRecognition.ts's `signal` doc) even
-   * if this specific attempt hasn't resolved yet. */
-  const maybeStartFacePipeline = useCallback(() => {
-    if (facePipelineActiveRef.current) return;
-    const directory = facesRef.current;
-    if (!directory.enabled) return;
-    if (screenRef.current.kind !== 'grid') return;
-
-    facePipelineActiveRef.current = true;
-    const controller = new AbortController();
-    facePipelineControllerRef.current = controller;
-
-    startFacePipeline({
-      // Matching is SERVER-SIDE now — the probe embedding is posted to /api/public/faces/
-      // match and the corpus never reaches this browser. Returns null on no match / error.
-      matchEmbedding: (embedding) => matchFace(embedding).then((r) => (r.ok ? r.data.match : null)),
-      onCandidate: handleFaceCandidate,
-      signal: controller.signal,
-    }).then((disposer) => {
-      if (facePipelineControllerRef.current === controller) facePipelineControllerRef.current = null;
-      if (!disposer) {
-        facePipelineActiveRef.current = false;
-        return;
-      }
-      facePipelineStopRef.current = disposer;
-    });
-  }, [handleFaceCandidate]);
-
-  // Belt and braces (Task 7): on unmount, abort whichever attempt's controller is still
-  // live -- stops a camera that's mid getUserMedia/model-load immediately, per
-  // faceRecognition.ts's `signal` contract, rather than waiting for that promise to
-  // settle -- AND call the disposer if one had already resolved by then. Both are
-  // idempotent (an aborted `startFacePipeline` resolves without ever setting
-  // `facePipelineStopRef`; a disposer's own `dispose()` is safe to call more than
-  // once), so running both unconditionally here is safe regardless of which stage the
-  // pipeline was in when the component unmounted.
-  useEffect(() => () => {
-    facePipelineControllerRef.current?.abort();
-    facePipelineStopRef.current?.();
-  }, []);
-
-  /** Fix round 2 (F1): the pipeline must not keep the camera + `human.detect` loop
-   * alive once it's no longer allowed to run. Two scenarios: an unenrolled drinker (or
-   * anyone else) lingers in frame with no match while the screen moves on -- a manual
-   * avatar tap or signup arms/leaves 'grid' out from under a still-running pipeline --
-   * or an admin flips face sign-in off mid-run (`faces_changed` refetches an
-   * empty/disabled directory), after which `getEnrolled()` can never match again but
-   * nothing was otherwise telling the pipeline to stop. Mirrors the unmount-cleanup
-   * effect directly above -- abort whichever controller is still live (per
-   * faceRecognition.ts's `signal` contract, this closes a mid getUserMedia/model-load
-   * attempt immediately rather than waiting for it to settle) AND call the disposer if
-   * one had already resolved -- plus clears `facePipelineActiveRef` so a LATER return to
-   * an enabled grid starts a genuinely fresh attempt instead of finding the "at most
-   * one" ref guard still stuck on. All three teardown calls are idempotent (same
-   * reasoning as that effect: an aborted `startFacePipeline` resolves without setting
-   * `facePipelineStopRef`, and a disposer's own `dispose()` tolerates repeat calls), so
-   * running them unconditionally whenever the guard condition is false -- not just on
-   * the transition into it -- is safe, including redundantly alongside
-   * `handleFaceCandidate`'s own per-candidate self-stop. Reads `screen`/`faces` state
-   * directly (not the refs those event-handler closures use) since this is a plain
-   * effect that already re-runs on a fresh render whenever either changes -- same idiom
-   * as the screen-change reset effect below. Intentionally a no-op while `screen.kind
-   * === 'grid' && faces.enabled`, so it never fights a pipeline that's allowed to keep
-   * running. */
-  useEffect(() => {
-    if (screen.kind === 'grid' && faces.enabled) return;
-    facePipelineActiveRef.current = false;
-    facePipelineControllerRef.current?.abort();
-    facePipelineControllerRef.current = null;
-    facePipelineStopRef.current?.();
-    facePipelineStopRef.current = null;
-  }, [screen.kind, faces.enabled]);
+  // Task 7 (face sign-in, Plan B): the face-match pipeline's ref choreography -- the
+  // "at most one at a time" guard, candidate resolution into the one-tap confirm
+  // sheet, and every teardown path (unmount, screen-leaves-grid, directory-goes-
+  // disabled) -- lives in useFacePipeline; TabletPage wires its two trigger sites
+  // (camera motion + the pointer-tap fallback) below.
+  const { faceConfirm, setFaceConfirm, maybeStartFacePipeline } = useFacePipeline({
+    screenRef, screenKind: screen.kind, faces, pourers,
+  });
 
   const avatarsRef = useRef<HTMLDivElement | null>(null);
 
