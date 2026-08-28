@@ -1,5 +1,5 @@
 import type { NotificationSeverity } from '../../db/notificationsRepo.js';
-import { withRetry, DEFAULT_TIMEOUT_MS } from '../retry.js';
+import { withRetry, HttpSendError, DEFAULT_TIMEOUT_MS } from '../retry.js';
 import type { Channel, ChannelMessage, ChannelSendOptions } from './types.js';
 
 export interface DiscordConfig {
@@ -51,7 +51,8 @@ export class DiscordChannel implements Channel {
         // Discord carries the webhook's secret token in its path.
         throw new Error('discord: request failed (network error or timeout)');
       }
-      if (!res.ok) throw new Error(`discord: request failed (status ${res.status})`);
+      // Typed so withRetry can classify: permanent 4xx fails fast, 429/5xx retries.
+      if (!res.ok) throw new HttpSendError(`discord: request failed (status ${res.status})`, res.status);
     }, this.opts);
   }
 }

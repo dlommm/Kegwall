@@ -1,4 +1,4 @@
-import { withRetry, DEFAULT_TIMEOUT_MS } from '../retry.js';
+import { withRetry, HttpSendError, DEFAULT_TIMEOUT_MS } from '../retry.js';
 import type { Channel, ChannelMessage, ChannelSendOptions } from './types.js';
 
 export interface SlackConfig {
@@ -43,7 +43,8 @@ export class SlackChannel implements Channel {
       } catch {
         throw new Error('slack: request failed (network error or timeout)');
       }
-      if (!res.ok) throw new Error(`slack: request failed (status ${res.status})`);
+      // Typed so withRetry can classify: permanent 4xx fails fast, 429/5xx retries.
+      if (!res.ok) throw new HttpSendError(`slack: request failed (status ${res.status})`, res.status);
     }, this.opts);
   }
 }
