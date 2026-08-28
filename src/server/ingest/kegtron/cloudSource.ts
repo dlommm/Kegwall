@@ -221,7 +221,11 @@ export class KegtronCloudSource implements Source {
       state.rawShadow = raw;
       state.parsed = next;
       state.deviceId = next.deviceId;
-      state.reconnectAttempt = 0;
+      // Deliberately NOT resetting reconnectAttempt here: each reconnect cycle runs
+      // shadow GET -> openWs, so a reset on GET success meant "REST up, WS persistently
+      // failing" (the real-world persistent-403 mode documented at openWs) collapsed the
+      // 1s->60s exponential backoff into a ~1 Hz GET+handshake storm per device, forever.
+      // The reset on actual WS 'open' (below) is the one that counts.
       this.evaluateHealth();
 
       await this.openWs(state);
