@@ -749,6 +749,12 @@ export function TabletPage() {
   }, []);
 
   // Done screen: 5s auto sign-out countdown ("tap to stay" re-arms instead).
+  // `doneCountdownRef` exposes the live interval id to `stayAfterDone` below so the tap
+  // handler can clear it SYNCHRONOUSLY -- this effect's own cleanup only runs after
+  // React commits the post-`setScreen` render, which is NOT guaranteed to beat the
+  // interval's next 250ms tick once `stayAfterDone` has an `await` on the stack (see
+  // that function's comment for the arm/disarm race the tick would open).
+  const doneCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (screen.kind !== 'done') return undefined;
     setCountdown(DONE_SIGNOUT_SECONDS);
@@ -762,7 +768,14 @@ export function TabletPage() {
         setCountdown(left);
       }
     }, 250);
-    return () => clearInterval(id);
+    doneCountdownRef.current = id;
+    return () => {
+      clearInterval(id);
+      // Only null the ref if it still points at THIS run's interval -- `stayAfterDone`
+      // may have already cleared+nulled it, and a re-entered done screen owns a newer
+      // interval by the time this stale cleanup runs.
+      if (doneCountdownRef.current === id) doneCountdownRef.current = null;
+    };
   }, [screen]);
 
   async function selectPourer(pourer: ActivePourer) {
@@ -834,9 +847,30 @@ export function TabletPage() {
   }
 
   async function stayAfterDone(pourer: ActivePourer) {
+    // Race fix: stop the auto-sign-out countdown SYNCHRONOUSLY, before the awaited
+    // armTablet POST ever goes out. With <250ms left on the countdown, the interval's
+    // next tick would otherwise fire disarmTablet() while the arm POST is still in
+    // flight: the server processes arm -> disarm (actually disarmed), then the resolved
+    // arm's `.ok` flips the UI to the armed screen -- "You're up" -- and the next pour
+    // goes unattributed while the UI claims otherwise. Clearing the interval here (not
+    // relying on the countdown effect's cleanup, which only runs after the post-await
+    // re-render commits) makes the disarm tick impossible the instant "stay" is tapped.
+    if (doneCountdownRef.current !== null) {
+      clearInterval(doneCountdownRef.current);
+      doneCountdownRef.current = null;
+    }
     const result = await armTablet(pourer.id);
-    if (result.ok) setScreen({ kind: 'armed', pourer });
-    else setScreen({ kind: 'grid' });
+    if (result.ok) {
+      setScreen({ kind: 'armed', pourer });
+    } else {
+      // The re-arm failed and the countdown above is already dead -- don't strand the
+      // user on a frozen done screen. Mirror what the countdown reaching 0 would have
+      // done (disarm + back to the grid): the pour's original arm may still be live
+      // server-side, and showing the grid while leaving it armed would silently
+      // attribute the NEXT pour to this pourer.
+      disarmTablet();
+      setScreen({ kind: 'grid' });
+    }
   }
 
   if (loading && !wall) {

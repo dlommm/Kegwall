@@ -357,6 +357,76 @@ describe('TabletPage (design 3a)', () => {
     expect(screen.getByTestId('tablet-armed')).toBeInTheDocument();
   });
 
+  // Race fix: "tap to stay" must stop the auto-sign-out countdown BEFORE its armTablet
+  // POST goes out -- with <250ms left, the interval's next tick would otherwise fire
+  // disarmTablet() mid-flight, so the server processed arm -> disarm (actually
+  // disarmed) while the resolved arm's `.ok` flipped the UI to "You're up", and the
+  // next pour went unattributed.
+  it('tap-to-stay with <250ms left kills the countdown before the disarm tick can fire mid-arm', async () => {
+    vi.useFakeTimers();
+    const captured = mockWallData();
+    renderTablet();
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    fireEvent.click(screen.getAllByTestId('tablet-avatar')[0]!);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    act(() => {
+      captured.onMessage?.({
+        type: 'pour_attributed', drinkerId: 1, pourId: 5, tapId: 2, tapNumber: 2, beerName: 'Morning Line', volumeMl: 372.6, pourCount: 128, ts: 'now',
+      });
+    });
+
+    // Run the countdown down into its final sub-250ms window (the tick at 5000ms
+    // elapsed is the one that would disarm).
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_900); });
+    expect(disarmTablet).not.toHaveBeenCalled();
+
+    // The re-arm POST is deliberately slow: it resolves only AFTER the moment the old
+    // countdown's disarm tick would have fired. mockReset (not mockClear):
+    // beforeEach's queued resolved value must not leak into this deferred
+    // implementation.
+    let resolveArm: ((r: unknown) => void) | undefined;
+    (armTablet as Mock).mockReset();
+    (armTablet as Mock).mockImplementation(() => new Promise((resolve) => { resolveArm = resolve; }));
+    fireEvent.click(screen.getByTestId('tablet-done'));
+
+    // The would-be disarm tick moment (>=5000ms elapsed) passes while the POST is
+    // still in flight -- the countdown must already be dead: no disarm, no grid flip.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(disarmTablet).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('tablet-grid')).toBeNull();
+
+    await act(async () => { resolveArm?.({ ok: true, data: { armed: true, drinkerId: 1 } }); });
+    expect(screen.getByTestId('tablet-armed')).toBeInTheDocument();
+    // Server and UI agree: armed, with no disarm ever sent behind the arm's back.
+    expect(disarmTablet).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('a failed re-arm after tap-to-stay disarms and returns to the grid instead of stranding the user', async () => {
+    const captured = mockWallData();
+    renderTablet();
+    await flush();
+    fireEvent.click(screen.getAllByTestId('tablet-avatar')[0]!);
+    await flush();
+    act(() => {
+      captured.onMessage?.({
+        type: 'pour_attributed', drinkerId: 1, pourId: 5, tapId: 2, tapNumber: 2, beerName: 'Morning Line', volumeMl: 372.6, pourCount: 128, ts: 'now',
+      });
+    });
+
+    (armTablet as Mock).mockReset();
+    (armTablet as Mock).mockResolvedValue({ ok: false, status: 500, message: 'nope' });
+    fireEvent.click(screen.getByTestId('tablet-done'));
+    await flush();
+
+    // The countdown was stopped synchronously on tap, so the failed arm must itself
+    // restore a coherent state: disarm (the pour's original arm may still be live
+    // server-side) and land on the grid -- never a frozen done screen or a grid that
+    // silently attributes the next pour.
+    expect(disarmTablet).toHaveBeenCalled();
+    expect(screen.getByTestId('tablet-grid')).toBeInTheDocument();
+  });
+
   it('sign out disarms and returns to the grid', async () => {
     mockWallData();
     renderTablet();
