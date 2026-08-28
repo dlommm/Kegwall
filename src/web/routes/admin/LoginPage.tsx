@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
-import { login, needsSetup } from '../../lib/adminApi';
+import { useNavigate, useSearchParams } from 'react-router';
+import { login, needsSetup, sanitizeNextPath } from '../../lib/adminApi';
 import { ThemeProvider } from '../../themes/ThemeProvider';
 
 type ErrorKind = 'badCredentials' | 'rateLimited' | 'other' | null;
@@ -14,6 +14,7 @@ type ErrorKind = 'badCredentials' | 'rateLimited' | 'other' | null;
  */
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [checkingSetup, setCheckingSetup] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +43,11 @@ export function LoginPage() {
     const result = await login(username, password);
     setSubmitting(false);
     if (result.ok) {
-      navigate('/admin', { replace: true });
+      // Return-to: adminApi's 401 redirect stashes the interrupted page in `?next=` so a
+      // re-login lands the admin back where they were, not on the dashboard. Validated
+      // through sanitizeNextPath (same-origin relative paths only — open-redirect guard);
+      // anything unsafe or absent falls back to the dashboard.
+      navigate(sanitizeNextPath(searchParams.get('next')) ?? '/admin', { replace: true });
       return;
     }
     if (result.status === 429) {

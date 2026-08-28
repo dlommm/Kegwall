@@ -88,7 +88,9 @@ describe('AdminLayout', () => {
   it('redirects to login when unauthenticated, without rendering the shell', async () => {
     mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
     renderLayout();
-    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/admin/login'));
+    // The 401 redirect carries the interrupted page in ?next= (mocked pathname: /admin)
+    // so LoginPage can send the admin back after re-login — see lib/adminApi.ts.
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/admin/login?next=%2Fadmin'));
     expect(screen.queryByTestId('dashboard-placeholder')).not.toBeInTheDocument();
     expect(screen.queryByTestId('admin-layout')).not.toBeInTheDocument();
   });

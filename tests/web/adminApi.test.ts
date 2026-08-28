@@ -23,6 +23,7 @@ import {
   runAutomation, listAutomationTemplates, createFromTemplate, listAutomationChannels,
   listNotifications, getUnackedCount, ackNotification, ackAllNotifications, testChannel,
   getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion,
+  sanitizeNextPath, resetLoginRedirectForTests,
 } from '../../src/web/lib/adminApi';
 
 function mockFetchOnce(status: number, body: unknown) {
@@ -51,6 +52,9 @@ describe('admin api client', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
     setPathname('/admin/beers');
+    // The 401 redirect latch is module state a real browser clears by unloading the
+    // page on navigation; jsdom never navigates, so reset it between tests.
+    resetLoginRedirectForTests();
   });
 
   afterEach(() => {
@@ -149,11 +153,20 @@ describe('admin api client', () => {
     expect(result).toEqual({ ok: false, status: 409, message: 'Setup already completed' });
   });
 
-  it('redirects to /admin/login on a 401 when not already on an auth page', async () => {
+  it('redirects to /admin/login with the current page in ?next= on a 401', async () => {
     setPathname('/admin/beers');
     mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
     await getMe();
-    expect(assignMock).toHaveBeenCalledWith('/admin/login');
+    expect(assignMock).toHaveBeenCalledWith('/admin/login?next=%2Fadmin%2Fbeers');
+  });
+
+  it('redirects at most ONCE when several in-flight calls 401 together', async () => {
+    setPathname('/admin/beers');
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
+    mockFetchOnce(401, { error: 'unauthorized', message: 'Not logged in' });
+    await Promise.all([getMe(), getSettings(), listBeers()]);
+    expect(assignMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not redirect on a 401 while already on /admin/login (bad login attempt)', async () => {
@@ -187,6 +200,20 @@ describe('admin api client', () => {
       expect(result.message).toContain('Failed to fetch');
     }
     expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('sanitizeNextPath accepts only same-origin relative paths (open-redirect guard)', () => {
+    expect(sanitizeNextPath('/admin/beers')).toBe('/admin/beers');
+    expect(sanitizeNextPath('/admin/stats?days=30#kegs')).toBe('/admin/stats?days=30#kegs');
+    // Everything below must fall back to null (LoginPage then lands on /admin).
+    expect(sanitizeNextPath(null)).toBeNull();
+    expect(sanitizeNextPath('')).toBeNull();
+    expect(sanitizeNextPath('https://evil.example/phish')).toBeNull();
+    expect(sanitizeNextPath('//evil.example/phish')).toBeNull();
+    // Browsers normalize backslashes to slashes, so /\evil.example is //evil.example.
+    expect(sanitizeNextPath('/\\evil.example/phish')).toBeNull();
+    expect(sanitizeNextPath('admin/beers')).toBeNull();
+    expect(sanitizeNextPath('javascript:alert(1)')).toBeNull();
   });
 
   // --- Task 4: beers + lookup services ---

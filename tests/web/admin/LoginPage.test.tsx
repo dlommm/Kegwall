@@ -7,18 +7,23 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { LoginPage } from '../../../src/web/routes/admin/LoginPage';
 import { login, needsSetup } from '../../../src/web/lib/adminApi';
 
-vi.mock('../../../src/web/lib/adminApi', () => ({
+// Spread the real module so the pure helpers LoginPage also imports (sanitizeNextPath —
+// the ?next= open-redirect guard) keep their real behavior; only the network calls are
+// mocked.
+vi.mock('../../../src/web/lib/adminApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/web/lib/adminApi')>()),
   login: vi.fn(),
   needsSetup: vi.fn(),
 }));
 
-function renderLoginPage() {
+function renderLoginPage(initialEntry = '/admin/login') {
   return render(
-    <MemoryRouter initialEntries={['/admin/login']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/admin/login" element={<LoginPage />} />
         <Route path="/admin/setup" element={<div data-testid="setup-route" />} />
         <Route path="/admin" element={<div data-testid="admin-route" />} />
+        <Route path="/admin/beers" element={<div data-testid="beers-route" />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -71,6 +76,30 @@ describe('LoginPage', () => {
       },
     });
     renderLoginPage();
+    await fillAndSubmit('dan', 'hunter22');
+    expect(await screen.findByTestId('admin-route')).toBeInTheDocument();
+  });
+
+  it('follows a safe ?next= back to the interrupted page after a successful login', async () => {
+    (login as Mock).mockResolvedValue({
+      ok: true,
+      data: {
+        id: 1, username: 'dan', displayName: 'Dan', role: 'admin', isDrinker: false, avatarColor: null, createdAt: '2026-07-28T00:00:00.000Z',
+      },
+    });
+    renderLoginPage('/admin/login?next=%2Fadmin%2Fbeers');
+    await fillAndSubmit('dan', 'hunter22');
+    expect(await screen.findByTestId('beers-route')).toBeInTheDocument();
+  });
+
+  it('ignores an unsafe ?next= (open-redirect guard) and lands on the dashboard', async () => {
+    (login as Mock).mockResolvedValue({
+      ok: true,
+      data: {
+        id: 1, username: 'dan', displayName: 'Dan', role: 'admin', isDrinker: false, avatarColor: null, createdAt: '2026-07-28T00:00:00.000Z',
+      },
+    });
+    renderLoginPage(`/admin/login?next=${encodeURIComponent('//evil.example/phish')}`);
     await fillAndSubmit('dan', 'hunter22');
     expect(await screen.findByTestId('admin-route')).toBeInTheDocument();
   });
