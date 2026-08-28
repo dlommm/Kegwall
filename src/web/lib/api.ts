@@ -3,6 +3,7 @@ import type { WallConfig } from '../../server/core/wallConfig.js';
 import type { Pour } from '../../server/db/kegs.js';
 import type { VolumeUnits } from './units';
 import { getDisplayToken } from './displayToken';
+import { httpRequest, type ApiResult } from './http';
 
 /** A public tap: the shared TapState plus the ONE public money value — the computed per-pint
  *  display price (redesign 4k), present (non-null) only when pricing is enabled. Owner cost is
@@ -46,72 +47,25 @@ export interface RecentPour {
   beerName: string;
 }
 
-export interface ApiSuccess<T> {
-  ok: true;
-  data: T;
-}
+// The typed-result shapes live in ./http.ts (the ONE shared transport — see that file's
+// doc comment for the drift story that motivated the extraction) and are re-exported here
+// so every existing `import { ApiResult } from '../lib/api'` site keeps working unchanged.
+export type { ApiSuccess, ApiFailure, ApiResult } from './http';
 
-export interface ApiFailure {
-  ok: false;
-  /** HTTP status code, or 0 when the request never reached the server (network error). */
-  status: number;
-  message: string;
-}
-
-export type ApiResult<T> = ApiSuccess<T> | ApiFailure;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
-  let res: Response;
-  try {
-    res = await fetch(path, {
-      ...init,
-      // Phase 5 final-review fix wave (I1): mirrors adminApi.ts's request() fix (commit
-      // 90d6871) -- 'Content-Type: application/json' must only be set when a real JSON
-      // body is actually being sent. Stamping it on a BODYLESS request (or a FormData one)
-      // makes Fastify's default JSON body parser reject the empty body outright
-      // (`FST_ERR_CTP_EMPTY_JSON_BODY`, 400), which this app's generic error handler
-      // doesn't recognize and maps to an opaque 500 -- invisible to every test here since
-      // they all mock `fetch` itself rather than exercising a real server's body parsing.
-      // Latent today (every GET call below has no body; the one POST, claimPour, always
-      // sends one), but the identical landmine, so it gets the identical fix.
-      headers: {
-        ...(init?.body !== undefined && !(init.body instanceof FormData)
-          ? { 'Content-Type': 'application/json' }
-          : {}),
-        // Display-token auth: attach the paired token when present so gated reads
-        // (wall/menu/leaderboard/passport) authenticate. Absent → unpaired, which is fine
-        // while server-side enforcement is off. See lib/displayToken.ts.
-        ...(getDisplayToken() ? { 'X-Display-Token': getDisplayToken()! } : {}),
-        ...(init?.headers ?? {}),
-      },
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      status: 0,
-      message: err instanceof Error ? err.message : 'Network error',
-    };
-  }
-
-  let body: unknown = null;
-  try {
-    body = await res.json();
-  } catch {
-    body = null;
-  }
-
-  if (!res.ok) {
-    const message = isRecord(body) && typeof body.message === 'string'
-      ? body.message
-      : res.statusText || `Request failed with status ${res.status}`;
-    return { ok: false, status: res.status, message };
-  }
-
-  return { ok: true, data: body as T };
+/** The public client: shared transport (see http.ts — including the FST_ERR_CTP_EMPTY_
+ * JSON_BODY Content-Type handling that used to be duplicated here verbatim) plus this
+ * client's one specialization, the display-token header. No 401 handling: public pages
+ * have no session to lose (a gated read failing while unpaired renders in place). */
+function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
+  return httpRequest<T>(path, init, {
+    // Display-token auth: attach the paired token when present so gated reads
+    // (wall/menu/leaderboard/passport) authenticate. Absent → unpaired, which is fine
+    // while server-side enforcement is off. See lib/displayToken.ts.
+    extraHeaders: (): Record<string, string> => {
+      const token = getDisplayToken();
+      return token ? { 'X-Display-Token': token } : {};
+    },
+  });
 }
 
 export function getWall(slug: string): Promise<ApiResult<WallResponse>> {

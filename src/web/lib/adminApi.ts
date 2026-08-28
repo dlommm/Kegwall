@@ -42,6 +42,7 @@ import type { WallConfig } from '../../server/core/wallConfig.js';
 // a type-only import of a ROUTES file would drag its Fastify-request-augmenting value
 // imports into this (web) tsconfig's program, where they don't typecheck.
 import type { BreweryLookupResult, BeerLookupResult } from '../../server/core/lookupTypes.js';
+import { httpRequest, type ApiResult } from './http';
 
 /**
  * The authed variant of `./api.ts`'s typed-result fetch pattern (see that file's doc
@@ -56,90 +57,32 @@ import type { BreweryLookupResult, BeerLookupResult } from '../../server/core/lo
  * authed API calls on top of `request` below rather than reimplementing this.
  */
 
-export interface ApiSuccess<T> {
-  ok: true;
-  data: T;
-}
-
-export interface ApiFailure {
-  ok: false;
-  /** HTTP status code, or 0 when the request never reached the server (network error). */
-  status: number;
-  message: string;
-}
-
-export type ApiResult<T> = ApiSuccess<T> | ApiFailure;
+// The typed-result shapes live in ./http.ts (the ONE shared transport — the Content-Type
+// / FST_ERR_CTP_EMPTY_JSON_BODY handling and error mapping that used to be duplicated
+// verbatim between this file and api.ts now live there exactly once) and are re-exported
+// here so every existing `import { ApiResult } from '../../lib/adminApi'` site keeps
+// working unchanged.
+export type { ApiSuccess, ApiFailure, ApiResult } from './http';
 
 const LOGIN_PATH = '/admin/login';
 const SETUP_PATH = '/admin/setup';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function onAuthPage(): boolean {
   const { pathname } = window.location;
   return pathname === LOGIN_PATH || pathname === SETUP_PATH;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
-  let res: Response;
-  try {
-    res = await fetch(path, {
-      ...init,
-      // Explicit even though same-origin is fetch's spec default — this call always
-      // needs the session cookie, so the intent shouldn't rely on an implicit default.
-      credentials: 'same-origin',
-      // A FormData body (Task 4's uploadLabel) must NOT get a 'Content-Type:
-      // application/json' header — the browser sets its own 'multipart/form-data;
-      // boundary=...' for FormData, and stamping application/json over it would break
-      // the upload server-side.
-      //
-      // Phase 5 Task 7 fix: a BODYLESS request (every caller that passes no `body` at
-      // all — logout, ack, run-now, every DELETE, etc.) must ALSO not get the JSON
-      // content-type header. Fastify's default JSON body parser rejects an empty body
-      // when `Content-Type: application/json` is set at all
-      // (`FST_ERR_CTP_EMPTY_JSON_BODY`, statusCode 400) — this app's generic error
-      // handler doesn't recognize that Fastify-native error class and was mapping it to
-      // an opaque 500, so EVERY bodyless POST/DELETE call in the admin UI was silently
-      // broken against a real server (caught by a real Playwright/Chromium round trip —
-      // see the Task 7 e2e notification-ack test and adminApi.test.ts's own regression
-      // test; every other test here mocks `fetch` itself, so none of them ever exercised
-      // real server body-parsing behavior). A request with no body has no content to
-      // declare a type for in the first place, so this is also just correct HTTP.
-      headers: {
-        ...(init?.body !== undefined && !(init.body instanceof FormData)
-          ? { 'Content-Type': 'application/json' }
-          : {}),
-        ...(init?.headers ?? {}),
-      },
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      status: 0,
-      message: err instanceof Error ? err.message : 'Network error',
-    };
-  }
-
-  let body: unknown = null;
-  try {
-    body = await res.json();
-  } catch {
-    body = null;
-  }
-
-  if (!res.ok) {
-    const message = isRecord(body) && typeof body.message === 'string'
-      ? body.message
-      : res.statusText || `Request failed with status ${res.status}`;
-    if (res.status === 401 && !onAuthPage()) {
-      window.location.assign(LOGIN_PATH);
-    }
-    return { ok: false, status: res.status, message };
-  }
-
-  return { ok: true, data: body as T };
+function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
+  return httpRequest<T>(path, init, {
+    // Explicit even though same-origin is fetch's spec default — this call always
+    // needs the session cookie, so the intent shouldn't rely on an implicit default.
+    credentials: 'same-origin',
+    onUnauthorized: () => {
+      if (!onAuthPage()) {
+        window.location.assign(LOGIN_PATH);
+      }
+    },
+  });
 }
 
 export function needsSetup(): Promise<ApiResult<{ needsSetup: boolean }>> {
