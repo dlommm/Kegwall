@@ -497,7 +497,11 @@ describe('WallEditor', () => {
         .toHaveTextContent(/show no taps/i);
     });
 
-    it('saving PUTs the device assignment before patching the wall', async () => {
+    // Non-atomic-save fix: the config PATCH (the validation-prone write -- slug
+    // conflicts, schema 400s) runs FIRST; the device-set PUT runs second. The old
+    // devices-first order let a failed PATCH leave the device set already replaced
+    // (live TVs re-scoped via walls_changed) while the editor claimed nothing saved.
+    it('saving PATCHes the wall config first, then PUTs the device assignment (write-order fix)', async () => {
       (updateWall as Mock).mockResolvedValue({ ok: true, data: makeWall() });
       render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
       await flush();
@@ -509,19 +513,65 @@ describe('WallEditor', () => {
 
       expect(setWallDevices).toHaveBeenCalledWith(1, []);
       expect(updateWall).toHaveBeenCalledTimes(1);
+      const patchOrder = (updateWall as Mock).mock.invocationCallOrder[0]!;
+      const putOrder = (setWallDevices as Mock).mock.invocationCallOrder[0]!;
+      expect(patchOrder).toBeLessThan(putOrder);
     });
 
-    it('a device-assignment save failure surfaces the message and skips the wall PATCH', async () => {
-      (setWallDevices as Mock).mockResolvedValue({ ok: false, status: 400, message: 'unknown device' });
+    it('a config PATCH failure aborts the save before the device PUT ever runs (nothing half-applies)', async () => {
+      (updateWall as Mock).mockResolvedValue({ ok: false, status: 409, message: 'slug already in use' });
       render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
       await flush();
 
+      fireEvent.click(screen.getByTestId('wall-editor-device-checkbox')); // a device change that must NOT apply
       await act(async () => {
         fireEvent.submit(screen.getByTestId('wall-editor-form'));
       });
 
-      expect(screen.getByTestId('wall-editor-errors')).toHaveTextContent('unknown device');
-      expect(updateWall).not.toHaveBeenCalled();
+      expect(screen.getByTestId('wall-editor-errors')).toHaveTextContent('slug already in use');
+      expect(setWallDevices).not.toHaveBeenCalled();
+    });
+
+    it('a device PUT failure after a successful config PATCH surfaces a precise partial-save error and keeps Save enabled to retry', async () => {
+      const onSaved = vi.fn();
+      const savedWall = makeWall();
+      (updateWall as Mock).mockResolvedValue({ ok: true, data: savedWall });
+      // mockReset, not mockClear: beforeEach put a resolved value on this mock, and the
+      // failure below has to be the FIRST result the save sees.
+      (setWallDevices as Mock).mockReset();
+      (setWallDevices as Mock)
+        .mockResolvedValueOnce({ ok: false, status: 400, message: 'unknown device' })
+        .mockResolvedValue({ ok: true, data: [] });
+      render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={onSaved} />);
+      await flush();
+
+      fireEvent.click(screen.getByTestId('wall-editor-device-checkbox')); // the device change that will fail
+      fireEvent.change(screen.getByTestId('wall-editor-name'), { target: { value: 'Renamed' } });
+      await act(async () => {
+        fireEvent.submit(screen.getByTestId('wall-editor-form'));
+      });
+
+      // Precise error: it names what DID save (config, live on TVs) and what did NOT
+      // (the device assignment) -- never a generic "save failed".
+      const errors = screen.getByTestId('wall-editor-errors');
+      expect(errors).toHaveTextContent(/saved and pushed to TVs/i);
+      expect(errors).toHaveTextContent(/device assignment was NOT updated/i);
+      expect(errors).toHaveTextContent('unknown device');
+      // The config half genuinely saved: parent notified, form no longer "unsaved"...
+      expect(onSaved).toHaveBeenCalledWith(savedWall);
+      expect(screen.getByTestId('wall-editor-status')).not.toHaveTextContent(/unsaved/i);
+      expect(screen.getByTestId('wall-editor-status')).toHaveTextContent(/device assignment not saved/i);
+      // ...but Save stays enabled: device selection alone never marks the form dirty,
+      // so without this there'd be no way to retry the failed device write.
+      expect(screen.getByTestId('wall-editor-save')).toBeEnabled();
+
+      // Retrying succeeds and clears the partial-save state.
+      await act(async () => {
+        fireEvent.submit(screen.getByTestId('wall-editor-form'));
+      });
+      expect(setWallDevices).toHaveBeenCalledTimes(2);
+      expect(screen.queryByTestId('wall-editor-errors')).toBeNull();
+      expect(screen.getByTestId('wall-editor-saved-notice')).toBeInTheDocument();
     });
   });
 });

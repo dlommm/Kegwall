@@ -145,6 +145,12 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const [errors, setErrors] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  // Half-applied save tracking (non-atomic-save fix): true when the config PATCH
+  // succeeded but the follow-up device-set PUT failed. Device selection alone never
+  // counts as dirty (see the baseline DESIGN NOTE below), so without this flag the
+  // Save button would disable after the config half saved and there'd be no way to
+  // retry the failed device write.
+  const [deviceSaveFailed, setDeviceSaveFailed] = useState(false);
   // Dirty tracking (redesign 1c): the toolbar's status + Save-to-TVs enablement compare the
   // live form/name/slug against a baseline captured at load and reset on each successful save.
   // DESIGN NOTE: device-selection-only changes aren't counted as dirty (kept simple — the
@@ -262,7 +268,9 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
   const dirty = JSON.stringify({ form, name, slug }) !== baseline;
   const statusText = dirty
     ? 'Unsaved changes — TVs unaffected'
-    : (savedNotice ? 'Saved · pushed live to your screens' : 'In sync with live wall');
+    : deviceSaveFailed
+      ? 'Config saved — device assignment not saved'
+      : (savedNotice ? 'Saved · pushed live to your screens' : 'In sync with live wall');
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -291,21 +299,49 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
     const deviceRefs: WallDeviceRef[] = deviceGroups
       .filter((g) => selectedDeviceKeys.has(g.key) && g.type !== 'govee_sensor')
       .map((g) => ({ type: g.type as WallDeviceRef['type'], identifier: g.identifier }));
-    const devicesResult = await setWallDevices(currentWall.id, deviceRefs);
-    if (!devicesResult.ok) {
-      setSaving(false);
-      setErrors([devicesResult.message]);
-      return;
-    }
+    // Write ORDER (non-atomic-save fix): the config PATCH runs FIRST, the device-set
+    // PUT second. The PATCH is the validation-prone write (slug conflicts 409,
+    // wallConfigSchema 400s server-side), while the PUT only fails on an unknown
+    // device or a network drop -- and the server's PATCH handler validates `config`
+    // purely against wallConfigSchema (routes/crud.ts), never cross-checking page
+    // tapIds against the wall's *currently stored* device set, so patching the config
+    // before the devices is safe. With the old (devices-first) order, a failed PATCH
+    // left the device set already replaced -- live TVs re-scoped via the walls_changed
+    // broadcast -- while the editor showed a generic error and a dirty state claiming
+    // nothing had saved.
     const result = await updateWall(currentWall.id, {
       name: name.trim(), slug, config: parsed.config,
     });
-    setSaving(false);
     if (!result.ok) {
+      // Nothing was written at all -- the device PUT never ran, so the plain message
+      // and the untouched dirty state are both accurate here.
+      setSaving(false);
       setErrors([result.message]);
       return;
     }
+    const devicesResult = await setWallDevices(currentWall.id, deviceRefs);
+    setSaving(false);
+    if (!devicesResult.ok) {
+      // Half-applied save: the wall's name/slug/config ARE live (the PATCH's broadcast
+      // already re-rendered any open TVs) but the device assignment is NOT. Say
+      // exactly that -- a generic "save failed" would leave the admin believing the
+      // TVs are untouched and the whole form unsaved. The baseline resets (those form
+      // fields genuinely saved, so the dirty state stays truthful) and
+      // `deviceSaveFailed` keeps the Save button enabled for a retry of the device
+      // write -- see its declaration comment.
+      setCurrentWall(result.data);
+      setBaseline(JSON.stringify({ form, name, slug }));
+      setDeviceSaveFailed(true);
+      setErrors([
+        'Wall settings (name, slug, layout) were saved and pushed to TVs, but the device '
+        + `assignment was NOT updated: ${devicesResult.message}. `
+        + 'Press "Save to TVs" again to retry the device assignment.',
+      ]);
+      onSaved(result.data);
+      return;
+    }
 
+    setDeviceSaveFailed(false);
     setCurrentWall(result.data);
     setBaseline(JSON.stringify({ form, name, slug }));
     setSavedNotice(true);
@@ -334,7 +370,7 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
           form="wall-editor-form"
           className={dirty ? 'wall-editor__save wall-editor__save--dirty' : 'wall-editor__save'}
           data-testid="wall-editor-save"
-          disabled={!dirty || saving}
+          disabled={(!dirty && !deviceSaveFailed) || saving}
         >
           {saving ? 'Saving…' : 'Save to TVs'}
         </button>
