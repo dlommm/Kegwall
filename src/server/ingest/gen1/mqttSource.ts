@@ -2,6 +2,7 @@ import mqtt, { type MqttClient, type IClientOptions } from 'mqtt';
 import type { EventBus, MonitorRef } from '../../core/events.js';
 import type { Settings, SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
+import { attachMqttLifecycle, emitSourceStatus } from '../mqttLifecycle.js';
 import { PourSynthesizer } from './pourSynth.js';
 
 // ---------------------------------------------------------------------------
@@ -231,30 +232,22 @@ export class Gen1MqttSource implements Source {
     const client = mqtt.connect(cfg.url, options);
     this.client = client;
 
-    client.on('connect', () => {
-      if (this.stopped) return;
-      client.subscribe(`${cfg.gen1TopicPrefix}/#`, (err) => {
-        if (this.stopped) return;
-        if (err) {
-          this.emitStatus(false, `subscribe failed: ${err.message}`);
-          return;
-        }
-        this.emitStatus(true, `subscribed to ${cfg.gen1TopicPrefix}/#`);
-      });
-    });
-
-    client.on('reconnect', () => {
-      if (!this.stopped) this.emitStatus(false, 'reconnecting');
-    });
-
-    client.on('close', () => {
-      if (!this.stopped) this.emitStatus(false, 'connection closed');
-    });
-
-    // Never let an unhandled 'error' crash the process -- a broken broker/network marks
-    // the source unhealthy; mqtt.js manages its own reconnect loop underneath.
-    client.on('error', (err) => {
-      if (!this.stopped) this.emitStatus(false, `mqtt error: ${err.message}`);
+    // Shared connect-guard + reconnect/close/'error'-swallow scaffolding -- see
+    // mqttLifecycle.ts (extracted from this source's original inline handlers; the
+    // "never let an unhandled 'error' crash the process" precedent lives there now).
+    attachMqttLifecycle(client, {
+      isStopped: () => this.stopped,
+      emitStatus: (healthy, detail) => this.emitStatus(healthy, detail),
+      onConnect: () => {
+        client.subscribe(`${cfg.gen1TopicPrefix}/#`, (err) => {
+          if (this.stopped) return;
+          if (err) {
+            this.emitStatus(false, `subscribe failed: ${err.message}`);
+            return;
+          }
+          this.emitStatus(true, `subscribed to ${cfg.gen1TopicPrefix}/#`);
+        });
+      },
     });
 
     client.on('message', (_topic, payload) => this.handleMessage(payload));
@@ -292,6 +285,6 @@ export class Gen1MqttSource implements Source {
   }
 
   private emitStatus(healthy: boolean, detail: string): void {
-    this.bus.emit('source_status', { source: 'gen1_mqtt', healthy, detail, ts: new Date().toISOString() });
+    emitSourceStatus(this.bus, 'gen1_mqtt', healthy, detail);
   }
 }

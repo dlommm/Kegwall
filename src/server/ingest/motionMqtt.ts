@@ -3,6 +3,7 @@ import type { EventBus } from '../core/events.js';
 import type { MotionSourceRegistry } from '../core/motionSources.js';
 import type { MatchRule } from '../db/settings.js';
 import type { Source } from './source.js';
+import { attachMqttLifecycle, emitSourceStatus } from './mqttLifecycle.js';
 
 // ---------------------------------------------------------------------------
 // Presence (Plan A Task 6, reworked by Displays & Presence hub Task 2): a `Source`
@@ -164,24 +165,16 @@ export class MotionMqttSource implements Source {
     const client = this.connectFn(this.url, options);
     this.client = client;
 
-    client.on('connect', () => {
-      if (this.stopped) return;
-      for (const topic of this.topicToSources.keys()) client.subscribe(topic);
-      this.emitStatus(true, `subscribed to ${this.topicToSources.size} motion topic(s)`);
-    });
-
-    client.on('reconnect', () => {
-      if (!this.stopped) this.emitStatus(false, 'reconnecting');
-    });
-
-    client.on('close', () => {
-      if (!this.stopped) this.emitStatus(false, 'connection closed');
-    });
-
-    // Never let an unhandled 'error' crash the process -- same precedent as
-    // gen1/mqttSource.ts and haPublisher.ts.
-    client.on('error', (err) => {
-      if (!this.stopped) this.emitStatus(false, `mqtt error: ${err.message}`);
+    // Shared connect-guard + reconnect/close/'error'-swallow scaffolding -- see
+    // mqttLifecycle.ts (the "never let an unhandled 'error' crash the process"
+    // precedent this file used to cite from gen1/mqttSource.ts lives there now).
+    attachMqttLifecycle(client, {
+      isStopped: () => this.stopped,
+      emitStatus: (healthy, detail) => this.emitStatus(healthy, detail),
+      onConnect: () => {
+        for (const topic of this.topicToSources.keys()) client.subscribe(topic);
+        this.emitStatus(true, `subscribed to ${this.topicToSources.size} motion topic(s)`);
+      },
     });
 
     client.on('message', (topic: string, payload: Buffer) => this.handleMessage(topic, payload));
@@ -210,7 +203,7 @@ export class MotionMqttSource implements Source {
    * configured source id (Task 2) -- connect/reconnect/close/error all funnel through
    * here, so both paths always stay in sync. */
   private emitStatus(healthy: boolean, detail: string): void {
-    this.bus.emit('source_status', { source: 'motion_mqtt', healthy, detail, ts: new Date().toISOString() });
+    emitSourceStatus(this.bus, 'motion_mqtt', healthy, detail);
     for (const sources of this.topicToSources.values()) {
       for (const { id } of sources) this.registry.markHealth(id, healthy, detail);
     }

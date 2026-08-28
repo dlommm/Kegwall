@@ -6,6 +6,7 @@ import type { Settings, SettingsStore } from '../db/settings.js';
 import { listMonitors, resolveTapForRef, type Monitor } from '../db/monitors.js';
 import { latestTelemetryForDevice } from '../db/telemetry.js';
 import type { Source } from './source.js';
+import { attachMqttLifecycle, emitSourceStatus } from './mqttLifecycle.js';
 
 // ---------------------------------------------------------------------------
 // Phase 5 Task 5: Home Assistant MQTT discovery publisher. A `Source` (`mqtt_publisher`)
@@ -344,25 +345,19 @@ export class HaPublisherSource implements Source {
     const client = mqtt.connect(cfg.url, options);
     this.client = client;
 
-    client.on('connect', () => {
-      if (this.stopped) return;
-      client.publish(availTopic, 'online', { qos: 1, retain: true });
-      this.publishCycle(cfg);
-      this.emitStatus(true, 'connected');
-    });
-
-    client.on('reconnect', () => {
-      if (!this.stopped) this.emitStatus(false, 'reconnecting');
-    });
-
-    client.on('close', () => {
-      if (!this.stopped) this.emitStatus(false, 'connection closed');
-    });
-
-    // Never let an unhandled 'error' crash the process -- same precedent as
-    // gen1/mqttSource.ts and notify/mqttSender.ts.
-    client.on('error', (err) => {
-      if (!this.stopped) this.emitStatus(false, `mqtt error: ${err.message}`);
+    // Shared connect-guard + reconnect/close/'error'-swallow scaffolding -- see
+    // mqttLifecycle.ts (the "never let an unhandled 'error' crash the process"
+    // precedent this file used to cite from gen1/mqttSource.ts lives there now;
+    // notify/mqttSender.ts keeps its own copy -- different module tree). No
+    // 'message' handler: this source publishes only, it subscribes to nothing.
+    attachMqttLifecycle(client, {
+      isStopped: () => this.stopped,
+      emitStatus: (healthy, detail) => this.emitStatus(healthy, detail),
+      onConnect: () => {
+        client.publish(availTopic, 'online', { qos: 1, retain: true });
+        this.publishCycle(cfg);
+        this.emitStatus(true, 'connected');
+      },
     });
   }
 
@@ -508,6 +503,6 @@ export class HaPublisherSource implements Source {
   }
 
   private emitStatus(healthy: boolean, detail: string): void {
-    this.bus.emit('source_status', { source: 'mqtt_publisher', healthy, detail, ts: new Date().toISOString() });
+    emitSourceStatus(this.bus, 'mqtt_publisher', healthy, detail);
   }
 }
