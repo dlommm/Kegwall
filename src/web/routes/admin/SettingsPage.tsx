@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { Settings } from '../../../server/db/settings.js';
-// A real VALUE import (not type-only) of a server `core/` module — see that file's doc
-// comment for why this is safe under tsconfig.web.json (a dependency-free module, only a
-// type import of db/settings.ts) and why it replaces what used to be a hand-duplicated
-// local copy of this same constant.
-import { SOURCE_RESTART_KEYS } from '../../../server/core/restartKeys.js';
 import {
   getSettings, patchSettings, uploadLabel, testChannel,
   getSystemVersion, checkForUpdates, triggerUpdate, pollSystemVersion, pollUpdateStatus,
@@ -12,87 +7,8 @@ import {
   type UpdateCheck,
 } from '../../lib/adminApi';
 import { BackupPanel } from './BackupPanel';
-
-/**
- * Mirrors `settingsSchema`'s own defaults for `mqtt`'s sub-fields (`db/settings.ts`) —
- * needed here ONLY as a fallback for constructing a brand-new `mqtt` object from scratch
- * when it has never been configured (`settings.mqtt === null`). Once `mqtt` has been
- * configured at all, `GET /api/settings` always returns every sub-field already resolved
- * (`SettingsStore.all()`/`masked()` run the whole thing through `settingsSchema.parse`),
- * so this constant is never consulted after that first save. Can't import the real
- * `settingsSchema` value here instead — this repo's "types via type-only server imports"
- * rule (see Global Constraints) only clears VALUE imports of dependency-free `core/`
- * modules and plain `db/` modules for their TYPES, not for reaching into a zod schema's
- * runtime defaults.
- */
-const MQTT_DEFAULTS = {
-  gen1TopicPrefix: 'home/TheengsGateway',
-  haPublishEnabled: false,
-  haDiscoveryPrefix: 'homeassistant',
-  appTopicPrefix: 'kegwall',
-};
-
-function triggersRestart(patch: Partial<Settings>): boolean {
-  return Object.keys(patch).some((k) => SOURCE_RESTART_KEYS.includes(k as keyof Settings));
-}
-
-interface GroupProps {
-  settings: Settings;
-  /** Bubbles the fresh, post-save canonical settings up to SettingsPage (so sibling
-   * groups sharing `mqtt` — Sources and Integrations — see each other's latest values),
-   * plus the exact patch body that was sent (so the page can decide whether to show the
-   * restart notice). */
-  onSaved: (updated: Settings, patch: Partial<Settings>) => void;
-}
-
-/**
- * A masked secret field with a "Replace" affordance (Task 8): shows the server's masked
- * display value (e.g. `••••ikey`, or "Not set") and a Replace button; clicking it swaps in
- * a real text input for a brand-new value. The masked string itself is NEVER treated as
- * a real value to submit — a caller only ever reads `value` (the freshly typed
- * replacement) while `replacing` is true.
- */
-function MaskedSecretField({
-  label, testId, maskedValue, replacing, value, onStartReplace, onCancelReplace, onChangeValue,
-}: {
-  label: string;
-  testId: string;
-  maskedValue: string | null | undefined;
-  replacing: boolean;
-  value: string;
-  onStartReplace: () => void;
-  onCancelReplace: () => void;
-  onChangeValue: (v: string) => void;
-}) {
-  return (
-    <div className="admin-field masked-secret" data-testid={`${testId}-field`}>
-      <span>{label}</span>
-      {replacing ? (
-        <div className="masked-secret__row">
-          <input
-            type="password"
-            data-testid={`${testId}-input`}
-            value={value}
-            onChange={(e) => onChangeValue(e.target.value)}
-            autoFocus
-          />
-          <button type="button" data-testid={`${testId}-cancel`} onClick={onCancelReplace}>
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div className="masked-secret__row">
-          <span className="masked-secret__value" data-testid={`${testId}-masked`}>
-            {maskedValue || 'Not set'}
-          </span>
-          <button type="button" data-testid={`${testId}-replace`} onClick={onStartReplace}>
-            Replace
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
+import { MQTT_DEFAULTS, triggersRestart, type GroupProps } from './settings/shared';
+import { MaskedSecretField } from './settings/MaskedSecretField';
 
 /** Site group (Task 8; Phase 5 Task 0 adds `siteLogo` upload + `servingSizeMl`):
  * siteName, displayUnits, a site logo (reuses the beers-form label-upload infra — same
