@@ -1312,6 +1312,16 @@ function PresenceBlock() {
 
 interface IntegrationsGroupProps {
   settings: Settings;
+  /** Per-block remount keys — each block below is keyed by ITS OWN counter (bumped only
+   * when that block's settings key was just persisted), so a save remounts only the
+   * block whose canonical state actually changed. The old shape — one composite
+   * `key` on the whole group — meant saving ANY one block remounted EVERY block,
+   * silently discarding the siblings' unsaved drafts (a half-typed Govee key vanished
+   * when Home Assistant was saved), defeating exactly what the per-counter design
+   * exists to prevent (see SettingsPage's version-counter doc comment). */
+  mqttVersion: number;
+  catalogBeerVersion: number;
+  faceSignInVersion: number;
   /** For the HA block only — routes to the SHARED `mqtt` version counter (same as
    * SourcesGroup) since HA's fields live inside `mqtt`. */
   onSaved: (updated: Settings, patch: Partial<Settings>) => void;
@@ -1430,16 +1440,17 @@ function FaceSignInBlock({ settings, onSaved }: GroupProps) {
  * form), same "outer `<section>`, independent `<form>` blocks inside" shape as
  * ChannelsGroup below. */
 function IntegrationsGroup({
-  settings, onSaved, onCatalogBeerSaved, onFaceSignInSaved,
+  settings, mqttVersion, catalogBeerVersion, faceSignInVersion,
+  onSaved, onCatalogBeerSaved, onFaceSignInSaved,
 }: IntegrationsGroupProps) {
   return (
     <section className="settings-group" data-testid="settings-group-integrations" aria-labelledby="settings-integrations-title">
       <h2 id="settings-integrations-title" className="admin-field__label-text">Integrations</h2>
-      <HomeAssistantBlock settings={settings} onSaved={onSaved} />
-      <CatalogBeerBlock settings={settings} onSaved={onCatalogBeerSaved} />
-      <GoveeBlock settings={settings} onSaved={onCatalogBeerSaved} />
+      <HomeAssistantBlock key={`ha-${mqttVersion}`} settings={settings} onSaved={onSaved} />
+      <CatalogBeerBlock key={`catalogbeer-${catalogBeerVersion}`} settings={settings} onSaved={onCatalogBeerSaved} />
+      <GoveeBlock key={`govee-${catalogBeerVersion}`} settings={settings} onSaved={onCatalogBeerSaved} />
       <PresenceBlock />
-      <FaceSignInBlock settings={settings} onSaved={onFaceSignInSaved} />
+      <FaceSignInBlock key={`facesignin-${faceSignInVersion}`} settings={settings} onSaved={onFaceSignInSaved} />
     </section>
   );
 }
@@ -2022,8 +2033,10 @@ export function SettingsPage() {
       </div>
       <div className="settings-groups" hidden={tab !== 'integrations'} data-testid="settings-panel-integrations">
         <IntegrationsGroup
-          key={`integrations-${mqttVersion}-${catalogBeerVersion}-${faceSignInVersion}`}
           settings={settings}
+          mqttVersion={mqttVersion}
+          catalogBeerVersion={catalogBeerVersion}
+          faceSignInVersion={faceSignInVersion}
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
           onCatalogBeerSaved={(updated, patch) => handleGroupSaved('catalogBeer', updated, patch)}
           onFaceSignInSaved={(updated, patch) => handleGroupSaved('faceSignIn', updated, patch)}

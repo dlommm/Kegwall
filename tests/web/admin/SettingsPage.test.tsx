@@ -486,6 +486,46 @@ describe('SettingsPage', () => {
       });
     });
 
+    // Regression: the group used to carry ONE composite remount key
+    // (`integrations-${mqttVersion}-${catalogBeerVersion}-${faceSignInVersion}`), so
+    // saving ANY block remounted EVERY sibling and silently discarded their unsaved
+    // drafts. Each block is now keyed by its own counter — only the saved block remounts.
+    it("saving Home Assistant doesn't wipe unsaved drafts in sibling integrations blocks", async () => {
+      (getSettings as Mock).mockResolvedValue({
+        ok: true,
+        data: baseSettings({
+          mqtt: {
+            url: 'mqtt://host:1883', username: 'u', password: '••••',
+            gen1TopicPrefix: 'home/TheengsGateway', haPublishEnabled: false,
+            haDiscoveryPrefix: 'homeassistant', appTopicPrefix: 'kegwall', motionTopics: [],
+          },
+        }),
+      });
+      (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-integrations');
+
+      // Half-typed drafts in three sibling blocks that share nothing with `mqtt`.
+      fireEvent.click(screen.getByTestId('settings-integrations-govee-apikey-replace'));
+      fireEvent.change(screen.getByTestId('settings-integrations-govee-apikey-input'), {
+        target: { value: 'half-typed-govee-key' },
+      });
+      fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+      fireEvent.change(screen.getByTestId('settings-integrations-catalogbeer-apikey-input'), {
+        target: { value: 'half-typed-catalogbeer-key' },
+      });
+      fireEvent.change(screen.getByLabelText(/match threshold/i), { target: { value: '0.75' } });
+
+      // Save a DIFFERENT block (Home Assistant — bumps the shared mqtt counter).
+      fireEvent.click(screen.getByTestId('settings-integrations-ha-publish'));
+      fireEvent.click(screen.getByTestId('settings-integrations-save'));
+      await flush();
+
+      expect(screen.getByTestId('settings-integrations-govee-apikey-input')).toHaveValue('half-typed-govee-key');
+      expect(screen.getByTestId('settings-integrations-catalogbeer-apikey-input')).toHaveValue('half-typed-catalogbeer-key');
+      expect(screen.getByLabelText(/match threshold/i)).toHaveValue(0.75);
+    });
+
     it('blocks enabling HA publish with a clear message when MQTT is not configured at all', async () => {
       (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ mqtt: null }) });
       render(<SettingsPage />);
