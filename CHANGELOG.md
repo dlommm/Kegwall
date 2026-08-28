@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.14.2](https://github.com/dlommm/Kegwall/compare/v1.14.1...v1.14.2) (2026-08-28)
+
 ## [1.14.1](https://github.com/dlommm/Kegwall/compare/v1.14.0...v1.14.1) (2026-08-05)
 
 - **Fixed:** **UDP silence is now reported instead of hidden.** A bound socket that heard nothing
