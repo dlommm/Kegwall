@@ -33,24 +33,19 @@ let source: KegtronUdpSource | null;
 let client: dgram.Socket | null;
 
 // Fast test-only pour-end timeout (see udpSource.ts's KegtronUdpSourceOptions doc
-// comment — additive beyond the brief's literal {bus,settings,isCloudHealthy,group,
-// port,bindAddress} shape, same precedent as mdashClient's timeoutMs / cloudSource's
-// reconnectBaseMs). Production default is 2000ms per the PDF's "2 seconds" tail.
+// comment — additive beyond the brief's literal {bus,settings,group,port,bindAddress}
+// shape, same precedent as mdashClient's timeoutMs / cloudSource's reconnectBaseMs).
+// Production default is 2000ms per the PDF's "2 seconds" tail.
 const FAST_POUR_TIMEOUT_MS = 60;
 
 function byEvent(name: string): any[] {
   return events.filter((e) => e.event === name).map((e) => e.payload);
 }
 
-function isCloudHealthyTrue(): boolean {
-  return true;
-}
-
 async function makeSource(opts: Partial<ConstructorParameters<typeof KegtronUdpSource>[0]> = {}) {
   const src = new KegtronUdpSource({
     bus,
     settings,
-    isCloudHealthy: isCloudHealthyTrue,
     bindAddress: '127.0.0.1',
     port: 0,
     pourTimeoutMs: FAST_POUR_TIMEOUT_MS,
@@ -152,7 +147,7 @@ describe('KegtronUdpSource full pour replay', () => {
 
     // pour_completed carries the final accumulated curServ (355mL), source 'udp' — ALWAYS
     // emitted per the binding design decision (record-level dedupe in StateManager's
-    // PourDeduper is the backstop, not a suppress-at-emit-time check against isCloudHealthy).
+    // PourDeduper is the backstop, not a suppress-at-emit-time check against cloud health).
     const completed = byEvent('pour_completed');
     expect(completed).toHaveLength(1);
     expect(completed[0]).toMatchObject({

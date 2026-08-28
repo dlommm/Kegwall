@@ -57,13 +57,6 @@ const STALE_AFTER_MS = 180_000;
 export interface KegtronUdpSourceOptions {
   bus: EventBus;
   settings: SettingsStore;
-  /** Cloud source health, wired in by Task 8's SourceManager. Deliberately NOT used to
-   * gate/suppress pour_completed here — pour_completed is ALWAYS emitted with
-   * source:'udp' (binding design decision, task-6 brief); StateManager's PourDeduper
-   * (Task 5) is what suppresses the duplicate record when cloud also reports the same
-   * pour, which also covers "cloud is down" automatically without this source needing
-   * to know about it. Reserved for future cross-source health-status coordination. */
-  isCloudHealthy: () => boolean;
   /** Monitor identity reconciliation (Task 8, HARD REQUIREMENT from the Task 6 review):
    * UDP packets only ever carry the device's `serialNum`, while cloud discovery keys
    * monitors by the mdash device id (see `monitors.ts`'s `reconcileProMonitor` doc
@@ -98,8 +91,11 @@ export interface KegtronUdpSourceOptions {
   bindAddress?: string;
   /** Test-only override of the pour-end-via-no-packet fallback window (production
    * default 2000ms per the PDF, see DEFAULT_POUR_TIMEOUT_MS above). Not part of the
-   * brief's literal {bus,settings,isCloudHealthy,group,port,bindAddress} constructor
-   * shape — added so tests can exercise the timeout path in milliseconds rather than
+   * brief's literal constructor shape ({bus,settings,group,port,bindAddress}, plus an
+   * `isCloudHealthy` hook that was threaded but never read — "reserved for future
+   * cross-source health coordination" — and has since been removed as dead wiring;
+   * see finishPour()'s comment for the design decision that made it unnecessary)
+   * — added so tests can exercise the timeout path in milliseconds rather than
    * waiting out a real 2s window. Optional and additive, same precedent as
    * mdashClient's timeoutMs / cloudSource's reconnectBaseMs (see their doc comments). */
   pourTimeoutMs?: number;
@@ -193,7 +189,6 @@ export class KegtronUdpSource implements Source {
 
   private readonly bus: EventBus;
   private readonly settings: SettingsStore;
-  private readonly isCloudHealthy: () => boolean;
   private readonly reconcile: ((serialNum: string, portIndex: number) => MonitorRef | null) | undefined;
   private readonly group: string;
   private readonly configuredPort: number;
@@ -225,7 +220,6 @@ export class KegtronUdpSource implements Source {
   constructor(opts: KegtronUdpSourceOptions) {
     this.bus = opts.bus;
     this.settings = opts.settings;
-    this.isCloudHealthy = opts.isCloudHealthy;
     this.reconcile = opts.reconcile;
     this.group = opts.group ?? DEFAULT_GROUP;
     this.configuredPort = opts.port ?? DEFAULT_PORT;
@@ -508,7 +502,9 @@ export class KegtronUdpSource implements Source {
   /** Always emits pour_completed with source:'udp' and the final curServ — the
    * binding design decision from the task brief: dedupe happens at record level
    * (StateManager's PourDeduper, Task 5) rather than by suppressing this emit when
-   * isCloudHealthy() is true, which also covers "cloud is currently down" for free. */
+   * cloud is healthy, which also covers "cloud is currently down" for free. (This is
+   * why the constructor's original `isCloudHealthy` option was never read — it was
+   * kept "reserved" for a while and has since been removed as dead wiring.) */
   private finishPour(state: PortState, monitor: MonitorRef, ts: string): void {
     if (state.timeoutTimer) {
       clearTimeout(state.timeoutTimer);

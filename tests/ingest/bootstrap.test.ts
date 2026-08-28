@@ -535,7 +535,7 @@ describe('monitor identity reconciliation (cloud <-> UDP)', () => {
     const settings = new SettingsStore(db);
     settings.set('udpEnabled', true);
     source = new KegtronUdpSource({
-      bus, settings, isCloudHealthy: () => true,
+      bus, settings,
       reconcile: (serialNum, portIndex) => reconcileProMonitor(db, serialNum, portIndex),
       bindAddress: '127.0.0.1', port: 0, pourTimeoutMs: 60,
     });
@@ -572,7 +572,7 @@ describe('monitor identity reconciliation (cloud <-> UDP)', () => {
     const settings = new SettingsStore(db);
     settings.set('udpEnabled', true);
     source = new KegtronUdpSource({
-      bus, settings, isCloudHealthy: () => true,
+      bus, settings,
       reconcile: (serialNum, portIndex) => reconcileProMonitor(db, serialNum, portIndex),
       bindAddress: '127.0.0.1', port: 0, pourTimeoutMs: 60,
     });

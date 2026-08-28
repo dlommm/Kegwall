@@ -57,14 +57,10 @@ export function registerConfiguredSources(ctx: AppContext): void {
     },
   }));
 
-  const isCloudHealthy = (): boolean =>
-    ctx.sources.status().find((s) => s.name === 'kegtron_cloud')?.healthy ?? false;
-
   if (settings.udpEnabled) {
     ctx.sources.register(new KegtronUdpSource({
       bus: ctx.bus,
       settings: ctx.settings,
-      isCloudHealthy,
       // Monitor identity reconciliation (Task 8 HARD REQUIREMENT, see monitors.ts's
       // reconcileProMonitor doc comment) — lands UDP events on the same monitor row
       // cloud discovery already created whenever the serial matches, so PourDeduper
