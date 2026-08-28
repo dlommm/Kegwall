@@ -2,6 +2,90 @@
 
 ## [1.14.2](https://github.com/dlommm/Kegwall/compare/v1.14.1...v1.14.2) (2026-08-28)
 
+A hardening release from a full-application review: twenty-one fixes across pricing, ingest,
+automation, notifications, the tablet, and the admin, plus one dependency security patch.
+
+**Pricing & inventory**
+
+- **Fixed:** the **per-beer markup override now actually applies.** The beer form's
+  *Markup override %* (and the exclusive-supplier field) saved with a success message but was
+  silently discarded by the API — a 0% override on a charity keg kept showing the globally
+  marked-up price. Both fields now persist through create and edit; public menus and walls are
+  unaffected (cost fields never leave the owner surfaces).
+- **Fixed:** deleting a wall that a TV/display is still assigned to now returns a clear conflict
+  naming the display(s) and saying to unassign them first, instead of a baffling
+  *"Refers to a record that does not exist"*.
+
+**Analytics**
+
+- **Fixed:** the **daily pours chart buckets by your local calendar day**, not UTC — a 7 PM Friday
+  pour no longer shows up as Saturday volume (same treatment the hour-of-day chart already had).
+  The keg **kick-date projection** and **monthly spend**'s fallback month had the same
+  UTC-off-by-one and are fixed with it.
+
+**Kegtron ingest**
+
+- **Fixed:** a UDP **bind failure no longer hangs every ingest source**. When the socket couldn't
+  bind (port in use, bad bind address after a network change), startup waited forever and a
+  settings save could hang with it; the source now reports itself down and everything else starts.
+- **Fixed:** one failed multicast re-join no longer silences every FUTURE re-join failure — a
+  transient adapter reset used to permanently disable that diagnostic.
+- **Fixed:** the cloud connection's **reconnect backoff works again** when Kegtron's notify
+  WebSocket persistently refuses connections: instead of hammering mdash.net with a
+  request-per-second per device forever, retries back off 1s→60s as designed.
+- **Fixed:** **pours no longer record twice** when a Kegtron Pro's Bluetooth advert arrives before
+  cloud discovery — the BLE path kept every later pour on a shadow monitor while the cloud
+  reported the same pour on the real one.
+- **Fixed:** a background shadow poll that raced a live WebSocket update could roll device state
+  backwards and **re-announce an already-recorded pour**; stale poll responses are now discarded.
+
+**Motion, sensors & automation**
+
+- **Fixed:** a GPIO motion process (`gpiomon`) that **dies after starting healthy** now flips the
+  source to down with an accurate message instead of claiming *"gpiomon running"* forever while
+  motion is dead.
+- **Fixed:** **MQTT wildcard motion topics** (`zigbee2mqtt/+/occupancy`, `#`) now actually
+  trigger — they subscribed fine and reported healthy, but every delivered message was dropped by
+  an exact-match lookup.
+- **Fixed:** Govee polling no longer starts a second overlapping poll when a slow network makes
+  one run long — no more duplicate telemetry rows and doubled API traffic at the worst time.
+- **Fixed:** a multi-port Kegtron dropping offline sends **one** "Monitor offline" notification
+  (and one recovery), not one per port — up to four duplicates per event before.
+- **Fixed:** notification sends **stop retrying permanently-failing webhooks** (bad URL, revoked
+  token — 4xx) and back off five times harder when rate-limited (429). This also closes the one
+  path that could deliver a duplicate external notification.
+
+**Tablet & phone menu**
+
+- **Fixed:** tapping **"tap to stay"** in the last split-second of the done-screen countdown can
+  no longer lose the race against auto-sign-out and leave the tablet claiming *"You're up"* while
+  the server has already signed you out (the next pour went unattributed).
+- **Fixed:** double-tapping **"Join & claim"** no longer creates two identical drinker profiles.
+- **Changed:** the tablet's A–Z jump rail, signup color swatches, and the claim sheet's rating
+  stars and tags now meet the **44px touch-target** minimum (the rail letters widen and stretch to
+  fill the rail's height); the decorative A–Z rail is also removed from the keyboard focus order
+  for screen-reader correctness.
+
+**Admin**
+
+- **Fixed:** the wall editor's save can no longer **half-apply**: wall settings save first, and if
+  the device assignment then fails the editor says exactly what saved and what didn't, keeps the
+  retry available, and never claims nothing happened while TVs already re-rendered.
+- **Fixed:** the Presence page's display-power and camera-motion toggles no longer **revert a
+  colleague's concurrent wall edits** — they re-fetch the wall's current config immediately before
+  writing and change only the fields they own.
+- **Fixed:** a **password change now signs out that user's other sessions** (your own current
+  session survives changing your own password) — a stolen cookie no longer works for the rest of
+  its 30-day life after a reset. Expired session rows are also swept on login instead of
+  accumulating forever.
+- **Fixed:** simulating a test pour on a second tap no longer leaves the first tap frozen mid-pour
+  on every wall until restart.
+
+**Security**
+
+- **Fixed:** patched the `fast-uri` host-confusion advisory (GHSA-7p8r-x3mc-p8w7) via a dependency
+  refresh; `npm audit` for production dependencies is clean.
+
 ## [1.14.1](https://github.com/dlommm/Kegwall/compare/v1.14.0...v1.14.1) (2026-08-05)
 
 - **Fixed:** **UDP silence is now reported instead of hidden.** A bound socket that heard nothing
