@@ -424,14 +424,27 @@ export function ClaimSheet() {
    * outcome (success/409/429) renders identically to an existing-drinker claim. */
   async function handleSignupAndClaim(name: string) {
     if (!selectedPour || claimInFlightRef.current) return;
+    // Same synchronous check-AND-SET as handleSelectDrinker — checking without setting
+    // left the exact double-tap window the ref exists to close: two taps in one JS turn
+    // both passed the guard and fired two createPourer calls, minting two identical
+    // drinker profiles (only one of which then claimed the pour).
+    claimInFlightRef.current = true;
     setStatus('claiming');
     setErrorKind(null);
-    const created = await createPourer(name);
-    if (selectedPourRef.current?.id !== selectedPour.id) return;
-    if (!created.ok) {
-      setStatus('error');
-      setErrorKind(created.status === 429 ? 'rateLimited' : 'other');
-      return;
+    let created: Awaited<ReturnType<typeof createPourer>>;
+    try {
+      created = await createPourer(name);
+      if (selectedPourRef.current?.id !== selectedPour.id) return;
+      if (!created.ok) {
+        setStatus('error');
+        setErrorKind(created.status === 429 ? 'rateLimited' : 'other');
+        return;
+      }
+    } finally {
+      // Release before delegating: handleSelectDrinker re-acquires synchronously in the
+      // same microtask (no await between here and the call below), so no second tap can
+      // interleave between the release and the re-acquire.
+      claimInFlightRef.current = false;
     }
     await handleSelectDrinker({
       id: created.data.id,

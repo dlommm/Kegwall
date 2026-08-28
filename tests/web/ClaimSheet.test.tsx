@@ -5,7 +5,7 @@ import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ClaimSheet } from '../../src/web/components/ClaimSheet';
 import {
-  getRecentPours, getDrinkers, claimPour,
+  getRecentPours, getDrinkers, claimPour, createPourer,
 } from '../../src/web/lib/api';
 import type { RecentPour, PublicDrinker } from '../../src/web/lib/api';
 
@@ -13,6 +13,8 @@ vi.mock('../../src/web/lib/api', () => ({
   getRecentPours: vi.fn(),
   getDrinkers: vi.fn(),
   claimPour: vi.fn(),
+  createPourer: vi.fn(),
+  ratePourPublic: vi.fn(),
 }));
 
 function pour(overrides: Partial<RecentPour> = {}): RecentPour {
@@ -260,6 +262,45 @@ describe('ClaimSheet', () => {
       expect(claimPour).toHaveBeenCalledTimes(1);
       expect(await screen.findByTestId('claim-sheet-success')).toBeInTheDocument();
       expect(screen.queryByTestId('claim-sheet-conflict')).not.toBeInTheDocument();
+    });
+
+    it('a rapid double-tap on "Join & claim" only creates ONE pourer', async () => {
+      // Regression: handleSignupAndClaim CHECKED claimInFlightRef but never SET it before
+      // its first await, so two taps landing in the same JS turn both passed the guard and
+      // fired two createPourer calls — minting two identical drinker profiles, only one of
+      // which then claimed the pour.
+      (createPourer as Mock).mockResolvedValue({
+        ok: true, data: { id: 7, displayName: 'Nia', avatarColor: '#f2c14e' },
+      });
+      // mockReset (not just the suite's clearAllMocks) — the previous test leaves its
+      // unconsumed 409 mockResolvedValueOnce queued, and clearAllMocks doesn't drain
+      // once-queues; without this, the claim below eats that stale 409.
+      (claimPour as Mock).mockReset();
+      (claimPour as Mock).mockResolvedValue({
+        ok: true,
+        data: {
+          id: 1, kegId: 1, ts: '2026-07-28T12:00:00.000Z', volumeMl: 450, durationMs: null, source: 'cloud', drinkerId: 7,
+        },
+      });
+
+      render(<ClaimSheet />);
+      await openPicker();
+      fireEvent.change(screen.getByTestId('claim-sheet-signup-name'), { target: { value: 'Nia' } });
+      const joinButton = screen.getByTestId('claim-sheet-signup-join');
+
+      // Same window as the claim double-tap above: both clicks land before React's
+      // disabled={status === 'claiming'} re-render reaches the real DOM.
+      await act(async () => {
+        fireEvent.click(joinButton);
+        fireEvent.click(joinButton);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(createPourer).toHaveBeenCalledTimes(1);
+      expect(claimPour).toHaveBeenCalledTimes(1);
+      expect(await screen.findByTestId('claim-sheet-success')).toBeInTheDocument();
     });
 
     it('ignores a stale claim response once the selection has moved on to a different pour', async () => {
