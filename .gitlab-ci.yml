@@ -25,6 +25,16 @@
 # (anything containing a `-`, e.g. v0.6.0-rc.1) so a prerelease can never move
 # `:latest` out from under a real release.
 
+# Every job in this file assumes a Linux Docker executor (`image:` is meaningless on a
+# shell runner). This instance ALSO has an untagged Windows shell runner that ignores
+# `image:` and happily picks up untagged jobs — pipelines #256 and #265 died in seconds
+# with "bash: not recognized" purely from that runner roulette. The Linux runner carries
+# the `Linux` tag (with run_untagged still on, so other projects are unaffected);
+# pinning every job to it makes the assignment deterministic.
+default:
+  tags:
+    - Linux
+
 stages:
   - test
   - release

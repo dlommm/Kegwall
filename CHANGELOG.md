@@ -2,6 +2,28 @@
 
 ## [1.14.3](https://github.com/dlommm/Kegwall/compare/v1.14.2...v1.14.3) (2026-08-28)
 
+Follow-up to v1.14.2's review wave: the settings page's last draft-eating remount, a smarter
+re-login, and a large internal restructuring of the settings page, tablet page, API client, and
+ingest sources (no behavior change from the restructuring — it exists so future fixes land in one
+place instead of several).
+
+- **Fixed:** saving one block on the Settings → Integrations tab (say, Home Assistant) no longer
+  **discards unsaved drafts in the neighboring blocks** — a half-typed Govee API key or
+  catalog.beer setting now survives a sibling's save. Relatedly, saving the Govee block no longer
+  refreshed the catalog.beer block's state instead of its own.
+- **Fixed:** when an expired admin session bounces you to the login page, a successful re-login
+  now **returns you to the page you were on** (with the same query/filters) instead of the
+  dashboard. The return-to parameter only ever accepts same-origin paths.
+- **Fixed:** the settings page's *"Saved."* confirmation now clears itself after a few seconds
+  instead of sitting there stale forever, and a freshly loaded page reflects the server's pricing
+  settings consistently with every other group.
+- **Changed (internal):** the 2,000-line settings page is now ten focused modules sharing one
+  form/save hook and one masked-secret hook; the tablet page's face enrollment, face pipeline,
+  and session tab are standalone units; the admin API client is split per domain behind one
+  shared HTTP transport (the layer whose duplicated copy caused the same bug to need fixing
+  twice, historically); and the BLE/MQTT ingest sources share their scanner-lease, connect/status,
+  and device-anchor scaffolding instead of carrying three copies. Test count grew to 2,744.
+
 ## [1.14.2](https://github.com/dlommm/Kegwall/compare/v1.14.1...v1.14.2) (2026-08-28)
 
 A hardening release from a full-application review: twenty-one fixes across pricing, ingest,
