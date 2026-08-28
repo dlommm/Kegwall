@@ -54,6 +54,17 @@ export class GoveeSource implements Source {
 
   private stopped = false;
 
+  /** In-flight guard: poll() serially awaits one readDevice per sensor (10s per-request
+   * timeout), so with enough sensors on a degraded network a single poll can outlast the
+   * 60s interval — without this, the next tick starts a CONCURRENT poll: interleaved
+   * duplicate telemetry/sensor_reading emits, doubled API traffic against an upstream
+   * that is already struggling, and a source status that flaps between the two runs.
+   * A tick that finds a poll still running is SKIPPED rather than queued: every poll is
+   * a full fresh snapshot of every sensor, so a queued catch-up run would only re-fetch
+   * the same data back-to-back — doubling load exactly when the network is degraded —
+   * for readings the next scheduled tick fetches anyway. */
+  private pollInFlight = false;
+
   /** identifier -> deviceName/sku signature of already-announced devices, so
    * `device_discovered` (and its ws-snapshot broadcast) fires once per device, not
    * once per poll. Cleared on start() so a source rebuild re-announces. */
@@ -93,6 +104,8 @@ export class GoveeSource implements Source {
   private async poll(): Promise<void> {
     const config = this.opts.settings.get('govee');
     if (!config?.apiKey || this.stopped) return;
+    if (this.pollInFlight) return; // previous poll still running — skip, don't overlap (see pollInFlight)
+    this.pollInFlight = true;
     const base = this.opts.settings.get('goveeBaseUrl');
     try {
       const devicesRes = await fetch(`${base}/router/api/v1/user/devices`, {
@@ -146,6 +159,10 @@ export class GoveeSource implements Source {
       // Generic detail, never the raw fetch error — it can embed the request URL. The
       // !ok branches above already report a precise (non-raw) status code where they can.
       this.status(false, 'Govee poll failed (network error or timeout)');
+    } finally {
+      // Cleared on EVERY exit path (including the mid-loop `if (this.stopped) return`)
+      // so a skipped-then-finished poll can never wedge the guard shut.
+      this.pollInFlight = false;
     }
   }
 

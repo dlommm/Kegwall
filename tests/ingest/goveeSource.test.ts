@@ -1,5 +1,5 @@
 import {
-  describe, it, expect, beforeEach, afterEach,
+  describe, it, expect, beforeEach, afterEach, vi,
 } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { mkdtempSync } from 'node:fs';
@@ -27,6 +27,9 @@ let devices: FakeDevice[];
 let stateRequests: { sku: string; device: string }[];
 let deviceListRequests: number;
 let tempFByDevice: Record<string, number>;
+// When set, the state route awaits it before responding — lets the overlap-guard test
+// below hold one poll mid-flight while a second tick tries to start.
+let stateGate: Promise<void> | null;
 
 let discoveredEvents: EventMap['device_discovered'][];
 let telemetryEvents: EventMap['telemetry'][];
@@ -41,6 +44,7 @@ beforeEach(async () => {
   stateRequests = [];
   deviceListRequests = 0;
   tempFByDevice = {};
+  stateGate = null;
   sensorMonitorMap = new Map();
 
   server = Fastify();
@@ -51,6 +55,7 @@ beforeEach(async () => {
   server.post('/router/api/v1/device/state', async (req) => {
     const { payload } = req.body as { payload: { sku: string; device: string } };
     stateRequests.push(payload);
+    if (stateGate) await stateGate;
     return {
       payload: {
         capabilities: [
@@ -161,6 +166,39 @@ describe('GoveeSource', () => {
     expect(telemetryEvents.map((e) => e.monitor.identifier)).toEqual(['ON']);
     expect(sensorReadings.map((r) => r.sensorId)).toEqual(['ON']);
     expect(statuses.at(-1)!.detail).toContain('1 disabled');
+  });
+
+  it('skips a poll tick while the previous poll is still in flight — no overlapping polls', async () => {
+    // Overlap regression: poll() serially awaits one readDevice per sensor (10s
+    // per-request timeout), so on a degraded network a poll can outlast the 60s
+    // interval; pre-fix the next tick started a CONCURRENT poll — interleaved duplicate
+    // telemetry, doubled API traffic, flapping status.
+    devices = [{ sku: 'H5179', device: 'AA:BB', deviceName: 'Keg room' }];
+    let releaseState!: () => void;
+    const src = makeSource();
+
+    // Hold the first poll open at its state request, mid-flight.
+    stateGate = new Promise((resolve) => { releaseState = resolve; });
+    const firstPoll = (src as any).poll() as Promise<void>;
+    await vi.waitFor(() => expect(stateRequests).toHaveLength(1));
+    expect(deviceListRequests).toBe(1);
+
+    // A second tick while the first is still running must SKIP entirely — zero
+    // additional requests, zero interleaved emits.
+    await (src as any).poll();
+    expect(deviceListRequests).toBe(1);
+    expect(stateRequests).toHaveLength(1);
+
+    // The held poll completes normally once the upstream answers…
+    releaseState();
+    stateGate = null;
+    await firstPoll;
+    expect(telemetryEvents).toHaveLength(1);
+
+    // …and the guard is released: the NEXT tick polls again.
+    await (src as any).poll();
+    expect(deviceListRequests).toBe(2);
+    expect(telemetryEvents).toHaveLength(2);
   });
 
   it('no API key: unconfigured status, zero requests', async () => {
