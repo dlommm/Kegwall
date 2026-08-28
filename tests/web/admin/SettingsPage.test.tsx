@@ -526,6 +526,30 @@ describe('SettingsPage', () => {
       expect(screen.getByLabelText(/match threshold/i)).toHaveValue(0.75);
     });
 
+    // Regression: GoveeBlock's onSaved was miswired to the CATALOG.BEER version counter,
+    // so a Govee save remounted the sibling CatalogBeerBlock and wiped its draft. It now
+    // bumps its own `goveeVersion` counter only.
+    it("saving Govee doesn't wipe an unsaved catalog.beer API key draft in the sibling block", async () => {
+      (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+      (patchSettings as Mock).mockResolvedValue({
+        ok: true, data: baseSettings({ autoImportBeers: false }),
+      });
+      render(<SettingsPage />);
+      await screen.findByTestId('settings-group-integrations');
+
+      fireEvent.click(screen.getByTestId('settings-integrations-catalogbeer-apikey-replace'));
+      fireEvent.change(screen.getByTestId('settings-integrations-catalogbeer-apikey-input'), {
+        target: { value: 'half-typed-catalogbeer-key' },
+      });
+
+      fireEvent.click(screen.getByTestId('settings-integrations-auto-import'));
+      fireEvent.click(screen.getByTestId('settings-integrations-govee-save'));
+      await flush();
+
+      expect(patchSettings).toHaveBeenCalledWith({ autoImportBeers: false });
+      expect(screen.getByTestId('settings-integrations-catalogbeer-apikey-input')).toHaveValue('half-typed-catalogbeer-key');
+    });
+
     it('blocks enabling HA publish with a clear message when MQTT is not configured at all', async () => {
       (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ mqtt: null }) });
       render(<SettingsPage />);

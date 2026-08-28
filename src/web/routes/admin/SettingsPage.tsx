@@ -1321,6 +1321,7 @@ interface IntegrationsGroupProps {
    * exists to prevent (see SettingsPage's version-counter doc comment). */
   mqttVersion: number;
   catalogBeerVersion: number;
+  goveeVersion: number;
   faceSignInVersion: number;
   /** For the HA block only — routes to the SHARED `mqtt` version counter (same as
    * SourcesGroup) since HA's fields live inside `mqtt`. */
@@ -1331,6 +1332,13 @@ interface IntegrationsGroupProps {
    * (and discard any unsaved draft in) the SIBLING SourcesGroup too. See
    * SettingsPage's `catalogBeerVersion`. */
   onCatalogBeerSaved: (updated: Settings, patch: Partial<Settings>) => void;
+  /** For GoveeBlock only — same "own independent key, own counter" precedent:
+   * `govee`/`autoImportBeers` share nothing with `mqtt`, `catalogBeer`, or
+   * `faceSignIn`, so a Govee save must bump ONLY its own counter (it used to be
+   * miswired to `onCatalogBeerSaved`, remounting — and so discarding any unsaved
+   * draft in — the sibling CatalogBeerBlock on every Govee save). See SettingsPage's
+   * `goveeVersion`. */
+  onGoveeSaved: (updated: Settings, patch: Partial<Settings>) => void;
   /** For FaceSignInBlock only (Task 9) — same "own independent key, own counter"
    * precedent again: `faceSignIn` shares nothing with `mqtt`/`catalogBeer`/
    * `presenceWebhookToken`. See SettingsPage's `faceSignInVersion`. */
@@ -1440,15 +1448,15 @@ function FaceSignInBlock({ settings, onSaved }: GroupProps) {
  * form), same "outer `<section>`, independent `<form>` blocks inside" shape as
  * ChannelsGroup below. */
 function IntegrationsGroup({
-  settings, mqttVersion, catalogBeerVersion, faceSignInVersion,
-  onSaved, onCatalogBeerSaved, onFaceSignInSaved,
+  settings, mqttVersion, catalogBeerVersion, goveeVersion, faceSignInVersion,
+  onSaved, onCatalogBeerSaved, onGoveeSaved, onFaceSignInSaved,
 }: IntegrationsGroupProps) {
   return (
     <section className="settings-group" data-testid="settings-group-integrations" aria-labelledby="settings-integrations-title">
       <h2 id="settings-integrations-title" className="admin-field__label-text">Integrations</h2>
       <HomeAssistantBlock key={`ha-${mqttVersion}`} settings={settings} onSaved={onSaved} />
       <CatalogBeerBlock key={`catalogbeer-${catalogBeerVersion}`} settings={settings} onSaved={onCatalogBeerSaved} />
-      <GoveeBlock key={`govee-${catalogBeerVersion}`} settings={settings} onSaved={onCatalogBeerSaved} />
+      <GoveeBlock key={`govee-${goveeVersion}`} settings={settings} onSaved={onGoveeSaved} />
       <PresenceBlock />
       <FaceSignInBlock key={`facesignin-${faceSignInVersion}`} settings={settings} onSaved={onFaceSignInSaved} />
     </section>
@@ -1854,7 +1862,7 @@ function ChannelsGroup({ settings, onSaved }: GroupProps) {
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
-type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'faceSignIn' | 'channels' | 'updates' | 'pricing';
+type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'govee' | 'faceSignIn' | 'channels' | 'updates' | 'pricing';
 
 /**
  * `/admin/settings` (Task 8, admin-only route — same "no role branching needed" situation
@@ -1877,6 +1885,10 @@ type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'faceSignIn' | 'cha
  *
  * `faceSignInVersion` (Task 9) is the same precedent once more for `FaceSignInBlock` —
  * `faceSignIn` shares nothing with `mqtt` or `catalogBeer` either.
+ *
+ * `goveeVersion` is the same precedent for `GoveeBlock` (`govee` + `autoImportBeers`,
+ * both fully independent keys) — its save used to be miswired to bump
+ * `catalogBeerVersion`, remounting the sibling CatalogBeerBlock instead of itself.
  *
  * There's no `presenceVersion` counter — `PresenceBlock` (Displays & Presence hub Task 5)
  * is a static pointer card now, nothing here for it to re-derive a draft from.
@@ -1914,6 +1926,7 @@ export function SettingsPage() {
   const [kegtronVersion, setKegtronVersion] = useState(0);
   const [mqttVersion, setMqttVersion] = useState(0);
   const [catalogBeerVersion, setCatalogBeerVersion] = useState(0);
+  const [goveeVersion, setGoveeVersion] = useState(0);
   const [faceSignInVersion, setFaceSignInVersion] = useState(0);
   const [updatesVersion, setUpdatesVersion] = useState(0);
   const [pricingVersion, setPricingVersion] = useState(0);
@@ -1929,6 +1942,7 @@ export function SettingsPage() {
         setKegtronVersion((v) => v + 1);
         setMqttVersion((v) => v + 1);
         setCatalogBeerVersion((v) => v + 1);
+        setGoveeVersion((v) => v + 1);
         setFaceSignInVersion((v) => v + 1);
         setUpdatesVersion((v) => v + 1);
       } else {
@@ -1948,6 +1962,7 @@ export function SettingsPage() {
     else if (group === 'kegtron') setKegtronVersion((v) => v + 1);
     else if (group === 'mqtt') setMqttVersion((v) => v + 1);
     else if (group === 'catalogBeer') setCatalogBeerVersion((v) => v + 1);
+    else if (group === 'govee') setGoveeVersion((v) => v + 1);
     else if (group === 'faceSignIn') setFaceSignInVersion((v) => v + 1);
     else if (group === 'pricing') setPricingVersion((v) => v + 1);
     // 'channels': no version bump/remount — see ChannelsGroup's doc comment for why each
@@ -2036,9 +2051,11 @@ export function SettingsPage() {
           settings={settings}
           mqttVersion={mqttVersion}
           catalogBeerVersion={catalogBeerVersion}
+          goveeVersion={goveeVersion}
           faceSignInVersion={faceSignInVersion}
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
           onCatalogBeerSaved={(updated, patch) => handleGroupSaved('catalogBeer', updated, patch)}
+          onGoveeSaved={(updated, patch) => handleGroupSaved('govee', updated, patch)}
           onFaceSignInSaved={(updated, patch) => handleGroupSaved('faceSignIn', updated, patch)}
         />
         <ChannelsGroup
