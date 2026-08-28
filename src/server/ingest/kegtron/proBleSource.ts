@@ -107,8 +107,15 @@ export class KegtronProBleSource implements Source {
 
   private releaseScanner: (() => Promise<void>) | null = null;
   private readonly discovered = new Set<string>();
-  /** (mac:port) → reconciled ref, so the (cheap, but per-advert ~1/s) DB lookup runs
-   * once per port, not on every advert. A source restart (settings PATCH) clears it. */
+  /** (mac:port) → RECONCILED ref only — never the `ble:{mac}` fallback — so the (cheap,
+   * but per-advert ~1/s) DB lookup runs once per port after it has succeeded, not on
+   * every advert. Caching the fallback would be a startup-order trap: the first Pro
+   * advert routinely beats cloud discovery creating the monitor row, reconcile() returns
+   * null at that moment, and a cached fallback would then pin EVERY later BLE pour onto
+   * the ble:{mac} monitor for the source's lifetime while cloud reports the same pour on
+   * the mdash-id monitor — PourDeduper can't collapse cross-MONITOR duplicates, so every
+   * pour records twice. Same "keep retrying reconcile until it matches" contract as
+   * udpSource.ts's monitorRef(). A source restart (settings PATCH) clears it. */
   private readonly refCache = new Map<string, MonitorRef>();
   private stopped = true;
 
@@ -169,9 +176,13 @@ export class KegtronProBleSource implements Source {
     const cacheKey = `${mac}:${decoded.portIndex}`;
     let monitor = this.refCache.get(cacheKey);
     if (!monitor) {
-      monitor = this.reconcile?.(proNameSuffix(localName!), decoded.portIndex)
+      // Only a SUCCESSFUL reconcile is cached (see refCache's doc comment): until cloud/
+      // UDP discovery creates a matchable row, every advert re-runs the lookup and falls
+      // back per-advert, so BLE converges onto the shared monitor as soon as it exists.
+      const reconciled = this.reconcile?.(proNameSuffix(localName!), decoded.portIndex) ?? null;
+      if (reconciled) this.refCache.set(cacheKey, reconciled);
+      monitor = reconciled
         ?? { type: 'kegtron_pro', identifier: `ble:${mac}`, portIndex: decoded.portIndex };
-      this.refCache.set(cacheKey, monitor);
     }
 
     if (!this.discovered.has(cacheKey)) {

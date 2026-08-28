@@ -254,6 +254,49 @@ describe('KegtronProBleSource', () => {
     });
   });
 
+  it('does not cache the ble:{mac} fallback ref — reconcile re-runs until it succeeds, then caches', async () => {
+    // Startup-order regression (doubled-pour bug): the first Pro advert routinely beats
+    // cloud discovery creating the monitor row, so reconcile() returns null at that
+    // moment. Pre-fix the ble:{mac} fallback was cached for the source's lifetime, so
+    // every later BLE pour landed on the ble:{mac} monitor while cloud reported the same
+    // pour on the mdash-id monitor — and PourDeduper can't collapse cross-monitor
+    // duplicates. Post-fix, reconcile re-runs per advert until it matches (udpSource's
+    // monitorRef contract), then the SUCCESSFUL ref is cached.
+    const noble = new FakeNoble();
+    let reconcileCalls = 0;
+    let cloudDiscovered = false; // flips true to simulate cloud discovery landing later
+    source = new KegtronProBleSource({
+      bus,
+      settings,
+      nobleFactory: async () => noble as any,
+      reconcile: (suffix, portIndex) => {
+        reconcileCalls++;
+        return cloudDiscovered && suffix === '010016'
+          ? { type: 'kegtron_pro', identifier: 'mdash-abc', portIndex } : null;
+      },
+    });
+    await source.start();
+    const advert = buildProAdvert({
+      kegSize: 19558, volStart: 19558, volDisp: 100, portIndex: 0, portName: 'Lager',
+    });
+
+    // Before cloud discovery: fallback identity, not cached.
+    noble.emit('discover', peripheral('aa:bb:cc:dd:ee:ff', 'Kegtron-010016', advert));
+    expect(byEvent('volume_update')[0].monitor.identifier).toBe('ble:aa:bb:cc:dd:ee:ff');
+    expect(reconcileCalls).toBe(1);
+
+    // Cloud discovery lands — the very next advert must converge onto the shared ref.
+    cloudDiscovered = true;
+    noble.emit('discover', peripheral('aa:bb:cc:dd:ee:ff', 'Kegtron-010016', advert));
+    expect(byEvent('volume_update')[1].monitor.identifier).toBe('mdash-abc');
+    expect(reconcileCalls).toBe(2);
+
+    // The successful ref IS cached: a third advert re-uses it without another lookup.
+    noble.emit('discover', peripheral('aa:bb:cc:dd:ee:ff', 'Kegtron-010016', advert));
+    expect(byEvent('volume_update')[2].monitor.identifier).toBe('mdash-abc');
+    expect(reconcileCalls).toBe(2);
+  });
+
   it('ignores Gen 1 adverts and non-Kegtron traffic entirely', async () => {
     const noble = new FakeNoble();
     source = new KegtronProBleSource({ bus, settings, nobleFactory: async () => noble as any });
