@@ -869,24 +869,31 @@ function SystemGroup({ settings, onSaved }: GroupProps) {
   // means "no phase info" (watchtower mode, restart window, older installer).
   useEffect(() => {
     if (update.phase !== 'waiting') return undefined;
+    // Captured once per waiting-state entry — the waiting object is stable for the
+    // whole wait (it's only replaced on a phase transition, which re-runs this effect
+    // and clears the interval). Reading these here instead of inside a setUpdate
+    // updater keeps the updaters below PURE, as React 19 requires — calling
+    // setVersion from within an updater function is a side effect React may replay
+    // (e.g. StrictMode double-invokes updaters).
+    const { startedVersion, deadline } = update;
     const timer = setInterval(() => {
       void pollUpdateStatus().then((phase) => {
         setUpdatePhaseDetail(phase);
       });
       void pollSystemVersion().then((v) => {
-        setUpdate((u) => {
-          if (u.phase !== 'waiting') return u;
-          if (v && v !== u.startedVersion) {
-            setVersion(v);
-            return { phase: 'success', newVersion: v };
-          }
-          if (Date.now() > u.deadline) return { phase: 'timedOut' };
-          return u;
-        });
+        // The `u.phase === 'waiting'` guards keep a late-resolving in-flight poll
+        // (the interval is cleared, but its last promise may still settle) from
+        // stomping a state the UI already moved past.
+        if (v && v !== startedVersion) {
+          setVersion(v);
+          setUpdate((u) => (u.phase === 'waiting' ? { phase: 'success', newVersion: v } : u));
+        } else if (Date.now() > deadline) {
+          setUpdate((u) => (u.phase === 'waiting' ? { phase: 'timedOut' } : u));
+        }
       });
     }, UPDATE_POLL_MS);
     return () => clearInterval(timer);
-  }, [update.phase]);
+  }, [update]);
 
   const dirty = mode !== (cfg?.mode ?? 'off')
     || (mode === 'watchtower' && url.trim() !== (cfg?.watchtowerUrl ?? ''))
