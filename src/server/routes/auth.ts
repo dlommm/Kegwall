@@ -4,7 +4,9 @@ import { z } from 'zod';
 import {
   createUser, verifyPassword, type Role, type User,
 } from '../db/users.js';
-import { createSession, getUserForToken, destroySession } from '../core/auth.js';
+import {
+  createSession, getUserForToken, destroySession, sweepExpiredSessions,
+} from '../core/auth.js';
 import { setupTokenMatches, consumeSetupClaimToken } from '../core/setupToken.js';
 
 declare module 'fastify' {
@@ -107,6 +109,10 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
     if (!user) {
       return reply.code(401).send({ error: 'unauthorized', message: 'Bad username or password' });
     }
+    // Piggyback the expired-session sweep on successful logins — expired rows are
+    // otherwise only deleted lazily when their exact token is presented again, so
+    // abandoned browsers' sessions would accumulate forever (see core/auth.ts).
+    sweepExpiredSessions(app.ctx.db);
     const { token } = createSession(app.ctx.db, user.id);
     reply.setCookie('session', token, sessionCookieOptions(req));
     return user;

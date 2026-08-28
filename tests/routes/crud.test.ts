@@ -1403,4 +1403,67 @@ describe('crud routes', () => {
       expect(res.json()).toEqual([]);
     });
   });
+
+  describe('PATCH /api/users/:id password change revokes sessions', () => {
+    // Sessions are validated purely by token lookup (core/auth.ts), so without explicit
+    // revocation a stolen cookie kept working for the rest of its 30-day life after the
+    // password it was minted under was reset away.
+    const loginAs = async (username: string, password: string) => {
+      const login = await app.inject({
+        method: 'POST', url: '/api/auth/login', payload: { username, password },
+      });
+      expect(login.statusCode).toBe(200);
+      return { session: login.cookies.find((c: any) => c.name === 'session')!.value };
+    };
+
+    it('admin resetting another user\'s password kills all of that user\'s sessions', async () => {
+      const other = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { username: 'vic', displayName: 'Vic', password: 'password1', role: 'editor' },
+      })).json();
+      const stolen = await loginAs('vic', 'password1');
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: stolen })).statusCode).toBe(200);
+
+      const reset = await app.inject({
+        method: 'PATCH', url: `/api/users/${other.id}`, cookies: adminCookies,
+        payload: { password: 'newpassword2' },
+      });
+      expect(reset.statusCode).toBe(200);
+
+      // The pre-reset session is dead; the new credential works.
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: stolen })).statusCode).toBe(401);
+      const fresh = await loginAs('vic', 'newpassword2');
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: fresh })).statusCode).toBe(200);
+    });
+
+    it('a user changing their OWN password keeps the acting session but loses every other one', async () => {
+      // "dan" is the setup admin; give them a second session (another browser).
+      const otherBrowser = await loginAs('dan', 'hunter22');
+
+      const me = (await app.inject({ method: 'GET', url: '/api/auth/me', cookies: adminCookies })).json();
+      const reset = await app.inject({
+        method: 'PATCH', url: `/api/users/${me.id}`, cookies: adminCookies,
+        payload: { password: 'hunter22-new' },
+      });
+      expect(reset.statusCode).toBe(200);
+
+      // Self-service change must not log the requester out mid-flow...
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: adminCookies })).statusCode).toBe(200);
+      // ...but any other session for the same account (the stolen-cookie case) dies.
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: otherBrowser })).statusCode).toBe(401);
+    });
+
+    it('a PATCH without a password (e.g. role/display name) leaves sessions alone', async () => {
+      const other = (await app.inject({
+        method: 'POST', url: '/api/users', cookies: adminCookies,
+        payload: { username: 'roly', displayName: 'Roly', password: 'password1', role: 'viewer' },
+      })).json();
+      const cookies = await loginAs('roly', 'password1');
+      await app.inject({
+        method: 'PATCH', url: `/api/users/${other.id}`, cookies: adminCookies,
+        payload: { role: 'editor', displayName: 'Roland' },
+      });
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies })).statusCode).toBe(200);
+    });
+  });
 });

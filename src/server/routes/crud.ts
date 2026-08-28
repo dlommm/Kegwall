@@ -20,8 +20,9 @@ import {
 import { listWallDevices, setWallDevices } from '../db/wallDevices.js';
 import { listPours } from '../db/pours.js';
 import {
-  createUser, createDrinker, listUsers, updateUser, deleteUser,
+  createUser, createDrinker, listUsers, updateUser, deleteUser, deleteSessionsForUser,
 } from '../db/users.js';
+import { hashToken } from '../core/auth.js';
 import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
 import { countFaceEmbeddingsByDrinker, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
@@ -599,12 +600,28 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       : createUser(db, loginUserSchema.parse(raw));
     return reply.code(201).send(user);
   });
-  app.patch('/api/users/:id', admin, async (req) =>
-    updateUser(db, parseId(req.params), z.object({
+  app.patch('/api/users/:id', admin, async (req) => {
+    const id = parseId(req.params);
+    const body = z.object({
       displayName: z.string().optional(), role: z.enum(['admin', 'editor', 'viewer']).optional(),
       password: z.string().min(8).optional(), avatarColor: z.string().nullish(),
       isDrinker: z.boolean().optional(),
-    }).parse(req.body)));
+    }).parse(req.body);
+    const user = updateUser(db, id, body);
+    if (body.password !== undefined) {
+      // A password change must revoke the user's live sessions — they're validated purely
+      // by token lookup (core/auth.ts), so a stolen cookie would otherwise keep working
+      // for the rest of its 30-day life after the reset. When an admin resets their OWN
+      // password, the acting session is spared so the change doesn't log them out;
+      // resetting someone ELSE's password (the "kick out whoever has that account" case)
+      // kills every one of that user's sessions. Role changes need none of this: role is
+      // re-read from the users row on every request.
+      const token = req.cookies?.session;
+      const keepHash = req.user?.id === id && token ? hashToken(token) : undefined;
+      deleteSessionsForUser(db, id, keepHash);
+    }
+    return user;
+  });
   app.delete('/api/users/:id', admin, async (req, reply) => {
     deleteUser(db, parseId(req.params));
     return reply.code(204).send();

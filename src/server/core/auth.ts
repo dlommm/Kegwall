@@ -4,7 +4,10 @@ import { getUser, type User } from '../db/users.js';
 
 const SESSION_DAYS = 30;
 
-function hashToken(token: string): string {
+/** Exported for the one non-lookup use of a token hash: the users route passes the ACTING
+ * session's hash to `deleteSessionsForUser` (db/users.ts) so a self-service password
+ * change revokes every OTHER session without logging the requester out. */
+export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
@@ -30,4 +33,12 @@ export function getUserForToken(db: Database.Database, token: string): User | nu
 
 export function destroySession(db: Database.Database, token: string): void {
   db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+}
+
+/** Deletes every expired session row. `getUserForToken` only lazily deletes an expired
+ * row when its exact token is presented again, so sessions from browsers that never come
+ * back would otherwise accumulate forever — this sweep runs on successful login (a rare,
+ * already-write-path moment), keeping the table bounded without a background timer. */
+export function sweepExpiredSessions(db: Database.Database): void {
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString());
 }

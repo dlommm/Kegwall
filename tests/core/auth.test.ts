@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
 import { createUser } from '../../src/server/db/users.js';
-import { createSession, getUserForToken, destroySession } from '../../src/server/core/auth.js';
+import {
+  createSession, getUserForToken, destroySession, sweepExpiredSessions, hashToken,
+} from '../../src/server/core/auth.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,5 +32,18 @@ describe('auth sessions', () => {
     destroySession(db, token);
     expect(getUserForToken(db, token)).toBeNull();
     expect(getUserForToken(db, 'deadbeef')).toBeNull();
+  });
+
+  it('sweepExpiredSessions removes only expired rows, keeping live sessions intact', () => {
+    // getUserForToken only lazily deletes an expired row when its exact token comes back
+    // — a browser that never returns would leave its row forever without this sweep.
+    const live = createSession(db, userId);
+    const stale = createSession(db, userId);
+    db.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?')
+      .run(new Date(Date.now() - 1000).toISOString(), hashToken(stale.token));
+    sweepExpiredSessions(db);
+    expect((db.prepare('SELECT COUNT(*) c FROM sessions').get() as any).c).toBe(1);
+    expect(getUserForToken(db, live.token)?.username).toBe('dan');
+    expect(getUserForToken(db, stale.token)).toBeNull();
   });
 });

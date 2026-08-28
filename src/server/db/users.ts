@@ -86,6 +86,24 @@ export function updateUser(db: Database.Database, id: number, input: {
   return getUser(db, id)!;
 }
 
+/** Revokes a user's sessions — every one, or all EXCEPT the row matching
+ * `exceptTokenHash` (a `token_hash` value, see core/auth.ts's `hashToken`). Any password
+ * change MUST be followed by this: sessions are validated purely by token lookup
+ * (core/auth.ts re-checks nothing about the credential), so without it a stolen cookie
+ * keeps working for the rest of its 30-day life after the password it was minted under is
+ * rotated away. The exception exists for exactly one caller: a user changing their OWN
+ * password keeps the acting session, so a self-service reset doesn't log them out. */
+export function deleteSessionsForUser(
+  db: Database.Database, userId: number, exceptTokenHash?: string,
+): void {
+  if (exceptTokenHash !== undefined) {
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?')
+      .run(userId, exceptTokenHash);
+  } else {
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  }
+}
+
 export function deleteUser(db: Database.Database, id: number): void {
   const r = db.prepare('SELECT role FROM users WHERE id = ?').get(id) as any;
   if (!r) throw new NotFoundError(`user ${id}`);

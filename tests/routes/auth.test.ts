@@ -74,6 +74,29 @@ describe('auth routes', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('a successful login sweeps expired session rows left by browsers that never returned', async () => {
+    // getUserForToken only lazily deletes an expired row when its exact token is
+    // presented again — without the login-time sweep, abandoned sessions would pile up
+    // in the table forever.
+    await setupAdmin();
+    const abandoned = await app.inject({
+      method: 'POST', url: '/api/auth/login',
+      payload: { username: 'dan', password: 'hunter22' },
+    });
+    expect(abandoned.statusCode).toBe(200);
+    const db = app.ctx.db;
+    db.prepare('UPDATE sessions SET expires_at = ?')
+      .run(new Date(Date.now() - 1000).toISOString());
+
+    const fresh = await app.inject({
+      method: 'POST', url: '/api/auth/login',
+      payload: { username: 'dan', password: 'hunter22' },
+    });
+    expect(fresh.statusCode).toBe(200);
+    // Only the just-created session remains — every expired row was swept.
+    expect((db.prepare('SELECT COUNT(*) c FROM sessions').get() as any).c).toBe(1);
+  });
+
   it('needs-setup reports true before any login user exists, false after', async () => {
     const before = await app.inject({ method: 'GET', url: '/api/auth/needs-setup' });
     expect(before.statusCode).toBe(200);
