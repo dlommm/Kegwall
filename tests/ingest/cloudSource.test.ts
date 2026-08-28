@@ -55,6 +55,10 @@ let source: KegtronCloudSource | null;
 // the route is already registered still works, since the route handler reads it lazily
 // on each incoming request rather than capturing it once at registration time.
 let servingsHandler: (req: any, reply: any) => unknown | Promise<unknown>;
+// Overridable per-test, same lazy-read contract as servingsHandler above: when set, the
+// shadow GET route awaits it before responding — lets the stale-poll-guard test below
+// hold a poll's GET open while newer WS state lands during the await.
+let shadowGate: Promise<void> | null;
 
 // Fast test-only backoff/poll overrides (see mdashClient.ts's timeoutMs precedent,
 // task-3-report.md "Deviations") — production defaults stay 1s->60s / 5 min.
@@ -87,6 +91,7 @@ function registerHttpRoutes(): void {
   });
   app.get('/api/v2/m/device', async () => {
     shadowRequestCount++;
+    if (shadowGate) await shadowGate;
     return shadowFixture;
   });
   app.post('/api/v2/m/device/data/servings-device', async (req, reply) => {
@@ -109,6 +114,7 @@ beforeEach(async () => {
   shadowRequestCount = 0;
   seenServingsParams = undefined;
   servingsHandler = async () => ({ rows: DEFAULT_SERVINGS_ROWS });
+  shadowGate = null;
   registerHttpRoutes();
   wsBaseUrl = await listenWs();
 
@@ -403,6 +409,58 @@ describe('KegtronCloudSource backfill cursor persistence (Final review C1)', () 
     // past the already-imported historical row, so the start-respecting mock returned
     // no rows for it.
     expect(pourCount()).toBe(1);
+  });
+});
+
+describe('KegtronCloudSource stale poll guard', () => {
+  it('discards an in-flight poll result once a WS "updated" applied newer state — the same pour is never re-emitted', async () => {
+    settings.set('kegtronApiKey', API_KEY);
+    const baseUrl = await listenHttp();
+    source = new KegtronCloudSource({ bus, settings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+    await vi.waitFor(() => expect(serverSockets).toHaveLength(1));
+    // Let the post-connect servings backfill (2 rows) settle first so the counts below
+    // are unambiguous — same isolation move as the WS-push test above.
+    await vi.waitFor(() => expect(byEvent('pour_completed')).toHaveLength(2));
+
+    // Hold the NEXT shadow GET open, then kick a poll directly. (openWs's 'open' handler
+    // clears the poll TIMER, but a tick whose GET is already awaiting can't be cancelled
+    // — that in-flight await racing a WS 'updated' is exactly the bug under test.)
+    let releaseShadow!: () => void;
+    shadowGate = new Promise((resolve) => { releaseShadow = resolve; });
+    const deviceState = (source as any).devices.get(DEVICE_KEY);
+    const pollPromise = (source as any).pollShadowOnce(deviceState) as Promise<void>;
+    await vi.waitFor(() => expect(shadowRequestCount).toBeGreaterThan(1)); // GET is in flight
+
+    // While the poll's GET hangs, a WS 'updated' raises port0 — the pour emits once.
+    const updated = JSON.stringify({
+      name: 'updated',
+      id: 'device2',
+      data: {
+        shadow: {
+          state: {
+            reported: {
+              config_readonly: {
+                port0: { lastServing: 999, volDisp: 7407, pulseCnt: 3823 },
+              },
+            },
+          },
+        },
+      },
+    });
+    serverSockets[0]!.send(updated);
+    await vi.waitFor(() => expect(byEvent('pour_completed')).toHaveLength(3));
+
+    // The poll's (older, pre-pour) response finally lands — it must be discarded.
+    releaseShadow();
+    await pollPromise;
+
+    // Re-delivering the SAME update must diff as a no-op. Pre-fix, the stale poll had
+    // rewound the cached shadow to its pre-pour snapshot, so this re-diffed the raise
+    // and re-emitted an already-reported pour_completed.
+    serverSockets[0]!.send(updated);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(byEvent('pour_completed')).toHaveLength(3);
   });
 });
 

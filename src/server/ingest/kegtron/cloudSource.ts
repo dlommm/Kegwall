@@ -46,6 +46,16 @@ interface DeviceState {
   deviceId: string | null;
   rawShadow: unknown;
   parsed: ParsedDevice | null;
+  /** Monotonic freshness counter for rawShadow/parsed — bumped on every applied state
+   * change (shadow GET, WS 'updated' merge, poll apply) AND on WS open. Exists to kill
+   * the stale-poll race: `pollShadowOnce` awaits its shadow GET, and if a WS `updated`
+   * (or a reconnect's fresh GET) is processed DURING that await, the poll's response is
+   * older than what's cached — applying it would rewind rawShadow/parsed, and the next
+   * real update would then re-diff (and re-emit) a pour_completed that was already
+   * reported. The poll captures this before its await and discards its result if the
+   * counter moved. (Clearing the poll timer on WS open cancels future ticks only — it
+   * can't cancel a GET already in flight.) */
+  stateGeneration: number;
   ws: WebSocket | null;
   wsOpen: boolean;
   reconnectAttempt: number;
@@ -195,7 +205,7 @@ export class KegtronCloudSource implements Source {
 
   private createDeviceState(deviceKey: string): DeviceState {
     return {
-      deviceKey, deviceId: null, rawShadow: null, parsed: null,
+      deviceKey, deviceId: null, rawShadow: null, parsed: null, stateGeneration: 0,
       ws: null, wsOpen: false, reconnectAttempt: 0, reconnectTimer: null,
       pollTimer: null, backfillDone: false, backfillInFlight: false, stopped: false,
     };
@@ -220,6 +230,7 @@ export class KegtronCloudSource implements Source {
       this.emitShadowEvents(diffEvents, state.deviceKey);
       state.rawShadow = raw;
       state.parsed = next;
+      state.stateGeneration++; // invalidates any poll GET still in flight (see DeviceState)
       state.deviceId = next.deviceId;
       // Deliberately NOT resetting reconnectAttempt here: each reconnect cycle runs
       // shadow GET -> openWs, so a reset on GET success meant "REST up, WS persistently
@@ -263,6 +274,10 @@ export class KegtronCloudSource implements Source {
       ws.on('open', () => {
         state.wsOpen = true;
         state.reconnectAttempt = 0;
+        // The WS is now the freshness authority — bump so a poll GET still awaiting its
+        // response can't apply an answer from the polling era over WS-delivered state
+        // (clearPollTimer below only cancels FUTURE ticks, not an in-flight await).
+        state.stateGeneration++;
         this.clearPollTimer(state);
         this.evaluateHealth();
         // Guarded by backfillInFlight (not just backfillDone) so a fast reconnect can't
@@ -322,14 +337,23 @@ export class KegtronCloudSource implements Source {
   private async pollShadowOnce(state: DeviceState): Promise<void> {
     if (state.stopped || !this.client) return;
     try {
+      const generationAtRequest = state.stateGeneration;
       const raw = await this.client.getDeviceShadow(state.deviceKey);
       if (state.stopped) return;
+      // Stale-write guard (see DeviceState.stateGeneration): if the WS opened or applied
+      // newer state while this GET was in flight, our response predates the cache —
+      // applying it would rewind rawShadow/parsed, and the next real WS `updated` would
+      // re-diff (and re-emit) an already-reported pour_completed. Discard it instead;
+      // the WS path (or the next poll, if the socket dropped again) already carries
+      // everything this poll was for.
+      if (state.stateGeneration !== generationAtRequest) return;
       const next = parseDeviceShadow(raw);
       if (!next) return;
       const diffEvents = diffToEvents(next.deviceId, state.parsed, next);
       this.emitShadowEvents(diffEvents, state.deviceKey);
       state.rawShadow = raw;
       state.parsed = next;
+      state.stateGeneration++;
       this.evaluateHealth();
     } catch {
       // swallowed — see doc comment above
@@ -428,6 +452,7 @@ export class KegtronCloudSource implements Source {
       this.emitShadowEvents(diffEvents, state.deviceKey);
       state.rawShadow = merged;
       state.parsed = next;
+      state.stateGeneration++; // invalidates any poll GET still in flight (see DeviceState)
       this.evaluateHealth();
     } else if (name === 'online') {
       this.emitPortStatus(state, 'device_online');
