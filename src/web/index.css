@@ -6704,9 +6704,15 @@ h2.admin-field__label-text {
   flex: none;
 }
 
+/* Touch-target rule (≥44px on the tablet): the rail's full 44px width is the tap zone.
+   26 letters × 44px tall can't physically fit a landscape tablet viewport, so letters
+   flex to split the rail's full height instead — 44px+ each wherever the viewport
+   allows (portrait), and the largest evenly-divided target it can give otherwise. */
 .tablet-az-rail__letter {
-  width: 22px;
-  min-height: 22px;
+  width: 44px;
+  flex: 1 1 0;
+  min-height: 24px;
+  padding: 0;
   border: none;
   background: none;
   color: var(--text-dim);
@@ -6844,8 +6850,9 @@ h2.admin-field__label-text {
 }
 
 .tablet-signup__swatch {
-  width: 38px;
-  height: 38px;
+  /* 44px minimum touch target on the tablet (was 38px). */
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 3px solid transparent;
   cursor: pointer;
@@ -9415,6 +9422,14 @@ h2.admin-field__label-text {
 }
 
 .claim-sheet__star {
+  /* 44px minimum touch target on the phone menu — the glyph stays 1.8rem, the
+     button's hit area grows around it. */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   font-size: 1.8rem;
   line-height: 1;
   background: none;
@@ -9434,6 +9449,11 @@ h2.admin-field__label-text {
 }
 
 .claim-sheet__rate-tag {
+  /* 44px minimum touch target on the phone menu; the pill look is preserved by
+     keeping the horizontal padding and letting min-height do the vertical work. */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--text, #fff) 20%, transparent);
