@@ -84,6 +84,7 @@ export class StateManager {
   // works even before Kegtron devices are wired. Read in getTapStates alongside `live`.
   private simLive = new Map<number, { pouring: boolean; curServMl: number }>();
   private simTimer: ReturnType<typeof setInterval> | null = null;
+  private simHold: ReturnType<typeof setTimeout> | null = null;
   private online = new Map<string, boolean>();
   private deviceKeg = new Map<string, DeviceKegInfo>();
   private deduper = new PourDeduper();
@@ -276,7 +277,17 @@ export class StateManager {
       : (taps.find((t) => getActiveKegForTap(this.db, t.id) != null) ?? taps[0]);
     if (!target) throw new ValidationError('No tap available to test-pour');
     const id = target.id;
+    // ONE test pour at a time, by design (this is a manual "is the socket healthy?" probe,
+    // not a multi-tap simulator) — but the ramp/hold timers are shared, and only a ramp's
+    // OWN completion path deletes its tap's `simLive` entry. Starting a new test pour must
+    // therefore drop every previous overlay too, not just kill the timers: an interrupted
+    // tap's `{pouring: true}` entry would otherwise linger until server restart, freezing a
+    // phantom live pour on every wall. (The hold timeout is tracked and cleared for the
+    // same reason, mirrored: a still-pending hold for THIS tap would fire mid-new-ramp and
+    // briefly wipe the fresh overlay.)
     if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+    if (this.simHold) { clearTimeout(this.simHold); this.simHold = null; }
+    this.simLive.clear();
     const changed = () => this.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
     const TOTAL = 473; const STEP = 20;
     let ml = 0;
@@ -288,8 +299,8 @@ export class StateManager {
       changed();
       if (ml >= TOTAL) {
         if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
-        const hold = setTimeout(() => { this.simLive.delete(id); changed(); }, 1500);
-        hold.unref?.(); // don't keep the process/test event loop alive for the hold
+        this.simHold = setTimeout(() => { this.simLive.delete(id); changed(); }, 1500);
+        this.simHold.unref?.(); // don't keep the process/test event loop alive for the hold
       }
     }, 120);
     this.simTimer.unref?.(); // ditto for the ramp

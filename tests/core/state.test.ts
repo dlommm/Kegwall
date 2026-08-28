@@ -55,6 +55,20 @@ describe('StateManager', () => {
     expect((db.prepare('SELECT COUNT(*) AS n FROM pours').get() as { n: number }).n).toBe(0);
   });
 
+  it('simulatePour on a second tap clears the first tap\'s overlay instead of stranding it', () => {
+    const tap2 = createTap(db, { number: 2 }).id;
+    sm.simulatePour(tapId);
+    expect(sm.getTapStates().find((t) => t.tapId === tapId)!.pouring).toBe(true);
+    // Interrupt tap 1's ramp mid-flight by test-pouring tap 2: the shared timer dies with
+    // the new call, so nothing would ever complete tap 1's ramp — its {pouring: true}
+    // overlay must be dropped NOW, not left frozen on every wall until restart.
+    const res = sm.simulatePour(tap2);
+    expect(res.tapId).toBe(tap2);
+    const states = sm.getTapStates();
+    expect(states.find((t) => t.tapId === tapId)!.pouring).toBe(false);
+    expect(states.find((t) => t.tapId === tap2)!.pouring).toBe(true);
+  });
+
   it('remembers the device-reported keg config per monitor (deviceKegInfo)', () => {
     expect(sm.deviceKegInfo(ref)).toBeNull();
     bus.emit('volume_update', {
