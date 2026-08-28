@@ -148,6 +148,27 @@ describe('SettingsPage', () => {
       expect(screen.queryByTestId('settings-restart-notice')).not.toBeInTheDocument();
     });
 
+    it('the "Saved." notice auto-clears after a few seconds instead of sticking forever', async () => {
+      vi.useFakeTimers();
+      try {
+        (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings() });
+        (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ siteName: 'New Name' }) });
+        render(<SettingsPage />);
+        await flush(); // resolve getSettings (findBy* would spin under fake timers)
+        fireEvent.change(screen.getByTestId('settings-site-name'), { target: { value: 'New Name' } });
+        fireEvent.click(screen.getByTestId('settings-site-save'));
+        await flush();
+
+        expect(screen.getByTestId('settings-saved-notice')).toBeInTheDocument();
+        act(() => {
+          vi.advanceTimersByTime(4_000);
+        });
+        expect(screen.queryByTestId('settings-saved-notice')).not.toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('changing serving size marks the form dirty and PATCHes only servingSizeMl', async () => {
       (getSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ servingSizeMl: 473 }) });
       (patchSettings as Mock).mockResolvedValue({ ok: true, data: baseSettings({ servingSizeMl: 355 }) });

@@ -1895,6 +1895,9 @@ type GroupId = 'site' | 'kegtron' | 'mqtt' | 'catalogBeer' | 'govee' | 'faceSign
  */
 type SettingsTabId = 'general' | 'sources' | 'integrations' | 'system';
 
+/** How long the transient saved/restarted notice stays visible before auto-clearing. */
+const NOTICE_CLEAR_MS = 4_000;
+
 const SETTINGS_TABS: { id: SettingsTabId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'sources', label: 'Sources' },
@@ -1930,7 +1933,10 @@ export function SettingsPage() {
   const [faceSignInVersion, setFaceSignInVersion] = useState(0);
   const [updatesVersion, setUpdatesVersion] = useState(0);
   const [pricingVersion, setPricingVersion] = useState(0);
-  const [notice, setNotice] = useState<'saved' | 'restarted' | null>(null);
+  // Wrapped in an object — a FRESH one per save — so back-to-back saves of the same
+  // kind still restart the auto-clear effect below (a plain string wouldn't change
+  // identity, and the first save's timer would clear the second save's notice early).
+  const [notice, setNotice] = useState<{ kind: 'saved' | 'restarted' } | null>(null);
 
   const load = useCallback(() => {
     setStatus((s) => (s === 'loaded' ? s : 'loading'));
@@ -1955,6 +1961,16 @@ export function SettingsPage() {
     load();
   }, [load]);
 
+  // The saved/restarted notice is transient feedback, not page state — without this it
+  // read "Saved." forever. Auto-clear it (the same transient-confirmation idiom as
+  // WallsPage's copy-link feedback), with the timer cancelled on unmount or when a
+  // newer notice replaces it.
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(null), NOTICE_CLEAR_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
   function handleGroupSaved(group: GroupId, updated: Settings, patch: Partial<Settings>) {
     setSettings(updated);
     if (group === 'site') setSiteVersion((v) => v + 1);
@@ -1967,7 +1983,7 @@ export function SettingsPage() {
     else if (group === 'pricing') setPricingVersion((v) => v + 1);
     // 'channels': no version bump/remount — see ChannelsGroup's doc comment for why each
     // of its 5 blocks manages its own post-save local-state reset instead.
-    setNotice(triggersRestart(patch) ? 'restarted' : 'saved');
+    setNotice({ kind: triggersRestart(patch) ? 'restarted' : 'saved' });
   }
 
   if (status === 'loading') {
@@ -1990,12 +2006,12 @@ export function SettingsPage() {
         </a>
       </header>
 
-      {notice === 'restarted' && (
+      {notice?.kind === 'restarted' && (
         <p className="settings-notice settings-notice--restart" role="status" data-testid="settings-restart-notice">
           Sources restarted to apply changes.
         </p>
       )}
-      {notice === 'saved' && (
+      {notice?.kind === 'saved' && (
         <p className="settings-notice" role="status" data-testid="settings-saved-notice">
           Saved.
         </p>
