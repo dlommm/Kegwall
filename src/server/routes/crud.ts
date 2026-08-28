@@ -44,6 +44,12 @@ const beerSchema = z.object({
   abv: z.number().nullish(), ibu: z.number().nullish(), srm: z.number().nullish(),
   description: z.string().nullish(),
   labelImage: z.string().regex(LABEL_IMAGE_RE, 'labelImage must be an uploaded /labels path').nullish(),
+  // Owner-only pricing knobs. db/beers.ts has persisted these since the pricing feature
+  // landed, but zod's unknown-key stripping dropped them here, so the admin form's
+  // per-beer markup override 200'd without ever applying. Public serialization is
+  // unaffected: toPublicTapState nulls both before any public payload.
+  markupOverridePct: z.number().min(0).nullish(),
+  exclusiveSupplierId: z.number().int().positive().nullish(),
 });
 
 /** Parses a `:id` route param to a positive integer, turning `NaN` (e.g. `/api/beers/abc`)

@@ -68,6 +68,35 @@ describe('crud routes', () => {
     expect(ok.statusCode).toBe(201);
   });
 
+  it('persists the owner-only pricing knobs (markupOverridePct / exclusiveSupplierId) through POST and PATCH', async () => {
+    // Regression: beerSchema used to omit both fields, so zod's unknown-key stripping
+    // silently discarded them — the admin form's markup override 200'd without ever
+    // applying (a 0% charity-keg override kept showing the global marked-up price).
+    const supplier = await app.inject({
+      method: 'POST', url: '/api/suppliers', cookies: adminCookies,
+      payload: { name: 'Distro Co' },
+    });
+    expect(supplier.statusCode).toBe(201);
+    const supplierId = supplier.json().id as number;
+
+    const create = await app.inject({
+      method: 'POST', url: '/api/beers', cookies: adminCookies,
+      payload: { name: 'Charity Keg', markupOverridePct: 0, exclusiveSupplierId: supplierId },
+    });
+    expect(create.statusCode).toBe(201);
+    expect(create.json().markupOverridePct).toBe(0);
+    expect(create.json().exclusiveSupplierId).toBe(supplierId);
+
+    const patched = await app.inject({
+      method: 'PATCH', url: `/api/beers/${create.json().id}`, cookies: adminCookies,
+      payload: { markupOverridePct: 35.5 },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().markupOverridePct).toBe(35.5);
+    // A partial PATCH must not clobber the untouched knob.
+    expect(patched.json().exclusiveSupplierId).toBe(supplierId);
+  });
+
   it('returns 400 (not 500) for a non-numeric :id param', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/beers/abc', cookies: adminCookies });
     expect(res.statusCode).toBe(400);
