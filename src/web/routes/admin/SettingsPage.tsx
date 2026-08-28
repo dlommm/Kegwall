@@ -1951,6 +1951,7 @@ export function SettingsPage() {
         setGoveeVersion((v) => v + 1);
         setFaceSignInVersion((v) => v + 1);
         setUpdatesVersion((v) => v + 1);
+        setPricingVersion((v) => v + 1);
       } else {
         setStatus('error');
       }
