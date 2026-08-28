@@ -144,10 +144,15 @@ export class GpioMotionSource implements Source {
   private startOne(source: GpioMotionSourceOptions['sources'][number]): void {
     let retried = false;
     let finalReported = false;
+    // Which verdict `finalReported` delivered — a HEALTHY verdict must still be
+    // revocable when the child later dies (see onAttemptFailed), whereas an
+    // UNHEALTHY one is terminal for this source until the next rebuild.
+    let reportedHealthy = false;
 
     const reportHealthyOnce = (): void => {
       if (this.stopped || finalReported) return;
       finalReported = true;
+      reportedHealthy = true;
       this.reportHealthy(source.id);
     };
 
@@ -166,7 +171,29 @@ export class GpioMotionSource implements Source {
         if (attemptDone) return;
         attemptDone = true;
         clearTimeout(graceTimer);
-        if (this.stopped || finalReported) return;
+        if (this.stopped) return;
+        if (finalReported) {
+          // The verdict for this source was already delivered. If it was HEALTHY and the
+          // child has now died on its own (OOM-kill, USB GPIO expander reset, libgpiod
+          // error hours later), swallowing this exit would leave the dashboard claiming
+          // "gpiomon running" forever while motion is actually dead — the same
+          // claims-healthy-forever failure class the UDP source's silence reporting
+          // fixed. Report unhealthy (with an accurate detail — UNHEALTHY_DETAIL's
+          // "install libgpiod" advice is wrong for a process that WAS running) so the
+          // operator sees it; the next settings-driven source rebuild respawns it. An
+          // already-UNHEALTHY source is terminal — a late duplicate event for the same
+          // dead child changes nothing.
+          if (reportedHealthy) {
+            reportedHealthy = false;
+            const trimmed = stderrText.trim();
+            const detail = trimmed
+              ? `gpiomon exited unexpectedly after running healthy; stderr: ${trimmed}`
+              : 'gpiomon exited unexpectedly after running healthy — motion is down until sources restart';
+            this.bus.emit('source_status', { source: 'motion_gpio', healthy: false, detail, ts: new Date().toISOString() });
+            this.registry.markHealth(source.id, false, detail);
+          }
+          return;
+        }
         if (!isRetry && !retried) {
           // The FIRST attempt's first failure, whichever event reported it — retry once,
           // in the other libgpiod arg form, before giving up on this source.

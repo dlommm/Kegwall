@@ -160,6 +160,39 @@ describe('GpioMotionSource', () => {
     expect(registry.trigger).toHaveBeenCalledTimes(2);
   });
 
+  it('a gpiomon that dies AFTER being reported healthy flips the source unhealthy', async () => {
+    // Regression: once the healthy verdict was delivered, `finalReported` made every
+    // later exit/error a silent no-op — a gpiomon that crashed hours in (OOM-kill, USB
+    // GPIO expander reset) left the dashboard claiming "gpiomon running" forever while
+    // motion was actually dead, the same claims-healthy-forever class the UDP source's
+    // silence reporting fixed.
+    const { spawnFn, children } = fakeSpawn();
+    const source = new GpioMotionSource({
+      sources: [{ id: 'gpio-1', chip: 'gpiochip0', line: 4, activeLow: false, debounceMs: 2000 }],
+      registry: registry as unknown as MotionSourceRegistry,
+      bus,
+      spawnFn: spawnFn as never,
+    });
+    await source.start();
+    const child = children[0]!;
+
+    child.stdout.write('event: RISING EDGE offset: 4 timestamp: [1.0]\n');
+    expect(registry.markHealth).toHaveBeenCalledWith('gpio-1', true, expect.any(String));
+
+    child.emit('exit', null, 'SIGKILL'); // died on its own — stop() was never called
+
+    expect(statuses.at(-1)).toMatchObject({ source: 'motion_gpio', healthy: false });
+    expect(registry.markHealth).toHaveBeenLastCalledWith(
+      'gpio-1', false, expect.stringContaining('exited unexpectedly after running healthy'),
+    );
+    // The accurate post-healthy detail, not UNHEALTHY_DETAIL's "install libgpiod" advice
+    // (wrong for a binary that WAS running), and no duplicate report for a second late
+    // event from the same dead child.
+    const reports = registry.markHealth.mock.calls.filter(([, healthy]) => healthy === false);
+    child.emit('error', new Error('late duplicate'));
+    expect(registry.markHealth.mock.calls.filter(([, healthy]) => healthy === false)).toHaveLength(reports.length);
+  });
+
   // Final-review I3: gpiomon's CLI arg syntax changed between libgpiod v1 (positional
   // `<chip> <line>`, tried first) and v2 (`--chip <chip> <line>`) -- a host running the
   // "wrong" version for whichever form is tried first must get exactly ONE retry in the
