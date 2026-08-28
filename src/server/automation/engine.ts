@@ -145,6 +145,17 @@ import {
 //     the state it's already in emits no `display_power_changed` event, so it can never
 //     re-trigger a `display_power_changed`-triggered rule (including itself). This engine
 //     adds no additional guard on top of that.
+//
+// PER-DEVICE OFFLINE/ONLINE COLLAPSE (duplicate-notification fix wave):
+//
+// 14. `device_online`/`device_offline` arrive from the cloud source once PER PORT (that
+//     per-port emission shape is load-bearing for per-port consumers — StateManager's
+//     monitor state, logService, wallAutoAssign — so it stays), but connectivity is a
+//     per-DEVICE fact: one KT-420 dropping off WiFi used to fire up to 4 simultaneous
+//     "Monitor offline" notifications on every channel (alert state is keyed per
+//     resolved entity, so each port alerted under its own cooldown) and 4 resolves.
+//     Collapsed ENGINE-side in `onDeviceEvent` with the same per-device anchor grouping
+//     `checkCleaningDueRule` (point 9) already uses — see that method's doc comment.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
@@ -358,6 +369,9 @@ export class AutomationEngine {
   private previousTempByMonitor = new Map<string, number>();
   private previousHumidityByMonitor = new Map<string, number>();
   private alertState = new Map<string, AlertEntityState>();
+  /** Per-device collapse for `device_online`/`device_offline` fan-out (see
+   * `onDeviceEvent`): `"type:identifier"` -> the last `"{kind}@{ts}"` processed. */
+  private lastDeviceEventBurst = new Map<string, string>();
   private fireTimestamps = new Map<number, number[]>();
   private inFlight = new Set<Promise<void>>();
   private ownedMqttSender: MqttSender | null = null;
@@ -569,11 +583,46 @@ export class AutomationEngine {
     }
   }
 
+  /**
+   * Per-device collapse of the per-port `device_online`/`device_offline` fan-out (this
+   * file's top doc comment, point 14), in two parts:
+   *  1. BURST DEDUPE: one WS offline/online notification fans out as portCount bus
+   *     events all stamped with a SINGLE `ts` (cloudSource.ts's `emitPortStatus`
+   *     computes it once per notification), so a repeat of the same (kind, ts) for a
+   *     device is the same physical signal seen through another port — skipped. A LATER
+   *     notification of the same kind carries a fresh `ts` and still processes, so
+   *     "device still offline an hour later" reminder fires keep working under the
+   *     alert cooldown exactly as before — this is deliberately NOT a transition latch.
+   *  2. ANCHOR: the surviving event is re-anchored onto the device's anchor port
+   *     (`anchorDeviceRef` — `checkCleaningDueRule`'s grouping), so the entity key,
+   *     alert cooldown/auto-resolve state, and tap context are all stable regardless of
+   *     which port's event won the burst: a 4-port Kegtron is one device, not four.
+   */
   private onDeviceEvent(kind: 'device_online' | 'device_offline', monitorRef: MonitorRef, ts: string): void {
-    const tapId = resolveTapForRef(this.db, monitorRef);
-    const ctx = this.buildMonitorEvalCtx(monitorRef, tapId, ts, {});
+    const deviceKey = `${monitorRef.type}:${monitorRef.identifier}`;
+    const burstKey = `${kind}@${ts}`;
+    if (this.lastDeviceEventBurst.get(deviceKey) === burstKey) return;
+    this.lastDeviceEventBurst.set(deviceKey, burstKey);
+
+    const anchored = this.anchorDeviceRef(monitorRef);
+    const tapId = resolveTapForRef(this.db, anchored);
+    const ctx = this.buildMonitorEvalCtx(anchored, tapId, ts, {});
     const resolveType: Trigger['type'] = kind === 'device_online' ? 'device_offline' : 'device_online';
     this.fireAndAutoResolve(kind, resolveType, ctx);
+  }
+
+  /** `checkCleaningDueRule`'s anchor grouping as a ref->ref mapping: among the device's
+   * monitor rows (same type+identifier), the first BOUND port wins, else the lowest —
+   * so an offline burst and its later online burst always key the SAME entity even if
+   * different ports' events survive the dedupe. An unknown device (no rows yet, e.g. a
+   * test-synthesized event) keeps its own ref. */
+  private anchorDeviceRef(ref: MonitorRef): MonitorRef {
+    const ports = listMonitors(this.db)
+      .filter((m) => m.type === ref.type && m.identifier === ref.identifier)
+      .sort((a, b) => a.portIndex - b.portIndex);
+    if (ports.length === 0) return ref;
+    const anchor = ports.find((p) => p.tapId !== null) ?? ports[0]!;
+    return { type: anchor.type, identifier: anchor.identifier, portIndex: anchor.portIndex };
   }
 
   private onKegLifecycle(

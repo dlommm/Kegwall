@@ -816,6 +816,72 @@ describe('auto-resolve + notifyOnResolve', () => {
   });
 });
 
+describe('device offline/online per-device grouping (top doc comment point 14)', () => {
+  it('a 4-port device going offline produces exactly ONE offline notification, and later ONE resolve', async () => {
+    // Simulates cloudSource.emitPortStatus's fan-out: one WS 'offline' notification for
+    // a KT-420 emits 4 per-port bus events sharing a single ts. Pre-fix, alert state
+    // was keyed per resolved entity, so each port alerted under its own cooldown -- one
+    // WiFi drop = 4 simultaneous "Monitor offline" notifications on every channel, and
+    // 4 resolves when it came back.
+    const beer = createBeer(db, { name: 'B' });
+    const tap = createTap(db, { number: 1 });
+    createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+    const refs = [0, 1, 2, 3].map((portIndex) => (
+      { type: 'kegtron_pro' as const, identifier: 'kt420', portIndex }
+    ));
+    const rows = refs.map((r) => upsertMonitor(db, r));
+    bindMonitorToTap(db, rows[1]!.id, tap.id); // port 1 bound -- the anchor port
+    createAutomation(db, {
+      name: 'Monitor offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [notifyInAppAction('Offline', 'x')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: true, notifyOnResolve: true, severity: 'warning' },
+    });
+    makeEngine().start();
+
+    // The whole burst shares ONE ts, exactly as emitPortStatus stamps it.
+    const offlineTs = new Date().toISOString();
+    for (const monitor of refs) bus.emit('device_offline', { monitor, ts: offlineTs });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1); // pre-fix: 4, one per port
+
+    const onlineTs = new Date(Date.now() + 1000).toISOString();
+    for (const monitor of refs) bus.emit('device_online', { monitor, ts: onlineTs });
+    await engine!.flush();
+    const ns = listNotifications(db);
+    expect(ns).toHaveLength(2); // exactly one resolve on top of the one fire
+    expect(ns[0]!.title).toBe('Monitor offline resolved'); // newest first
+  });
+
+  it('a LATER offline notification (fresh ts) still processes -- the collapse is not a transition latch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0));
+    const refs = [0, 1].map((portIndex) => (
+      { type: 'kegtron_pro' as const, identifier: 'kt220', portIndex }
+    ));
+    for (const r of refs) upsertMonitor(db, r);
+    createAutomation(db, {
+      name: 'Monitor offline', isAlert: true, trigger: { type: 'device_offline' },
+      actions: [notifyInAppAction('Offline', 'x')],
+      alertConfig: { cooldownMinutes: 60, autoResolve: false, notifyOnResolve: false, severity: 'warning' },
+    });
+    makeEngine().start();
+
+    const firstTs = new Date().toISOString();
+    for (const monitor of refs) bus.emit('device_offline', { monitor, ts: firstTs });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(1);
+
+    // Still offline an hour later: a NEW notification (fresh ts) must reach the rule --
+    // the reminder refire the alert cooldown test above relies on -- and still collapse
+    // its own per-port burst to a single fire.
+    await vi.advanceTimersByTimeAsync(61 * 60_000);
+    const reminderTs = new Date().toISOString();
+    for (const monitor of refs) bus.emit('device_offline', { monitor, ts: reminderTs });
+    await engine!.flush();
+    expect(listNotifications(db)).toHaveLength(2);
+  });
+});
+
 describe('alert_fired bus event (Phase 5 Task 5: HA publisher hand-off point)', () => {
   function alertsCollector(): { events: unknown[] } {
     const events: unknown[] = [];
