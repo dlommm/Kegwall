@@ -5,7 +5,7 @@ import {
   type UpdateCheck,
 } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
-import { MaskedSecretField } from './MaskedSecretField';
+import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Update-in-progress state machine — see the block comment in `SystemGroup`. */
@@ -49,8 +49,7 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
   const cfg = settings.updates;
   const [mode, setMode] = useState<'off' | 'watchtower' | 'native'>(cfg?.mode ?? 'off');
   const [url, setUrl] = useState(cfg?.watchtowerUrl ?? '');
-  const [replacing, setReplacing] = useState(false);
-  const [newToken, setNewToken] = useState('');
+  const token = useMaskedSecret();
 
   const [version, setVersion] = useState<string | null>(null);
   const [check, setCheck] = useState<{ state: 'idle' } | { state: 'running' } | { state: 'done'; result: UpdateCheck }>({ state: 'idle' });
@@ -104,7 +103,7 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
 
   const dirty = mode !== (cfg?.mode ?? 'off')
     || (mode === 'watchtower' && url.trim() !== (cfg?.watchtowerUrl ?? ''))
-    || (replacing && newToken.trim() !== '');
+    || token.dirty;
   const busy = update.phase === 'triggering' || update.phase === 'waiting';
   const savedMode = cfg?.mode ?? 'off';
   const canUpdate = savedMode !== 'off' && !dirty && !busy;
@@ -120,14 +119,11 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
         ...(mode === 'watchtower' ? {
           watchtowerUrl: url.trim() || undefined,
           // A still-masked token round-trips through sanitizePatch's swap-back.
-          watchtowerToken: replacing && newToken.trim() !== '' ? newToken.trim() : cfg?.watchtowerToken,
+          watchtowerToken: token.newValue ?? cfg?.watchtowerToken,
         } : {}),
       },
     }),
-    onSuccess: () => {
-      setReplacing(false);
-      setNewToken('');
-    },
+    onSuccess: token.reset,
   });
 
   async function runCheck() {
@@ -192,11 +188,7 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
               label="Watchtower API token (must match WATCHTOWER_HTTP_API_TOKEN in your compose file)"
               testId="settings-system-watchtower-token"
               maskedValue={cfg?.watchtowerToken}
-              replacing={replacing}
-              value={newToken}
-              onStartReplace={() => { setReplacing(true); setNewToken(''); }}
-              onCancelReplace={() => { setReplacing(false); setNewToken(''); }}
-              onChangeValue={setNewToken}
+              {...token.fieldProps}
             />
           </>
         )}

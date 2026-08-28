@@ -1,19 +1,19 @@
-import { useState } from 'react';
 import type { GroupProps } from './shared';
-import { MaskedSecretField } from './MaskedSecretField';
+import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Kegtron group (Task 8): just the mdash.net API key, masked with a Replace affordance. */
 export function KegtronGroup({ settings, onSaved }: GroupProps) {
-  const [replacing, setReplacing] = useState(false);
-  const [newKey, setNewKey] = useState('');
+  const apiKey = useMaskedSecret();
 
-  const dirty = replacing && newKey.trim() !== '';
+  const dirty = apiKey.dirty;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
     dirty,
     onSaved,
-    buildPatch: () => ({ kegtronApiKey: newKey.trim() }),
+    // `!`: the hook only submits while dirty, and this form's ONLY dirty term is a
+    // freshly typed key — `newValue` is defined on every reachable path.
+    buildPatch: () => ({ kegtronApiKey: apiKey.newValue! }),
   });
 
   return (
@@ -26,11 +26,7 @@ export function KegtronGroup({ settings, onSaved }: GroupProps) {
         label="API key"
         testId="settings-kegtron-apikey"
         maskedValue={settings.kegtronApiKey}
-        replacing={replacing}
-        value={newKey}
-        onStartReplace={() => { setReplacing(true); setNewKey(''); }}
-        onCancelReplace={() => { setReplacing(false); setNewKey(''); }}
-        onChangeValue={setNewKey}
+        {...apiKey.fieldProps}
       />
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-kegtron-error">{error}</p>}
       <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-kegtron-save">

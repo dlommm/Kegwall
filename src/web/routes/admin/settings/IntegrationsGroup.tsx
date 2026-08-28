@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
 import { MQTT_DEFAULTS, type GroupProps } from './shared';
-import { MaskedSecretField } from './MaskedSecretField';
+import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Home Assistant publish toggle + discovery prefix (Task 8) — its own form/Save inside
@@ -77,19 +77,17 @@ function HomeAssistantBlock({ settings, onSaved }: GroupProps) {
  * an admin isn't surprised by a 429 later. */
 function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
   const cfg = settings.catalogBeer;
-  const [replacing, setReplacing] = useState(false);
-  const [newKey, setNewKey] = useState('');
+  const apiKey = useMaskedSecret();
 
-  const dirty = replacing && newKey.trim() !== '';
+  const dirty = apiKey.dirty;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
     dirty,
     onSaved,
-    buildPatch: () => ({ catalogBeer: { apiKey: newKey.trim() } }),
-    onSuccess: () => {
-      setReplacing(false);
-      setNewKey('');
-    },
+    // `!`: the hook only submits while dirty, and this block's ONLY dirty term is a
+    // freshly typed key — `newValue` is defined on every reachable path.
+    buildPatch: () => ({ catalogBeer: { apiKey: apiKey.newValue! } }),
+    onSuccess: apiKey.reset,
   });
 
   return (
@@ -107,11 +105,7 @@ function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
         label="API key"
         testId="settings-integrations-catalogbeer-apikey"
         maskedValue={cfg?.apiKey}
-        replacing={replacing}
-        value={newKey}
-        onStartReplace={() => { setReplacing(true); setNewKey(''); }}
-        onCancelReplace={() => { setReplacing(false); setNewKey(''); }}
-        onChangeValue={setNewKey}
+        {...apiKey.fieldProps}
       />
       {error && (
         <p className="beer-form__notice" role="alert" data-testid="settings-integrations-catalogbeer-error">
@@ -137,27 +131,23 @@ function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
  * polling starts immediately. */
 function GoveeBlock({ settings, onSaved }: GroupProps) {
   const cfg = settings.govee;
-  const [replacing, setReplacing] = useState(false);
-  const [newKey, setNewKey] = useState('');
+  const apiKey = useMaskedSecret();
   const [autoImport, setAutoImport] = useState(settings.autoImportBeers);
 
-  const dirty = (replacing && newKey.trim() !== '') || autoImport !== settings.autoImportBeers;
+  const dirty = apiKey.dirty || autoImport !== settings.autoImportBeers;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
     dirty,
     onSaved,
     buildPatch: () => {
       const patch: Partial<Settings> = {};
-      if (replacing && newKey.trim() !== '') {
-        patch.govee = { apiKey: newKey.trim() };
+      if (apiKey.newValue !== undefined) {
+        patch.govee = { apiKey: apiKey.newValue };
       }
       if (autoImport !== settings.autoImportBeers) patch.autoImportBeers = autoImport;
       return patch;
     },
-    onSuccess: () => {
-      setReplacing(false);
-      setNewKey('');
-    },
+    onSuccess: apiKey.reset,
   });
 
   return (
@@ -176,11 +166,7 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
         label="Govee API key"
         testId="settings-integrations-govee-apikey"
         maskedValue={cfg?.apiKey}
-        replacing={replacing}
-        value={newKey}
-        onStartReplace={() => { setReplacing(true); setNewKey(''); }}
-        onCancelReplace={() => { setReplacing(false); setNewKey(''); }}
-        onChangeValue={setNewKey}
+        {...apiKey.fieldProps}
       />
       <label className="wall-editor__checkbox">
         <input

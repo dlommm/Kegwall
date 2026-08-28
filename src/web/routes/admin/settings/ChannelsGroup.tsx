@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
 import { testChannel } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
-import { MaskedSecretField } from './MaskedSecretField';
+import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 type AlertChannels = Settings['alertChannels'];
@@ -116,27 +116,23 @@ function NtfyBlock({ alertChannels, onSaved }: ChannelBlockProps) {
 function PushoverBlock({ alertChannels, onSaved }: ChannelBlockProps) {
   const cfg = alertChannels.pushover;
   const [user, setUser] = useState(cfg?.user ?? '');
-  const [replacing, setReplacing] = useState(false);
-  const [newToken, setNewToken] = useState('');
+  const token = useMaskedSecret();
 
-  const dirty = user !== (cfg?.user ?? '') || (replacing && newToken.trim() !== '');
+  const dirty = user !== (cfg?.user ?? '') || token.dirty;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
     dirty,
     onSaved,
     buildPatch: () => {
-      const token = replacing && newToken.trim() ? newToken.trim() : cfg?.token;
-      if (!user.trim() || !token) {
+      const tokenValue = token.newValue ?? cfg?.token;
+      if (!user.trim() || !tokenValue) {
         return 'A Pushover user key and app token are both required.';
       }
       return {
-        alertChannels: { ...alertChannels, pushover: { token, user: user.trim() } },
+        alertChannels: { ...alertChannels, pushover: { token: tokenValue, user: user.trim() } },
       };
     },
-    onSuccess: () => {
-      setReplacing(false);
-      setNewToken('');
-    },
+    onSuccess: token.reset,
   });
 
   return (
@@ -155,11 +151,7 @@ function PushoverBlock({ alertChannels, onSaved }: ChannelBlockProps) {
         label="App token"
         testId="settings-channels-pushover-token"
         maskedValue={cfg?.token}
-        replacing={replacing}
-        value={newToken}
-        onStartReplace={() => { setReplacing(true); setNewToken(''); }}
-        onCancelReplace={() => { setReplacing(false); setNewToken(''); }}
-        onChangeValue={setNewToken}
+        {...token.fieldProps}
       />
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-channels-pushover-error">{error}</p>}
       <div className="channels-group__block-actions">
@@ -184,8 +176,7 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
   const [user, setUser] = useState(cfg?.user ?? '');
   const [from, setFrom] = useState(cfg?.from ?? '');
   const [to, setTo] = useState(cfg?.to ?? '');
-  const [replacing, setReplacing] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  const password = useMaskedSecret();
 
   const dirty = host !== (cfg?.host ?? '')
     || port !== String(cfg?.port ?? 587)
@@ -193,7 +184,7 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
     || user !== (cfg?.user ?? '')
     || from !== (cfg?.from ?? '')
     || to !== (cfg?.to ?? '')
-    || (replacing && newPassword.trim() !== '');
+    || password.dirty;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
     dirty,
@@ -211,17 +202,14 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
             port: portNum,
             secure,
             user: user.trim() || undefined,
-            password: replacing && newPassword.trim() ? newPassword.trim() : cfg?.password,
+            password: password.newValue ?? cfg?.password,
             from: from.trim(),
             to: to.trim(),
           },
         },
       };
     },
-    onSuccess: () => {
-      setReplacing(false);
-      setNewPassword('');
-    },
+    onSuccess: password.reset,
   });
 
   return (
@@ -263,11 +251,7 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
         label="Password"
         testId="settings-channels-smtp-password"
         maskedValue={cfg?.password}
-        replacing={replacing}
-        value={newPassword}
-        onStartReplace={() => { setReplacing(true); setNewPassword(''); }}
-        onCancelReplace={() => { setReplacing(false); setNewPassword(''); }}
-        onChangeValue={setNewPassword}
+        {...password.fieldProps}
       />
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-channels-smtp-error">{error}</p>}
       <div className="channels-group__block-actions">
@@ -291,21 +275,19 @@ function WebhookChannelBlock({ name, label, alertChannels, onSaved }: ChannelBlo
   label: string;
 }) {
   const cfg = alertChannels[name];
-  const [replacing, setReplacing] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
+  const webhookUrl = useMaskedSecret();
 
-  const dirty = replacing && newUrl.trim() !== '';
+  const dirty = webhookUrl.dirty;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
     dirty,
     onSaved,
+    // `!`: the hook only submits while dirty, and this block's ONLY dirty term is a
+    // freshly typed URL — `newValue` is defined on every reachable path.
     buildPatch: () => ({
-      alertChannels: { ...alertChannels, [name]: { webhookUrl: newUrl.trim() } },
+      alertChannels: { ...alertChannels, [name]: { webhookUrl: webhookUrl.newValue! } },
     }),
-    onSuccess: () => {
-      setReplacing(false);
-      setNewUrl('');
-    },
+    onSuccess: webhookUrl.reset,
   });
 
   return (
@@ -315,11 +297,7 @@ function WebhookChannelBlock({ name, label, alertChannels, onSaved }: ChannelBlo
         label="Webhook URL"
         testId={`settings-channels-${name}-webhook`}
         maskedValue={cfg?.webhookUrl}
-        replacing={replacing}
-        value={newUrl}
-        onStartReplace={() => { setReplacing(true); setNewUrl(''); }}
-        onCancelReplace={() => { setReplacing(false); setNewUrl(''); }}
-        onChangeValue={setNewUrl}
+        {...webhookUrl.fieldProps}
       />
       {error && (
         <p className="beer-form__notice" role="alert" data-testid={`settings-channels-${name}-error`}>{error}</p>

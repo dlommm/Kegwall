@@ -1,3 +1,47 @@
+import { useState } from 'react';
+
+/**
+ * The masked-secret state trio every secret-bearing block used to hand-roll (~8
+ * copies): `replacing` (Replace clicked), the typed draft, and the reset-on-save/
+ * cancel. What callers consume:
+ *
+ * - `dirty` — a fresh value has actually been typed; every block's dirty term for
+ *   its secret was exactly `replacing && draft.trim() !== ''`.
+ * - `newValue` — the trimmed replacement, or `undefined` when untouched. Blocks that
+ *   merge into a stored object fall back with `secret.newValue ?? cfg?.password` —
+ *   an untouched secret re-sends its masked display value, which the server's
+ *   `sanitizePatch` swaps back for the real stored one (never a literal new secret).
+ * - `reset()` — the self-resetting blocks' post-save cleanup (also what Cancel does);
+ *   blocks that instead rely on SettingsPage's version-counter remount just don't
+ *   call it.
+ * - `fieldProps` — spread into `<MaskedSecretField {...secret.fieldProps} />`
+ *   alongside the caller's own `label`/`testId`/`maskedValue`.
+ */
+export function useMaskedSecret() {
+  const [replacing, setReplacing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const trimmed = draft.trim();
+  const newValue = replacing && trimmed !== '' ? trimmed : undefined;
+
+  function reset() {
+    setReplacing(false);
+    setDraft('');
+  }
+
+  return {
+    dirty: newValue !== undefined,
+    newValue,
+    reset,
+    fieldProps: {
+      replacing,
+      value: draft,
+      onStartReplace: () => { setReplacing(true); setDraft(''); },
+      onCancelReplace: reset,
+      onChangeValue: setDraft,
+    },
+  };
+}
+
 /**
  * A masked secret field with a "Replace" affordance (Task 8): shows the server's masked
  * display value (e.g. `••••ikey`, or "Not set") and a Replace button; clicking it swaps in

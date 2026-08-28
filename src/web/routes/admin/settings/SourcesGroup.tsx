@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
 import { MQTT_DEFAULTS, type GroupProps } from './shared';
-import { MaskedSecretField } from './MaskedSecretField';
+import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Sources group (Task 8): UDP toggle (+ LAN note), BLE toggle, and MQTT url/user/pass/
@@ -19,8 +19,7 @@ export function SourcesGroup({ settings, onSaved }: GroupProps) {
   const [mqttUrl, setMqttUrl] = useState(mqtt?.url ?? '');
   const [mqttUsername, setMqttUsername] = useState(mqtt?.username ?? '');
   const [mqttPrefix, setMqttPrefix] = useState(mqtt?.gen1TopicPrefix ?? MQTT_DEFAULTS.gen1TopicPrefix);
-  const [passwordReplacing, setPasswordReplacing] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  const password = useMaskedSecret();
 
   const udpDirty = udpEnabled !== settings.udpEnabled;
   const bleDirty = bleDirectEnabled !== settings.bleDirectEnabled;
@@ -28,7 +27,7 @@ export function SourcesGroup({ settings, onSaved }: GroupProps) {
   const mqttDirty = mqttUrl !== (mqtt?.url ?? '')
     || mqttUsername !== (mqtt?.username ?? '')
     || mqttPrefix !== (mqtt?.gen1TopicPrefix ?? MQTT_DEFAULTS.gen1TopicPrefix)
-    || (passwordReplacing && newPassword.trim() !== '');
+    || password.dirty;
   const dirty = udpDirty || bleDirty || proBleDirty || mqttDirty;
 
   const { submitting, error, handleSubmit } = useSettingsGroupForm({
@@ -59,7 +58,7 @@ export function SourcesGroup({ settings, onSaved }: GroupProps) {
         patch.mqtt = {
           url: mqttUrl.trim(),
           username: mqttUsername.trim() || undefined,
-          password: passwordReplacing && newPassword.trim() ? newPassword.trim() : mqtt?.password,
+          password: password.newValue ?? mqtt?.password,
           gen1TopicPrefix: mqttPrefix.trim() || MQTT_DEFAULTS.gen1TopicPrefix,
           haPublishEnabled: mqtt?.haPublishEnabled ?? MQTT_DEFAULTS.haPublishEnabled,
           haDiscoveryPrefix: mqtt?.haDiscoveryPrefix ?? MQTT_DEFAULTS.haDiscoveryPrefix,
@@ -144,11 +143,7 @@ export function SourcesGroup({ settings, onSaved }: GroupProps) {
         label="MQTT password"
         testId="settings-sources-mqtt-password"
         maskedValue={mqtt?.password}
-        replacing={passwordReplacing}
-        value={newPassword}
-        onStartReplace={() => { setPasswordReplacing(true); setNewPassword(''); }}
-        onCancelReplace={() => { setPasswordReplacing(false); setNewPassword(''); }}
-        onChangeValue={setNewPassword}
+        {...password.fieldProps}
       />
 
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-sources-error">{error}</p>}
