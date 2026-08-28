@@ -439,6 +439,38 @@ describe('crud routes', () => {
     expect(events).toEqual([expect.objectContaining({ scope: 'walls' })]);
   });
 
+  it('DELETE /api/walls/:id with an assigned display 409s naming it, not a misleading FK 400', async () => {
+    // Regression: displays.wall_id has no ON DELETE clause (migration 008), so this
+    // delete used to surface mapSqliteError's 400 "Refers to a record that does not
+    // exist" — exactly backwards (the wall exists; a display refers to it).
+    const wall = (await app.inject({
+      method: 'POST', url: '/api/walls', cookies: adminCookies,
+      payload: { slug: 'dispwall', name: 'Disp', config: {} },
+    })).json();
+    const display = await app.inject({
+      method: 'POST', url: '/api/displays', cookies: adminCookies,
+      payload: { name: 'Garage TV', wallId: wall.id },
+    });
+    expect(display.statusCode).toBe(201);
+
+    const blocked = await app.inject({
+      method: 'DELETE', url: `/api/walls/${wall.id}`, cookies: adminCookies,
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().message).toContain('Garage TV');
+    expect(blocked.json().message).toContain('unassign');
+
+    // Unassigning the display (the action the message points at) unblocks the delete.
+    await app.inject({
+      method: 'PATCH', url: `/api/displays/${display.json().id}`, cookies: adminCookies,
+      payload: { wallId: null },
+    });
+    const freed = await app.inject({
+      method: 'DELETE', url: `/api/walls/${wall.id}`, cookies: adminCookies,
+    });
+    expect(freed.statusCode).toBe(204);
+  });
+
   describe('wall devices (device→wall scoping)', () => {
     async function makeWall(slug: string): Promise<number> {
       return (await app.inject({

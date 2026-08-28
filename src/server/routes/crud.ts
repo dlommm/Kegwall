@@ -25,7 +25,7 @@ import {
 import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
 import { countFaceEmbeddingsByDrinker, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
-import { NotFoundError, ValidationError } from '../core/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../core/errors.js';
 import { restartSourcesIfLive } from '../ingest/bootstrap.js';
 import { setPourDrinker } from '../db/pours.js';
 import { SOURCE_RESTART_KEYS } from '../core/restartKeys.js';
@@ -524,8 +524,24 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     return { id, slug: body.slug ?? existing.slug, name: body.name ?? existing.name, config };
   });
   app.delete('/api/walls/:id', editor, async (req, reply) => {
+    const id = parseId(req.params);
+    // `displays.wall_id REFERENCES walls(id)` with no ON DELETE clause (migration 008), so
+    // a bare DELETE for a wall a display still points at raises
+    // SQLITE_CONSTRAINT_FOREIGNKEY, which `mapSqliteError` (app.ts) renders as a 400
+    // "Refers to a record that does not exist" — backwards here (the wall is the record
+    // being referred TO, and it very much exists). Pre-check and 409 with the actual
+    // blockers named instead, matching `deleteTap`'s precedent in db/taps.ts. Unlike a
+    // tap's keg history, an assigned display IS fixable from the admin UI (Displays →
+    // edit → wall), so the message says how.
+    const assigned = db.prepare('SELECT name FROM displays WHERE wall_id = ? ORDER BY name')
+      .all(id) as { name: string }[];
+    if (assigned.length > 0) {
+      const names = assigned.map((d) => `"${d.name}"`).join(', ');
+      throw new ConflictError(
+        `wall ${id} is still assigned to display(s) ${names} — unassign the display(s) first`);
+    }
     // wall_devices rows go with it via ON DELETE CASCADE (migration 011).
-    db.prepare('DELETE FROM walls WHERE id = ?').run(parseId(req.params));
+    db.prepare('DELETE FROM walls WHERE id = ?').run(id);
     app.ctx.bus.emit('state_changed', { scope: 'walls', ts: new Date().toISOString() });
     return reply.code(204).send();
   });
