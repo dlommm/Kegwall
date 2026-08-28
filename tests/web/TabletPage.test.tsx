@@ -9,7 +9,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { TabletPage, POURER_COLORS } from '../../src/web/routes/TabletPage';
 import { useWallData, type UseWallDataResult } from '../../src/web/lib/useWallData';
 import {
-  armTablet, createPourer, disarmTablet, deleteFaces, enrollFace, getFaces, getPourers,
+  armTablet, createPourer, disarmTablet, getFaces, getPourers,
   matchFace, isFaceEnrolled, postPresenceWake,
 } from '../../src/web/lib/api';
 import { startCameraMotion } from '../../src/web/lib/cameraMotion';
@@ -126,12 +126,9 @@ async function triggerCameraMotion() {
   });
 }
 
-// Task 8: the drinker `getPourers`'s first fixture entry above arms into -- shared by
-// every enrollment test below so `drinkerId` assertions don't hardcode a bare `1`.
-const PourerFixture = { id: 1, displayName: 'Sam', avatarColor: '#D08C4C', pourCount: 127 };
-
 /** Task 8's harness for "the tablet is on the armed screen, certain who's pouring":
- * grid → tap the first avatar (Sam, `PourerFixture`) → armed. Returns the `render`
+ * grid → tap the first avatar (Sam, `getPourers`'s first fixture entry) → armed.
+ * Returns the `render`
  * result so callers that need `unmount` (camera-release-on-unmount tests) can get it;
  * callers that don't (most) just `await armViaGrid();` and ignore the return value. */
 async function armViaGrid() {
@@ -886,35 +883,13 @@ describe('TabletPage (design 3a)', () => {
     });
   });
 
-  // Task 8 (face sign-in, Plan B): tablet enrollment on the armed screen. Unlike Task
-  // 7's pipeline above, this one exercises the REAL `startFaceEnrollment` capture loop
-  // (TabletPage-local, not a mocked module) -- only its two inputs, `loadHuman`/
-  // `computeEmbedding` (faceRecognition.ts) and `navigator.mediaDevices.getUserMedia`
-  // (no module to intercept, so a global stub), are faked.
+  // Task 8 (face sign-in, Plan B): tablet enrollment on the armed screen. The capture
+  // loop itself (`startFaceEnrollment` + the panel's state machine) now lives in
+  // src/web/lib/useFaceEnrollment.ts + components/FaceEnrollPanel.tsx and is exercised
+  // by tests/web/FaceEnrollPanel.test.tsx -- what stays here is TabletPage's own
+  // wiring: the directory-disabled gate on the armed screen, and the screen-change
+  // reset (Sign out mid-capture) that only the real screen machine can drive.
   describe('face enrollment (Task 8)', () => {
-    it('enrolls three captures and posts them', async () => {
-      vi.useFakeTimers();
-      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-      (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
-      (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-      await armViaGrid(); // existing harness path to the armed screen
-      fireEvent.click(screen.getByTestId('face-enroll-start'));
-      await vi.advanceTimersByTimeAsync(2_500);
-      expect(enrollFace).toHaveBeenCalledTimes(3);
-      vi.useRealTimers();
-    });
-
-    it('already-enrolled drinker sees delete instead of add, and delete calls the api', async () => {
-      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true } });
-      // The armed drinker already has a face on file (server boolean, no vectors).
-      (isFaceEnrolled as Mock).mockResolvedValue({ ok: true, data: { enrolled: true } });
-      (deleteFaces as Mock).mockResolvedValue({ ok: true, data: { deleted: 1 } });
-      await armViaGrid();
-      expect(screen.queryByTestId('face-enroll-start')).toBeNull();
-      fireEvent.click(screen.getByTestId('face-enroll-delete'));
-      await waitFor(() => expect(deleteFaces).toHaveBeenCalledWith(PourerFixture.id));
-    });
-
     it('never shows an enrollment affordance when the face directory is disabled', async () => {
       // beforeEach's default getFaces (enabled: false) applies unchanged here.
       await armViaGrid();
@@ -922,133 +897,14 @@ describe('TabletPage (design 3a)', () => {
       expect(screen.queryByTestId('face-enroll-delete')).toBeNull();
     });
 
-    it('a null embedding does not count toward the 3-capture target and retries', async () => {
-      vi.useFakeTimers();
-      (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-      (computeEmbedding as Mock)
-        .mockResolvedValueOnce(null) // tick 1: no face -- doesn't count
-        .mockResolvedValue([1, 0, 0]); // ticks 2-4: a face every time after
-      (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-      await armViaGrid();
-      fireEvent.click(screen.getByTestId('face-enroll-start'));
-      // 4 ticks needed now (1 null + 3 real) instead of 3 -- one extra 700ms interval.
-      await vi.advanceTimersByTimeAsync(2_900);
-      expect(enrollFace).toHaveBeenCalledTimes(3);
-      vi.useRealTimers();
-    });
-
-    // Camera-release tracing (brief: "released the instant the panel closes/unmounts
-    // -- all paths: success, retry-timeout, cancel, unmount"). Each test below stubs
-    // its own inspectable stream/track (rather than relying on beforeEach's shared
-    // default) so `track.stop` can be asserted directly.
+    // Camera-release tracing for the one early-end path only TabletPage can drive: a
+    // screen change away from 'armed' (Sign out mid-capture) resets the enrollment
+    // state machine, which must release the camera. The other release paths (success,
+    // retry-timeout, try-again, cancel, unmount) live in
+    // tests/web/FaceEnrollPanel.test.tsx. Stubs its own inspectable stream/track
+    // (rather than relying on beforeEach's shared default) so `track.stop` can be
+    // asserted directly.
     describe('camera release', () => {
-      it('releases the camera the instant the 3rd capture completes (success)', async () => {
-        vi.useFakeTimers();
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
-        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        expect(track.stop).not.toHaveBeenCalled();
-        // Wrapped in `act()` (unlike the brief's own snippet above) because THIS test
-        // asserts on the committed DOM, not just a mock call count -- React's update
-        // scheduled from the interval tick's `.then()` needs `act()` to flush
-        // deterministically before the assertion below runs (see "screen 4"'s
-        // identical `act(async () => { await vi.advanceTimersByTimeAsync(...) })`).
-        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
-        expect(track.stop).toHaveBeenCalled();
-        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
-        vi.useRealTimers();
-      });
-
-      it('releases the camera and shows retry after 15s without a face', async () => {
-        vi.useFakeTimers();
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue(null); // never a face
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        expect(track.stop).not.toHaveBeenCalled();
-        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-        expect(track.stop).toHaveBeenCalled();
-        expect(screen.getByTestId('face-enroll-retry')).toBeInTheDocument();
-        expect(screen.getByText('No face found — try again')).toBeInTheDocument();
-        expect(enrollFace).not.toHaveBeenCalled();
-        vi.useRealTimers();
-      });
-
-      it('tapping "try again" after a timeout re-acquires the camera and can still succeed', async () => {
-        vi.useFakeTimers();
-        const first = fakeMediaStream();
-        const second = fakeMediaStream();
-        const getUserMedia = vi.fn()
-          .mockResolvedValueOnce(first.stream)
-          .mockResolvedValueOnce(second.stream);
-        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue(null);
-        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-        expect(first.track.stop).toHaveBeenCalled();
-        expect(screen.getByTestId('face-enroll-retry')).toBeInTheDocument();
-
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
-        fireEvent.click(screen.getByTestId('face-enroll-retry'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
-        expect(enrollFace).toHaveBeenCalledTimes(3);
-        expect(second.track.stop).toHaveBeenCalled();
-        vi.useRealTimers();
-      });
-
-      it('releases the camera when Cancel is tapped mid-capture', async () => {
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue(null); // never resolves on its own
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
-        await waitFor(() => expect(video.srcObject).toBe(stream));
-        expect(track.stop).not.toHaveBeenCalled();
-
-        fireEvent.click(screen.getByTestId('face-enroll-cancel'));
-        expect(track.stop).toHaveBeenCalled();
-        expect(screen.queryByTestId('face-enroll-panel')).toBeNull();
-        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument();
-      });
-
-      it('releases the camera on unmount mid-capture', async () => {
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue(null);
-        const { unmount } = await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
-        await waitFor(() => expect(video.srcObject).toBe(stream));
-        expect(track.stop).not.toHaveBeenCalled();
-
-        unmount();
-        expect(track.stop).toHaveBeenCalled();
-      });
-
       it('releases the camera when the tablet signs out mid-capture', async () => {
         const { stream, track } = fakeMediaStream();
         Object.defineProperty(navigator, 'mediaDevices', {
@@ -1066,274 +922,6 @@ describe('TabletPage (design 3a)', () => {
         await flush();
         expect(track.stop).toHaveBeenCalled();
         expect(screen.getByTestId('tablet-grid')).toBeInTheDocument();
-      });
-    });
-
-    // Fix round 1, F1: a stale `startFaceEnrollment` resolution (settling AFTER the
-    // attempt it belongs to was cancelled or superseded) must never touch `enrollState`
-    // -- reproduced by the reviewer via a deferred `getUserMedia` that resolves only
-    // after Cancel has already fired.
-    describe('stale-attempt currency (fix round 1, F1)', () => {
-      it('cancelling before getUserMedia resolves does not reopen the panel when it settles later', async () => {
-        let resolveGetUserMedia: ((stream: MediaStream) => void) | undefined;
-        const { stream, track } = fakeMediaStream();
-        const getUserMedia = vi.fn().mockImplementation(() => new Promise((resolve) => {
-          resolveGetUserMedia = resolve;
-        }));
-        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        await armViaGrid();
-
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await flush(); // let the effect kick off startFaceEnrollment -- getUserMedia now pending
-
-        fireEvent.click(screen.getByTestId('face-enroll-cancel'));
-        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument(); // back to idle
-
-        // The deferred getUserMedia now settles LATE, after the cancel.
-        await act(async () => {
-          resolveGetUserMedia?.(stream);
-          await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-        });
-
-        // Must still be idle -- no stale resolution reopening the panel in 'retry' or
-        // 'camera-error'.
-        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument();
-        expect(screen.queryByTestId('face-enroll-panel')).toBeNull();
-        expect(track.stop).toHaveBeenCalled(); // the late stream is still released, though
-      });
-
-      it('cancel-then-restart: a stale first attempt cannot clobber the live second attempt', async () => {
-        let resolveFirst: ((stream: MediaStream) => void) | undefined;
-        const first = fakeMediaStream();
-        const second = fakeMediaStream();
-        const getUserMedia = vi.fn()
-          .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
-          .mockResolvedValueOnce(second.stream);
-        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        await armViaGrid();
-
-        fireEvent.click(screen.getByTestId('face-enroll-start')); // attempt 1 -- stuck on getUserMedia
-        await flush();
-        fireEvent.click(screen.getByTestId('face-enroll-cancel')); // cancel attempt 1
-        fireEvent.click(screen.getByTestId('face-enroll-start')); // attempt 2 -- starts fresh
-
-        const video = (await screen.findByTestId('face-enroll-preview')) as HTMLVideoElement;
-        await waitFor(() => expect(video.srcObject).toBe(second.stream)); // attempt 2's own stream
-
-        // The stale first attempt's getUserMedia now settles LATE -- must not clobber
-        // attempt 2's live state.
-        await act(async () => {
-          resolveFirst?.(first.stream);
-          await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-        });
-
-        expect(screen.getByTestId('face-enroll-panel')).toBeInTheDocument();
-        expect(video.srcObject).toBe(second.stream); // unclobbered -- still attempt 2's stream
-        expect(first.track.stop).toHaveBeenCalled(); // the stale attempt released ITS OWN camera
-        expect(screen.queryByTestId('face-enroll-camera-error')).toBeNull();
-        expect(screen.queryByTestId('face-enroll-retry')).toBeNull();
-      });
-    });
-
-    // Fix round 1, F2: a "done" state must mean the server actually has the embedding,
-    // not just that a face was detected locally.
-    describe('save verification (fix round 1, F2)', () => {
-      it('every save failing shows save-failed, not done', async () => {
-        vi.useFakeTimers();
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]); // a face every tick
-        (enrollFace as Mock).mockResolvedValue({ ok: false, status: 500, message: 'nope' }); // every save fails
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-
-        expect(screen.getByTestId('face-enroll-save-failed')).toBeInTheDocument();
-        expect(screen.getByText('Couldn’t save — try again')).toBeInTheDocument();
-        expect(screen.queryByTestId('face-enroll-delete')).toBeNull(); // not done
-        // The "Try again" button IS present here too (shared with 'retry' -- same
-        // handler, honest copy is carried by the message above, not the button), but
-        // the dishonest "No face found" copy specifically must not be.
-        expect(screen.getByTestId('face-enroll-retry')).toBeInTheDocument();
-        expect(screen.queryByText('No face found — try again')).toBeNull();
-        expect(track.stop).toHaveBeenCalled();
-        vi.useRealTimers();
-      });
-
-      it('a partial success (1-of-3 attempts failing) still reaches done at the timeout', async () => {
-        vi.useFakeTimers();
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock)
-          .mockResolvedValueOnce([1, 0, 0]) // tick 1: a face
-          .mockResolvedValueOnce([1, 0, 0]) // tick 2: a face
-          .mockResolvedValueOnce([1, 0, 0]) // tick 3: a face
-          .mockResolvedValue(null); // tick 4+: no more faces -- can't reach 3 successes
-        (enrollFace as Mock)
-          .mockResolvedValueOnce({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } }) // tick 1 saves
-          .mockResolvedValueOnce({ ok: false, status: 500, message: 'nope' }) // tick 2 fails
-          .mockResolvedValue({ ok: true, data: { id: 2, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } }); // tick 3 saves
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-
-        // 2 of 3 attempts saved (captured=2, never reached the 3-target) -- the 15s
-        // timeout still lands on 'done' since partial success is acceptable success.
-        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
-        expect(enrollFace).toHaveBeenCalledTimes(3);
-        expect(track.stop).toHaveBeenCalled();
-        vi.useRealTimers();
-      });
-
-      it('enrolls three captures and posts them still passes when every save succeeds (no regression)', async () => {
-        vi.useFakeTimers();
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
-        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
-        expect(enrollFace).toHaveBeenCalledTimes(3);
-        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
-        vi.useRealTimers();
-      });
-    });
-
-    // Fix round 1, F3: a genuinely unavailable camera/model can never be fixed by
-    // "try again" the way a no-face timeout can -- the panel must say so honestly
-    // instead of reusing 'retry's "No face found" copy.
-    describe('camera/model unavailable (fix round 1, F3)', () => {
-      it('a rejecting getUserMedia shows camera-error, not retry', async () => {
-        const getUserMedia = vi.fn().mockRejectedValue(new Error('permission denied'));
-        Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await flush();
-
-        expect(screen.getByTestId('face-enroll-camera-error')).toBeInTheDocument();
-        expect(screen.getByText('Camera unavailable — check the tablet’s camera permission')).toBeInTheDocument();
-        expect(screen.queryByTestId('face-enroll-retry')).toBeNull();
-        expect(screen.queryByTestId('face-enroll-save-failed')).toBeNull();
-
-        fireEvent.click(screen.getByTestId('face-enroll-cancel'));
-        expect(screen.getByTestId('face-enroll-start')).toBeInTheDocument();
-      });
-    });
-
-    // Fix round 1, Minor: a failed delete must not silently claim success.
-    describe('delete failure handling (fix round 1, Minor)', () => {
-      it('a failed delete leaves the done-state panel open instead of closing it', async () => {
-        vi.useFakeTimers();
-        const { stream } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]);
-        (enrollFace as Mock).mockResolvedValue({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(2_500); });
-        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument(); // done state reached
-        vi.useRealTimers();
-
-        (deleteFaces as Mock).mockResolvedValue({ ok: false, status: 500, message: 'nope' });
-        fireEvent.click(screen.getByTestId('face-enroll-delete'));
-        await waitFor(() => expect(deleteFaces).toHaveBeenCalledWith(PourerFixture.id));
-        await flush();
-
-        // Still in the done-state panel -- did NOT silently revert to idle/"Add my face".
-        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument();
-        expect(screen.queryByTestId('face-enroll-start')).toBeNull();
-      });
-    });
-
-    // Fix round 2: the 15s budget must be a WALL-CLOCK deadline, not an accumulator
-    // that only advances when a tick's `enrollFace` POST completes -- `api.ts`'s
-    // `request()` has no fetch timeout, so a hung POST could otherwise pin the camera
-    // open indefinitely. Ticks are also single-flight: a slow-but-resolving POST must
-    // never let a second `computeEmbedding`/`enrollFace` round-trip start on top of it.
-    describe('wall-clock budget & single-flight ticks (fix round 2)', () => {
-      it('a hung enrollFace POST does not block the wall-clock deadline', async () => {
-        vi.useFakeTimers();
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]); // a face every tick
-        (enrollFace as Mock).mockImplementation(() => new Promise(() => {})); // never resolves
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-
-        // Without a wall-clock deadline, this would hang forever (the accumulator only
-        // advanced when a tick's POST resolved) -- advancing past 15s must still reach
-        // a terminal state even though the very first POST never settles.
-        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-
-        // A face WAS detected (sawFace) but the save never completed (captured stays
-        // 0) -- honest "couldn't save", not "no face found".
-        expect(screen.getByTestId('face-enroll-save-failed')).toBeInTheDocument();
-        expect(track.stop).toHaveBeenCalled();
-        // Single-flight also means only the FIRST tick's round-trip ever started --
-        // every later 700ms tick saw `inFlight` still true (the hung POST) and skipped.
-        expect(enrollFace).toHaveBeenCalledTimes(1);
-        vi.useRealTimers();
-      });
-
-      it('slow-but-resolving POSTs (1500ms each) never overlap, and the session still terminates within budget', async () => {
-        vi.useFakeTimers();
-        const { stream, track } = fakeMediaStream();
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
-          configurable: true,
-        });
-        (getFaces as Mock).mockResolvedValue({ ok: true, data: { enabled: true, threshold: 0.6, faces: [] } });
-        (computeEmbedding as Mock).mockResolvedValue([1, 0, 0]); // a face every tick
-
-        let inFlightCount = 0;
-        let maxInFlight = 0;
-        (enrollFace as Mock).mockImplementation(() => {
-          inFlightCount += 1;
-          maxInFlight = Math.max(maxInFlight, inFlightCount);
-          return new Promise((resolve) => {
-            // A real `setTimeout` here is the SAME fake-timer-controlled clock `vi
-            // .advanceTimersByTimeAsync` below drives -- this is how the mock
-            // simulates network latency deterministically under fake timers.
-            setTimeout(() => {
-              inFlightCount -= 1;
-              resolve({ ok: true, data: { id: 1, drinkerId: PourerFixture.id, embedding: [1, 0, 0] } });
-            }, 1_500);
-          });
-        });
-        await armViaGrid();
-        fireEvent.click(screen.getByTestId('face-enroll-start'));
-        await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-
-        // Single-flight: never more than 1 concurrent enrollFace call, even though
-        // 700ms ticks fire far more often than the 1500ms round-trip completes.
-        expect(maxInFlight).toBeLessThanOrEqual(1);
-        // Exactly 3 sequential round-trips (each ~1500ms) are enough to reach the
-        // target well inside the 15s budget -- if the single-flight guard were
-        // missing, overlapping ticks would have produced many more than 3 calls by
-        // 16s (ticks fire every 700ms, so up to ~22 would have started).
-        expect(enrollFace).toHaveBeenCalledTimes(3);
-        expect(screen.getByTestId('face-enroll-delete')).toBeInTheDocument(); // done
-        expect(track.stop).toHaveBeenCalled();
-        vi.useRealTimers();
       });
     });
   });
