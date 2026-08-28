@@ -19,6 +19,7 @@ import {
 import { useFacePipeline } from '../lib/useFacePipeline';
 import { useFaceEnrollment } from '../lib/useFaceEnrollment';
 import { FaceEnrollPanel } from '../components/FaceEnrollPanel';
+import { TabletSession, TabletSessionRecap } from '../components/TabletSession';
 
 /** The signup screen's preset avatar palette (design 3a). */
 export const POURER_COLORS = ['#D08C4C', '#5FD9BC', '#7FA8E0', '#C77FB8', '#94C25C', '#E0B23D'];
@@ -553,32 +554,7 @@ export function TabletPage() {
                 )}
               </div>
               {session && (
-                <div className="tablet-session" data-testid="tablet-session">
-                  <div className="tablet-session__head">
-                    <span className="tablet-session__name font-display">{`${session.name.toUpperCase()} · GROUP TAB`}</span>
-                    <button type="button" data-testid="tablet-session-end" className="tablet-secondary" onClick={handleEndSession}>
-                      End session
-                    </button>
-                  </div>
-                  {session.totals.length === 0 ? (
-                    <span className="tablet-screen__quiet">Tap your avatar to join the session.</span>
-                  ) : (
-                    session.totals.map((member) => {
-                      const max = Math.max(1, ...session.totals.map((t) => t.volumeMl));
-                      return (
-                        <div key={member.drinkerId} className="tablet-session__row" data-testid="tablet-session-row">
-                          <span className="tablet-session__member">{member.name}</span>
-                          <span className="tablet-session__bar">
-                            <span className="tablet-session__bar-fill" style={{ width: `${Math.round((member.volumeMl / max) * 100)}%` }} />
-                          </span>
-                          <span className="tablet-session__count font-tabular">
-                            {`${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                <TabletSession session={session} units={units} onEndSession={handleEndSession} />
               )}
               <div className="tablet-grid__footer">
                 <button
@@ -704,20 +680,7 @@ export function TabletPage() {
             </button>
           )}
           {recap && (
-            <button
-              type="button"
-              className="tablet-recap"
-              data-testid="tablet-recap"
-              onClick={() => setRecap(null)}
-            >
-              <span className="tablet-done__title font-display">{`${recap.name.toUpperCase()} — RECAP`}</span>
-              {recap.totals.map((member) => (
-                <span key={member.drinkerId} className="tablet-recap__row font-tabular">
-                  {`${member.name}: ${member.pourCount} pour${member.pourCount === 1 ? '' : 's'} · ${formatVolumeMl(member.volumeMl, units)}`}
-                </span>
-              ))}
-              <span className="tablet-screen__quiet">Tap to dismiss</span>
-            </button>
+            <TabletSessionRecap recap={recap} units={units} onDismiss={() => setRecap(null)} />
           )}
           {faceConfirm && (
             <div className="claim-sheet__backdrop" data-testid="face-confirm-sheet">
