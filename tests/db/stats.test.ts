@@ -55,14 +55,27 @@ function expectedHourBuckets(timestamps: string[]): number[] {
   return counts;
 }
 
+/** The server-LOCAL `YYYY-MM-DD` of a moment — the day-bucketing analog of
+ * `expectedHourBuckets` above: `poursByDay` (and `projectedKickDate`) now label calendar
+ * days in the server's local timezone, and `Date`'s local getters resolve against the
+ * same process timezone SQLite's `'localtime'` modifier does, so expectations built here
+ * are correct in whatever timezone the tests actually run in, never a hardcoded UTC
+ * assumption. */
+function localDay(d: Date | string): string {
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${dt.getFullYear()}-${m}-${day}`;
+}
+
 describe('stats repo', () => {
   describe('poursByDay', () => {
     it('zero-fills every day in range, oldest first, when there are no pours at all', () => {
       const rows = poursByDay(db, 7, NOW);
       expect(rows).toHaveLength(7);
       expect(rows.every((r) => r.count === 0 && r.volumeMl === 0)).toBe(true);
-      expect(rows[0]!.date).toBe('2026-07-21');
-      expect(rows[6]!.date).toBe('2026-07-27');
+      expect(rows[0]!.date).toBe(localDay(new Date(NOW.getTime() - 6 * MS_PER_DAY)));
+      expect(rows[6]!.date).toBe(localDay(NOW));
     });
 
     it('aggregates count and volume per day and zero-fills gap days', () => {
@@ -71,15 +84,53 @@ describe('stats repo', () => {
       const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
 
       // Today: two pours. 2 days ago: one pour. Nothing in between (yesterday, gap day).
-      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(0, 10), volumeMl: 300, source: 'udp' });
-      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(0, 14), volumeMl: 200, source: 'udp' });
-      recordPourTx(db, { kegId: keg.id, ts: isoDaysAgo(2, 9), volumeMl: 400, source: 'udp' });
+      const pours = [
+        { ts: isoDaysAgo(0, 10), volumeMl: 300 },
+        { ts: isoDaysAgo(0, 14), volumeMl: 200 },
+        { ts: isoDaysAgo(2, 9), volumeMl: 400 },
+      ];
+      for (const p of pours) {
+        recordPourTx(db, { kegId: keg.id, ts: p.ts, volumeMl: p.volumeMl, source: 'udp' });
+      }
+      // Expected buckets are grouped by each pour's LOCAL calendar day (see `localDay`'s
+      // doc comment), not hardcoded UTC date slices, so the test holds in any timezone.
+      const expected = new Map<string, { count: number; volumeMl: number }>();
+      for (const p of pours) {
+        const day = localDay(p.ts);
+        const agg = expected.get(day) ?? { count: 0, volumeMl: 0 };
+        expected.set(day, { count: agg.count + 1, volumeMl: agg.volumeMl + p.volumeMl });
+      }
+
+      const rows = poursByDay(db, 7, NOW);
+      for (const row of rows) {
+        expect({ count: row.count, volumeMl: row.volumeMl })
+          .toEqual(expected.get(row.date) ?? { count: 0, volumeMl: 0 });
+      }
+      // Sanity: every pour actually landed inside the 7-day range's buckets.
+      expect(rows.reduce((sum, r) => sum + r.count, 0)).toBe(pours.length);
+    });
+
+    it('buckets a pour by the SERVER\'S LOCAL calendar day, not its raw UTC date', () => {
+      const beer = createBeer(db, { name: 'Pils' });
+      const tap = createTap(db, { number: 1 });
+      const keg = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: tap.id });
+
+      // Half an hour before LOCAL midnight — in any timezone west of UTC this moment's
+      // toISOString() date is already the NEXT day, exactly the case where slicing the UTC
+      // string put a 7pm pour on tomorrow's bar (the day-bucket analog of hourHistogram's
+      // "real 6pm rush shown as 2am"). Built from local components so the property holds
+      // in whatever timezone the test runs in (in UTC itself the two days coincide and the
+      // cross-day assertion is skipped, same as expectedHourBuckets' approach).
+      const lateLocal = new Date(2026, 6, 26, 23, 30); // July 26, 23:30 LOCAL
+      recordPourTx(db, { kegId: keg.id, ts: lateLocal.toISOString(), volumeMl: 350, source: 'udp' });
 
       const rows = poursByDay(db, 7, NOW);
       const byDate = Object.fromEntries(rows.map((r) => [r.date, r]));
-      expect(byDate['2026-07-27']).toEqual({ date: '2026-07-27', count: 2, volumeMl: 500 });
-      expect(byDate['2026-07-25']).toEqual({ date: '2026-07-25', count: 1, volumeMl: 400 });
-      expect(byDate['2026-07-26']).toEqual({ date: '2026-07-26', count: 0, volumeMl: 0 });
+      expect(byDate['2026-07-26']).toEqual({ date: '2026-07-26', count: 1, volumeMl: 350 });
+      const utcDay = lateLocal.toISOString().slice(0, 10);
+      if (utcDay !== '2026-07-26' && byDate[utcDay]) {
+        expect(byDate[utcDay]).toEqual({ date: utcDay, count: 0, volumeMl: 0 });
+      }
     });
 
     it('excludes pours older than the requested day range', () => {
@@ -187,8 +238,9 @@ describe('stats repo', () => {
       const row = activeKegStats(db, NOW)[0]!;
       expect(row.remainingMl).toBe(12000);
       expect(row.dailyBurnMl).toBe(1000);
-      // 12000mL remaining / 1000mL per day = 12 days from NOW (2026-07-27) -> 2026-08-08.
-      expect(row.projectedKickDate).toBe('2026-08-08');
+      // 12000mL remaining / 1000mL per day = 12 days from NOW, labeled as the server's
+      // LOCAL calendar day of that moment (see `localDay`'s doc comment).
+      expect(row.projectedKickDate).toBe(localDay(new Date(NOW.getTime() + 12 * MS_PER_DAY)));
     });
 
     it('divides the trailing-7d burn sum by the actual days since tapped, not a flat 7, for a keg on tap under a week', () => {
@@ -471,6 +523,24 @@ describe('stats repo', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ month: '2026-06', kegs: 2, spendCents: 26200 });
       expect(rows[0]!.pricePerPintCents).toBe(131); // $262 / 200 pints
+    });
+
+    it('files a keg with no purchase date under its created_at\'s LOCAL month, not the raw UTC month', () => {
+      // The created_at fallback is a full UTC ISO timestamp (unlike purchased_at, an
+      // operator-entered date-only string) — a bare substr grouped a keg created the
+      // evening of the month's last day (already the next month in UTC) under the wrong
+      // month's spend. Expected month is derived from the row's actual stored created_at
+      // via Date's LOCAL getters — same conversion strftime('%Y-%m', ..., 'localtime')
+      // applies (see `localDay`'s doc comment) — so this holds in any timezone.
+      const beer = createBeer(db, { name: 'Lager' });
+      const keg = createKeg(db, {
+        beerId: beer.id, sizeMl: 47318, volStartMl: 47318, status: 'on_deck', costCents: 13100,
+      });
+      const { created_at } = db.prepare('SELECT created_at FROM kegs WHERE id = ?')
+        .get(keg.id) as { created_at: string };
+      const rows = monthlySpend(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.month).toBe(localDay(created_at).slice(0, 7));
     });
   });
 });

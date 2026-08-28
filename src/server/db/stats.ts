@@ -8,16 +8,31 @@ import type Database from 'better-sqlite3';
  * against the real wall clock.
  *
  * `pours.ts` stores `ts` as a `Date#toISOString()` string (`YYYY-MM-DDTHH:MM:SS.sssZ`,
- * always UTC/"Z"). Day bucketing (`poursByDay`) is done in JS via a plain substring slice
- * of that fixed-width string — simple, exact, UTC by construction. Hour-of-day bucketing
- * (`hourHistogram`) is different: see that function's own doc comment for why it converts
- * to the server's LOCAL hour instead (Task 9 review, Finding 2).
+ * always UTC/"Z"). Every CALENDAR bucketing over those timestamps — hour-of-day
+ * (`hourHistogram`), calendar day (`poursByDay`), day labels (`projectedKickDate`) —
+ * converts to the server's LOCAL timezone first: see `hourHistogram`'s doc comment for
+ * the full rationale (Task 9 review, Finding 2). Rolling trailing-N-day WINDOWS, by
+ * contrast, stay plain UTC instant comparisons — a window boundary is a moment, not a
+ * calendar label, so no conversion applies.
  */
 
 const MS_PER_DAY = 86_400_000;
 
+/**
+ * Formats a moment as the server's LOCAL `YYYY-MM-DD` — the day-label counterpart of
+ * `hourHistogram`'s localtime hour bucketing (same rationale, see its doc comment).
+ * `Date`'s local getters resolve against the same process timezone SQLite's
+ * `'localtime'` modifier uses, so JS-side labels and SQL-side `date(ts, 'localtime')`
+ * buckets always agree.
+ */
+function localDayStr(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 export interface PoursByDay {
-  /** `YYYY-MM-DD`, UTC calendar day. */
+  /** `YYYY-MM-DD`, the server's LOCAL calendar day — see `poursByDay`. */
   date: string;
   count: number;
   volumeMl: number;
@@ -40,7 +55,8 @@ export interface KegBurnStat {
    * divided by however many of those 7 days the keg has actually been tapped (clamped
    * to 1-7) — see `activeKegStats`'s doc comment for why. */
   dailyBurnMl: number;
-  /** `YYYY-MM-DD`, or `null` when `dailyBurnMl` is 0 (nothing to project from). */
+  /** `YYYY-MM-DD` (server-LOCAL calendar day, same convention as `poursByDay`), or
+   * `null` when `dailyBurnMl` is 0 (nothing to project from). */
   projectedKickDate: string | null;
 }
 
@@ -66,27 +82,35 @@ export interface LeaderboardEntry {
 }
 
 /**
- * `GET /api/stats/pours` — pour count + volume per UTC calendar day, over the trailing
+ * `GET /api/stats/pours` — pour count + volume per LOCAL calendar day, over the trailing
  * `days` days INCLUDING today, oldest first. Days with no pours are zero-filled (the
  * plan's "fill gap days with zeros") so the client's bar chart never has to special-case
  * a missing entry.
+ *
+ * Bucketed in the SERVER's LOCAL timezone via `date(ts, 'localtime')`, not by slicing the
+ * UTC `ts` string — the same class of bug `hourHistogram` fixes for hour-of-day (Task 9
+ * review, Finding 2): sliced by UTC, a 7pm Friday pour in PDT (02:00Z Saturday) silently
+ * landed on SATURDAY's bar for any non-UTC install. The zero-fill labels are built with
+ * `localDayStr` (see above) so they land in the exact same buckets SQLite produces.
  */
 export function poursByDay(db: Database.Database, days: number, now = new Date()): PoursByDay[] {
   const dates: string[] = [];
   for (let i = days - 1; i >= 0; i -= 1) {
-    dates.push(new Date(now.getTime() - i * MS_PER_DAY).toISOString().slice(0, 10));
+    dates.push(localDayStr(new Date(now.getTime() - i * MS_PER_DAY)));
   }
-  const cutoff = `${dates[0]}T00:00:00.000Z`;
-  const rows = db.prepare('SELECT ts, volume_ml FROM pours WHERE ts >= ?').all(cutoff) as
-    { ts: string; volume_ml: number }[];
+  const rows = db.prepare(`
+    SELECT date(ts, 'localtime') AS day, COUNT(*) AS count,
+           COALESCE(SUM(volume_ml), 0) AS volume_ml
+    FROM pours WHERE date(ts, 'localtime') >= ? GROUP BY day
+  `).all(dates[0]) as { day: string; count: number; volume_ml: number }[];
 
   const byDate = new Map<string, { count: number; volumeMl: number }>();
   for (const date of dates) byDate.set(date, { count: 0, volumeMl: 0 });
   for (const row of rows) {
-    const bucket = byDate.get(row.ts.slice(0, 10));
+    const bucket = byDate.get(row.day);
     if (bucket) {
-      bucket.count += 1;
-      bucket.volumeMl += row.volume_ml;
+      bucket.count = row.count;
+      bucket.volumeMl = row.volume_ml;
     }
   }
   return dates.map((date) => ({ date, ...byDate.get(date)! }));
@@ -178,8 +202,11 @@ export function activeKegStats(db: Database.Database, now = new Date()): KegBurn
       : 7;
     const burnDivisor = Math.min(7, Math.max(1, daysSinceTapped));
     const dailyBurnMl = Math.round(total / burnDivisor);
+    // localDayStr, not a toISOString() slice — the UTC date of an evening-local moment is
+    // already tomorrow, which read as a kick date one day late (same UTC-vs-local class as
+    // poursByDay/hourHistogram).
     const projectedKickDate = dailyBurnMl > 0
-      ? new Date(now.getTime() + (remainingMl / dailyBurnMl) * MS_PER_DAY).toISOString().slice(0, 10)
+      ? localDayStr(new Date(now.getTime() + (remainingMl / dailyBurnMl) * MS_PER_DAY))
       : null;
     return {
       kegId: r.keg_id, beerName: r.beer_name, tapNumber: r.tap_number, srm: r.srm,
@@ -474,11 +501,19 @@ export interface MonthlySpendRow {
   pricePerPintCents: number | null;
 }
 
-/** Owner spend grouped by purchase month (YYYY-MM), newest first, over all history. */
+/** Owner spend grouped by purchase month (YYYY-MM), newest first, over all history.
+ *
+ * `purchased_at` is an operator-entered date-only string (the swap wizard's
+ * `<input type="date">`) — already a local calendar date, so its month is a plain substr;
+ * running it through `'localtime'` would treat it as midnight UTC and shift it back a day
+ * (and at month boundaries, a month) in any west-of-UTC timezone. The `created_at`
+ * fallback is a full UTC ISO timestamp, so IT gets the localtime conversion — a bare
+ * substr filed a keg created the evening of July 31 local (already Aug 1 in UTC) under
+ * August's spend (same UTC-vs-local class as `poursByDay`/`hourHistogram`). */
 export function monthlySpend(db: Database.Database): MonthlySpendRow[] {
   const ML_PER_PINT_LOCAL = 473.176;
   const rows = db.prepare(`
-    SELECT substr(COALESCE(purchased_at, created_at), 1, 7) AS month,
+    SELECT COALESCE(substr(purchased_at, 1, 7), strftime('%Y-%m', created_at, 'localtime')) AS month,
            COUNT(*) AS kegs,
            COALESCE(SUM(cost_cents), 0) AS spendCents,
            COALESCE(SUM(size_ml), 0) AS totalMl
