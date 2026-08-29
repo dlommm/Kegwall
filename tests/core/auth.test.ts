@@ -11,11 +11,11 @@ import { join } from 'node:path';
 
 let db: Database.Database;
 let userId: number;
-beforeEach(() => {
+beforeEach(async () => {
   db = openDb(mkdtempSync(join(tmpdir(), 'ktdash-')));
-  userId = createUser(db, {
+  userId = (await createUser(db, {
     username: 'dan', displayName: 'Dan', password: 'hunter22', role: 'admin',
-  }).id;
+  })).id;
 });
 
 describe('auth sessions', () => {

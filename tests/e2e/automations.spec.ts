@@ -54,7 +54,7 @@ test.beforeAll(async () => {
   // so session cookies from one test's page never carry into the next). Login itself
   // (the thing the task asks for, "login via API") happens per-test via
   // POST /api/auth/login against these seeded credentials.
-  createUser(app.ctx.db, {
+  await createUser(app.ctx.db, {
     username: ADMIN_CREDENTIALS.username, displayName: 'E2E Admin',
     password: ADMIN_CREDENTIALS.password, role: 'admin',
   });

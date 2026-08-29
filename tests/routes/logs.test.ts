@@ -12,7 +12,7 @@ let cookies: Record<string, string>;
 
 beforeEach(async () => {
   app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
-  createUser(app.ctx.db, {
+  await createUser(app.ctx.db, {
     username: 'admin', displayName: 'Admin', password: 'hunter22', role: 'admin',
   });
   const login = await app.inject({

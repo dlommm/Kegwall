@@ -19,7 +19,7 @@ let tapId: number;
 beforeEach(async () => {
   app = await buildApp({ dataDir: mkdtempSync(join(tmpdir(), 'ktdash-')) });
   const db = app.ctx.db;
-  createUser(db, {
+  await createUser(db, {
     username: 'admin', displayName: 'Admin', password: 'hunter22', role: 'admin',
   });
   const login = await app.inject({

@@ -25,8 +25,8 @@ async function login(username: string, password: string): Promise<Record<string,
 beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ktdash-'));
   app = await buildApp({ dataDir, version: '1.2.3', updateTimeoutMs: 300 });
-  createUser(app.ctx.db, { username: 'admin', displayName: 'Admin', password: 'hunter22', role: 'admin' });
-  createUser(app.ctx.db, { username: 'view', displayName: 'View', password: 'hunter22', role: 'viewer' });
+  await createUser(app.ctx.db, { username: 'admin', displayName: 'Admin', password: 'hunter22', role: 'admin' });
+  await createUser(app.ctx.db, { username: 'view', displayName: 'View', password: 'hunter22', role: 'viewer' });
   adminCookies = await login('admin', 'hunter22');
   viewerCookies = await login('view', 'hunter22');
 });

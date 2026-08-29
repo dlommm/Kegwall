@@ -9,8 +9,13 @@ export interface User {
   isDrinker: boolean; avatarColor: string | null; createdAt: string;
 }
 
-// Precomputed dummy hash for timing-safe password verification (prevents timing oracles)
-const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
+/** bcrypt work factor — keep `hash`/`compare` and the boot-time dummy hash on the SAME
+ * cost so verification timing stays uniform. */
+const BCRYPT_COST = 10;
+
+// Precomputed dummy hash for timing-safe password verification (prevents timing oracles).
+// hashSync is fine HERE only: it runs once at module load, not on the request path.
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', BCRYPT_COST);
 
 function rowToUser(r: any): User {
   return {
@@ -19,10 +24,14 @@ function rowToUser(r: any): User {
   };
 }
 
-export function createUser(db: Database.Database, input: {
+/** Async on purpose (as are `verifyPassword`/`updateUser`): a bcrypt hash/compare costs
+ * ~100ms of CPU, and the sync variants blocked the event loop — freezing ingest packet
+ * handling and every live socket — for the duration. The promise APIs run on libuv's
+ * threadpool instead. Cost factor unchanged. */
+export async function createUser(db: Database.Database, input: {
   username: string; displayName: string; password: string; role: Role; isDrinker?: boolean;
-}): User {
-  const hash = bcrypt.hashSync(input.password, 10);
+}): Promise<User> {
+  const hash = await bcrypt.hash(input.password, BCRYPT_COST);
   const res = db.prepare(`INSERT INTO users
       (username, display_name, password_hash, role, is_drinker, created_at)
       VALUES (?, ?, ?, ?, ?, ?)`)
@@ -54,11 +63,13 @@ export function listDrinkers(db: Database.Database): User[] {
     .all().map(rowToUser);
 }
 
-export function verifyPassword(db: Database.Database, username: string, password: string): User | null {
+export async function verifyPassword(
+  db: Database.Database, username: string, password: string,
+): Promise<User | null> {
   const r = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
   // Always run bcrypt comparison to prevent timing oracles
   const hash = r?.password_hash ?? DUMMY_HASH;
-  const matches = bcrypt.compareSync(password, hash);
+  const matches = await bcrypt.compare(password, hash);
   return matches && r?.password_hash ? rowToUser(r) : null;
 }
 
@@ -66,10 +77,10 @@ export function countAdmins(db: Database.Database): number {
   return (db.prepare(`SELECT COUNT(*) c FROM users WHERE role = 'admin'`).get() as any).c;
 }
 
-export function updateUser(db: Database.Database, id: number, input: {
+export async function updateUser(db: Database.Database, id: number, input: {
   displayName?: string; role?: Role; password?: string; avatarColor?: string | null;
   isDrinker?: boolean;
-}): User {
+}): Promise<User> {
   const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
   if (!existing) throw new NotFoundError(`user ${id}`);
   if (existing.role === 'admin' && input.role && input.role !== 'admin' && countAdmins(db) === 1) {
@@ -79,7 +90,7 @@ export function updateUser(db: Database.Database, id: number, input: {
       avatar_color = ?, is_drinker = ? WHERE id = ?`)
     .run(input.displayName ?? existing.display_name,
       input.role ?? existing.role,
-      input.password ? bcrypt.hashSync(input.password, 10) : existing.password_hash,
+      input.password ? await bcrypt.hash(input.password, BCRYPT_COST) : existing.password_hash,
       input.avatarColor === undefined ? existing.avatar_color : input.avatarColor,
       input.isDrinker === undefined ? existing.is_drinker : (input.isDrinker ? 1 : 0),
       id);

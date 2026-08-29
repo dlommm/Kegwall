@@ -94,7 +94,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
       });
     }
     const { claimToken: _drop, ...userInput } = body;
-    const user = createUser(app.ctx.db, { ...userInput, role: 'admin' });
+    const user = await createUser(app.ctx.db, { ...userInput, role: 'admin' });
     if (opts.requireSetupToken) consumeSetupClaimToken(opts.dataDir);
     const { token } = createSession(app.ctx.db, user.id);
     reply.setCookie('session', token, sessionCookieOptions(req));
@@ -105,7 +105,7 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) 
     config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     const body = z.object({ username: z.string(), password: z.string() }).parse(req.body);
-    const user = verifyPassword(app.ctx.db, body.username, body.password);
+    const user = await verifyPassword(app.ctx.db, body.username, body.password);
     if (!user) {
       return reply.code(401).send({ error: 'unauthorized', message: 'Bad username or password' });
     }
