@@ -32,7 +32,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 20 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 22 });
     db2.close();
   });
 
@@ -58,7 +58,8 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
+      '022_pair_code_expiry.sql',
     ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
@@ -92,7 +93,8 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
+      '022_pair_code_expiry.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -179,7 +181,8 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
+      '022_pair_code_expiry.sql',
     ]);
     db.close();
   });
@@ -208,7 +211,8 @@ describe('migrations', { timeout: 30_000 }, () => {
       .map((r: any) => r.name);
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
-      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
+      '022_pair_code_expiry.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -352,6 +356,53 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(() => upgraded.prepare(`INSERT INTO monitors (type, identifier, port_index, meta)
       VALUES ('kegtron_pro', 'dev1', 0, '{}')`).run()).toThrow();
     expect(upgraded.pragma('foreign_key_check')).toEqual([]);
+    upgraded.close();
+  });
+
+  it('021 adds idx_pours_drinker_ts, and per-drinker pour queries use it', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const db = openDb(dir);
+    const idx = db.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
+      .all().map((r: any) => r.name);
+    expect(idx).toContain('idx_pours_drinker_ts');
+    // The exact hot shape from routes/featurePack.ts: equality on drinker_id plus a ts
+    // ordering — the composite index must serve both (no full pours scan, no temp b-tree).
+    const plan = db.prepare(
+      'EXPLAIN QUERY PLAN SELECT * FROM pours WHERE drinker_id = ? ORDER BY ts DESC LIMIT 8',
+    ).all(1).map((r: any) => r.detail).join(' | ');
+    expect(plan).toContain('idx_pours_drinker_ts');
+    expect(plan).not.toContain('SCAN pours');
+    db.close();
+  });
+
+  it('applies 021 on top of a database migrated through 020 (upgrade path), preserving pour rows', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ktdash-'));
+    const raw = new Database(join(dir, 'app.db'));
+    const now = new Date().toISOString();
+    raw.exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
+    for (const f of ['001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
+      '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql',
+      '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql',
+      '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql',
+      '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql',
+      '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql']) {
+      raw.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+      raw.prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)').run(f, now);
+    }
+    raw.prepare(`INSERT INTO beers (name, created_at) VALUES ('Pre-021 Ale', ?)`).run(now);
+    raw.prepare(`INSERT INTO taps (number) VALUES (1)`).run();
+    raw.prepare(`INSERT INTO kegs (beer_id, tap_id, size_ml, vol_start_ml, status, created_at)
+      VALUES (1, 1, 19000, 19000, 'on_tap', ?)`).run(now);
+    raw.prepare(`INSERT INTO users (display_name, is_drinker, created_at) VALUES ('Bob', 1, ?)`).run(now);
+    raw.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, source, drinker_id) VALUES (1, ?, 400, 'cloud', 1)`).run(now);
+    raw.close();
+
+    const upgraded = openDb(dir);
+    const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
+      .all().map((r: any) => r.name);
+    expect(idx).toContain('idx_pours_drinker_ts');
+    const pour = upgraded.prepare('SELECT * FROM pours WHERE drinker_id = 1').get() as any;
+    expect(pour).toMatchObject({ keg_id: 1, volume_ml: 400, drinker_id: 1 });
     upgraded.close();
   });
 
