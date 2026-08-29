@@ -8,6 +8,7 @@ import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume,
   getStatsTemps, getLeaderboard, listMonitors, getKegCosts, getMonthlySpend, getPourHistory,
   getBeerHistory, getPourerHistory, getSensors, getSources, doctorUdpHistory,
+  getAnalyticsKpis, getHourHeatmap,
 } from '../../../src/web/lib/adminApi';
 import type { Monitor } from '../../../src/server/db/monitors';
 import { renderAdminPage, adminContext } from './renderAdminPage';
@@ -248,6 +249,36 @@ describe('StatsPage', () => {
     await flush();
     expect(getPoursByDay).toHaveBeenCalledWith(90);
     expect(getBeersByVolume).toHaveBeenCalledWith(90);
+  });
+
+  it('labels the KPI row with the shared range when the switcher matches the KPI window', async () => {
+    renderAdminPage(<StatsPage />);
+    await flush();
+    // Default range 30d: KPIs/heatmap fetched with 30 and labeled as 30.
+    expect(getAnalyticsKpis).toHaveBeenCalledWith(30);
+    expect(getHourHeatmap).toHaveBeenCalledWith(30);
+    expect(screen.getByTestId('analytics-kpis-range')).toHaveTextContent('KPIs · last 30 days');
+
+    fireEvent.click(screen.getByTestId('stats-range-90'));
+    await flush();
+    expect(getAnalyticsKpis).toHaveBeenCalledWith(90);
+    expect(getHourHeatmap).toHaveBeenCalledWith(90);
+    expect(screen.getByTestId('analytics-kpis-range')).toHaveTextContent('KPIs · last 90 days');
+  });
+
+  it('7d range: KPIs and heatmap follow the switcher to a real 7-day window, matching the charts', async () => {
+    renderAdminPage(<StatsPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('stats-range-7'));
+    await flush();
+    // The charts cover 7 days…
+    expect(getPoursByDay).toHaveBeenCalledWith(7);
+    expect(getBeersByVolume).toHaveBeenCalledWith(7);
+    // …and so do the KPI row + heatmap (routes/featurePack.ts's rangeSchema accepts '7';
+    // regression: it used to stop at 30, so the 7d switcher silently showed 30-day KPIs).
+    expect(getAnalyticsKpis).toHaveBeenCalledWith(7);
+    expect(getHourHeatmap).toHaveBeenCalledWith(7);
+    expect(screen.getByTestId('analytics-kpis-range')).toHaveTextContent('KPIs · last 7 days');
   });
 
   it('the leaderboard window switcher refetches the leaderboard', async () => {

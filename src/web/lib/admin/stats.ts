@@ -81,11 +81,11 @@ export function getPourHistory(days: 7 | 30 | 90): Promise<ApiResult<import('../
 }
 
 /** GET /api/stats/kpis — the Analytics KPI row (design 10a). */
-export function getAnalyticsKpis(days: 30 | 90 | 365 = 30): Promise<ApiResult<import('../../../server/db/stats.js').AnalyticsKpis>> {
+export function getAnalyticsKpis(days: 7 | 30 | 90 | 365 = 30): Promise<ApiResult<import('../../../server/db/stats.js').AnalyticsKpis>> {
   return request(`/api/stats/kpis?days=${days}`);
 }
 
 /** GET /api/stats/heatmap — day-of-week × hour pour counts (design 10a). */
-export function getHourHeatmap(days: 30 | 90 | 365 = 30): Promise<ApiResult<{ grid: number[][] }>> {
+export function getHourHeatmap(days: 7 | 30 | 90 | 365 = 30): Promise<ApiResult<{ grid: number[][] }>> {
   return request(`/api/stats/heatmap?days=${days}`);
 }

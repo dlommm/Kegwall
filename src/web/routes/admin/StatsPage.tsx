@@ -168,15 +168,17 @@ export function StatsPage() {
     };
   }, []);
 
-  // KPI row + busiest-hours heatmap (design 10a) follow the shared day range
-  // (365 for anything past the 7/30/90 switcher isn't offered there — 90 caps it).
+  // KPI row + busiest-hours heatmap (design 10a) follow the shared day range: the server's
+  // `/api/stats/kpis` + `/api/stats/heatmap` accept the same 7/30/90/365 windows as the
+  // charts (routes/featurePack.ts's rangeSchema), so every figure on this tab describes
+  // the same trailing window the switcher names. The KPI caption still states the window
+  // explicitly so the row can never silently drift from the charts again.
   useEffect(() => {
     let cancelled = false;
-    const range = days === 7 ? 30 : days;
-    getAnalyticsKpis(range as 30 | 90).then((result) => {
+    getAnalyticsKpis(days).then((result) => {
       if (!cancelled && result.ok) setKpis(result.data);
     });
-    getHourHeatmap(range as 30 | 90).then((result) => {
+    getHourHeatmap(days).then((result) => {
       if (!cancelled && result.ok) setHeatmap(result.data.grid);
     });
     return () => {
@@ -342,6 +344,11 @@ export function StatsPage() {
               all tabs live and getByTestId/deep-links reach any panel. */}
           <div hidden={tab !== 'overview'} data-testid="analytics-panel-overview">
             {kpis && (
+              <p className="admin-page-quiet" data-testid="analytics-kpis-range">
+                {`KPIs · last ${days} days`}
+              </p>
+            )}
+            {kpis && (
               <div className="analytics-kpis" data-testid="analytics-kpis">
                 <div className="dashboard-stat">
                   <span className="dashboard-stat__label">POURS</span>
@@ -361,7 +368,11 @@ export function StatsPage() {
                     {kpis.costPerPintCents != null ? `$${(kpis.costPerPintCents / 100).toFixed(2)}` : '—'}
                   </span>
                   <span className="dashboard-stat__note">
-                    {kpis.valueOnTapCents > 0 ? `$${(kpis.valueOnTapCents / 100).toFixed(0)} of beer on tap` : 'Set keg costs to track'}
+                    {kpis.valueOnTapCents == null
+                      ? '—' /* redacted for viewer accounts (pricing.showCostsToViewers off) */
+                      : kpis.valueOnTapCents > 0
+                        ? `$${(kpis.valueOnTapCents / 100).toFixed(0)} of beer on tap`
+                        : 'Set keg costs to track'}
                   </span>
                 </div>
                 <div className="dashboard-stat">
@@ -398,7 +409,7 @@ export function StatsPage() {
           <div hidden={tab !== 'pours'} data-testid="analytics-panel-pours">
             {heatmap.length === 7 && (
               <section className="stats-section" data-testid="analytics-heatmap">
-                <h3 className="stats-chart__title">Busiest hours</h3>
+                <h3 className="stats-chart__title">{`Busiest hours · last ${days} days`}</h3>
                 <div className="heatmap">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, dow) => {
                     const max = Math.max(1, ...heatmap.flat());
