@@ -26,6 +26,24 @@ export function listPours(db: Database.Database, filter: {
     .all(...params, limit).map(rowToPour);
 }
 
+/** Latest pour's `{ts, volumeMl}` per keg for a set of kegs, in ONE query — the batch
+ * form of `listPours({kegId, limit: 1})`'s use in `StateManager.getTapStates()` (which
+ * runs on every `pour_progress` packet, so a per-tap query was measurably hot). SQLite's
+ * bare-column-with-a-single-MAX-aggregate behavior makes `ts`/`volume_ml` come from the
+ * max-`ts` row per group — the same row the per-keg `ORDER BY ts DESC LIMIT 1` returns. */
+export function latestPourByKeg(
+  db: Database.Database, kegIds: number[],
+): Map<number, { ts: string; volumeMl: number }> {
+  const map = new Map<number, { ts: string; volumeMl: number }>();
+  if (kegIds.length === 0) return map;
+  const rows = db.prepare(
+    `SELECT keg_id, ts, volume_ml, MAX(ts) FROM pours
+      WHERE keg_id IN (${kegIds.map(() => '?').join(', ')}) GROUP BY keg_id`,
+  ).all(...kegIds) as { keg_id: number; ts: string; volume_ml: number }[];
+  for (const r of rows) map.set(r.keg_id, { ts: r.ts, volumeMl: r.volume_ml });
+  return map;
+}
+
 export function recentUnclaimedPours(db: Database.Database, windowMinutes: number): Pour[] {
   const cutoff = new Date(Date.now() - windowMinutes * 60_000).toISOString();
   return db.prepare(

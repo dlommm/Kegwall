@@ -1,16 +1,17 @@
 import type Database from 'better-sqlite3';
 import { monitorRefKey, type EventBus, type MonitorRef } from './events.js';
 import { listTaps, getTap } from '../db/taps.js';
-import { getBeer, type Beer } from '../db/beers.js';
+import { getBeer, listBeers, type Beer } from '../db/beers.js';
 import {
-  getActiveKegForTap, getLatestKickedKegForTap, applyDispense, recordPourTx,
+  getActiveKegForTap, getActiveKegsByTap, getLatestKickedKegsByTap,
+  applyDispense, recordPourTx,
   computeLevelPct, computeRemainingMl, type Keg,
 } from '../db/kegs.js';
 import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
 } from '../db/monitors.js';
 import { recordTelemetrySampled, latestTelemetryForDevice } from '../db/telemetry.js';
-import { listPours, countPoursForDrinker } from '../db/pours.js';
+import { latestPourByKeg, countPoursForDrinker } from '../db/pours.js';
 import { PourDeduper } from './pourDedupe.js';
 import { PourSampleTracker, computePourQuality } from './pourQuality.js';
 import type { TabletArmRegistry } from './tabletArm.js';
@@ -211,33 +212,69 @@ export class StateManager {
   }
 
   getTapStates(): TapState[] {
+    // Every consumer of `state_changed` re-derives this snapshot, and `pour_progress`
+    // fires it many times a second during an active pour — so everything per-tap here is
+    // batched into a fixed handful of all-taps queries instead of ~6 queries PER tap
+    // (the observed ~200 queries/sec storm). Each batch query returns the exact rows the
+    // old per-tap query did (see the helpers' doc comments); the derived numbers — and
+    // the formulas in db/stats.ts / db/kegs.ts they're deliberately kept in sync with —
+    // are untouched.
     const monitors = listMonitors(this.db);
-    return listTaps(this.db).map((tap) => {
-      // A tap with no on_tap keg still needs a KICKED presentation when its last keg was
-      // kicked without a replacement — otherwise it reads as a generic empty tap on the
-      // wall even though there's a specific "just kicked" beer to show drained/stamped.
-      const keg = getActiveKegForTap(this.db, tap.id) ?? getLatestKickedKegForTap(this.db, tap.id);
-      const beer = keg ? getBeer(this.db, keg.beerId) : null;
+    const taps = listTaps(this.db);
+    const activeByTap = getActiveKegsByTap(this.db);
+    const kickedByTap = getLatestKickedKegsByTap(this.db);
+    const beersById = new Map(listBeers(this.db).map((b): [number, Beer] => [b.id, b]));
+    // A tap with no on_tap keg still needs a KICKED presentation when its last keg was
+    // kicked without a replacement — otherwise it reads as a generic empty tap on the
+    // wall even though there's a specific "just kicked" beer to show drained/stamped.
+    const kegByTap = new Map<number, Keg>();
+    for (const tap of taps) {
+      const keg = activeByTap.get(tap.id) ?? kickedByTap.get(tap.id);
+      if (keg) kegByTap.set(tap.id, keg);
+    }
+    const lastPourByKeg = latestPourByKeg(this.db, [...kegByTap.values()].map((k) => k.id));
+    // Rate-after-claim average (6a): over every rated pour of a BEER, any keg — one
+    // grouped query for all beers (rated pours are a small subset of `pours`).
+    const avgRatingByBeer = new Map(
+      (this.db.prepare(`
+        SELECT k.beer_id beer_id, AVG(p.rating) avg FROM pours p
+        JOIN kegs k ON k.id = p.keg_id
+        WHERE p.rating IS NOT NULL GROUP BY k.beer_id
+      `).all() as { beer_id: number; avg: number | null }[])
+        .map((r): [number, number | null] => [r.beer_id, r.avg]),
+    );
+    // "Next up" (6e): first queued (lowest-id, same row as ORDER BY k.id LIMIT 1)
+    // on-deck keg's beer per tap, one grouped query.
+    const nextUpByTap = new Map(
+      (this.db.prepare(`
+        SELECT k.tap_id tap_id, b.name name, MIN(k.id) FROM kegs k
+        JOIN beers b ON b.id = k.beer_id
+        WHERE k.status = 'on_deck' AND k.tap_id IS NOT NULL GROUP BY k.tap_id
+      `).all() as { tap_id: number; name: string }[])
+        .map((r): [number, string] => [r.tap_id, r.name]),
+    );
+    // Device-level: temp arrives once per physical Kegtron (recorded on port 0), so a
+    // tap bound to port 2 reads its DEVICE's telemetry, not its port row's — queried
+    // once per distinct physical device instead of once per tap.
+    const tempByDevice = new Map<string, number | null>();
+    const deviceTemp = (type: string, identifier: string): number | null => {
+      const deviceKey = `${type} ${identifier}`;
+      if (!tempByDevice.has(deviceKey)) {
+        tempByDevice.set(
+          deviceKey, latestTelemetryForDevice(this.db, type, identifier)?.temp ?? null,
+        );
+      }
+      return tempByDevice.get(deviceKey)!;
+    };
+    return taps.map((tap) => {
+      const keg = kegByTap.get(tap.id) ?? null;
+      const beer = keg ? beersById.get(keg.beerId) ?? null : null;
       const mon = monitors.find((m) => m.tapId === tap.id);
       const key = mon ? monitorRefKey({ type: mon.type, identifier: mon.identifier, portIndex: mon.portIndex }) : null;
       const live = (key ? this.live.get(key) : undefined) ?? this.simLive.get(tap.id);
-      const lastPourRow = keg ? listPours(this.db, { kegId: keg.id, limit: 1 })[0] : undefined;
-      // Device-level: temp arrives once per physical Kegtron (recorded on port 0),
-      // so a tap bound to port 2 reads its DEVICE's telemetry, not its port row's.
-      const temp = mon ? latestTelemetryForDevice(this.db, mon.type, mon.identifier)?.temp ?? null : null;
-      // Rate-after-claim average (6a): over every rated pour of this BEER, any keg.
-      const avgRatingRow = beer
-        ? this.db.prepare(`
-            SELECT AVG(p.rating) avg FROM pours p
-            JOIN kegs k ON k.id = p.keg_id
-            WHERE k.beer_id = ? AND p.rating IS NOT NULL
-          `).get(beer.id) as { avg: number | null }
-        : null;
-      // "Next up" (6e): first queued on-deck keg's beer for this tap.
-      const nextUpRow = this.db.prepare(`
-        SELECT b.name FROM kegs k JOIN beers b ON b.id = k.beer_id
-        WHERE k.tap_id = ? AND k.status = 'on_deck' ORDER BY k.id LIMIT 1
-      `).get(tap.id) as { name: string } | undefined;
+      const lastPourRow = keg ? lastPourByKeg.get(keg.id) : undefined;
+      const temp = mon ? deviceTemp(mon.type, mon.identifier) : null;
+      const avgRating = beer ? avgRatingByBeer.get(beer.id) ?? null : null;
       return {
         tapId: tap.id,
         tapNumber: tap.number,
@@ -256,8 +293,8 @@ export class StateManager {
         monitorOnline: key ? this.online.get(key) ?? true : false,
         hidden: tap.hidden,
         temp,
-        avgRating: avgRatingRow?.avg != null ? Math.round(avgRatingRow.avg * 10) / 10 : null,
-        nextUpBeerName: nextUpRow?.name ?? null,
+        avgRating: avgRating != null ? Math.round(avgRating * 10) / 10 : null,
+        nextUpBeerName: nextUpByTap.get(tap.id) ?? null,
       };
     });
   }

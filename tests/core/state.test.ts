@@ -273,6 +273,59 @@ describe('StateManager', () => {
     const tap = sm.getTapStates().find((t) => t.tapId === unboundTapId)!;
     expect(tap.temp).toBeNull();
   });
+
+  // Perf batch: getTapStates' per-tap lookups (active/kicked keg, beer, last pour,
+  // telemetry, avg rating, next-up) were collapsed into fixed all-taps queries. These
+  // tests pin the derived values — they must be identical to the per-tap versions.
+  it('averages rate-after-claim over rated pours only, surfaces the FIRST-queued on-deck '
+    + 'beer, and picks the latest pour as lastPour', () => {
+    const kegId = getActiveKegForTap(db, tapId)!.id;
+    db.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, source, rating)
+      VALUES (?, '2026-07-27T01:00:00.000Z', 300, 'cloud', 4)`).run(kegId);
+    db.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, source, rating)
+      VALUES (?, '2026-07-27T02:00:00.000Z', 250, 'cloud', 5)`).run(kegId);
+    // Unrated pour: excluded from the average, but IS the most recent -> lastPour.
+    db.prepare(`INSERT INTO pours (keg_id, ts, volume_ml, source)
+      VALUES (?, '2026-07-27T03:00:00.000Z', 475, 'cloud')`).run(kegId);
+    const nextBeer = createBeer(db, { name: 'Next Up NEIPA' });
+    const laterBeer = createBeer(db, { name: 'Later Lager' });
+    createKeg(db, { beerId: nextBeer.id, sizeMl: 19000, volStartMl: 19000, tapId, status: 'on_deck' });
+    createKeg(db, { beerId: laterBeer.id, sizeMl: 19000, volStartMl: 19000, tapId, status: 'on_deck' });
+
+    const states = sm.getTapStates();
+    const tap = states.find((t) => t.tapId === tapId)!;
+    expect(tap.avgRating).toBe(4.5);
+    expect(tap.nextUpBeerName).toBe('Next Up NEIPA');
+    expect(tap.lastPour).toEqual({ ts: '2026-07-27T03:00:00.000Z', volumeMl: 475 });
+
+    // A second tap with its own (unrated, nothing-queued) keg stays null across the board.
+    const beer2 = createBeer(db, { name: 'Quiet Kolsch' });
+    const tap2 = createTap(db, { number: 2 }).id;
+    createKeg(db, { beerId: beer2.id, sizeMl: 19000, volStartMl: 19000, tapId: tap2 });
+    const t2 = sm.getTapStates().find((t) => t.tapId === tap2)!;
+    expect(t2.avgRating).toBeNull();
+    expect(t2.nextUpBeerName).toBeNull();
+    expect(t2.lastPour).toBeNull();
+  });
+
+  it('runs a FIXED number of queries per snapshot, independent of tap count (the '
+    + 'pour_progress query-storm fix: ~6 queries per tap before, batched all-taps now)', () => {
+    const countPrepares = () => {
+      const spy = vi.spyOn(db, 'prepare');
+      sm.getTapStates();
+      const n = spy.mock.calls.length;
+      spy.mockRestore();
+      return n;
+    };
+    const baseline = countPrepares();
+    for (let n = 10; n < 16; n++) {
+      const beer = createBeer(db, { name: `Batch Beer ${n}` });
+      const t = createTap(db, { number: n }).id;
+      createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: t });
+      createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: t, status: 'on_deck' });
+    }
+    expect(countPrepares()).toBe(baseline);
+  });
 });
 
 // A device the admin disabled (the case: hardware at another location) still exists as a

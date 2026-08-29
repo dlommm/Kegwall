@@ -147,6 +147,34 @@ export function getLatestKickedKegForTap(db: Database.Database, tapId: number): 
   return r ? rowToKeg(r) : null;
 }
 
+/** Batch form of `getActiveKegForTap` for EVERY tap at once, keyed by tapId — one query
+ * instead of one per tap. Exists for `StateManager.getTapStates()`'s hot path (it runs
+ * on every `pour_progress` packet); `idx_kegs_tap_active` guarantees at most one on_tap
+ * keg per tap, so the map holds exactly the rows the per-tap lookup would return. */
+export function getActiveKegsByTap(db: Database.Database): Map<number, Keg> {
+  const rows = db.prepare(
+    `SELECT * FROM kegs WHERE status = 'on_tap' AND tap_id IS NOT NULL`,
+  ).all();
+  const map = new Map<number, Keg>();
+  for (const r of rows) { const keg = rowToKeg(r); map.set(keg.tapId!, keg); }
+  return map;
+}
+
+/** Batch form of `getLatestKickedKegForTap` for EVERY tap at once, keyed by tapId — one
+ * query instead of one per tap (same `getTapStates()` hot path as `getActiveKegsByTap`).
+ * `MAX(id)` picks the identical row the per-tap `ORDER BY id DESC LIMIT 1` does; SQLite's
+ * documented bare-column-with-a-single-min/max-aggregate behavior makes the other
+ * selected columns come from that max-id row. */
+export function getLatestKickedKegsByTap(db: Database.Database): Map<number, Keg> {
+  const rows = db.prepare(
+    `SELECT *, MAX(id) FROM kegs
+      WHERE status = 'kicked' AND tap_id IS NOT NULL GROUP BY tap_id`,
+  ).all();
+  const map = new Map<number, Keg>();
+  for (const r of rows) { const keg = rowToKeg(r); map.set(keg.tapId!, keg); }
+  return map;
+}
+
 /** Kegs queued behind a tap's current on_tap keg, in queue (creation) order — the swap
  * wizard's on-deck list (Task 1 brief / Task 5 UI). */
 export function listOnDeckForTap(db: Database.Database, tapId: number): Keg[] {
