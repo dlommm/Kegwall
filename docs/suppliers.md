@@ -42,6 +42,20 @@ recent price you paid. Rows are flagged:
 
 The header sums it up: supplier count, kegs purchased, and year-to-date spend.
 
+## Who can see keg costs
+
+Owner cost (what you paid for a keg, the deposit, the supplier, the purchase date) is
+private by default:
+
+- **Public surfaces** (wall, menu, board, guest phones) **never** see cost — at most the
+  marked-up display price, and only when pricing is enabled. This is a hard rule with no
+  toggle.
+- **Editor and admin accounts** always see costs — editors record them, admins analyze them.
+- **Viewer accounts** don't see costs by default: keg lists, the on-deck queue, and the
+  money KPIs on Analytics (cost per pint, value on tap) come back with cost fields blank.
+  If you want read-only accounts to see them, opt in at **Settings → Pricing → "Show keg
+  costs to viewer accounts"**.
+
 ## See also
 
 - [docs/setup/kegtron-cloud.md](setup/kegtron-cloud.md) — devices and sensors.

@@ -7,6 +7,7 @@ import {
 import { createTap, listTaps, updateTap, deleteTap, getTap } from '../db/taps.js';
 import {
   listKegs, getKeg, swapKeg, createKeg, listOnDeckForTap, removeOnDeckKeg, getActiveKegForTap,
+  type Keg,
 } from '../db/kegs.js';
 import {
   listMonitors, bindMonitorToTap, sanitizeMonitor, getMonitorById,
@@ -246,10 +247,21 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   app.get('/api/taps/:id/on-deck', viewer, async (req) => {
     const tapId = parseId(req.params);
     if (!getTap(db, tapId)) throw new NotFoundError('tap');
-    return listOnDeckForTap(db, tapId);
+    const queue = listOnDeckForTap(db, tapId);
+    return hideCostsFrom(req) ? queue.map(redactOwnerCost) : queue;
   });
 
   // --- kegs ---
+  // Owner cost/sourcing redaction for viewer accounts (H2 follow-up to redesign 4k/4l):
+  // viewer-gated keg reads null out costCents/depositCents/supplierId/purchasedAt unless
+  // the owner opts viewers in via `pricing.showCostsToViewers`. Editors/admins always see
+  // them (editors can already write them). Nulling — not deleting — keeps the wire shape
+  // identical to an untracked keg, so clients need no special case.
+  const redactOwnerCost = (k: Keg): Keg => ({
+    ...k, costCents: null, depositCents: null, supplierId: null, purchasedAt: null,
+  });
+  const hideCostsFrom = (req: { user?: { role?: string | null } | null }): boolean =>
+    req.user?.role === 'viewer' && !app.ctx.settings.get('pricing').showCostsToViewers;
   // `status` here only ever accepts 'on_deck' — a bare create is otherwise always
   // 'on_tap' (createKeg's own default); the on-deck queue's "add to queue" action is the
   // one caller that needs this path (Task 5). Queuing without a `tapId` would be
@@ -268,7 +280,8 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
   app.get('/api/kegs', viewer, async (req) => {
     const q = z.object({ status: z.enum(['on_tap', 'kicked', 'archived']).optional() })
       .parse(req.query);
-    return listKegs(db, q);
+    const kegs = listKegs(db, q);
+    return hideCostsFrom(req) ? kegs.map(redactOwnerCost) : kegs;
   });
   // Admin-only keg history for the Kegs page: every keg (on tap now + past), enriched with
   // beer/tap/supplier names and owner cost/sourcing. Cost is owner-only, so admin — not viewer.
@@ -597,7 +610,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     const raw = req.body as { drinkerOnly?: unknown } | null;
     const user = raw?.drinkerOnly === true
       ? createDrinker(db, drinkerOnlySchema.parse(raw))
-      : createUser(db, loginUserSchema.parse(raw));
+      : await createUser(db, loginUserSchema.parse(raw));
     return reply.code(201).send(user);
   });
   app.patch('/api/users/:id', admin, async (req) => {
@@ -607,7 +620,7 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       password: z.string().min(8).optional(), avatarColor: z.string().nullish(),
       isDrinker: z.boolean().optional(),
     }).parse(req.body);
-    const user = updateUser(db, id, body);
+    const user = await updateUser(db, id, body);
     if (body.password !== undefined) {
       // A password change must revoke the user's live sessions — they're validated purely
       // by token lookup (core/auth.ts), so a stolen cookie would otherwise keep working

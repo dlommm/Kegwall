@@ -152,7 +152,12 @@ export const settingsSchema = z.object({
     rounding: z.number().refine((v) => [0.05, 0.25, 0.5, 1].includes(v), {
       message: 'rounding must be one of 0.05, 0.25, 0.5, 1',
     }).default(0.25),
-  }).default({ enabled: false, markupPct: 245, taxPct: 0, rounding: 0.25 }),
+    // H2 follow-up: whether VIEWER accounts may see owner cost/sourcing on viewer-gated
+    // reads (/api/kegs, /api/taps/:id/on-deck, /api/stats/kpis money KPIs). OFF (default)
+    // keeps costs editor/admin-only. This gates authenticated viewers ONLY — public/
+    // unauthenticated surfaces never see cost regardless (hard requirement, see above).
+    showCostsToViewers: z.boolean().default(false),
+  }).default({ enabled: false, markupPct: 245, taxPct: 0, rounding: 0.25, showCostsToViewers: false }),
   // Govee ambient sensors (Phase 6): cloud API key. Same nullable-object +
   // masked-apiKey idiom as `catalogBeer` above. Per-sensor names/enable now live on
   // the sensors' `monitors` rows (admin Monitors page); the old `names` map is

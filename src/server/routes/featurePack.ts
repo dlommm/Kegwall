@@ -199,10 +199,22 @@ export async function featurePackRoutes(app: FastifyInstance) {
   // --- Analytics data (10a) -------------------------------------------------
 
   const rangeSchema = z.object({
-    days: z.enum(['30', '90', '365']).default('30').transform(Number),
+    // '7' matches the Analytics page's smallest range switcher — without it the client
+    // had to floor 7d to a 30-day KPI/heatmap window while the charts beside them were
+    // genuinely 7-day (the "range mismatch" fix).
+    days: z.enum(['7', '30', '90', '365']).default('30').transform(Number),
   });
 
-  app.get('/api/stats/kpis', viewer, async (req) => analyticsKpis(db, rangeSchema.parse(req.query).days));
+  // Money KPIs (costPerPint, valueOnTap) are owner cost — nulled for viewer accounts
+  // unless the owner opts viewers in via `pricing.showCostsToViewers` (H2 follow-up;
+  // same policy as crud.ts's keg redaction). Editors/admins always get them.
+  app.get('/api/stats/kpis', viewer, async (req) => {
+    const kpis = analyticsKpis(db, rangeSchema.parse(req.query).days);
+    if (req.user?.role === 'viewer' && !app.ctx.settings.get('pricing').showCostsToViewers) {
+      return { ...kpis, costPerPintCents: null, valueOnTapCents: null };
+    }
+    return kpis;
+  });
 
   app.get('/api/stats/heatmap', viewer, async (req) => ({
     grid: hourHeatmap(db, rangeSchema.parse(req.query).days),

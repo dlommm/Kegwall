@@ -326,8 +326,10 @@ export interface AnalyticsKpis {
   /** Mean cost of a pint over the window's pours, from keg cost tracking
    * (design 6d) — null when no poured-from keg in the window has a cost. */
   costPerPintCents: number | null;
-  /** Remaining-beer value across every on-tap keg with a cost. */
-  valueOnTapCents: number;
+  /** Remaining-beer value across every on-tap keg with a cost. `analyticsKpis()` always
+   * computes a number; null only ever appears ON THE WIRE, when routes/featurePack.ts
+   * redacts the money KPIs for viewer accounts (pricing.showCostsToViewers off). */
+  valueOnTapCents: number | null;
 }
 
 /** The Analytics page's KPI row (design 10a), over the trailing `days` window. */

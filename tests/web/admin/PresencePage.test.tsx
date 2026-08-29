@@ -62,7 +62,7 @@ function baseSettings(overrides: Partial<Settings> = {}): Settings {
     servingSizeMl: 473,
     logRetentionDays: 30,
     autoImportBeers: true,
-    pricing: { enabled: false, markupPct: 245, taxPct: 0, rounding: 0.25 },
+    pricing: { enabled: false, markupPct: 245, taxPct: 0, rounding: 0.25, showCostsToViewers: false },
     govee: null,
     goveeBaseUrl: 'https://openapi.api.govee.com',
     updateCheckBaseUrl: 'https://github.com',
