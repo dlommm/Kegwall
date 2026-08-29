@@ -6,6 +6,43 @@ import { requireDisplayToken } from './displayAuth.js';
 
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
+/**
+ * Backpressure guard (server-hardening review, 2026-08-29): a client that stops reading
+ * (TV powered off mid-frame, dead Wi-Fi with the TCP session lingering) never drains its
+ * socket, so every broadcast would pile up in `ws`'s per-socket send buffer unboundedly —
+ * on a busy pour night that's snapshots at up to 5/sec growing server memory until OOM.
+ * A socket already holding more than this many unsent bytes is SKIPPED (not terminated):
+ * skipping bounds the buffer at roughly this threshold + one frame, and stays harmless
+ * for clients — every payload on this feed is either a full snapshot or a nudge to
+ * refetch, so a client that recovers simply resyncs from the next frame it does receive
+ * (and a client that never recovers misses the pings too, trips its own 60s staleness
+ * timer, and reconnects — see useTapStates.ts). ~1MB is hundreds of snapshots deep; no
+ * healthy LAN client ever queues that much.
+ */
+export const MAX_BUFFERED_AMOUNT_BYTES = 1_000_000;
+
+/** The minimal socket surface broadcasting needs — structural, so the backpressure
+ * guard is unit-testable with plain fake objects (tests/routes/wsBroadcast.test.ts). */
+export interface BroadcastClient {
+  readyState: number;
+  OPEN: number;
+  bufferedAmount: number;
+  send(data: string): void;
+}
+
+/** Sends `msg` to every currently-connected client, skipping any not `OPEN` (a socket
+ * mid-close/error shouldn't throw the broadcast off for the rest) and any with more than
+ * MAX_BUFFERED_AMOUNT_BYTES already queued (see that constant's doc comment). Shared by
+ * every broadcast (snapshot, ping, banner, theme_override, notifications) so "loop over
+ * clients" has exactly one implementation. */
+export function broadcastTo(clients: Iterable<BroadcastClient>, msg: string): void {
+  for (const socket of clients) {
+    if (socket.readyState !== socket.OPEN) continue;
+    if (socket.bufferedAmount > MAX_BUFFERED_AMOUNT_BYTES) continue;
+    socket.send(msg);
+  }
+}
+
 export interface WsRoutesOptions {
   /**
    * How often to broadcast a `{type:'ping'}` heartbeat to every open client. Defaults to
@@ -34,15 +71,9 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
       version: app.ctx.version,
     });
 
-  /** Sends `msg` to every currently-connected client (skipping any not `OPEN` -- a socket
-   * mid-close/error shouldn't throw the broadcast off for the rest). Shared by every
-   * broadcast below (snapshot, ping, banner, theme_override, notifications) so "loop over
-   * `clients`" has exactly one implementation. */
-  const broadcast = (msg: string): void => {
-    for (const socket of clients) {
-      if (socket.readyState === socket.OPEN) socket.send(msg);
-    }
-  };
+  // broadcastTo (top of file) carries the not-OPEN skip AND the bufferedAmount
+  // backpressure guard — see MAX_BUFFERED_AMOUNT_BYTES's doc comment.
+  const broadcast = (msg: string): void => broadcastTo(clients, msg);
 
   app.ctx.bus.on('state_changed', (e) => {
     if (e.scope === 'taps') {
