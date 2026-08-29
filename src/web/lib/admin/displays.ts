@@ -21,3 +21,9 @@ export function updateDisplay(id: number, input: {
 export function deleteDisplay(id: number): Promise<ApiResult<null>> {
   return request(`/api/displays/${id}`, { method: 'DELETE' });
 }
+
+/** Mints a fresh pairing code (codes expire 15 minutes after issue — see db/displays.ts).
+ *  A screen that is already paired keeps its token and stays connected. */
+export function regenerateDisplayCode(id: number): Promise<ApiResult<import('../../../server/db/displays.js').Display>> {
+  return request(`/api/displays/${id}/regenerate-code`, { method: 'POST' });
+}

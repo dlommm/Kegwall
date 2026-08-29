@@ -103,6 +103,18 @@ actually powering down the physical panel (backlight/HDMI) — see
 to real screen power control (HDMI-CEC, DPMS, a tablet's Fully Kiosk API, Home
 Assistant, etc).
 
+## Pairing screens by code
+
+The **Displays** admin page mints a short pairing code per screen; the TV opens
+`/display` and types it to learn which wall it shows. Two rules to know:
+
+- **Codes expire 15 minutes after they're minted.** If the TV reports an expired code
+  (or you're pairing a display created before this rule existed), press **New code** on
+  the Displays page (or `POST /api/displays/:id/regenerate-code`, editor role) and type
+  the fresh one. Expiry only gates *pairing* — a screen that's already paired keeps its
+  own token and stays connected through code regeneration.
+- Pairing-code values are never written to the app log.
+
 ## See also
 
 - [docs/install/display-agent.md](install/display-agent.md) — real panel power-off (not

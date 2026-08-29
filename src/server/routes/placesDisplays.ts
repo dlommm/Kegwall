@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireRole } from './auth.js';
 import {
   listDisplays, createDisplay, updateDisplay, deleteDisplay, getDisplay,
-  pairDisplay, touchDisplay,
+  pairDisplay, touchDisplay, getDisplayByCode, isPairCodeExpired, regeneratePairCode,
 } from '../db/displays.js';
 import { updateMonitorDeviceIdentity, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
 import { requireDisplayToken } from './displayAuth.js';
@@ -57,7 +57,22 @@ export async function placesDisplaysRoutes(app: FastifyInstance) {
     }).parse(req.body);
     reply.code(201);
     const display = createDisplay(db, body);
-    app.ctx.log.info('wall', `Display "${display.name}" created — pairing code ${display.code}`);
+    // Deliberately does NOT log the code value: the app log is viewer-readable (routes/
+    // logs.ts) and a logged code is a leaked code. The code lives only in this response
+    // and the admin Displays page.
+    app.ctx.log.info('wall', `Display "${display.name}" created (pairing code issued)`);
+    return display;
+  });
+
+  // Re-opens the pairing window: mints a fresh code + restarts its 15-minute TTL
+  // (db/displays.ts PAIR_CODE_TTL_MS — codes expire so a leaked one can't rotate the
+  // display's token forever). The existing token, if any, keeps working until the next
+  // successful pair rotates it — regeneration alone never bricks a live screen.
+  app.post('/api/displays/:id/regenerate-code', editor, async (req) => {
+    const id = z.coerce.number().int().parse((req.params as any).id);
+    if (!getDisplay(db, id)) throw new NotFoundError(`display ${id}`);
+    const display = regeneratePairCode(db, id);
+    app.ctx.log.info('wall', `Display "${display.name}" pairing code regenerated`);
     return display;
   });
 
@@ -84,13 +99,25 @@ export async function placesDisplaysRoutes(app: FastifyInstance) {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     const body = z.object({ code: z.string().trim().min(4).max(12) }).parse(req.body);
+    // Expired codes get their own 410 so the person at the TV learns "regenerate it in
+    // admin" instead of a lying "no such code" — pairDisplay itself also fails closed on
+    // expiry, so this pre-check is UX only, not the enforcement.
+    const existing = getDisplayByCode(db, body.code);
+    if (existing && isPairCodeExpired(existing)) {
+      return reply.code(410).send({
+        error: 'expired',
+        message: 'Pairing code expired — regenerate it from the admin Displays page',
+      });
+    }
     // Mints a per-display secret token and returns it ONCE — the display stores it and
     // presents it (X-Display-Token / ?displayToken=) on every subsequent gated request.
     const paired = pairDisplay(db, body.code);
     if (!paired) {
       return reply.code(404).send({ error: 'not_found', message: 'No display with that code' });
     }
-    app.ctx.log.info('wall', `Display "${paired.display.name}" paired (code ${paired.display.code})`);
+    // No code value in the log line — the app log is viewer-readable, and the code stays
+    // claimable (rotating this display's token) until its TTL runs out.
+    app.ctx.log.info('wall', `Display "${paired.display.name}" paired`);
     return { ...displayView(paired.display.id), token: paired.token };
   });
 

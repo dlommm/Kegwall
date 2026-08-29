@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Display } from '../../lib/adminApi';
 import {
-  createDisplay, deleteDisplay, listDisplays, listWalls, updateDisplay, type Wall,
+  createDisplay, deleteDisplay, listDisplays, listWalls, regenerateDisplayCode, updateDisplay,
+  type Wall,
 } from '../../lib/adminApi';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
@@ -56,6 +57,8 @@ export function DisplaysPage() {
         <h1 className="admin-page-header__title font-display">Displays</h1>
         <p className="admin-page-quiet">
           A display pairs by opening <code>/display</code> on the TV and typing its code.
+          Codes expire 15 minutes after they're minted — use <strong>New code</strong> if
+          the TV reports an expired one. Screens that are already paired stay connected.
         </p>
       </header>
 
@@ -96,7 +99,21 @@ export function DisplaysPage() {
               {displays.map((display) => (
                 <tr key={display.id} data-testid="displays-row">
                   <td>{display.name}</td>
-                  <td className="font-tabular" data-testid="displays-row-code">{display.code}</td>
+                  <td className="font-tabular" data-testid="displays-row-code">
+                    {display.code}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        data-testid="displays-row-regenerate"
+                        onClick={async () => {
+                          const result = await regenerateDisplayCode(display.id);
+                          if (result.ok) { setError(null); load(); } else setError(result.message);
+                        }}
+                      >
+                        New code
+                      </button>
+                    )}
+                  </td>
                   <td>
                     <select
                       data-testid="displays-row-wall"
