@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/server/db/db.js';
 import { SettingsStore, motionSourceSchema } from '../../src/server/db/settings.js';
@@ -371,6 +371,47 @@ describe('SettingsStore', () => {
       store.set('faceSignIn', { enabled: true, threshold: 0.75 });
       expect(store.get('faceSignIn')).toEqual({ enabled: true, threshold: 0.75 });
       expect(() => store.set('faceSignIn', { enabled: true, threshold: 0.1 } as never)).toThrow();
+    });
+  });
+
+  // Perf batch: all()/get() run per request and per ingest packet, so the parsed
+  // Settings object is cached in memory. The cache must be invisible behavior-wise:
+  // every write through set() drops it, invalidate() covers direct table writes, and
+  // callers always receive their own mutation-safe copy (masked() mutates its result
+  // in place — a shared reference would corrupt every later read).
+  describe('parsed-settings cache', () => {
+    it('serves repeat reads without re-querying the settings table', () => {
+      store.set('siteName', 'Cached Cave');
+      expect(store.get('siteName')).toBe('Cached Cave'); // primes the cache
+      const spy = vi.spyOn(db, 'prepare');
+      expect(store.get('siteName')).toBe('Cached Cave');
+      expect(store.all().siteName).toBe('Cached Cave');
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('set() invalidates so the next read sees the new value', () => {
+      expect(store.get('siteName')).toBe('My Taproom'); // primes the cache
+      store.set('siteName', 'Fresh Name');
+      expect(store.get('siteName')).toBe('Fresh Name');
+    });
+
+    it('invalidate() picks up a direct settings-table write that bypassed set()', () => {
+      expect(store.get('siteName')).toBe('My Taproom'); // primes the cache
+      db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)
+                  ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run('siteName', JSON.stringify('Raw Write'));
+      store.invalidate();
+      expect(store.get('siteName')).toBe('Raw Write');
+    });
+
+    it('hands out mutation-safe copies — masking one result never corrupts later reads', () => {
+      store.set('kegtronApiKey', 'abcdefghijklmnop');
+      expect(store.masked().kegtronApiKey).toBe('••••mnop'); // mutates ITS copy in place
+      expect(store.get('kegtronApiKey')).toBe('abcdefghijklmnop');
+      const a = store.all();
+      a.siteName = 'clobbered locally';
+      expect(store.get('siteName')).toBe('My Taproom');
     });
   });
 

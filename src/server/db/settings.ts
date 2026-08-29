@@ -354,15 +354,30 @@ function assertNoMaskedSecret<K extends keyof Settings>(key: K, value: Settings[
 }
 
 export class SettingsStore {
+  /** In-memory cache of the fully-parsed Settings object. `all()` (and through it,
+   * `get()`) runs per request AND per ingest packet, and re-reading the whole table +
+   * re-running `settingsSchema.parse` each time was measurably hot. The cache is
+   * invalidated by every write path through this store (`set()`), plus the explicit
+   * `invalidate()` escape hatch for anything that writes the `settings` table directly
+   * (no production code does today — the backup/restore flow swaps the DB file across a
+   * restart — but tests seed rows raw, and future callers need a documented hook).
+   * `all()` hands out a `structuredClone` so callers that mutate their copy (e.g.
+   * `masked()`, which overwrites secret fields in place) can never corrupt the cache —
+   * preserving the previous every-call-gets-a-fresh-object behavior exactly. */
+  private cache: Settings | null = null;
+
   constructor(private db: Database.Database) {}
 
   all(): Settings {
-    const rows = this.db.prepare('SELECT key, value FROM settings').all() as {
-      key: string; value: string;
-    }[];
-    const raw: Record<string, unknown> = {};
-    for (const r of rows) raw[r.key] = JSON.parse(r.value);
-    return settingsSchema.parse(raw);
+    if (this.cache === null) {
+      const rows = this.db.prepare('SELECT key, value FROM settings').all() as {
+        key: string; value: string;
+      }[];
+      const raw: Record<string, unknown> = {};
+      for (const r of rows) raw[r.key] = JSON.parse(r.value);
+      this.cache = settingsSchema.parse(raw);
+    }
+    return structuredClone(this.cache);
   }
 
   get<K extends keyof Settings>(key: K): Settings[K] {
@@ -376,6 +391,14 @@ export class SettingsStore {
       .prepare(`INSERT INTO settings (key, value) VALUES (?, ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .run(key, JSON.stringify(value));
+    this.cache = null;
+  }
+
+  /** Drops the parsed-settings cache. Call after writing the `settings` table WITHOUT
+   * going through `set()` (raw SQL in tests, any future direct writer) so the next
+   * `all()`/`get()` re-reads from the database. */
+  invalidate(): void {
+    this.cache = null;
   }
 
   /**
