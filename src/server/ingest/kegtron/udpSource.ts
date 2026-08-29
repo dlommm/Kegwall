@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { EventBus, MonitorRef } from '../../core/events.js';
 import type { SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
+import { SourceStatusThrottle, DEFAULT_STATUS_INTERVAL_MS } from '../statusThrottle.js';
 
 // ---------------------------------------------------------------------------
 // Kegtron Pro UDP Streaming source (docs/kegtron/UDPStreaming.pdf, "UDP Streaming",
@@ -104,6 +105,11 @@ export interface KegtronUdpSourceOptions {
    *  same precedent as pourTimeoutMs, so the staleness path is testable in milliseconds. */
   rejoinIntervalMs?: number;
   staleAfterMs?: number;
+  /** Test-only override of the routine "last packet from ..." status-repeat cadence
+   * (production default 30s — see ../statusThrottle.ts; per-datagram emission spammed
+   * every listener/the log/the sources UI at 5 packets/sec during pours). Same additive
+   * precedent as pourTimeoutMs. */
+  statusIntervalMs?: number;
 }
 
 interface PortState {
@@ -150,6 +156,13 @@ const packetSchema = z.object({
 
 const PORT_KEY_RE = /^port(\d+)$/;
 
+/** Kegtron Pro tops out at 4 ports (`port0`..`port3` — the same range shadow.ts's cloud
+ * parser enumerates, and what "a 4-port Kegtron is one device" throughout this repo
+ * means). A hostile/corrupt LAN datagram with a `port999999` key must not mint a
+ * phantom monitor row via `device_discovered`, so out-of-range indexes are dropped
+ * (individually, keeping the tolerant-parsing convention) with a warn. */
+const MAX_PRO_PORT_INDEX = 3;
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
@@ -158,8 +171,9 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  * streaming packet at all (not an object, or no valid serialNum) — the caller logs
  * and drops the packet, staying healthy (UDP is "best effort"; malformed/lost packets
  * are expected, not exceptional). A port<i> key whose value isn't itself a
- * recognizable object is individually skipped rather than failing the whole packet. */
-function parsePacket(raw: unknown): ParsedPacket | null {
+ * recognizable object is individually skipped rather than failing the whole packet, as
+ * is a port<i> key beyond the hardware's real 0..3 range (see MAX_PRO_PORT_INDEX). */
+export function parsePacket(raw: unknown): ParsedPacket | null {
   if (!isPlainObject(raw)) return null;
   const top = packetSchema.safeParse(raw);
   if (!top.success) return null;
@@ -172,6 +186,13 @@ function parsePacket(raw: unknown): ParsedPacket | null {
     if (!portResult.success) continue;
     const portIndex = Number(m[1]);
     if (!Number.isInteger(portIndex) || portIndex < 0) continue;
+    if (portIndex > MAX_PRO_PORT_INDEX) {
+      console.warn(
+        `[kegtron_udp] ignoring out-of-range port index ${portIndex} `
+        + `(hardware maxes out at port${MAX_PRO_PORT_INDEX})`,
+      );
+      continue;
+    }
     ports.push({
       portIndex,
       curServMl: portResult.data.curServ ?? 0,
@@ -212,6 +233,9 @@ export class KegtronUdpSource implements Source {
   private lastPacketAt: number | null = null;
   /** Latched so the stale transition is logged/emitted once, not every minute. */
   private reportedStale = false;
+  /** Gates ONLY handlePacket's routine "last packet from ..." repeats — transitions and
+   * error emissions bypass it (they go through emitStatus, which note()s). */
+  private readonly statusThrottle: SourceStatusThrottle;
   private readonly ports = new Map<string, PortState>();
   private readonly lastTemp = new Map<string, number>();
   private readonly discoveredPorts = new Set<string>();
@@ -227,6 +251,7 @@ export class KegtronUdpSource implements Source {
     this.pourTimeoutMs = opts.pourTimeoutMs ?? DEFAULT_POUR_TIMEOUT_MS;
     this.rejoinIntervalMs = opts.rejoinIntervalMs ?? REJOIN_INTERVAL_MS;
     this.staleAfterMs = opts.staleAfterMs ?? STALE_AFTER_MS;
+    this.statusThrottle = new SourceStatusThrottle(opts.statusIntervalMs ?? DEFAULT_STATUS_INTERVAL_MS);
   }
 
   /** The actual bound {address, port} once start() has succeeded (useful in tests
@@ -414,7 +439,12 @@ export class KegtronUdpSource implements Source {
     for (const port of parsed.ports) {
       this.handlePort(parsed.serialNum, port, ts);
     }
-    this.emitStatus(true, `last packet from ${parsed.serialNum} at ${ts}`);
+    // Routine repeat, throttled (first packet + any unhealthy->healthy recovery still
+    // emit immediately) — per-datagram emission was 5/sec/port during pours, and every
+    // one landed in the log + the sources UI. See ../statusThrottle.ts.
+    if (this.statusThrottle.shouldEmit(true)) {
+      this.emitStatus(true, `last packet from ${parsed.serialNum} at ${ts}`);
+    }
   }
 
   private handleTelemetry(parsed: ParsedPacket, ts: string): void {
@@ -556,6 +586,7 @@ export class KegtronUdpSource implements Source {
   }
 
   private emitStatus(healthy: boolean, detail: string): void {
+    this.statusThrottle.note(healthy);
     this.bus.emit('source_status', {
       source: 'kegtron_udp', healthy, detail, ts: new Date().toISOString(),
     });

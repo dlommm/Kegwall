@@ -3,6 +3,7 @@ import type { EventBus, MonitorRef } from '../../core/events.js';
 import type { Settings, SettingsStore } from '../../db/settings.js';
 import type { Source } from '../source.js';
 import { attachMqttLifecycle, emitSourceStatus } from '../mqttLifecycle.js';
+import { SourceStatusThrottle, DEFAULT_STATUS_INTERVAL_MS } from '../statusThrottle.js';
 import { PourSynthesizer } from './pourSynth.js';
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,13 @@ import { PourSynthesizer } from './pourSynth.js';
 
 const KEGTRON_MODEL_IDS = new Set(['kt-100', 'kt-200', 'kt100', 'kt200']);
 
+/** Gen 1 hardware tops out at TWO ports: KT-100 is single-port, KT-200 dual-port (see
+ * KEGTRON_MODEL_IDS — there is no larger Gen 1 unit). The port index arrives from an
+ * UNTRUSTED inbound MQTT payload, so without this bound a malformed/hostile message
+ * (`port_index: 999999`) would mint a phantom monitor row per index via
+ * `device_discovered`. Out-of-range messages are dropped with a warn (handleMessage). */
+export const GEN1_MAX_PORT_INDEX = 1;
+
 // How long a bleActiveMacs stamp is honored before this source treats BLE as no longer
 // covering that MAC and resumes processing its own MQTT messages for it. Brief: "within
 // the last 5 minutes". Test-only override, same additive-optional-constructor-knob
@@ -96,6 +104,10 @@ export interface Gen1MqttSourceOptions {
    * 1000ms). Test-only knob, same additive-optional-constructor-knob precedent as
    * cloudSource.ts's reconnectBaseMs / udpSource.ts's pourTimeoutMs. */
   reconnectPeriodMs?: number;
+  /** Test-only override of the routine "last reading from ..." status-repeat cadence
+   * (production default 30s — see ../statusThrottle.ts; per-message emission spammed
+   * every listener/the log/the sources UI). Same additive precedent as above. */
+  statusIntervalMs?: number;
 }
 
 interface ParsedKegtronMessage {
@@ -150,21 +162,38 @@ function numberField(
 /** Derives a 0-based port index. Explicit numeric `port_index`/`portIndex` wins
  * (present in this fixture's KT-200 messages); otherwise defaults to 0, which is
  * correct both for KT-100 (genuinely single-port) and as a safe fallback for any
- * KT-200 message that omits it. */
-function portIndexField(msg: Record<string, unknown>): number {
+ * KT-200 message that omits it. An explicit index BEYOND the real Gen 1 hardware range
+ * (> GEN1_MAX_PORT_INDEX) returns null — the caller drops the whole message rather
+ * than clamping, since attributing a hostile/corrupt payload's volumes to a real port
+ * would be worse than ignoring it. */
+function portIndexField(msg: Record<string, unknown>): number | null {
   const v = msg.port_index ?? msg.portIndex;
-  if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 0) {
+    return v <= GEN1_MAX_PORT_INDEX ? v : null;
+  }
   return 0;
 }
 
 /** Never throws. Returns null for anything not shaped like a Kegtron message on this
  * topic tree (not an object, not a recognized Kegtron model_id/model/brand, missing a
- * valid mac, or missing the volume fields required to feed the synthesizer). */
+ * valid mac, or missing the volume fields required to feed the synthesizer), AND for a
+ * Kegtron-shaped message whose explicit port index exceeds the real Gen 1 hardware
+ * range (the one drop noisy enough to warrant a warn — it's either a hostile payload or
+ * a badly broken bridge, and silently ignoring it hid both). */
 export function parseKegtronMqttMessage(raw: unknown): ParsedKegtronMessage | null {
   if (!isPlainObject(raw)) return null;
   if (!isKegtronMessage(raw)) return null;
   const mac = normalizeMac(raw.mac ?? raw.id);
   if (!mac) return null;
+
+  const portIndex = portIndexField(raw);
+  if (portIndex === null) {
+    console.warn(
+      `[gen1_mqtt] dropped message from ${mac}: port_index ${String(raw.port_index ?? raw.portIndex)} `
+      + `out of range 0..${GEN1_MAX_PORT_INDEX} (Gen 1 hardware has at most 2 ports)`,
+    );
+    return null;
+  }
 
   const volStartMl = numberField(raw, ['volume_start'], ['volStartMl', 'vol_start_ml', 'volStart', 'vol_start']);
   const volDispensedMl = numberField(
@@ -174,7 +203,7 @@ export function parseKegtronMqttMessage(raw: unknown): ParsedKegtronMessage | nu
   const sizeMl = numberField(raw, ['keg_size'], ['sizeMl', 'keg_size_ml', 'kegSizeMl']) ?? null;
 
   const model = typeof raw.model === 'string' ? raw.model : (typeof raw.model_id === 'string' ? raw.model_id : null);
-  return { mac, portIndex: portIndexField(raw), volStartMl, volDispensedMl, sizeMl, model };
+  return { mac, portIndex, volStartMl, volDispensedMl, sizeMl, model };
 }
 
 export class Gen1MqttSource implements Source {
@@ -191,6 +220,9 @@ export class Gen1MqttSource implements Source {
   private client: MqttClient | null = null;
   private readonly discovered = new Set<string>();
   private stopped = true;
+  /** Gates ONLY handleMessage's routine "last reading from ..." repeats — connect/
+   * subscribe/error emissions bypass it (they go through emitStatus, which note()s). */
+  private readonly statusThrottle: SourceStatusThrottle;
 
   constructor(opts: Gen1MqttSourceOptions) {
     this.bus = opts.bus;
@@ -200,6 +232,7 @@ export class Gen1MqttSource implements Source {
     this.ownsSynth = opts.synth === undefined;
     this.synth = opts.synth ?? new PourSynthesizer(opts.bus);
     this.reconnectPeriodMs = opts.reconnectPeriodMs;
+    this.statusThrottle = new SourceStatusThrottle(opts.statusIntervalMs ?? DEFAULT_STATUS_INTERVAL_MS);
   }
 
   async start(): Promise<void> {
@@ -281,10 +314,16 @@ export class Gen1MqttSource implements Source {
 
     const ts = new Date().toISOString();
     this.synth.onReading(monitor, parsed.volStartMl, parsed.volDispensedMl, parsed.sizeMl, ts);
-    this.emitStatus(true, `last reading from ${parsed.mac} port${parsed.portIndex} at ${ts}`);
+    // Routine repeat, throttled (first reading + any unhealthy->healthy recovery still
+    // emit immediately) — a per-message emission fanned out to every listener/the log/
+    // the sources UI on every retained/bridged reading. See ../statusThrottle.ts.
+    if (this.statusThrottle.shouldEmit(true)) {
+      this.emitStatus(true, `last reading from ${parsed.mac} port${parsed.portIndex} at ${ts}`);
+    }
   }
 
   private emitStatus(healthy: boolean, detail: string): void {
+    this.statusThrottle.note(healthy);
     emitSourceStatus(this.bus, 'gen1_mqtt', healthy, detail);
   }
 }
