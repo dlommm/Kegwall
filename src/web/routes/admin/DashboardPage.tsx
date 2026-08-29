@@ -5,6 +5,7 @@ import type { ActivityEvent } from '../../../server/db/activity.js';
 import { Link } from 'react-router';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
+import { usePolledFetch } from '../../lib/usePolledFetch';
 import {
   getActivity, getSources, getPoursSince, getSystemStats, listWalls, triggerReboot,
   getCleaningStatuses, getPoursByDay, getActiveKegStats, getSensors,
@@ -97,58 +98,40 @@ export function DashboardPage() {
 
   const { taps } = useTapStates(initialTaps);
 
-  useEffect(() => {
-    let cancelled = false;
-    const poll = () => {
-      getSources().then((result) => {
-        if (!cancelled && result.ok) setSources(result.data);
-      });
-      getActivity().then((result) => {
-        if (!cancelled && result.ok) setActivity(result.data);
-      });
-      getPoursSince(startOfTodayIso()).then((result) => {
-        if (!cancelled && result.ok) {
-          setPourCount(result.data.length);
-          setPourVolumeMl(result.data.reduce((sum, p) => sum + p.volumeMl, 0));
-        }
-      });
-      getCleaningStatuses().then((result) => {
-        if (!cancelled && result.ok) setCleanings(result.data);
-      });
-      // 30-day window (not 7): the pours mini-chart shows the last 7 bars, but the
-      // week-over-week delta needs to reach back to the SAME WEEKDAY last week.
-      getPoursByDay(30).then((result) => {
-        if (!cancelled && result.ok) setPoursByDay(result.data);
-      });
-      getActiveKegStats().then((result) => {
-        if (!cancelled && result.ok) setKegStats(result.data);
-      });
-      getSensors().then((result) => {
-        if (!cancelled && result.ok) setSensors(result.data);
-      });
-    };
-    poll();
-    const id = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  usePolledFetch((isCancelled) => {
+    getSources().then((result) => {
+      if (!isCancelled() && result.ok) setSources(result.data);
+    });
+    getActivity().then((result) => {
+      if (!isCancelled() && result.ok) setActivity(result.data);
+    });
+    getPoursSince(startOfTodayIso()).then((result) => {
+      if (!isCancelled() && result.ok) {
+        setPourCount(result.data.length);
+        setPourVolumeMl(result.data.reduce((sum, p) => sum + p.volumeMl, 0));
+      }
+    });
+    getCleaningStatuses().then((result) => {
+      if (!isCancelled() && result.ok) setCleanings(result.data);
+    });
+    // 30-day window (not 7): the pours mini-chart shows the last 7 bars, but the
+    // week-over-week delta needs to reach back to the SAME WEEKDAY last week.
+    getPoursByDay(30).then((result) => {
+      if (!isCancelled() && result.ok) setPoursByDay(result.data);
+    });
+    getActiveKegStats().then((result) => {
+      if (!isCancelled() && result.ok) setKegStats(result.data);
+    });
+    getSensors().then((result) => {
+      if (!isCancelled() && result.ok) setSensors(result.data);
+    });
+  }, { intervalMs: POLL_INTERVAL_MS });
 
-  useEffect(() => {
-    let cancelled = false;
-    const poll = () => {
-      getSystemStats().then((result) => {
-        if (!cancelled && result.ok) setStats(result.data);
-      });
-    };
-    poll();
-    const id = setInterval(poll, STATS_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  usePolledFetch((isCancelled) => {
+    getSystemStats().then((result) => {
+      if (!isCancelled() && result.ok) setStats(result.data);
+    });
+  }, { intervalMs: STATS_POLL_MS });
 
   // One-shot: drives the "finish setting up" hint while no wall exists yet.
   useEffect(() => {

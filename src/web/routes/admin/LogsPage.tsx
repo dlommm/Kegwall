@@ -6,6 +6,7 @@ import {
 } from '../../lib/adminApi';
 import { LOG_SOURCES, LOG_LEVELS, type LogLevel, type LogSource } from '../../../server/db/logs.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue';
+import { usePolledFetch } from '../../lib/usePolledFetch';
 
 const LIVE_TAIL_INTERVAL_MS = 2000;
 
@@ -92,23 +93,24 @@ export function LogsPage() {
     };
   }, [filters]);
 
-  // Live tail: incremental fetch of rows newer than what's on screen.
-  useEffect(() => {
-    if (!liveTail) return undefined;
-    const id = setInterval(() => {
-      getLogs({ ...filters(), afterId: newestIdRef.current }).then((result) => {
-        if (!result.ok || result.data.entries.length === 0) return;
-        newestIdRef.current = result.data.entries[0]!.id;
-        setData((prev) => (prev
-          ? {
-            ...result.data,
-            entries: [...result.data.entries, ...prev.entries].slice(0, 500),
-          }
-          : result.data));
-      });
-    }, LIVE_TAIL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [liveTail, filters]);
+  // Live tail: incremental fetch of rows newer than what's on screen. `immediate:
+  // false` — the filter-driven full (re)load above owns the initial fetch; the tail
+  // only tops it up. A filter change restarts the tail clock (restartKey), same as the
+  // hand-rolled effect's `[liveTail, filters]` deps did.
+  usePolledFetch(() => {
+    getLogs({ ...filters(), afterId: newestIdRef.current }).then((result) => {
+      if (!result.ok || result.data.entries.length === 0) return;
+      newestIdRef.current = result.data.entries[0]!.id;
+      setData((prev) => (prev
+        ? {
+          ...result.data,
+          entries: [...result.data.entries, ...prev.entries].slice(0, 500),
+        }
+        : result.data));
+    });
+  }, {
+    intervalMs: LIVE_TAIL_INTERVAL_MS, immediate: false, enabled: liveTail, restartKey: filters,
+  });
 
   const exportHref = (format: 'json' | 'csv') => `/api/logs?${logsQueryString({ ...filters(), limit: 2000 })}&format=${format}`;
 

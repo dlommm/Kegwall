@@ -1,18 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { getGameStrip } from '../lib/api';
+import { initials } from '../lib/initials';
+import { usePolledFetch } from '../lib/usePolledFetch';
 import type { GameStrip as GameStripData } from '../lib/adminApi';
 
 const ML_PER_OZ = 29.5735;
 /** Re-poll the active game; there's no dedicated push channel, and a game strip changing
  *  every few seconds is fine at this cadence. */
 const POLL_MS = 8000;
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
-  return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
-}
 
 /** Human win-rule label for the strip header. */
 const WIN_RULE_LABEL: Record<string, string> = {
@@ -33,17 +28,11 @@ const WIN_RULE_LABEL: Record<string, string> = {
 export function GameStrip() {
   const [data, setData] = useState<GameStripData | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const poll = () => {
-      getGameStrip().then((result) => {
-        if (!cancelled && result.ok) setData(result.data);
-      });
-    };
-    poll();
-    const id = setInterval(poll, POLL_MS);
-    return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  usePolledFetch((isCancelled) => {
+    getGameStrip().then((result) => {
+      if (!isCancelled() && result.ok) setData(result.data);
+    });
+  }, { intervalMs: POLL_MS });
 
   if (!data || data.players.length === 0) return null;
 

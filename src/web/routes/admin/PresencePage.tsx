@@ -6,6 +6,7 @@ import {
 } from '../../lib/adminApi';
 import { isDisplayPowerMessage, type PowerStage } from '../../lib/displayPower';
 import { useTapStates } from '../../lib/useTapStates';
+import { usePolledFetch } from '../../lib/usePolledFetch';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import {
   configToFormState, parseWallConfigForm, safeParseWallConfig, type WallConfigFormState,
@@ -346,28 +347,19 @@ export function PresencePage() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const poll = () => {
-      getPresenceSources().then((result) => {
-        if (cancelled || !result.ok) return;
-        const next: Record<string, number> = {};
-        for (const agent of result.data.agents) next[agent.wall] = agent.connections;
-        setAgentsBySlug(next);
-        // Task 5: the SAME response's sources/camera arrays feed the Sources panel — one
-        // poll, three pieces of state, rather than a second fetch of an endpoint that
-        // already returns everything this page needs.
-        setSources(result.data.sources);
-        setCameraRows(result.data.camera);
-      });
-    };
-    poll();
-    const id = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  usePolledFetch((isCancelled) => {
+    getPresenceSources().then((result) => {
+      if (isCancelled() || !result.ok) return;
+      const next: Record<string, number> = {};
+      for (const agent of result.data.agents) next[agent.wall] = agent.connections;
+      setAgentsBySlug(next);
+      // Task 5: the SAME response's sources/camera arrays feed the Sources panel — one
+      // poll, three pieces of state, rather than a second fetch of an endpoint that
+      // already returns everything this page needs.
+      setSources(result.data.sources);
+      setCameraRows(result.data.camera);
+    });
+  }, { intervalMs: POLL_INTERVAL_MS });
 
   // Task 5: the presence webhook token (Webhook & agent panel) — fetched once on mount,
   // same masked value `GET /api/settings` always returns (see db/settings.ts's

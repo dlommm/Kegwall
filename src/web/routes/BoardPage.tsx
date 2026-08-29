@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { LeaderboardBoard } from '../components/LeaderboardBoard';
 import { getLeaderboard, getMenu, type LeaderboardResponse } from '../lib/api';
+import { usePolledFetch } from '../lib/usePolledFetch';
 import type { VolumeUnits } from '../lib/units';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -19,29 +20,28 @@ export function BoardPage() {
   const [units, setUnits] = useState<VolumeUnits>('us');
   const [error, setError] = useState<string | null>(null);
 
+  usePolledFetch((isCancelled) => {
+    getLeaderboard('month').then((result) => {
+      if (isCancelled()) return;
+      if (result.ok) {
+        setData(result.data);
+        setError(null);
+      } else {
+        setError(result.message);
+      }
+    });
+  }, { intervalMs: REFRESH_INTERVAL_MS });
+
+  // Site name/units: one-shot, not part of the leaderboard poll.
   useEffect(() => {
     let cancelled = false;
-    const load = () => {
-      getLeaderboard('month').then((result) => {
-        if (cancelled) return;
-        if (result.ok) {
-          setData(result.data);
-          setError(null);
-        } else {
-          setError(result.message);
-        }
-      });
-    };
-    load();
     getMenu().then((result) => {
       if (cancelled || !result.ok) return;
       setSiteName(result.data.siteName);
       setUnits(result.data.units ?? 'us');
     });
-    const id = setInterval(load, REFRESH_INTERVAL_MS);
     return () => {
       cancelled = true;
-      clearInterval(id);
     };
   }, []);
 

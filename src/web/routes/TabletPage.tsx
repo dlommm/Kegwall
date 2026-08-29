@@ -18,6 +18,8 @@ import {
 } from '../lib/api';
 import { useFacePipeline } from '../lib/useFacePipeline';
 import { useFaceEnrollment } from '../lib/useFaceEnrollment';
+import { initials } from '../lib/initials';
+import { usePolledFetch } from '../lib/usePolledFetch';
 import { FaceEnrollPanel } from '../components/FaceEnrollPanel';
 import { TabletSession, TabletSessionRecap } from '../components/TabletSession';
 
@@ -69,14 +71,6 @@ function isPourAttributedMessage(msg: unknown): msg is {
 function isFacesChangedMessage(msg: unknown): msg is { type: 'faces_changed' } {
   return typeof msg === 'object' && msg !== null
     && (msg as { type?: unknown }).type === 'faces_changed';
-}
-
-/** "SL" for "Sam Lee", "S" for "Sam" — same rule the menu's ClaimSheet uses. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
-  return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
 }
 
 /**
@@ -275,21 +269,12 @@ export function TabletPage() {
   }, [screen.kind]);
 
   // Session poll (5s): keeps the per-member bars live while a group tab runs.
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      getSession().then((result) => {
-        if (cancelled || !result.ok) return;
-        setSession('totals' in result.data ? result.data : null);
-      });
-    };
-    load();
-    const id = setInterval(load, 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  usePolledFetch((isCancelled) => {
+    getSession().then((result) => {
+      if (isCancelled() || !result.ok) return;
+      setSession('totals' in result.data ? result.data : null);
+    });
+  }, { intervalMs: 5000 });
 
   // Done screen: 5s auto sign-out countdown ("tap to stay" re-arms instead).
   // `doneCountdownRef` exposes the live interval id to `stayAfterDone` below so the tap

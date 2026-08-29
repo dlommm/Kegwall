@@ -7,6 +7,8 @@ import {
 } from '../lib/api';
 import { formatRelativeTime } from '../lib/useRelativeTime';
 import { getRememberedPourer, rememberPourer, type RememberedPourer } from '../lib/pourerIdentity';
+import { initials } from '../lib/initials';
+import { usePolledFetch } from '../lib/usePolledFetch';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -17,16 +19,6 @@ const FALLBACK_AVATAR_COLOR = '#7A6C58';
 type ClaimStatus = 'idle' | 'claiming' | 'success' | 'error';
 type ClaimErrorKind = 'conflict' | 'rateLimited' | 'other';
 type DrinkersStatus = 'loading' | 'error' | 'loaded';
-
-/** First letter of the first and last "words" in a display name (e.g. "Sam Lee" -> "SL",
- * a single-word name -> just that letter). Never empty — an all-whitespace name falls
- * back to "?" rather than rendering a blank avatar. */
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
-  return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
-}
 
 /** Rate-after-claim quick tags (design 6a) — mirrors the server's RATING_TAGS. */
 const RATE_TAGS = ['Crisp', 'Perfect temp', 'Foamy', 'Flat', 'Off flavor'] as const;
@@ -236,7 +228,7 @@ function DrinkerPickerSheet({
                         aria-hidden="true"
                         style={{ backgroundColor: drinker.avatarColor ?? FALLBACK_AVATAR_COLOR }}
                       >
-                        {getInitials(drinker.displayName)}
+                        {initials(drinker.displayName)}
                       </span>
                       <span className="claim-sheet__drinker-name font-body">{drinker.displayName}</span>
                     </button>
@@ -313,20 +305,11 @@ export function ClaimSheet() {
   // of how the call ends.
   const claimInFlightRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadPours = () => {
-      getRecentPours().then((result) => {
-        if (!cancelled && result.ok) setPours(result.data);
-      });
-    };
-    loadPours();
-    const id = setInterval(loadPours, REFRESH_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  usePolledFetch((isCancelled) => {
+    getRecentPours().then((result) => {
+      if (!isCancelled() && result.ok) setPours(result.data);
+    });
+  }, { intervalMs: REFRESH_INTERVAL_MS });
 
   const isSheetOpen = selectedPour !== null;
 

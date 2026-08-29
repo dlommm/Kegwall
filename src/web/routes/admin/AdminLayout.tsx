@@ -10,6 +10,7 @@ import { ThemeProvider } from '../../themes/ThemeProvider';
 import {
   ADMIN_THEMES, getAdminTheme, loadAdminThemeId, saveAdminThemeId, type AdminThemeId,
 } from '../../lib/adminTheme';
+import { initials } from '../../lib/initials';
 import { ADMIN_NAV_ITEMS, visibleNavItems, pageTitleFor } from './adminNav';
 import type { AdminOutletContext } from './useAdminContext';
 import { NotificationBell } from './NotificationBell';
@@ -27,13 +28,6 @@ function isAdminOnlyPath(pathname: string): boolean {
   return ADMIN_NAV_ITEMS.some(
     (item) => item.adminOnly && (pathname === item.path || pathname.startsWith(`${item.path}/`)),
   ) || EXTRA_ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
-  return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
 }
 
 type Status = 'loading' | 'ready' | 'error';

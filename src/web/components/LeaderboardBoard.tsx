@@ -1,4 +1,5 @@
 import { formatVolumeMl, type VolumeUnits } from '../lib/units';
+import { initials } from '../lib/initials';
 import type { LeaderboardResponse } from '../lib/api';
 
 const ML_PER_GALLON = 3785.411784;
@@ -7,13 +8,6 @@ const ML_PER_GALLON = 3785.411784;
 export function formatBoardVolume(ml: number, units: VolumeUnits): string {
   if (units === 'metric') return `${(ml / 1000).toFixed(1)} L`;
   return `${(ml / ML_PER_GALLON).toFixed(1)} gal`;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
-  return (parts[0]!.slice(0, 1) + parts[parts.length - 1]!.slice(0, 1)).toUpperCase();
 }
 
 /** Medal treatment per podium rank (redesign 2f): gold / silver / bronze rings + labels. */
