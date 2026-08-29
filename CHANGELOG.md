@@ -2,6 +2,48 @@
 
 ## [1.15.0](https://github.com/dlommm/Kegwall/compare/v1.14.3...v1.15.0) (2026-08-29)
 
+The close-out of the 2026-08-28 full-application review: the two privacy decisions land (viewer
+cost visibility becomes a setting; pairing codes expire), the queued performance batch ships, and
+the remaining small fixes clear the backlog.
+
+- **Added:** a new Pricing toggle — **"Show keg costs to viewer accounts"** (off by default).
+  Viewer-role reads of the keg list, the on-deck queue, and the Analytics money KPIs
+  (cost per pint, value on tap) now come back with owner cost/sourcing fields **blank** unless
+  you opt viewers in. Editors and admins always see costs; public surfaces never did and still
+  never do. *Behavior change:* a viewer account that could previously see keg costs no longer
+  can until you flip the toggle.
+- **Added:** display **pairing codes expire 15 minutes** after they're minted. A **New code**
+  button on the Displays page (and `POST /api/displays/:id/regenerate-code`, editor role) mints
+  a fresh one; already-paired screens keep their token and stay connected. Pairing-code values
+  are also no longer written to the app log (the log is viewer-readable). *Upgrade note:* every
+  unused code from before this release expires immediately — press New code before pairing an
+  older display.
+- **Fixed:** the Analytics page's **7d range now truly covers 7 days** — the KPI row and the
+  busiest-hours heatmap were silently showing 30-day figures under the 7d switcher (the API
+  didn't accept a 7-day window; now it does).
+- **Fixed:** the dashboard's "today" numbers no longer **understate busy days** — the pours read
+  pages past the API's 2,000-row cap instead of silently truncating.
+- **Fixed:** automation **schedule rules ride out DST** — a rule set inside the spring-forward
+  skipped hour fires right after the jump instead of never, and fall-back's repeated hour fires
+  exactly once.
+- **Fixed:** ingest hardening — a malformed or hostile Kegtron packet with an out-of-range port
+  index is dropped instead of **minting phantom monitors** (Gen 1 MQTT ports 0–1, Kegtron Pro
+  UDP ports 0–3), and routine per-datagram `source_status` chatter is throttled to once per 30s
+  per source (state transitions still emit immediately).
+- **Fixed:** a stalled WebSocket client (a wedged TV, a phone that walked out of range) can no
+  longer **grow server memory unboundedly** — broadcasts skip sockets buffering over 1 MB; the
+  client resyncs from the next snapshot when it recovers.
+- **Changed (performance):** a batch aimed at Pi-class installs — settings are parsed once and
+  cached instead of re-validated on every request and ingest packet; `getTapStates()` runs a
+  fixed set of queries per snapshot instead of ~6 per tap per pour-progress packet (~200
+  queries/sec during a pour, previously); pourer passports and the leaderboard use a new
+  `pours(drinker_id, ts)` index instead of full table scans; login no longer blocks the event
+  loop for ~100 ms of synchronous bcrypt; and wall displays skip re-rendering taps whose data
+  didn't change in a snapshot, so kiosks run cooler.
+- **Changed (internal):** six hand-rolled copies of the polling effect, the reconnecting
+  WebSocket effect, and the `initials()` helper are now one `usePolledFetch`, one
+  `useReconnectingSocket`, and one `initials()`. Test count grew to 2,815.
+
 ## [1.14.3](https://github.com/dlommm/Kegwall/compare/v1.14.2...v1.14.3) (2026-08-28)
 
 Follow-up to v1.14.2's review wave: the settings page's last draft-eating remount, a smarter
