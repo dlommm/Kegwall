@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.15.0](https://github.com/dlommm/Kegwall/compare/v1.14.3...v1.15.0) (2026-08-29)
+
 ## [1.14.3](https://github.com/dlommm/Kegwall/compare/v1.14.2...v1.14.3) (2026-08-28)
 
 Follow-up to v1.14.2's review wave: the settings page's last draft-eating remount, a smarter
