@@ -14,6 +14,7 @@ import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { useKioskScale } from '../lib/useKioskScale';
 import { formatTempC } from '../lib/units';
 import { useBanners, type BannerKind } from '../lib/useBanners';
+import { usePolledFetch } from '../lib/usePolledFetch';
 import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { WallHeader } from '../components/WallHeader';
@@ -267,36 +268,29 @@ export function WallPage() {
   // on the handoff's ~60s cadence when the header temp strip is on.
   const [ambientSensors, setAmbientSensors] = useState<AmbientSensorReading[]>([]);
   const showTemp = config?.header.showTemp ?? false;
-  useEffect(() => {
-    if (!showTemp) return undefined;
-    let cancelled = false;
-    const load = () => {
-      getSensors().then((result) => {
-        if (!cancelled && result.ok && Array.isArray(result.data)) setAmbientSensors(result.data);
-      });
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [showTemp]);
-  useEffect(() => {
-    if (!rotationViews.some((v) => v.kind === 'leaderboard')) return undefined;
-    let cancelled = false;
-    const load = () => {
-      getLeaderboard('month').then((result) => {
-        if (!cancelled && result.ok) setBoard(result.data);
-      });
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [rotationViews]);
+  usePolledFetch((isCancelled) => {
+    getSensors().then((result) => {
+      if (isCancelled() || !result.ok || !Array.isArray(result.data)) return;
+      // Keep the previous array reference when the payload hasn't changed — the
+      // memoized WallLook subtree then skips the poll's re-render entirely.
+      setAmbientSensors((prev) => (
+        JSON.stringify(prev) === JSON.stringify(result.data) ? prev : result.data));
+    });
+  }, { intervalMs: 60_000, enabled: showTemp });
+  usePolledFetch((isCancelled) => {
+    getLeaderboard('month').then((result) => {
+      if (isCancelled() || !result.ok) return;
+      // Same identity-preserving guard as the sensors poll above.
+      setBoard((prev) => (
+        JSON.stringify(prev) === JSON.stringify(result.data) ? prev : result.data));
+    });
+  }, {
+    intervalMs: 60_000,
+    enabled: rotationViews.some((v) => v.kind === 'leaderboard'),
+    // A playlist edit swaps `rotationViews` wholesale — refetch immediately, like the
+    // hand-rolled effect's `[rotationViews]` dependency did.
+    restartKey: rotationViews,
+  });
   const takeoverVisible = takeoverState.phase !== 'idle';
   // Spotlight (2b) isn't an overlay: the wall itself highlights the pouring row.
   const spotlightTapId = takeoverStyle === 'spotlight' && takeoverVisible

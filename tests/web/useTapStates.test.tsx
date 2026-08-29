@@ -4,7 +4,7 @@ import {
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { WebSocketServer, WebSocket as WsClient, type WebSocket as WsSocket } from 'ws';
 import type { AddressInfo } from 'node:net';
-import { useTapStates } from '../../src/web/lib/useTapStates';
+import { stabilizeTaps, useTapStates } from '../../src/web/lib/useTapStates';
 import type { TapState } from '../../src/server/core/state';
 
 function makeTap(overrides: Partial<TapState> = {}): TapState {
@@ -381,5 +381,77 @@ describe('useTapStates (fake WebSocket + fake timers)', () => {
     });
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // --- Wall-look memoization: unchanged snapshots must not churn references ---
+  describe('snapshot structural sharing (stabilizeTaps)', () => {
+    it('keeps the exact same taps array reference across identical snapshots', () => {
+      const { result } = renderHook(() => useTapStates([]));
+      const socket = FakeWebSocket.instances[0]!;
+      act(() => socket.triggerOpen());
+
+      const taps = [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })];
+      act(() => socket.triggerMessage({ type: 'snapshot', taps }));
+      const firstRef = result.current.taps;
+
+      // The wire always delivers fresh objects (JSON.parse), but a byte-identical
+      // snapshot must resolve to the previously-held array so React.memo consumers
+      // (WallLook/WallGrid/TapCard) skip re-rendering entirely.
+      act(() => socket.triggerMessage({
+        type: 'snapshot',
+        taps: [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })],
+      }));
+      expect(result.current.taps).toBe(firstRef);
+    });
+
+    it('reuses unchanged per-tap object references when only one tap changed', () => {
+      const { result } = renderHook(() => useTapStates([]));
+      const socket = FakeWebSocket.instances[0]!;
+      act(() => socket.triggerOpen());
+
+      act(() => socket.triggerMessage({
+        type: 'snapshot',
+        taps: [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })],
+      }));
+      const firstRef = result.current.taps;
+      const unchangedTapRef = firstRef[0]!;
+
+      act(() => socket.triggerMessage({
+        type: 'snapshot',
+        taps: [makeTap({ tapId: 1 }), makeTap({ tapId: 2, pouring: true, curServMl: 120 })],
+      }));
+      expect(result.current.taps).not.toBe(firstRef); // one tap DID change
+      expect(result.current.taps[0]).toBe(unchangedTapRef); // the other kept its identity
+      expect(result.current.taps[1]!.pouring).toBe(true);
+    });
+  });
+});
+
+describe('stabilizeTaps (pure)', () => {
+  it('passes the next array through when there is no previous state', () => {
+    const next = [makeTap({ tapId: 1 })];
+    expect(stabilizeTaps(null, next)).toBe(next);
+  });
+
+  it('returns the previous array itself when every tap is unchanged', () => {
+    const prev = [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })];
+    expect(stabilizeTaps(prev, [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })])).toBe(prev);
+  });
+
+  it('never resurrects removed taps and adopts added ones', () => {
+    const prev = [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })];
+    const next = [makeTap({ tapId: 2 }), makeTap({ tapId: 3 })];
+    const merged = stabilizeTaps(prev, next);
+    expect(merged.map((t) => t.tapId)).toEqual([2, 3]);
+    expect(merged[0]).toBe(prev[1]); // unchanged tap 2 keeps its reference
+    expect(merged[1]).toBe(next[1]); // new tap 3 comes through as-is
+  });
+
+  it('follows the incoming order (page/tap reordering wins over reference reuse)', () => {
+    const prev = [makeTap({ tapId: 1 }), makeTap({ tapId: 2 })];
+    const merged = stabilizeTaps(prev, [makeTap({ tapId: 2 }), makeTap({ tapId: 1 })]);
+    expect(merged.map((t) => t.tapId)).toEqual([2, 1]);
+    expect(merged[0]).toBe(prev[1]);
+    expect(merged[1]).toBe(prev[0]);
   });
 });

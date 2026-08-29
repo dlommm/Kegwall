@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useCallback, useEffect, useRef, useState,
+} from 'react';
 import type { TapState } from '../../server/core/state.js';
 import { withDisplayTokenQuery } from './displayToken';
+import { useReconnectingSocket } from './useReconnectingSocket';
 
 const STALE_TIMEOUT_MS = 60_000;
-const BACKOFF_MIN_MS = 1_000;
-const BACKOFF_MAX_MS = 30_000;
 
 export interface UseTapStatesOptions {
   /**
@@ -17,9 +18,9 @@ export interface UseTapStatesOptions {
    * (snapshot/ping included, not just new message kinds) -- a generic escape hatch rather
    * than a typed field per message kind, so consumers (WallPage's banner queue / party
    * mode, a future admin bell-badge) can subscribe to whatever `type`s they care about
-   * without this hook needing to know about them. Kept in a ref internally (see the
-   * connect effect's dep list) so a new function identity across renders never tears
-   * down/reopens the socket -- only `url` does that.
+   * without this hook needing to know about them. Kept in a ref internally (see
+   * `useReconnectingSocket`'s contract) so a new function identity across renders never
+   * tears down/reopens the socket -- only `url` does that.
    */
   onMessage?: (msg: unknown) => void;
 }
@@ -53,17 +54,43 @@ function isSnapshotMessage(value: unknown): value is SnapshotMessage {
   );
 }
 
-function defaultWsUrl(): string {
-  const { protocol, host } = window.location;
-  const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${wsProtocol}//${host}/ws`;
+/**
+ * Structural sharing across snapshots (wall-look memoization): the server pushes a FULL
+ * snapshot for every state change, so most incoming tap objects are byte-identical to
+ * the ones already held — but always as fresh references, which would defeat every
+ * `React.memo`/`useMemo` downstream. Reuse the previous `TapState` reference whenever a
+ * tap's payload is unchanged, and the previous ARRAY reference when every tap is — a
+ * no-op snapshot then bails out of the React state update entirely, and a
+ * one-tap-pouring snapshot re-renders only that tap's memoized card/row.
+ *
+ * Equality via JSON.stringify is safe here: both sides came off the same server
+ * serializer (WS snapshot / REST seed), so key order is stable; a false negative would
+ * only cost a skipped reuse, never a wrong render.
+ */
+export function stabilizeTaps(prev: TapState[] | null, next: TapState[]): TapState[] {
+  if (!prev) return next;
+  let reusedAll = prev.length === next.length;
+  const byId = new Map(prev.map((t) => [t.tapId, t]));
+  const merged = next.map((tap, i) => {
+    const old = byId.get(tap.tapId);
+    if (old && JSON.stringify(old) === JSON.stringify(tap)) {
+      // Reused, but only positionally-identical reuse lets the whole ARRAY be reused —
+      // a reordered snapshot must still produce a fresh array in the NEW order.
+      if (old !== prev[i]) reusedAll = false;
+      return old;
+    }
+    reusedAll = false;
+    return tap;
+  });
+  return reusedAll ? prev : merged;
 }
 
 /**
  * Subscribes to the public `/ws` snapshot feed. Applies `{type: 'snapshot', taps}` messages
- * as they arrive, auto-reconnects with exponential backoff (1s doubling, capped at 30s), and
- * flags `stale` once 60s pass without any message (the timer resets on every message, not
- * just snapshots that change data).
+ * as they arrive, auto-reconnects with exponential backoff (1s doubling, capped at 30s —
+ * see `useReconnectingSocket`, the shared transport), and flags `stale` once 60s pass
+ * without any message (the timer resets on every message, not just snapshots that change
+ * data).
  */
 export function useTapStates(
   initial: TapState[],
@@ -81,109 +108,55 @@ export function useTapStates(
   // silently dropped by a one-time useState(initial) seed.
   const [liveTaps, setLiveTaps] = useState<TapState[] | null>(null);
   const [stale, setStale] = useState(false);
-  const [connected, setConnected] = useState(false);
   const [reconnectCount, setReconnectCount] = useState(0);
   // First server version seen this page-load — survives socket reconnects on purpose
   // (the reload must fire on version CHANGE, which only happens across reconnects).
   const serverVersionRef = useRef<string | null>(null);
 
+  const staleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const resetStaleTimer = useCallback(() => {
+    if (staleTimerRef.current) clearTimeout(staleTimerRef.current);
+    setStale(false);
+    staleTimerRef.current = setTimeout(() => setStale(true), STALE_TIMEOUT_MS);
+  }, []);
+  // The stale clock starts at mount (before the first message) and restarts if the
+  // socket target changes — matching the original single-effect lifecycle.
   useEffect(() => {
-    let cancelled = false;
-    let socket: WebSocket | null = null;
-    let staleTimer: ReturnType<typeof setTimeout> | undefined;
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-    let backoffMs = BACKOFF_MIN_MS;
-    let hasOpenedBefore = false;
-
-    const resetStaleTimer = () => {
-      if (staleTimer) clearTimeout(staleTimer);
-      setStale(false);
-      staleTimer = setTimeout(() => {
-        if (!cancelled) setStale(true);
-      }, STALE_TIMEOUT_MS);
-    };
-
-    const connect = () => {
-      if (cancelled) return;
-      // Attach the display token (query param — a WebSocket can't set headers) so the socket
-      // authenticates when server-side enforcement is on. No-op for an unpaired client.
-      const wsUrl = withDisplayTokenQuery(url ?? defaultWsUrl());
-      socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        if (cancelled) return;
-        setConnected(true);
-        backoffMs = BACKOFF_MIN_MS;
-        if (hasOpenedBefore) {
-          setReconnectCount((n) => n + 1);
-        }
-        hasOpenedBefore = true;
-      };
-
-      socket.onmessage = (event: MessageEvent) => {
-        if (cancelled) return;
-        resetStaleTimer();
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-        if (isSnapshotMessage(parsed)) {
-          setLiveTaps(parsed.taps);
-          // Kiosk auto-reload: a wall TV's browser never reloads on its own, so an
-          // app update would leave it running the pre-update JS bundle forever
-          // (missing every client-side feature/fix from then on). The server stamps
-          // its version into each snapshot; when it CHANGES mid-session (server
-          // restarted on a new release), reload once to pick up the new bundle.
-          // First-seen version is the baseline — never reloads on initial connect.
-          if (parsed.version) {
-            if (serverVersionRef.current && parsed.version !== serverVersionRef.current) {
-              window.location.reload();
-              return;
-            }
-            serverVersionRef.current = parsed.version;
-          }
-        }
-        onMessageRef.current?.(parsed);
-      };
-
-      socket.onclose = () => {
-        if (cancelled) return;
-        setConnected(false);
-        reconnectTimer = setTimeout(() => {
-          if (!cancelled) connect();
-        }, backoffMs);
-        backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
-      };
-
-      socket.onerror = () => {
-        // A WebSocket that errors always transitions to closed right after — onclose
-        // (above) owns reconnect scheduling, so this just nudges it along defensively.
-        socket?.close();
-      };
-    };
-
     resetStaleTimer();
-    connect();
-
     return () => {
-      cancelled = true;
-      if (staleTimer) clearTimeout(staleTimer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (socket) {
-        socket.onopen = null;
-        socket.onmessage = null;
-        socket.onclose = null;
-        socket.onerror = null;
-        socket.close();
-      }
+      if (staleTimerRef.current) clearTimeout(staleTimerRef.current);
     };
-    // `initial` intentionally excluded: it's read directly in the return statement below
-    // (not by this effect), so a new array reference must never tear down and reopen the
-    // socket. `url` is the only thing that should ever restart the connection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+  }, [resetStaleTimer, url]);
+
+  const { connected } = useReconnectingSocket({
+    url,
+    // Attach the display token (query param — a WebSocket can't set headers) so the socket
+    // authenticates when server-side enforcement is on. No-op for an unpaired client.
+    decorateUrl: withDisplayTokenQuery,
+    onAnyMessage: resetStaleTimer,
+    onParsedMessage: (parsed) => {
+      if (isSnapshotMessage(parsed)) {
+        setLiveTaps((prev) => stabilizeTaps(prev, parsed.taps));
+        // Kiosk auto-reload: a wall TV's browser never reloads on its own, so an
+        // app update would leave it running the pre-update JS bundle forever
+        // (missing every client-side feature/fix from then on). The server stamps
+        // its version into each snapshot; when it CHANGES mid-session (server
+        // restarted on a new release), reload once to pick up the new bundle.
+        // First-seen version is the baseline — never reloads on initial connect.
+        if (parsed.version) {
+          if (serverVersionRef.current && parsed.version !== serverVersionRef.current) {
+            window.location.reload();
+            return;
+          }
+          serverVersionRef.current = parsed.version;
+        }
+      }
+      onMessageRef.current?.(parsed);
+    },
+    onOpen: ({ isReconnect }) => {
+      if (isReconnect) setReconnectCount((n) => n + 1);
+    },
+  });
 
   return {
     taps: liveTaps ?? initial, stale, connected, reconnectCount,

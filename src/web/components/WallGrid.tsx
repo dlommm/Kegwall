@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { memo, type CSSProperties } from 'react';
 import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { TapCard, type CardTemplate } from './TapCard';
@@ -26,8 +26,13 @@ export interface WallGridProps {
  * columns means more space per cell, so cards (and the liquid inside them) grow without
  * any separate scale knob. Purely presentational: page selection/rotation is WallPage's
  * job, this component just renders whichever tap list it's handed.
+ *
+ * Memoized: `useTapStates` keeps the taps array reference stable across unchanged WS
+ * snapshots (`stabilizeTaps`), so shallow prop equality skips the grid entirely on
+ * no-op snapshots; when one tap changes, `TapCard`'s own memo skips the others. Stable
+ * `tap.tapId` keys throughout — never a remount.
  */
-export function WallGrid({
+export const WallGrid = memo(function WallGrid({
   taps, columns, template, fields, fillStyle, units, spotlightTapId,
 }: WallGridProps) {
   const style = { '--wall-columns': columns } as CSSProperties;
@@ -48,4 +53,4 @@ export function WallGrid({
       ))}
     </div>
   );
-}
+});

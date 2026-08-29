@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import type { VolumeUnits } from '../../lib/units';
@@ -51,10 +52,15 @@ const LOOKS = {
 
 export type LookId = keyof typeof LOOKS | 'classic';
 
-/** Dispatches to the configured look's component. */
-export function WallLook(props: WallLookProps) {
+/** Dispatches to the configured look's component. Memoized (like every look it
+ * dispatches to): the `/ws` feed pushes a full snapshot for every state change, and
+ * `useTapStates` keeps tap/array references stable across unchanged snapshots
+ * (`stabilizeTaps`), so shallow prop equality here skips the whole look subtree
+ * whenever nothing this page shows actually changed. Same component identity every
+ * render — never a remount, so scroll/animation state always survives snapshots. */
+export const WallLook = memo(function WallLook(props: WallLookProps) {
   const look = props.config.look;
   const Component = look !== 'classic' ? LOOKS[look] : undefined;
   if (!Component) return null;
   return <Component {...props} />;
-}
+});

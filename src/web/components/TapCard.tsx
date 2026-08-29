@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { TapState } from '../../server/core/state.js';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import { LiquidFill } from './LiquidFill';
@@ -51,8 +51,12 @@ export interface TapCardProps {
  * with no active keg renders a quiet empty state instead; a tap whose keg has
  * been kicked renders normally but drained, desaturated, and stamped (see
  * `KickedBadge`) rather than disappearing.
+ *
+ * Memoized: `useTapStates` reuses per-tap object references across snapshots when a
+ * tap's payload is unchanged (`stabilizeTaps`), so a snapshot that only moves one
+ * tap's level re-renders that one card — the rest skip on shallow prop equality.
  */
-export function TapCard({
+export const TapCard = memo(function TapCard({
   tap, template = 'standard', fields, fillStyle = 'liquid', units = 'us',
   pricePerPintCents, className,
 }: TapCardProps) {
@@ -191,4 +195,4 @@ export function TapCard({
       </div>
     </div>
   );
-}
+});
