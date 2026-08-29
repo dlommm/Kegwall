@@ -25,7 +25,7 @@ import { MqttSender } from '../notify/mqttSender.js';
 import { MdashClient } from '../ingest/kegtron/mdashClient.js';
 import { assertPublicHost, type HostResolver } from '../core/ssrfGuard.js';
 import {
-  evaluateConditions, crossed, opposite, isWithinTimeWindow, type ConditionEvalCtx,
+  evaluateConditions, crossed, opposite, isWithinTimeWindow, parseHHMM, type ConditionEvalCtx,
 } from './conditions.js';
 
 // ---------------------------------------------------------------------------
@@ -362,6 +362,10 @@ export class AutomationEngine {
   private unsubs: Array<() => void> = [];
   private scheduleTimer: ReturnType<typeof setInterval> | null = null;
   private lastScheduleFireKey = new Map<number, string>();
+  /** The previous schedule tick's LOCAL calendar day + minutes-past-midnight — what
+   * `checkScheduleRules` compares against to notice the local clock jumping PAST a
+   * rule's minute between two ticks (the DST spring-forward gap; see that method). */
+  private lastScheduleTick: { dayKey: string; minutes: number } | null = null;
   /** Last observed level%/temp per tap/monitor -- crossing detection compares each new
    * sample against these. No entry yet = no baseline = the sample can't be a "crossing"
    * (there's nothing to have crossed FROM), so it's just recorded, not evaluated. */
@@ -659,17 +663,41 @@ export class AutomationEngine {
     this.fireMatchingTrigger('app_startup', ctx);
   }
 
+  /**
+   * DST note (server-hardening review, 2026-08-29): matching is done in LOCAL wall-clock
+   * time via `Date`'s local getters, which consult the process timezone's real DST rules
+   * (`TZ` env / OS default — the same clock db/stats.ts documents this app standardizing
+   * on), so "daily at 09:00" means 09:00 on the wall regardless of the current UTC
+   * offset. The two transition edges are handled explicitly:
+   *
+   *   - SPRING FORWARD (e.g. America/New_York 2026-03-08: 02:00–02:59 never exists
+   *     locally): exact-minute matching alone would silently skip a 02:30 rule for the
+   *     whole day. `jumpedPast` notices the local clock leaping over the rule's minute
+   *     between two same-day ticks and fires at the first tick after the gap (03:00) —
+   *     the same catch-up cron daemons do. It also covers an event-loop stall making
+   *     consecutive ticks straddle a minute.
+   *   - FALL BACK (2026-11-01: 01:00–01:59 happens twice): both passes share the same
+   *     `(day, rule.time)` fire key below, so a 01:30 rule fires once, not twice.
+   */
   private checkScheduleRules(): void {
     const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}T${timeStr}`;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const dayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    const prevTick = this.lastScheduleTick;
+    this.lastScheduleTick = { dayKey, minutes: nowMinutes };
 
     for (const rule of this.rules) {
       if (rule.trigger.type !== 'schedule') continue;
-      if (rule.trigger.time !== timeStr) continue;
+      const ruleMinutes = parseHHMM(rule.trigger.time);
+      const jumpedPast = prevTick !== null && prevTick.dayKey === dayKey
+        && prevTick.minutes < ruleMinutes && ruleMinutes < nowMinutes;
+      if (ruleMinutes !== nowMinutes && !jumpedPast) continue;
       if (rule.trigger.weekdays.length > 0 && !rule.trigger.weekdays.includes(now.getDay())) continue;
-      if (this.lastScheduleFireKey.get(rule.id) === minuteKey) continue; // already fired this exact minute
-      this.lastScheduleFireKey.set(rule.id, minuteKey);
+      // One fire per (rule, local day, scheduled time) — dedupes both the multiple ticks
+      // inside a matching minute AND fall-back's repeated hour.
+      const fireKey = `${dayKey}T${rule.trigger.time}`;
+      if (this.lastScheduleFireKey.get(rule.id) === fireKey) continue;
+      this.lastScheduleFireKey.set(rule.id, fireKey);
 
       // Phase 5 Task 4 (cleaning-due alert template ledger note): a `days_since_cleaned`
       // condition needs "which monitor" -- a bare schedule tick has no such notion (every

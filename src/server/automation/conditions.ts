@@ -48,7 +48,10 @@ function timeOfDayMinutes(d: Date): number {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-function parseHHMM(s: string): number {
+/** `"HH:MM"` -> minutes past local midnight. Exported for the engine's schedule
+ * matching (engine.ts `checkScheduleRules`), which needs the same reading of a rule's
+ * `trigger.time` this module gives `time_window`/quiet-hours boundaries. */
+export function parseHHMM(s: string): number {
   const [h, m] = s.split(':').map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 }
