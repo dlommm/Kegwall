@@ -2,6 +2,16 @@
 
 ## [1.16.1](https://github.com/dlommm/Kegwall/compare/v1.16.0...v1.16.1) (2026-09-25)
 
+This patch makes the admin dashboard easier to scan and gives the mobile layout a quieter shell.
+
+- **Changed:** temperature probes now share one dashboard summary card with humidity and warming
+  details, while shorter summary cards stay aligned to their content.
+- **Fixed:** admin screens no longer repeat the page title in both the top bar and page content.
+- **Changed:** the dashboard activity card is a five-event preview; **Logs** and **Pours** remain
+  the routes to full history and pour assignment.
+- **Changed:** mobile admin navigation is tucked into an accessible menu that closes after a
+  section is chosen. The desktop quick-nav remains available in the top bar.
+
 ## [1.16.0](https://github.com/dlommm/Kegwall/compare/v1.15.0...v1.16.0) (2026-09-25)
 
 This release makes cleaning reminders reflect the keg on each line, brings unclaimed pours into the
