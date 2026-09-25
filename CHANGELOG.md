@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.16.0](https://github.com/dlommm/Kegwall/compare/v1.15.0...v1.16.0) (2026-09-25)
+
 ## [1.15.0](https://github.com/dlommm/Kegwall/compare/v1.14.3...v1.15.0) (2026-08-29)
 
 The close-out of the 2026-08-28 full-application review: the two privacy decisions land (viewer
