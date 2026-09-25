@@ -60,6 +60,6 @@ describe('buildTriage', () => {
     expect(items.map((i) => i.severity)).toEqual(['danger', 'danger', 'warn', 'warn']);
     expect(items[0]!.id).toBe('undervolt');
     expect(items[1]!.action).toEqual({ label: 'Open doctor', to: '/admin/doctor' });
-    expect(items.find((i) => i.id.startsWith('clean'))!.action).toEqual({ label: 'Log cleaning', to: '/admin/taps' });
+    expect(items.find((i) => i.id.startsWith('clean'))!.action).toEqual({ label: 'Review cleaning', to: '/admin/taps?tap=3' });
   });
 });

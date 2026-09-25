@@ -127,3 +127,7 @@ export function logTapCleaning(
   if (opts.cleanedAt) body.cleanedAt = opts.cleanedAt;
   return request(`/api/taps/${tapId}/cleanings`, { method: 'POST', body: JSON.stringify(body) });
 }
+
+export function setCleaningReminders(tapId: number, ignored: boolean): Promise<ApiResult<import('../../../server/db/cleanings.js').CleaningStatus>> {
+  return request(`/api/taps/${tapId}/cleanings/reminders`, { method: 'PUT', body: JSON.stringify({ ignored }) });
+}

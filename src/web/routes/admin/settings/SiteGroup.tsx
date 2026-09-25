@@ -15,6 +15,7 @@ export function SiteGroup({ settings, onSaved }: GroupProps) {
   const [siteName, setSiteName] = useState(settings.siteName);
   const [displayUnits, setDisplayUnits] = useState(settings.displayUnits);
   const [siteLogo, setSiteLogo] = useState(settings.siteLogo);
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [servingSizeMl, setServingSizeMl] = useState(String(settings.servingSizeMl));
@@ -96,16 +97,17 @@ export function SiteGroup({ settings, onSaved }: GroupProps) {
       <div className="beer-form__label">
         <span className="admin-field__label-text">Site logo</span>
         <div className="beer-form__label-row">
-          {siteLogo ? (
+          {siteLogo && failedLogo !== siteLogo ? (
             <img
               src={siteLogo}
+              onError={() => setFailedLogo(siteLogo)}
               alt=""
               className="beer-form__label-thumb"
               data-testid="settings-site-logo-thumb"
             />
           ) : (
             <span className="beer-form__label-placeholder" data-testid="settings-site-logo-placeholder">
-              No logo
+              {siteLogo ? 'Unavailable' : 'No logo'}
             </span>
           )}
 

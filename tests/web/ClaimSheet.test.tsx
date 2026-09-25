@@ -340,3 +340,13 @@ describe('ClaimSheet', () => {
     });
   });
 });
+
+it('reports failed pour loading instead of showing an empty claim list, and can retry', async () => {
+  (getRecentPours as Mock).mockResolvedValueOnce({ ok: false, status: 500, message: 'Unavailable' });
+  render(<ClaimSheet />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load pours');
+  expect(screen.queryByTestId('claim-sheet-empty')).not.toBeInTheDocument();
+  (getRecentPours as Mock).mockResolvedValue({ ok: true, data: [pour()] });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh pours' }));
+  expect(await screen.findByText('Citra IPA')).toBeInTheDocument();
+});

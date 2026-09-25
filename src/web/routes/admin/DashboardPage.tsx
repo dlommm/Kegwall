@@ -320,7 +320,7 @@ export function DashboardPage() {
               ))}
             </span>
           )}
-          <span className="dashboard-stat__note dashboard-stat__note--warn" data-testid="dashboard-on-tap-note">
+          <span className={`dashboard-stat__note${almostGone || kicked ? ' dashboard-stat__note--warn' : ''}`} data-testid="dashboard-on-tap-note">
             {`${almostGone} almost gone · ${kicked} kicked`}
             {nextKickDays != null && ` · next kick ~${nextKickDays} ${nextKickDays === 1 ? 'day' : 'days'}`}
           </span>
@@ -439,7 +439,7 @@ export function DashboardPage() {
                       />
                     </span>
                     <span className="dashboard-tap-row__pct font-tabular" data-testid="dashboard-tap-pct">
-                      {isKicked ? 'Kicked' : `${levelPct}%`}
+                      {!tap.keg ? '—' : isKicked ? 'Kicked' : `${levelPct}%`}
                     </span>
                     <span className="dashboard-tap-row__pints font-tabular">
                       {tap.keg && !isKicked ? `${pints} pints` : ''}
@@ -550,7 +550,7 @@ export function DashboardPage() {
           </section>
 
           <section className="dashboard-card dashboard-card--activity" data-testid="dashboard-card-activity">
-            <h2 className="dashboard-card__title font-display">ACTIVITY</h2>
+            <div className="dashboard-card__head"><h2 className="dashboard-card__title font-display">ACTIVITY</h2><Link to="/admin/pours">Manage pours →</Link></div>
             {activity.length === 0 ? (
               <p className="dashboard-card__quiet" data-testid="dashboard-activity-empty">
                 Nothing&rsquo;s happened yet.

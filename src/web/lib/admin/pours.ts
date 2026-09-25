@@ -5,8 +5,8 @@ import { request, type ApiResult } from '../adminHttp';
 /** GET /api/pours?limit=100 — the pours admin page's "recent 100" table (viewer role for
  * the read; reassign/unclaim below is what's editor-gated). Newest first (see
  * `listPours`, db/pours.ts). */
-export function listRecentPours(): Promise<ApiResult<Pour[]>> {
-  return request('/api/pours?limit=100');
+export function listRecentPours(unclaimed = false): Promise<ApiResult<Pour[]>> {
+  return request(`/api/pours?limit=100${unclaimed ? '&unclaimed=true' : ''}`);
 }
 
 /** PATCH /api/pours/:id/drinker — editor-role admin reassign/unclaim (`drinkerId: null`

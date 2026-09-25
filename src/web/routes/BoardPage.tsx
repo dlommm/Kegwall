@@ -15,13 +15,14 @@ const REFRESH_INTERVAL_MS = 60_000;
  * a wall's own theme instead.
  */
 export function BoardPage() {
+  const [window, setWindow] = useState<LeaderboardResponse['window']>('month');
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [siteName, setSiteName] = useState('Leaderboard');
   const [units, setUnits] = useState<VolumeUnits>('us');
   const [error, setError] = useState<string | null>(null);
 
   usePolledFetch((isCancelled) => {
-    getLeaderboard('month').then((result) => {
+    getLeaderboard(window).then((result) => {
       if (isCancelled()) return;
       if (result.ok) {
         setData(result.data);
@@ -30,7 +31,7 @@ export function BoardPage() {
         setError(result.message);
       }
     });
-  }, { intervalMs: REFRESH_INTERVAL_MS });
+  }, { intervalMs: REFRESH_INTERVAL_MS, restartKey: window });
 
   // Site name/units: one-shot, not part of the leaderboard poll.
   useEffect(() => {
@@ -48,7 +49,10 @@ export function BoardPage() {
   return (
     <ThemeProvider className="board-page">
       {data ? (
-        <LeaderboardBoard data={data} units={units} title={siteName} />
+        <>
+          {error && <p role="alert">Couldn’t refresh the leaderboard. Showing the last loaded results.</p>}
+          <LeaderboardBoard data={data} units={units} title={siteName} onWindowChange={setWindow} />
+        </>
       ) : (
         <main className="board-page__loading" data-testid="board-page-loading">
           <p>{error ?? 'Loading the leaderboard…'}</p>

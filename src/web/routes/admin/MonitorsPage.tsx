@@ -169,7 +169,8 @@ export function MonitorsPage() {
   }, [loadMonitors]);
 
   const canEdit = me.role === 'editor' || me.role === 'admin';
-  const devices = groupMonitors(monitors);
+  const devices = groupMonitors(monitors).sort((a, b) =>
+    Number(b.ports[0]!.enabled) - Number(a.ports[0]!.enabled));
 
   function loadTelemetry(group: MonitorDeviceGroup) {
     setTelemetryByDevice((prev) => ({ ...prev, [group.key]: { status: 'loading', points: [] } }));

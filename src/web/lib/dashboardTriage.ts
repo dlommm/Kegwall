@@ -66,7 +66,7 @@ export function buildTriage(input: {
     items.push({
       id: `clean-${tapId}`, severity: 'warn',
       message: `Tap ${num} is due for a line cleaning.`,
-      action: { label: 'Log cleaning', to: '/admin/taps' },
+      action: { label: 'Review cleaning', to: `/admin/taps?tap=${tapId}` },
     });
   }
 

@@ -40,6 +40,7 @@ and wiki are updated with every change).
 | [customization.md](customization.md) | Wall layout, themes, custom-CSS trust model, screensaver, pairing screens by code |
 | [suppliers.md](suppliers.md) | Supplier directory, weekly opening hours, derived price book, who sees keg costs |
 | [recovery.md](recovery.md) | Backup, restore, and manual crash-loop recovery |
+| [cleaning-and-pours.md](cleaning-and-pours.md) | Line-cleaning reminders, unclaimed pours, and claim windows |
 
 ## Reference
 

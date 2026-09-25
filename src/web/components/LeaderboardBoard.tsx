@@ -27,6 +27,7 @@ export interface LeaderboardBoardProps {
   data: LeaderboardResponse;
   units: VolumeUnits;
   title: string;
+  onWindowChange?: (window: LeaderboardResponse['window']) => void;
 }
 
 /**
@@ -36,7 +37,7 @@ export interface LeaderboardBoardProps {
  * HERE (Phase 5) as temporary chips — there is deliberately no separate game leaderboard.
  * Pure/presentational — `/board` fetches; the wall rotation reuses it.
  */
-export function LeaderboardBoard({ data, units, title }: LeaderboardBoardProps) {
+export function LeaderboardBoard({ data, units, title, onWindowChange }: LeaderboardBoardProps) {
   const podium = data.entries.slice(0, 3);
   const rest = data.entries.slice(3);
   // Visual order places 2nd on the left, champion center, 3rd right.
@@ -51,7 +52,16 @@ export function LeaderboardBoard({ data, units, title }: LeaderboardBoardProps) 
         <span className="board-look__title font-display">{title}</span>
         <span className="board-look__brand font-display">LEADERBOARD</span>
         <div className="board-look__windows" role="group" aria-label="Leaderboard window">
-          {WINDOW_TABS.map((w) => (
+          {WINDOW_TABS.map((w) => onWindowChange ? (
+            <button
+              type="button" key={w.key}
+              className="board-look__window-pill"
+              data-active={data.window === w.key}
+              aria-pressed={data.window === w.key}
+              data-testid={`board-window-${w.key}`}
+              onClick={() => onWindowChange(w.key)}
+            >{w.label}</button>
+          ) : (
             <span
               key={w.key}
               className="board-look__window-pill"

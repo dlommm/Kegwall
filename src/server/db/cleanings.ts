@@ -4,7 +4,8 @@ import type Database from 'better-sqlite3';
  * Line cleaning log (design 6e): one row per cleaning per tap. "Due" is
  * derived — a line wants cleaning after 15 gallons poured or 4 weeks elapsed
  * since the last logged cleaning (whichever comes first), per the handoff.
- * A tap with NO cleaning on record and any pour history reads as due.
+ * An active, nonempty tap with no cleaning on record and pour history reads as due.
+ * Empty taps and taps with ignored reminders retain history without prompting.
  */
 
 export const CLEANING_INTERVAL_DAYS = 28;
@@ -46,6 +47,8 @@ export interface CleaningStatus {
   gallonsSince: number;
   daysSince: number | null;
   due: boolean;
+  ignored?: boolean;
+  inactive?: boolean;
 }
 
 /** A tap's cleaning status: gallons poured + days elapsed since the last
@@ -64,10 +67,13 @@ export function cleaningStatus(db: Database.Database, tapId: number, now: Date =
   const daysSince = since
     ? Math.floor((now.getTime() - new Date(since).getTime()) / (24 * 3600 * 1000))
     : null;
-  const due = gallonsSince >= CLEANING_INTERVAL_GALLONS
+  const tap = db.prepare('SELECT cleaning_ignored FROM taps WHERE id = ?').get(tapId) as { cleaning_ignored: number } | undefined;
+  const ignored = !!tap?.cleaning_ignored;
+  const active = db.prepare("SELECT id FROM kegs WHERE tap_id = ? AND status = 'on_tap' AND vol_start_ml > vol_dispensed_ml LIMIT 1").get(tapId);
+  const due = !ignored && !!active && (gallonsSince >= CLEANING_INTERVAL_GALLONS
     || (daysSince !== null && daysSince >= CLEANING_INTERVAL_DAYS)
-    || (since === null && volumeRow.total > 0);
+    || (since === null && volumeRow.total > 0));
   return {
-    tapId, lastCleanedAt: since, gallonsSince: Math.round(gallonsSince * 10) / 10, daysSince, due,
+    tapId, lastCleanedAt: since, gallonsSince: Math.round(gallonsSince * 10) / 10, daysSince, due, ignored, inactive: !active,
   };
 }

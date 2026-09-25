@@ -95,11 +95,10 @@ export function KegsPage() {
 
   return (
     <section className="admin-page" data-testid="kegs-page">
-      <header className="admin-page__header">
-        <h1 className="font-display">Kegs</h1>
+      <header className="admin-page-header">
+        <h1 className="admin-page-header__title font-display">Kegs</h1>
         <p className="admin-page-quiet">
-          Every keg — on tap now and past. Edit a keg&rsquo;s cost, supplier, deposit, or purchase
-          date after the fact (e.g. to add a supplier to a keg that was tapped without one).
+          Track current and past kegs, purchase details, suppliers, and deposits.
         </p>
       </header>
 

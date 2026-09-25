@@ -477,7 +477,8 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     const q = z.object({
       kegId: z.coerce.number().int().optional(),
       since: z.string().optional(), until: z.string().optional(),
-      limit: z.coerce.number().int().max(2000).optional(),
+      limit: z.coerce.number().int().min(1).max(2000).optional(),
+      unclaimed: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
     }).parse(req.query);
     return listPours(db, q);
   });

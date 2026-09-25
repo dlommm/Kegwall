@@ -60,7 +60,8 @@ automations, and deep wall customization.
   drinker, and deletable any time — see [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md).
 - **Admin UI** — a sidebar shell with three admin looks (Midnight Slate, Workshop,
   Console), ⌘K quick-nav, live dashboard (stat cards, real-SRM tap rows, source health,
-  activity feed), keg cards with "kicks in ~N days" forecasts and line-cleaning reminders,
+  activity feed), keg cards with "kicks in ~N days" forecasts, and line-cleaning reminders
+  that skip empty taps and can be ignored or resumed per tap,
   beers (Open Brewery DB lookup, offline BJCP-style autocomplete, optional catalog.beer
   search, auto-import of beers seen on Kegtron devices), guided keg swaps, multi-user
   roles, a unified filterable Logs page with live tail and export, an Analytics page (KPI

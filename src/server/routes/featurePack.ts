@@ -178,6 +178,14 @@ export async function featurePackRoutes(app: FastifyInstance) {
   app.get('/api/cleanings/status', viewer, async () => listTaps(db)
     .map((tap) => cleaningStatus(db, tap.id)));
 
+  app.put('/api/taps/:id/cleanings/reminders', editor, async (req) => {
+    const tapId = z.coerce.number().int().positive().parse((req.params as any).id);
+    const { ignored } = z.object({ ignored: z.boolean() }).parse(req.body);
+    if (!listTaps(db).some((tap) => tap.id === tapId)) throw new NotFoundError(`tap ${tapId}`);
+    db.prepare('UPDATE taps SET cleaning_ignored = ? WHERE id = ?').run(ignored ? 1 : 0, tapId);
+    return cleaningStatus(db, tapId);
+  });
+
   app.post('/api/taps/:id/cleanings', editor, async (req, reply) => {
     const tapId = z.coerce.number().int().parse((req.params as any).id);
     // `cleanedAt` (redesign 4a — backdating) is an optional ISO timestamp; a future date is

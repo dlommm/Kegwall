@@ -301,3 +301,44 @@ describe('POST /api/doctor/mqtt (HA wizard connection test)', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('cleaning reminder controls', () => {
+  it('ignores and resumes reminders without recording a cleaning', async () => {
+    recordPourTx(app.ctx.db, { kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp' });
+    const url = `/api/taps/${tapId}/cleanings/reminders`;
+    const ignored = await app.inject({ method: 'PUT', url, cookies, payload: { ignored: true } });
+    expect(ignored.statusCode).toBe(200);
+    expect(ignored.json()).toMatchObject({ ignored: true, due: false, lastCleanedAt: null });
+    const statuses = (await app.inject({ method: 'GET', url: '/api/cleanings/status', cookies })).json();
+    expect(statuses[0]).toMatchObject({ ignored: true, due: false });
+    const resumed = await app.inject({ method: 'PUT', url, cookies, payload: { ignored: false } });
+    expect(resumed.json()).toMatchObject({ ignored: false, due: true, lastCleanedAt: null });
+    expect((await app.inject({ method: 'GET', url: `/api/taps/${tapId}/cleanings`, cookies })).json().cleanings).toEqual([]);
+    expect((await app.inject({ method: 'PUT', url, cookies, payload: { ignored: 'yes' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'PUT', url: '/api/taps/999/cleanings/reminders', cookies, payload: { ignored: true } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'PUT', url, payload: { ignored: true } })).statusCode).toBe(401);
+  });
+
+  it('suppresses empty and kicked taps, restoring due state when a full keg is tapped', async () => {
+    const db = app.ctx.db;
+    recordPourTx(db, { kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp' });
+    const status = async () => (await app.inject({ method: 'GET', url: `/api/taps/${tapId}/cleanings`, cookies })).json().status;
+    expect((await status()).due).toBe(true);
+    db.prepare('UPDATE kegs SET vol_dispensed_ml = vol_start_ml WHERE id = ?').run(kegId);
+    expect(await status()).toMatchObject({ due: false, inactive: true });
+    db.prepare("UPDATE kegs SET status = 'kicked' WHERE id = ?").run(kegId);
+    expect(await status()).toMatchObject({ due: false, inactive: true });
+    const beer = createBeer(db, { name: 'Replacement' });
+    createKeg(db, { beerId: beer.id, tapId, sizeMl: 19000, volStartMl: 19000 });
+    expect(await status()).toMatchObject({ due: true, inactive: false });
+  });
+});
+
+it('lists older unclaimed pours before applying the admin page limit', async () => {
+  const old = recordPourTx(app.ctx.db, { kegId, ts: '2026-01-01T00:00:00.000Z', volumeMl: 400, source: 'udp' }).pour;
+  const drinker = createDrinker(app.ctx.db, { displayName: 'Sam' });
+  recordPourTx(app.ctx.db, { kegId, ts: new Date().toISOString(), volumeMl: 400, source: 'udp', drinkerId: drinker.id });
+  const response = await app.inject({ method: 'GET', url: '/api/pours?unclaimed=true&limit=1', cookies });
+  expect(response.statusCode).toBe(200);
+  expect(response.json().map((pour: { id: number }) => pour.id)).toEqual([old.id]);
+});

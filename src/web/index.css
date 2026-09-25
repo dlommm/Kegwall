@@ -4727,9 +4727,13 @@ h2.admin-field__label-text {
    like a card board — `break-inside: avoid` keeps a single card from ever being split
    across two columns. */
 .stats-grid {
-  columns: 3 22rem;
-  column-gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+  align-items: start;
 }
+
+.stats-grid > * { min-width: 0; }
 
 .stats-chart,
 .stats-section {
@@ -7752,7 +7756,7 @@ h2.admin-field__label-text {
 
 .dashboard__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 14px;
 }
 
@@ -7950,7 +7954,8 @@ h2.admin-field__label-text {
 }
 
 .dashboard-tap-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 14px minmax(100px, 1fr) minmax(64px, 120px) 52px;
   align-items: center;
   gap: 14px;
   padding: 8px 0;
@@ -7966,7 +7971,7 @@ h2.admin-field__label-text {
 }
 
 .dashboard-tap-row__name {
-  width: 170px;
+  min-width: 0;
   flex: none;
   font-weight: 600;
   font-size: 14.5px;
@@ -7976,6 +7981,7 @@ h2.admin-field__label-text {
 }
 
 .dashboard-tap-row__style {
+  display: none;
   width: 110px;
   flex: none;
   font-size: 12.5px;
@@ -8008,7 +8014,8 @@ h2.admin-field__label-text {
 }
 
 .dashboard-tap-row__pints {
-  width: 70px;
+  grid-column: 3;
+  width: auto;
   flex: none;
   text-align: right;
   font-size: 12px;
@@ -8017,7 +8024,9 @@ h2.admin-field__label-text {
 
 /* Inline kick forecast + Swap chip on dashboard tap rows (redesign 3b). */
 .dashboard-tap-row__forecast {
-  width: 118px;
+  grid-column: 2;
+  grid-row: 2;
+  width: auto;
   flex: none;
   text-align: right;
   font-size: 12px;
@@ -8125,7 +8134,7 @@ h2.admin-field__label-text {
 
 .taps-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
   gap: 14px;
 }
 
@@ -9689,6 +9698,7 @@ h2.admin-field__label-text {
 
 .taps-cleaning__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -10084,4 +10094,113 @@ h2.admin-field__label-text {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-dim);
+}
+
+/* Keep maintenance controls readable in both the card grid and narrow layouts. */
+.taps-cleaning__actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.taps-cleaning__actions button { min-height: 36px; }
+.taps-cleaning__log:hover { background: var(--surface-raised, var(--surface)); color: var(--text); }
+.taps-cleaning__log:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.taps-cleaning__log:disabled { opacity: .55; cursor: wait; }
+.dashboard-tap-row__forecast { text-align: left; }
+.dashboard-tap-row__swap { grid-column: 4; grid-row: 2; }
+.dashboard-tap-row:last-child { border-bottom: 0; }
+.dashboard-stat { min-width: 0; }
+.dashboard-stat__label { overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .dashboard-tap-row { grid-template-columns: 12px minmax(0, 1fr) 64px 42px; gap: 8px; }
+  .dashboard-tap-row__pct { width: auto; }
+  .taps-row__main { flex-wrap: wrap; }
+  .taps-row__actions { flex-direction: row; flex-wrap: wrap; width: 100%; }
+  .taps-row__glyph { width: 56px; }
+}
+
+.pours-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+.pours-toolbar label { display: flex; align-items: center; gap: 8px; }
+
+@media (max-width: 700px) {
+  .admin-shell__frame { flex-direction: column; }
+  .admin-nav { width: 100%; border-right: 0; border-bottom: 1px solid var(--border); }
+  .admin-nav__brand-block { padding: 12px 16px; }
+  .admin-nav__list { flex-direction: row; overflow-x: auto; padding: 0 12px 10px; }
+  .admin-nav__list li { flex: none; }
+  .admin-nav__link { white-space: nowrap; }
+  .admin-nav__footer { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; }
+  .admin-nav__version { display: none; }
+  .admin-nav__appearance { margin: 0; }
+  .admin-topbar { height: auto; min-height: 62px; flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
+  .admin-topbar__search-wrap { order: 5; width: 100%; }
+  .admin-topbar__search { width: 100%; }
+  .admin-content { padding: 16px; }
+  .dashboard-triage__row { flex-wrap: wrap; }
+  .dashboard-triage__msg { min-width: 0; flex-basis: 70%; }
+  .dashboard-card { min-width: 0; padding: 16px; }
+  .dashboard-card__head { flex-wrap: wrap; }
+}
+
+/* Shared admin polish: readable controls and contained tables on small screens. */
+.admin-content input[type='checkbox'] { accent-color: var(--accent); }
+.admin-page-header { flex-wrap: wrap; gap: 12px; }
+.admin-page-header > .admin-page-quiet { flex-basis: 100%; }
+.admin-content :where(button):not([class]) {
+  min-height: 34px; padding: 6px 12px; border: 1px solid var(--border-strong);
+  border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer;
+}
+.admin-content :where(button):not([class]):hover { border-color: var(--accent); }
+.admin-content :where(button):not([class]):disabled { opacity: .5; cursor: default; }
+.admin-content :where(button, select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.admin-table select { padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
+.supplier-card .admin-table { font-size: 12px; }
+.board-look__window-pill { cursor: pointer; }
+.board-look__window-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (max-width: 900px) {
+  .admin-content table { display: block; max-width: 100%; overflow-x: auto; }
+  .admin-content th, .admin-content td { white-space: nowrap; }
+  .admin-content .admin-page-header__actions { flex-wrap: wrap; }
+  .monitors-device-card__header { flex-wrap: wrap; }
+  .dashboard-source-row { flex-wrap: wrap; gap: 8px; }
+  .dashboard-source-badge { white-space: normal; overflow-wrap: anywhere; }
+  .board-look__header { height: auto; flex-wrap: wrap; gap: 16px; padding: 20px; }
+  .board-look__title { font-size: 28px; }
+  .board-look__brand { font-size: 15px; }
+  .board-look__windows { flex-wrap: wrap; }
+  .board-podium { padding: 20px; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+}
+
+/* Give the beer name priority over fixed-width illustrations on smaller TVs. */
+@media (min-width: 901px) and (max-width: 1600px) {
+  .ledger-row { grid-template-columns: 44px 90px 90px minmax(0, 1fr) 110px 200px; gap: 14px; padding-inline: 24px; }
+  .ledger-row--with-label { grid-template-columns: 44px 110px 90px 90px minmax(0, 1fr) 110px 200px; }
+  .ledger-row--empty { grid-template-columns: 44px minmax(0, 1fr); }
+  .ledger-row__label { width: 110px; height: 110px; }
+  .ledger-row__name { white-space: normal; font-size: 28px; }
+  .ledger-look__header { gap: 14px; padding-inline: 24px; }
+  .ledger-look__title { font-size: 28px; }
+  .ledger-look__meta { gap: 12px; min-width: 0; }
+}
+
+/* The HA wizard is shared by standalone setup and first-run onboarding. */
+.ha-wizard { display: flex; flex-direction: column; gap: 16px; max-width: 720px; padding: 24px; margin-top: 20px; border: 1px solid var(--border); border-radius: var(--card-radius); background: var(--surface); }
+.ha-wizard h2 { font-size: 22px; }
+.ha-wizard > div { display: flex; flex-direction: column; gap: 16px; }
+.ha-wizard .admin-field { display: flex; flex-direction: column; gap: 8px; }
+.ha-wizard input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg); color: var(--text); }
+.ha-wizard__actions, .ha-wizard__nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ha-wizard__nav { padding-top: 16px; border-top: 1px solid var(--border); }
+.ha-wizard__actions button, .ha-wizard__nav button { padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: 8px; }
+.ha-wizard__result--ok { color: var(--ok); }
+.ha-wizard__result--fail { color: var(--danger); }
+@media (max-width: 700px) {
+  .ha-wizard { padding: 16px; }
+  .tablet-grid__footer { flex-wrap: wrap; }
+  .tablet-grid__hint { max-width: none; }
+}
+
+@media (max-width: 700px) {
+  .logs-row { flex-wrap: wrap; gap: 8px; }
+  .logs-row__source { width: auto; }
+  .logs-row__message { flex-basis: 100%; overflow-wrap: anywhere; }
+  .logs-row__detail { max-width: 100%; overflow-wrap: anywhere; }
 }

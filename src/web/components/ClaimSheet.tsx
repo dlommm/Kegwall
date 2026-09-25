@@ -277,6 +277,8 @@ function DrinkerPickerSheet({
  * `DrinkerPickerSheet` for how each renders.
  */
 export function ClaimSheet() {
+  const [poursStatus, setPoursStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [poursRetry, setPoursRetry] = useState(0);
   const [pours, setPours] = useState<RecentPour[]>([]);
   const [remembered, setRemembered] = useState<RememberedPourer | null>(() => getRememberedPourer());
   const [drinkers, setDrinkers] = useState<PublicDrinker[]>([]);
@@ -307,9 +309,11 @@ export function ClaimSheet() {
 
   usePolledFetch((isCancelled) => {
     getRecentPours().then((result) => {
-      if (!isCancelled() && result.ok) setPours(result.data);
+      if (isCancelled()) return;
+      if (result.ok) { setPours(result.data); setPoursStatus('loaded'); }
+      else setPoursStatus('error');
     });
-  }, { intervalMs: REFRESH_INTERVAL_MS });
+  }, { intervalMs: REFRESH_INTERVAL_MS, restartKey: poursRetry });
 
   const isSheetOpen = selectedPour !== null;
 
@@ -440,8 +444,12 @@ export function ClaimSheet() {
     <section className="claim-sheet" data-testid="claim-sheet" aria-labelledby="claim-sheet-section-heading">
       <h2 id="claim-sheet-section-heading" className="claim-sheet__heading font-display">Claim your pour</h2>
 
+      <p className="claim-sheet__empty">Guest claims are available for 10 minutes after a pour. Ask your host to assign older pours.</p>
+      <button type="button" className="taps-cleaning__log" onClick={() => setPoursRetry((value) => value + 1)}>Refresh pours</button>
+      {poursStatus === 'error' && <p role="alert">Couldn’t load pours. Refresh to try again.</p>}
+      {poursStatus === 'loading' && <p role="status">Loading pours…</p>}
       {pours.length === 0 ? (
-        <p className="claim-sheet__empty" data-testid="claim-sheet-empty">No pours to claim right now.</p>
+        poursStatus === 'loaded' ? <p className="claim-sheet__empty" data-testid="claim-sheet-empty">No pours to claim right now.</p> : null
       ) : (
         <ul className="claim-sheet__list" data-testid="claim-sheet-list">
           {pours.map((pour) => (

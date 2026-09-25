@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router';
 import { useCallback, useEffect, useState } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Tap } from '../../../server/db/taps.js';
@@ -8,7 +9,7 @@ import type { KegBurnStat } from '../../../server/db/stats.js';
 import type { CleaningStatus } from '../../../server/db/cleanings.js';
 import {
   listBeers, listKegs, listMonitors, listTaps, deleteTap as deleteTapApi,
-  getActiveKegStats, getCleaningStatuses, logTapCleaning,
+  getActiveKegStats, getCleaningStatuses, logTapCleaning, setCleaningReminders,
 } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
@@ -70,19 +71,25 @@ const KEG_TYPE_LABELS: Record<string, string> = {
  */
 export function TapsPage() {
   const { me, units } = useAdminContext();
+  const [searchParams] = useSearchParams();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [beers, setBeers] = useState<Beer[]>([]);
   const [kegs, setKegs] = useState<Keg[]>([]);
   const [monitors, setMonitors] = useState<MonitorWithDeviceKeg[]>([]);
   const [tapRows, setTapRows] = useState<Tap[]>([]);
   const [tapsStatus, setTapsStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
-  const [expandedTapId, setExpandedTapId] = useState<number | null>(null);
+  const [expandedTapId, setExpandedTapId] = useState<number | null>(() => {
+    const tapId = Number(searchParams.get('tap'));
+    return Number.isInteger(tapId) && tapId > 0 ? tapId : null;
+  });
   const [tapFormState, setTapFormState] = useState<TapFormState>(null);
   const [deleteState, setDeleteState] = useState<DeleteTapState | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [wizardState, setWizardState] = useState<WizardState | null>(null);
   // Backdated line-cleaning dialog (redesign 4a). `when` is a YYYY-MM-DD date, or '' = just now.
   const [cleaningDialog, setCleaningDialog] = useState<{ tapId: number; when: string } | null>(null);
+  const [cleaningError, setCleaningError] = useState<string | null>(null);
+  const [reminderSaving, setReminderSaving] = useState<number | null>(null);
   const [cleaningSaving, setCleaningSaving] = useState(false);
   const [kegStats, setKegStats] = useState<KegBurnStat[]>([]);
   const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
@@ -138,6 +145,7 @@ export function TapsPage() {
   async function handleLogCleaning() {
     if (!cleaningDialog) return;
     setCleaningSaving(true);
+    setCleaningError(null);
     // A backdated date is logged at local noon so it lands on the intended calendar day
     // regardless of timezone; blank = "just now" (server stamps the real time).
     const cleanedAt = cleaningDialog.when
@@ -148,7 +156,18 @@ export function TapsPage() {
     if (result.ok) {
       setCleaningDialog(null);
       refresh();
+    } else {
+      setCleaningError(result.message);
     }
+  }
+
+  async function handleReminders(tapId: number, ignored: boolean) {
+    setReminderSaving(tapId);
+    setCleaningError(null);
+    const result = await setCleaningReminders(tapId, ignored);
+    setReminderSaving(null);
+    if (result.ok) setCleanings((statuses) => statuses.map((status) => status.tapId === tapId ? result.data : status));
+    else setCleaningError(result.message);
   }
 
   /** YYYY-MM-DD for N days ago, local — for the dialog's quick-picks. */
@@ -329,23 +348,33 @@ export function TapsPage() {
                           <div className="taps-cleaning__head">
                             <span className="taps-cleaning__label">LINE CLEANING</span>
                             <span className="taps-cleaning__status font-tabular">
-                              {cleaning?.lastCleanedAt
+                              {cleaning?.ignored ? 'Reminders ignored' : cleaning?.inactive ? 'Empty tap · reminders paused' : cleaning?.lastCleanedAt
                                 ? `${cleaning.daysSince} day(s) · ${cleaning.gallonsSince} gal since`
-                                : 'never logged'}
+                                : 'No cleaning recorded'}
                               {cleaning?.due ? ' · due now' : ''}
                             </span>
                             {canEdit && (
-                              <button
-                                type="button"
-                                className="taps-cleaning__log"
-                                data-testid="taps-cleaning-log"
-                                onClick={() => setCleaningDialog({ tapId: tap.tapId, when: '' })}
-                              >
-                                Log cleaning
-                              </button>
+                              <div className="taps-cleaning__actions">
+                                <button
+                                  type="button"
+                                  className="taps-cleaning__log"
+                                  data-testid="taps-cleaning-log"
+                                  onClick={() => setCleaningDialog({ tapId: tap.tapId, when: '' })}
+                                >
+                                  Log cleaning
+                                </button>
+                                <button
+                                  type="button"
+                                  className="taps-cleaning__log"
+                                  disabled={reminderSaving !== null || !cleaning}
+                                  onClick={() => handleReminders(tap.tapId, !cleaning?.ignored)}
+                                >
+                                  {reminderSaving === tap.tapId ? 'Saving…' : cleaning?.ignored ? 'Resume reminders' : 'Ignore reminders'}
+                                </button>
+                              </div>
                             )}
                           </div>
-                          {cleaning && (
+                          {cleaning && !cleaning.ignored && !cleaning.inactive && (
                             <span className="taps-cleaning__meter" data-testid="taps-cleaning-meter" aria-hidden="true">
                               <span
                                 className="taps-cleaning__meter-fill"
@@ -437,10 +466,12 @@ export function TapsPage() {
         />
       )}
 
+      {cleaningError && !cleaningDialog && <p role="alert">{cleaningError}</p>}
       {cleaningDialog && (
         <div className="admin-confirm__backdrop" data-testid="cleaning-dialog" onClick={() => !cleaningSaving && setCleaningDialog(null)}>
           <div className="admin-confirm" role="dialog" aria-modal="true" aria-label="Log line cleaning" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display">Log line cleaning</h3>
+            {cleaningError && <p role="alert">{cleaningError}</p>}
             <p className="admin-page-quiet">Backdating recomputes the counters — pours after the chosen date count toward the next cleaning.</p>
             <div className="cleaning-dialog__picks">
               <button

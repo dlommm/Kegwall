@@ -13,13 +13,14 @@ function rowToPour(r: any): Pour {
 }
 
 export function listPours(db: Database.Database, filter: {
-  kegId?: number; since?: string; until?: string; limit?: number;
+  kegId?: number; since?: string; until?: string; limit?: number; unclaimed?: boolean;
 } = {}): Pour[] {
   const clauses: string[] = [];
   const params: unknown[] = [];
   if (filter.kegId !== undefined) { clauses.push('keg_id = ?'); params.push(filter.kegId); }
   if (filter.since) { clauses.push('ts >= ?'); params.push(filter.since); }
   if (filter.until) { clauses.push('ts <= ?'); params.push(filter.until); }
+  if (filter.unclaimed) clauses.push('drinker_id IS NULL');
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const limit = filter.limit ?? 500;
   return db.prepare(`SELECT * FROM pours ${where} ORDER BY ts DESC LIMIT ?`)

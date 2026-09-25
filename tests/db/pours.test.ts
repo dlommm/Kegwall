@@ -43,3 +43,11 @@ describe('pours repo', () => {
     expect(setPourDrinker(db, pour.id, null).drinkerId).toBeNull();
   });
 });
+
+it('filters unclaimed pours before limiting, including old pours', () => {
+  const drinker = createDrinker(db, { displayName: 'Sam' });
+  const old = pourAt('2026-01-01T00:00:00.000Z');
+  const recent = pourAt('2026-09-01T00:00:00.000Z');
+  setPourDrinker(db, recent.id, drinker.id);
+  expect(listPours(db, { unclaimed: true, limit: 1 }).map((p) => p.id)).toEqual([old.id]);
+});

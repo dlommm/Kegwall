@@ -12,23 +12,24 @@ import { HaSetupWizard } from '../../components/HaSetupWizard';
  */
 export function HomeAssistantPage() {
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
-    getSettings().then((r) => { if (r.ok) setSettings(r.data); });
+    getSettings().then((r) => { if (r.ok) setSettings(r.data); else setError(r.message); });
   }, []);
 
   if (!settings) {
     return (
       <main className="admin-page" data-testid="ha-page-loading">
-        <p className="admin-page-quiet">Loading…</p>
+        <p className="admin-page-quiet" role={error ? 'alert' : 'status'}>{error ?? 'Loading…'}</p>
       </main>
     );
   }
 
   return (
     <main className="admin-page" data-testid="ha-page">
-      <h1 className="admin-page__title font-display">Home Assistant</h1>
+      <h1 className="admin-page-header__title font-display">Home Assistant</h1>
       <HaSetupWizard
         settings={settings}
         onSaved={() => navigate('/admin/settings')}

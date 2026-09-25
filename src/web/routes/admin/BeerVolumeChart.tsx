@@ -57,6 +57,7 @@ export function BeerVolumeChart({ data, units }: BeerVolumeChartProps) {
             <CartesianGrid horizontal={false} stroke={GRID_STROKE} />
             <XAxis
               type="number" className="font-tabular"
+              tickFormatter={(value: number) => formatVolumeMl(value, units)}
               tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
             />
             <YAxis

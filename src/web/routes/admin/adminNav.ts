@@ -5,9 +5,7 @@ import type { Role } from '../../../server/db/users.js';
  * Dashboard, Beers, Taps & kegs, Monitors, Walls, Automations, Pourers,
  * Analytics, Logs, Settings — plus Users (admin-only account management,
  * distinct from the passwordless Pourers tier). `adminOnly` items are hidden
- * for editor/viewer — see `visibleNavItems`. Notifications and Pours keep no
- * sidebar slot of their own (reached via the bell / the leaderboard's manage
- * link respectively).
+ * for editor/viewer — see `visibleNavItems`. Notifications are reached via the bell; Pours has a direct sidebar entry.
  */
 export interface AdminNavItem {
   label: string;
@@ -40,6 +38,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { label: 'Games', path: '/admin/games' },
   // People (redesign 4h) merges the old Pourers + Users pages into one nav entry. Visible to
   // all — the Pourers tab is for everyone; the Accounts tab is admin-gated inside the page.
+  { label: 'Pours', path: '/admin/pours' },
   { label: 'People', path: '/admin/people' },
   { label: 'Analytics', path: '/admin/stats' },
   { label: 'Logs', path: '/admin/logs' },
@@ -59,6 +58,7 @@ export function pageTitleFor(pathname: string): string {
     '/admin/pours': 'Pours',
     '/admin/notifications': 'Notifications',
     '/admin/doctor': 'Connection doctor',
+    '/admin/home-assistant': 'Home Assistant',
     // Merged into People (redesign 4h); routes kept for deep links, titles preserved.
     '/admin/users': 'People',
     '/admin/pourers': 'People',
