@@ -230,6 +230,18 @@ describe('DashboardPage', () => {
     expect(rows[1]).toHaveTextContent('Tapped Pilsner on tap 1');
   });
 
+  it('keeps the dashboard activity preview to five rows', async () => {
+    (getActivity as Mock).mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 8 }, (_, i) => makeEvent({
+        beerName: `Beer ${i + 1}`,
+        ts: `2026-07-28T11:${String(55 - i).padStart(2, '0')}:00.000Z`,
+      })),
+    });
+    renderAdminPage(<DashboardPage />);
+    expect(await screen.findAllByTestId('dashboard-activity-row')).toHaveLength(5);
+  });
+
   it('shows a quiet empty state when there is no activity yet', async () => {
     renderAdminPage(<DashboardPage />);
     expect(await screen.findByTestId('dashboard-activity-empty')).toHaveTextContent("Nothing’s happened yet.");
@@ -420,7 +432,7 @@ describe('DashboardPage', () => {
     expect(screen.getByTestId('dashboard-sources-failing')).toHaveTextContent('Kegtron UDP down');
   });
 
-  it('renders a stat card per temperature sensor, flagging a warming Govee against the Kegtron probe', async () => {
+  it('groups sensor readings together and flags a warming Govee against the Kegtron probe', async () => {
     (getSensors as Mock).mockResolvedValue({
       ok: true,
       data: [

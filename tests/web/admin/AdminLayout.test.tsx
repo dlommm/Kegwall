@@ -45,6 +45,7 @@ function renderLayout(initialEntry = '/admin') {
         <Route path="/admin/login" element={<div data-testid="login-route" />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<div data-testid="dashboard-placeholder" />} />
+          <Route path="beers" element={<div data-testid="beers-placeholder" />} />
           <Route path="users" element={<div data-testid="users-placeholder" />} />
           <Route path="probe" element={<ContextProbe />} />
         </Route>
@@ -133,6 +134,18 @@ describe('AdminLayout', () => {
     mockFetchOnce(200, user({ displayName: 'Dan Lomm' }));
     renderLayout();
     expect(await screen.findByTestId('admin-user-chip')).toHaveTextContent('Dan Lomm');
+  });
+
+  it('opens a compact mobile navigation menu and closes it after choosing a page', async () => {
+    mockFetchOnce(200, user());
+    renderLayout();
+    await screen.findByTestId('dashboard-placeholder');
+
+    const menu = screen.getByRole('button', { name: 'Menu' });
+    fireEvent.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('link', { name: 'Beers' }));
+    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('route-guards an admin-only page: a viewer navigating straight to /admin/users bounces to the dashboard', async () => {

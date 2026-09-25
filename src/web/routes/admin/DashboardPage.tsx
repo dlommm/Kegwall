@@ -190,6 +190,7 @@ export function DashboardPage() {
 
   return (
     <section data-testid="admin-dashboard-page" className="dashboard">
+      <h1 className="dashboard__title font-display">Dashboard</h1>
       {wallCount === 0 && (
         <div className="dashboard-banner dashboard-banner--info" data-testid="dashboard-setup-hint">
           <span>No tap wall yet — finish the guided setup to create one.</span>
@@ -326,51 +327,48 @@ export function DashboardPage() {
           </span>
         </div>
         {sensorCards.length > 0 ? (
-          // DESIGN NOTE: README asks each sensor card to carry a 7-day sparkline; that
-          // visualization waits on the Phase 4 Temps analytics tab (where per-sensor history
-          // + retention live). The reading, humidity, and the min–max note here are all real
-          // (from the telemetry table); the warming delta compares against the Kegtron probe.
-          sensorCards.map((s) => (
-            <div
-              key={s.id}
-              className={`dashboard-stat dashboard-sensor-stat${s.warming ? ' dashboard-sensor-stat--warm' : ''}`}
-              data-testid="dashboard-sensor-card"
-              data-warming={s.warming}
-            >
-              <span className="dashboard-stat__label">
-                {s.name}
-                <span
-                  className={`dashboard-sensor-stat__tag dashboard-sensor-stat__tag--${s.kind}`}
-                  data-testid="dashboard-sensor-tag"
+          // Keep the sensor readings together so the dashboard summary stays scannable as
+          // more probes are added. Per-sensor telemetry and warming detail remain visible.
+          <div className="dashboard-stat dashboard-sensors-stat" data-testid="dashboard-card-sensors">
+            <span className="dashboard-stat__label">TEMPERATURES</span>
+            <div className="dashboard-sensors-stat__list">
+              {sensorCards.map((s) => (
+                <div
+                  key={s.id}
+                  className={`dashboard-sensor-stat${s.warming ? ' dashboard-sensor-stat--warm' : ''}`}
+                  data-testid="dashboard-sensor-card"
+                  data-warming={s.warming}
                 >
-                  {s.kind === 'kegtron' ? ' · KEGTRON' : ' · GOVEE'}
-                </span>
-              </span>
-              <span
-                className={`dashboard-stat__value font-display font-tabular${s.warming ? ' dashboard-sensor-stat__value--warm' : ''}`}
-                data-testid="dashboard-sensor-temp"
-              >
-                {s.tempC != null ? formatTempC(s.tempC, units) : '—'}
-              </span>
-              {/* Humidity is its OWN reading, not a suffix on the temperature (design: keep the two
-                  distinct). Only shown when the sensor reports it (Kegtron probes don't). */}
-              {s.humidity != null && (
-                <span className="dashboard-sensor-stat__humidity font-tabular" data-testid="dashboard-sensor-humidity">
-                  {`${Math.round(s.humidity)}% RH`}
-                </span>
-              )}
-              <span
-                className={`dashboard-stat__note${s.warming ? ' dashboard-stat__note--warn' : ''}`}
-                data-testid="dashboard-sensor-note"
-              >
-                {s.warming && s.deltaVsRefC != null
-                  ? `warming · Δ ${formatTempDelta(s.deltaVsRefC, units)} vs Kegtron`
-                  : s.min7dC != null && s.max7dC != null
-                    ? `${formatTempC(s.min7dC, units)}–${formatTempC(s.max7dC, units)} · 7 d`
-                    : 'no history yet'}
-              </span>
+                  <span className="dashboard-sensor-stat__identity">
+                    <span className="dashboard-sensor-stat__name">{s.name}</span>
+                    <span
+                      className={`dashboard-sensor-stat__tag dashboard-sensor-stat__tag--${s.kind}`}
+                      data-testid="dashboard-sensor-tag"
+                    >
+                      {s.kind === 'kegtron' ? 'KEGTRON' : 'GOVEE'}
+                    </span>
+                  </span>
+                  <span
+                    className={`dashboard-sensor-stat__value font-display font-tabular${s.warming ? ' dashboard-sensor-stat__value--warm' : ''}`}
+                    data-testid="dashboard-sensor-temp"
+                  >
+                    {s.tempC != null ? formatTempC(s.tempC, units) : '—'}
+                  </span>
+                  <span
+                    className={`dashboard-sensor-stat__note${s.warming ? ' dashboard-stat__note--warn' : ''}`}
+                    data-testid="dashboard-sensor-note"
+                  >
+                    {s.humidity != null && `${Math.round(s.humidity)}% RH · `}
+                    {s.warming && s.deltaVsRefC != null
+                      ? `warming · Δ ${formatTempDelta(s.deltaVsRefC, units)} vs Kegtron`
+                      : s.min7dC != null && s.max7dC != null
+                        ? `${formatTempC(s.min7dC, units)}–${formatTempC(s.max7dC, units)} · 7 d`
+                        : 'no history yet'}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))
+          </div>
         ) : (
           <div className="dashboard-stat" data-testid="dashboard-card-keg-room">
             <span className="dashboard-stat__label">KEG ROOM</span>
@@ -557,7 +555,7 @@ export function DashboardPage() {
               </p>
             ) : (
               <ul className="dashboard-activity-list" data-testid="dashboard-activity-list">
-                {activity.map((event, index) => (
+                {activity.slice(0, 5).map((event, index) => (
                   <li
                     // eslint-disable-next-line react/no-array-index-key -- events have no stable id
                     key={`${event.ts}-${index}`}

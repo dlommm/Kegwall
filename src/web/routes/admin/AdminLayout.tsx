@@ -11,7 +11,7 @@ import {
   ADMIN_THEMES, getAdminTheme, loadAdminThemeId, saveAdminThemeId, type AdminThemeId,
 } from '../../lib/adminTheme';
 import { initials } from '../../lib/initials';
-import { ADMIN_NAV_ITEMS, visibleNavItems, pageTitleFor } from './adminNav';
+import { ADMIN_NAV_ITEMS, visibleNavItems } from './adminNav';
 import type { AdminOutletContext } from './useAdminContext';
 import { NotificationBell } from './NotificationBell';
 
@@ -55,6 +55,7 @@ export function AdminLayout() {
   const [adminThemeId, setAdminThemeId] = useState<AdminThemeId>(() => loadAdminThemeId());
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -160,12 +161,26 @@ export function AdminLayout() {
   return (
     <ThemeProvider theme={getAdminTheme(adminThemeId).theme} className="admin-shell">
       <div className="admin-shell__frame" data-testid="admin-layout" data-admin-theme={adminThemeId}>
-        <nav className="admin-nav" aria-label="Admin sections">
+        <nav
+          className={`admin-nav${mobileNavOpen ? ' admin-nav--mobile-open' : ''}`}
+          aria-label="Admin sections"
+        >
           <div className="admin-nav__brand-block">
-            <span className="admin-nav__brand font-display">KEGWALL</span>
-            {siteName && <span className="admin-nav__site">{siteName.toUpperCase()}</span>}
+            <div className="admin-nav__brand-copy">
+              <span className="admin-nav__brand font-display">KEGWALL</span>
+              {siteName && <span className="admin-nav__site">{siteName.toUpperCase()}</span>}
+            </div>
+            <button
+              type="button"
+              className="admin-nav__mobile-toggle"
+              aria-expanded={mobileNavOpen}
+              aria-controls="admin-nav-list"
+              onClick={() => setMobileNavOpen((open) => !open)}
+            >
+              {mobileNavOpen ? 'Close menu' : 'Menu'}
+            </button>
           </div>
-          <ul className="admin-nav__list">
+          <ul className="admin-nav__list" id="admin-nav-list">
             {items.map((item) => (
               <li key={item.path}>
                 <NavLink
@@ -174,6 +189,7 @@ export function AdminLayout() {
                   className={({ isActive }) => (isActive
                     ? 'admin-nav__link admin-nav__link--active'
                     : 'admin-nav__link')}
+                  onClick={() => setMobileNavOpen(false)}
                 >
                   {item.label}
                 </NavLink>
@@ -220,9 +236,6 @@ export function AdminLayout() {
 
         <div className="admin-shell__main">
           <header className="admin-topbar">
-            <h1 className="admin-topbar__title font-display" data-testid="admin-topbar-title">
-              {pageTitleFor(location.pathname)}
-            </h1>
             <div className="admin-topbar__spacer" />
             <div className="admin-topbar__search-wrap">
               <input

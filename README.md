@@ -59,14 +59,12 @@ automations, and deep wall customization.
   "You pouring, NAME?" confirm before arming their pour. Off by default, opt-in per
   drinker, and deletable any time — see [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md).
 - **Admin UI** — a sidebar shell with three admin looks (Midnight Slate, Workshop,
-  Console), ⌘K quick-nav, live dashboard (stat cards, real-SRM tap rows, source health,
-  activity feed), keg cards with "kicks in ~N days" forecasts, and line-cleaning reminders
-  that skip empty taps and can be ignored or resumed per tap,
-  beers (Open Brewery DB lookup, offline BJCP-style autocomplete, optional catalog.beer
-  search, auto-import of beers seen on Kegtron devices), guided keg swaps, multi-user
-  roles, a unified filterable Logs page with live tail and export, an Analytics page (KPI
-  row incl. cost/pint and value-on-tap, busiest-hours heatmap, full JSON export), and a
-  connection doctor that live-tests the cloud + UDP path.
+  Console), ⌘K quick-nav, a live dashboard with grouped sensor readings and recent activity,
+  real-SRM tap rows, keg depletion forecasts, and line-cleaning reminders that skip empty taps
+  and can be ignored or resumed per tap. Beer discovery, guided keg swaps, multi-user roles,
+  filterable live logs, analytics exports, and a connection doctor round out the admin tools.
+  On mobile, the section menu stays compact until opened; see
+  [docs/admin-dashboard.md](docs/admin-dashboard.md).
 - **Alerts + automations** — a rule engine (keg-low, kicked, temperature, offline source,
   scheduled...) with delivery over in-app notifications, ntfy/Pushover, email (SMTP),
   Discord/Slack webhooks, and MQTT — plus a notification center and one-click templates.
