@@ -4,6 +4,22 @@
 
 ## [1.16.0](https://github.com/dlommm/Kegwall/compare/v1.15.0...v1.16.0) (2026-09-25)
 
+This release makes cleaning reminders reflect the keg on each line, brings unclaimed pours into the
+admin workflow, and smooths out several admin and wall views.
+
+- **Fixed:** empty, kicked, and archived taps no longer trigger line-cleaning reminders. A newly
+  tapped keg becomes eligible again without losing the tap's cleaning history.
+- **Added:** per-tap **Ignore reminders** and **Resume reminders** controls under **Taps & kegs**.
+  Ignoring a reminder does not log a cleaning; dashboard cleaning actions open the relevant tap.
+- **Added:** an admin **Pours** page for reviewing and assigning unclaimed pours, linked from the
+  sidebar and dashboard. Its unclaimed filter is applied before the result limit and refreshes
+  automatically, so older unclaimed pours remain available to admins instead of disappearing
+  behind newer claimed activity. The public claim window remains 10 minutes.
+- **Fixed:** guest claim prompts recover from transient load failures and explain when a pour is
+  outside the public claim window; pour assignments no longer get overwritten by stale refreshes.
+- **Changed:** dashboard triage links open the matching tap, leaderboard time ranges are selectable,
+  and several admin views have clearer responsive layouts, chart units, and status ordering.
+
 ## [1.15.0](https://github.com/dlommm/Kegwall/compare/v1.14.3...v1.15.0) (2026-08-29)
 
 The close-out of the 2026-08-28 full-application review: the two privacy decisions land (viewer
