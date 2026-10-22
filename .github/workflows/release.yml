@@ -39,11 +39,11 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # semantic-release needs the full history + tags to find the last release.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -52,6 +52,12 @@ jobs:
       - run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The release commit is authored as the maintainer (GitHub noreply address), not the
+          # default semantic-release-bot identity.
+          GIT_AUTHOR_NAME: dlomm
+          GIT_AUTHOR_EMAIL: 118149483+dlommm@users.noreply.github.com
+          GIT_COMMITTER_NAME: dlomm
+          GIT_COMMITTER_EMAIL: 118149483+dlommm@users.noreply.github.com
       - id: tag
         name: Detect the tag this run created (empty when no release was cut)
         run: |
