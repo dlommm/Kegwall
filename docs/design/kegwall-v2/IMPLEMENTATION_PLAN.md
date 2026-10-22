@@ -317,4 +317,4 @@ reinstalling 1.17.x keeps every wall's config (new keys such as `spotlight` are 
 
 | Milestone | Status | Commit |
 | --- | --- | --- |
-| M0 · Preparation and baselines | In progress | |
+| M0 · Preparation and baselines | Done. Harness, probe, 88-shot baseline; Pi and WPE measurements pending hardware | see git log |

@@ -16,7 +16,7 @@
 | v0.1 mockups (superseded) | Design canvas https://claude.ai/artifact/SjjVUVSSuWnmZrDPRaGnE3. Sources in [`mockups/`](mockups). Kept for the record |
 | Architecture | [ADR-0001](ADR-0001-frontend-architecture.md) |
 | **Implementation plan** | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (approved 2026-10-22, in progress). Supersedes §J |
-| Baseline screenshots | [`baseline/`](baseline). Re-generate with [`tools/capture-baseline.mts`](tools/capture-baseline.mts) |
+| Baseline screenshots | [`baseline/`](baseline). Re-generate with the [visual harness](../../../scripts/visual/README.md) |
 
 ---
 
@@ -65,7 +65,7 @@ screen in the global stylesheet would cost more than rebuilding the styling laye
 
 ### B.2 How the screenshots were captured
 
-`tools/capture-baseline.mts` boots the real server (`buildApp`, `startSources: false`, so no
+The capture script (now [`scripts/visual/capture.ts`](../../../scripts/visual/README.md)) boots the real server (`buildApp`, `startSources: false`, so no
 BLE/MQTT/UDP/cloud and no notifications) against a temporary data directory. It seeds a
 deterministic synthetic taproom: 12 taps, one with a very long name, a cider with no IBU/SRM, a
 4% and a 9% keg, one kicked keg, 45 days of pours, 6 pourers and 2 automations. It drives
@@ -111,7 +111,10 @@ Severity: **S1** breaks or misleads, **S2** clearly hurts use, **S3** polish.
 **Needs verification (observed only with synthetic events):** in the Full takeover's completion
 card, the number shown was the last live counter (8.0 oz / 236 mL), while the server logged the
 completed pour as 412 mL. Real hardware streams progress up to the final value, so the gap may
-not occur in practice. Confirm on a Kegtron before treating it as a bug. The screensaver capture
+not occur in practice. Confirm on a Kegtron before treating it as a bug. **M0 code check:** the gap is by design
+in `useTakeover.ts`, which shows "the last counter value seen before `pouring` flipped false"
+and never reads the recorded pour row. It is a real gap whenever the last UDP packet lags the
+final volume; M5 fixes it by carrying the recorded volume to the wall. The screensaver capture
 used Playwright's fake clock, which also stalled the WebSocket ("Reconnecting…"), so it does not
 show the true screensaver.
 
@@ -567,7 +570,9 @@ column, defaulted from style). Without it, the glass is derived from `data/beerS
 ## I. Performance and accessibility targets
 
 Bundle numbers are measured baselines. Runtime numbers **still need a baseline on real
-hardware** (a Pi 4/5 under `cog` and Chromium), which is Milestone 1's first task.
+hardware** (a Pi 4/5 under `cog` and Chromium). M0 shipped the tools for it
+([`scripts/visual/`](../../../scripts/visual/README.md): `wpe-probe.html` for engine features and
+pour fps); the device run is pending until a Pi is available.
 
 | Area | Baseline | Target |
 | --- | --- | --- |

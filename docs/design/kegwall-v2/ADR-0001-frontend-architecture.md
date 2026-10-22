@@ -140,7 +140,7 @@ alone.
   layer that leaves the legacy BEM class names on the elements during the V2 major version. A
   release note lists what changes.
 - *Visual regressions across 11 looks × 11 themes.* Mitigation: the capture harness in
-  [`tools/`](tools/capture-baseline.mts) gives a before/after set per milestone, and Playwright
+  [visual harness](../../../scripts/visual/README.md) gives a before/after set per milestone, and Playwright
   screenshot assertions are added for one theme per look.
 - *Shelved Flutter client (`apps/wall-native`)* reads theme tokens by name; the alias layer keeps
   those names.
@@ -148,3 +148,22 @@ alone.
 **Rollback:** each milestone lands as its own PR behind no flags. The token layer is additive (old
 names alias new ones), so any milestone can be reverted on its own. Stored wall configs are never
 migrated destructively (see the blueprint's §H).
+
+## Display engine support (M0)
+
+Measured with [`scripts/visual/wpe-probe.html`](../../../scripts/visual/wpe-probe.html).
+
+| Engine | Where measured | Container queries | `:has()` | `color-mix()` | `transition-behavior` / `@starting-style` | Pour motion fps |
+| --- | --- | --- | --- | --- | --- | --- |
+| Chromium 151 (Playwright headless) | Dev workstation | yes | yes | yes | yes | 60 |
+| WPE WebKit via `cog` | **Not yet measured**: needs a Pi (blueprint §L Q9) | — | — | — | — | — |
+| Android WebView | **Not yet measured** | — | — | — | — | — |
+
+Playwright's WebKit could not stand in for WPE on the workstation (missing host libraries
+`libmanette`, `libenchant`). The installed WPE version depends on the Debian release
+(`scripts/native-wall-setup.sh` installs the distro `cog`), so it can't be pinned from here.
+
+**Rule until the device rows are filled in:** V2 uses only custom properties, `min()` /
+`clamp()`, `rem`, `inset`, `aspect-ratio`, flex/grid `gap`, `transform` and `opacity` without a
+fallback. Container queries, `:has()`, `color-mix()`, `@starting-style` and `backdrop-filter`
+are used only inside `@supports`, with a plain layout outside it.

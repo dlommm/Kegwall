@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+  Kegwall V2 display-engine probe (M0). Open it on the device under test, in the same browser
+  the wall uses:
+    cog file:///path/to/wpe-probe.html        (Pi / mini-PC native wall, WPE WebKit)
+    chromium --kiosk file:///path/to/wpe-probe.html
+  It lists which CSS features V2 may use without a fallback, then measures frame rate for the
+  two pour-takeover motion patterns (transform fill + background-position stream) for 10 s.
+  Copy the JSON at the bottom into the ADR's "Display engine support" table.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kegwall V2 probe</title>
+<style>
+  :root { --ui-scale: 1; font-size: calc(min(100vw / 120, 100vh / 67.5) * var(--ui-scale)); }
+  html, body { margin: 0; height: 100%; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+  body { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; padding: 2rem; box-sizing: border-box; }
+  h1 { font-size: 2.4rem; margin: 0 0 1rem; }
+  table { border-collapse: collapse; font-size: 1.3rem; }
+  td { padding: .3rem 1rem .3rem 0; }
+  .yes { color: #7bd88f; } .no { color: #ff6b6b; }
+  .glass { position: relative; width: 12rem; height: 20rem; border: .3rem solid #ddd; border-top: 0; overflow: hidden; }
+  .liquid { position: absolute; inset: 0; background: #d9a441; transform-origin: bottom; transform: scaleY(.1); will-change: transform; }
+  .stream { position: absolute; left: 5.5rem; top: 0; width: 1rem; height: 100%;
+    background: repeating-linear-gradient(170deg, #e8b54d 0 .6rem, #c58b2a .6rem 1.2rem); animation: flow .5s linear infinite; }
+  @keyframes flow { to { background-position: 0 1.2rem; } }
+  .stage { width: 30rem; height: 16.875rem; border: 1px dashed #666; display: grid; place-items: center; font-size: 2rem; }
+  .cq { container-type: inline-size; width: 20rem; border: 1px solid #666; margin-top: 1rem; }
+  .cq p { margin: .5rem; font-size: 1.2rem; }
+  @container (min-width: 10rem) { .cq p::after { content: ' (container query matched)'; color: #7bd88f; } }
+  pre { font-size: 1rem; white-space: pre-wrap; background: #000; padding: 1rem; }
+</style>
+</head>
+<body>
+<section>
+  <h1>Kegwall V2 display probe</h1>
+  <table id="features"></table>
+  <div class="stage">1920×1080 stage · 30rem × 16.875rem</div>
+  <div class="cq"><p>Container query</p></div>
+</section>
+<section>
+  <div style="display:flex;gap:2rem">
+    <div class="glass"><div class="liquid" id="liquid"></div><div class="stream"></div></div>
+    <div style="font-size:2rem">
+      <div>fps: <b id="fps">…</b></div>
+      <div>min: <b id="min">…</b></div>
+      <div>run: <b id="left">10</b> s</div>
+    </div>
+  </div>
+  <pre id="json">measuring…</pre>
+</section>
+<script>
+  var checks = [
+    ['custom properties', 'color: var(--x)'],
+    ['min() / clamp()', 'width: min(1px, 2px)'],
+    ['container queries', 'container-type: inline-size'],
+    [':has()', 'selector(:has(a))'],
+    ['color-mix()', 'color: color-mix(in srgb, red 50%, blue)'],
+    ['@starting-style (approx: transition-behavior)', 'transition-behavior: allow-discrete'],
+    ['aspect-ratio', 'aspect-ratio: 16 / 9'],
+    ['inset', 'inset: 0'],
+    ['gap in flexbox (approx)', 'gap: 1px'],
+    ['clip-path polygon', 'clip-path: polygon(0 0, 100% 0, 100% 100%)'],
+    ['backdrop-filter', 'backdrop-filter: blur(2px)'],
+    ['text-wrap: balance', 'text-wrap: balance'],
+    ['font-variant-numeric', 'font-variant-numeric: tabular-nums'],
+    ['dvh units', 'height: 100dvh'],
+    ['cqi units', 'width: 10cqi'],
+  ];
+  var result = { userAgent: navigator.userAgent, viewport: innerWidth + 'x' + innerHeight, dpr: devicePixelRatio,
+    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches, features: {} };
+  var table = document.getElementById('features');
+  checks.forEach(function (c) {
+    var q = c[1];
+    var ok = q.indexOf('selector(') === 0 ? CSS.supports(q) : CSS.supports(q.split(':')[0].trim(), q.slice(q.indexOf(':') + 1).trim());
+    result.features[c[0]] = ok;
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + c[0] + '</td><td class="' + (ok ? 'yes">yes' : 'no">no') + '</td>';
+    table.appendChild(tr);
+  });
+  result.features['WAAPI (Element.animate)'] = typeof document.body.animate === 'function';
+
+  var liquid = document.getElementById('liquid');
+  var t0 = performance.now(), last = t0, frames = 0, worst = 1000, perSecond = [], secStart = t0, secFrames = 0;
+  function tick(now) {
+    var level = 0.1 + 0.85 * (0.5 - 0.5 * Math.cos((now - t0) / 1500));
+    liquid.style.transform = 'scaleY(' + level.toFixed(4) + ')';
+    frames++; secFrames++;
+    var dt = now - last; last = now;
+    if (frames > 5) worst = Math.min(worst, 1000 / dt);
+    if (now - secStart >= 1000) {
+      perSecond.push(Math.round(secFrames * 1000 / (now - secStart)));
+      document.getElementById('fps').textContent = perSecond[perSecond.length - 1];
+      document.getElementById('min').textContent = Math.round(worst);
+      document.getElementById('left').textContent = Math.max(0, 10 - perSecond.length);
+      secStart = now; secFrames = 0;
+    }
+    if (now - t0 < 10000) requestAnimationFrame(tick);
+    else {
+      result.fps = { averagePerSecond: perSecond, mean: Math.round(frames * 1000 / (now - t0)), worstFrame: Math.round(worst) };
+      document.getElementById('json').textContent = JSON.stringify(result, null, 2);
+    }
+  }
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>

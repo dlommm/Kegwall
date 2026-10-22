@@ -16,7 +16,9 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
     "seed": "tsx scripts/seed.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "visual:capture": "tsx scripts/visual/capture.ts",
+    "visual:diff": "tsx scripts/visual/diff.ts"
   },
   "keywords": [
     "kegtron",
