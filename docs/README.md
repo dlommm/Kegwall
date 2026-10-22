@@ -1,7 +1,7 @@
 # Kegwall documentation
 
 The source-of-truth docs for Kegwall. The
-[GitLab Wiki](https://github.com/dlommm/Kegwall/wiki) mirrors this material for
+[GitHub Wiki](https://github.com/dlommm/Kegwall/wiki) mirrors this material for
 browsing; [CHANGELOG.md](../CHANGELOG.md) describes every released version;
 [CONTRIBUTING.md](../CONTRIBUTING.md) has the workflow (including the rule that docs, changelog,
 and wiki are updated with every change).
@@ -13,7 +13,8 @@ and wiki are updated with every change).
 | [install/docker.md](install/docker.md) | Docker / NAS (Unraid), env vars, networking, reverse proxy + HTTPS, backups |
 | [install/raspberry-pi.md](install/raspberry-pi.md) | Raspberry Pi 4/5 — Docker or native (bare-metal), direct-BLE, kiosk display |
 | [install/mini-pc.md](install/mini-pc.md) | amd64 mini PC / Intel NUC — native install on Debian 13 (no Docker) |
-| [install/unattended-debian.md](install/unattended-debian.md) | Turnkey **installer ISO** (amd64) — flash a USB, boot, SSH in; unattended Debian + Kegwall, versioned in the package registry |
+| [install/unattended-debian.md](install/unattended-debian.md) | Turnkey **installer ISO** (amd64) — flash a USB, boot, SSH in; unattended Debian + Kegwall, attached to every GitHub Release |
+| [install/moving-to-github.md](install/moving-to-github.md) | One-time switch of a pre-GitHub install to the GitHub image, remote, and release feed |
 
 ## Display the wall on a screen
 
@@ -47,5 +48,3 @@ and wiki are updated with every change).
 
 - [kegtron/](kegtron/) — vendor Kegtron API/BLE reference (Intro, WebSocket notifications, the
   reverse-engineered Pro BLE advertisement format, the OpenAPI spec, and vendor PDFs).
-- [superpowers/specs/](superpowers/specs/) — design specs, one per feature/sub-project.
-- [superpowers/plans/](superpowers/plans/) — the implementation roadmap and per-phase plans.

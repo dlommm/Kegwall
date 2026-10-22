@@ -2,8 +2,8 @@
 
 # Kegwall
 
-[![pipeline](https://github.com/dlommm/Kegwall/badges/main/pipeline.svg)](https://github.com/dlommm/Kegwall/-/pipelines)
-[![release](https://github.com/dlommm/Kegwall/-/badges/release.svg)](https://github.com/dlommm/Kegwall/-/releases)
+[![CI](https://github.com/dlommm/Kegwall/actions/workflows/release.yml/badge.svg)](https://github.com/dlommm/Kegwall/actions/workflows/release.yml)
+[![release](https://img.shields.io/github/v/release/dlommm/Kegwall)](https://github.com/dlommm/Kegwall/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A self-hosted, PourWall-style digital tap wall for [Kegtron](https://kegtron.com) keg
@@ -120,7 +120,7 @@ automations, and deep wall customization.
 
 ## Quickstart (Docker)
 
-Published images live in this repo's container registry —
+Published images live in the GitHub Container Registry —
 `ghcr.io/dlommm/kegwall` — tagged `latest` plus each release version
 (`0.5.0`, ...), multi-arch (amd64 + arm64).
 
@@ -136,7 +136,7 @@ Or with Compose (also see [deploy/docker-compose.unraid.yml](deploy/docker-compo
 for an Unraid-ready file):
 
 ```sh
-git clone https://github.com/dlommm/Kegwall.git
+git clone https://github.com/dlommm/Kegwall.git kegwall
 cd kegwall/deploy
 docker compose up -d
 ```
@@ -151,7 +151,7 @@ direct BLE), reverse proxy/HTTPS, and backup/updating — is in
 ## Documentation
 
 Start at the **[docs index](docs/README.md)** — it maps every guide. The
-[GitLab Wiki](https://github.com/dlommm/Kegwall/wiki) mirrors the same material
+[GitHub Wiki](https://github.com/dlommm/Kegwall/wiki) mirrors the same material
 for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 
 | Doc | Covers |
@@ -176,25 +176,25 @@ for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 Single Node 24 / TypeScript process (ESM, strict): Fastify (REST + WebSocket + static
 files), better-sqlite3 (WAL mode, embedded migrations), React 19 for the web frontend.
 No separate server build step — the server runs its TypeScript source directly under
-`tsx`; only the SPA is compiled ahead of time (`vite build`). See
-[docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md](docs/superpowers/specs/2026-07-27-kegtron-dashboard-design.md)
-for the full architecture writeup.
+`tsx`; only the SPA is compiled ahead of time (`vite build`). See the
+[documentation index](docs/README.md) for feature, install, and integration guides.
 
 ## Continuous integration & automated releases
 
-[`.gitlab-ci.yml`](.gitlab-ci.yml) runs typecheck, the unit suite, and the web build on
-every push. Releases are fully automated: pushes to `main` run
+GitHub Actions ([`.github/workflows/`](.github/workflows/)) runs typecheck, the unit suite, and
+the web build on every push and pull request. Releases are fully automated: pushes to `main` run
 [semantic-release](https://semantic-release.gitbook.io/) (config in
 [`.releaserc.json`](.releaserc.json)), which reads
 [conventional commit](https://www.conventionalcommits.org/) messages to pick the next
 version (`fix:` → patch, `feat:` → minor, `BREAKING CHANGE:`/`!` → major), updates
-`CHANGELOG.md` + `package.json`, pushes the `vX.Y.Z` tag, and creates a GitLab Release
-with generated notes. The tag pipeline then builds the multi-arch (amd64 + arm64) image
-and pushes it to the container registry as both `X.Y.Z` and `latest` (`latest` never
-moves on a prerelease tag). Merging a `feat:`/`fix:` commit is the entire release
-process — commit messages are the release notes, so write them accordingly. The
-semantic-release job is gated on a `GITLAB_TOKEN` CI/CD variable (project access token,
-Maintainer role, `api` + `write_repository` scopes).
+`CHANGELOG.md` + `package.json`, pushes the `vX.Y.Z` tag, and creates a GitHub Release
+with generated notes. The same run then builds the multi-arch (amd64 + arm64) image and
+pushes it to `ghcr.io/dlommm/kegwall` as both `X.Y.Z` and `latest` (`latest` never moves on
+a prerelease tag), and attaches the tablet APK and the unattended-installer ISO to the
+release. Merging a `feat:`/`fix:` commit is the entire release process — commit messages are
+the release notes, so write them accordingly. Everything runs on the built-in
+`GITHUB_TOKEN`; the only secrets to configure are the optional `ANDROID_KEYSTORE_*` ones for a
+stably-signed APK (see [docs/install/android-tablet.md](docs/install/android-tablet.md)).
 
 ## Running from source (without Docker)
 
@@ -217,10 +217,10 @@ npm run test:e2e  # Playwright, against a production build
 
 ## Contributing
 
-No formal process yet — this is a young project. Bug reports and merge requests are
+No formal process yet — this is a young project. Bug reports and pull requests are
 welcome; for anything nontrivial, opening an issue first to discuss the approach is
 appreciated. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Run the full
-local gate before sending an MR:
+local gate before opening a pull request:
 
 ```sh
 npm test && npm run typecheck && npm run build && npm run test:e2e
@@ -235,7 +235,7 @@ feature, install step, or setting must update the docs in the same commit:
 - **[CHANGELOG.md](CHANGELOG.md)** — carried by your conventional-commit message
   (`feat:`/`fix:` become the release notes), so write the commit subject as the changelog line.
 
-An MR that changes behaviour without touching docs is incomplete.
+A pull request that changes behaviour without touching docs is incomplete.
 
 ## License
 

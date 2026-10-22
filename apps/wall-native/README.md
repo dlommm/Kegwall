@@ -11,7 +11,7 @@ A native, GPU-accelerated Flutter app that renders the Kegwall tap wall directly
 [`flutter-pi`](https://github.com/ardera/flutter-pi) — **no browser, no desktop**. It was intended
 to replace the cage + chromium kiosk on both **Raspberry Pi (arm64)** and **amd64 mini PCs**.
 
-Design spec: [`docs/superpowers/specs/2026-08-02-native-wall-client-design.md`](../../docs/superpowers/specs/2026-08-02-native-wall-client-design.md).
+Install guide: [`docs/install/native-wall.md`](../../docs/install/native-wall.md).
 
 ## What it does
 

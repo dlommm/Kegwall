@@ -1,11 +1,11 @@
 # Contributing to Kegwall
 
-A young project — bug reports and merge requests welcome. For anything nontrivial, open an issue
+A young project — bug reports and pull requests welcome. For anything nontrivial, open an issue
 first to discuss the approach.
 
 ## Local gate
 
-Run the full gate before sending an MR:
+Run the full gate before opening a pull request:
 
 ```sh
 npm test && npm run typecheck && npm run build && npm run test:e2e
@@ -14,7 +14,7 @@ npm test && npm run typecheck && npm run build && npm run test:e2e
 - `npm run typecheck` checks **both** tsconfigs (server + `tsconfig.web.json`, which covers
   `src/web` and `tests/`). Don't rely on a bare `tsc` — it misses web/test errors that fail CI.
 - `npm run test:e2e` is Playwright against a production build; CI does **not** run it (no browser
-  stack on the shared runner), so run it locally before releasing.
+  stack in the GitHub Actions job), so run it locally before releasing.
 
 ## Commits drive releases
 
@@ -27,7 +27,7 @@ Releases are fully automated. Use [Conventional Commits](https://www.conventiona
 | `feat!:` / `BREAKING CHANGE:` footer | major release |
 | `docs:` / `chore:` / `test:` | no release |
 
-Your commit **subject becomes the CHANGELOG line and the GitLab release note**, so write it as the
+Your commit **subject becomes the CHANGELOG line and the GitHub release note**, so write it as the
 change you'd want a user to read — not "wip" or "fix stuff".
 
 ## Docs, changelog, and wiki are part of the change
@@ -44,16 +44,16 @@ update all three in the same change:
    `**Added:**`/`**Fixed:**`/`**Changed:**` bullet per user-visible change, matching the existing
    style). A release with a header-only changelog entry isn't finished.
 3. **Wiki** — the mirroring page in the
-   [GitLab Wiki](https://github.com/dlommm/Kegwall/wiki). The in-repo `docs/` tree
+   [GitHub Wiki](https://github.com/dlommm/Kegwall/wiki). The in-repo `docs/` tree
    is the source of truth; the wiki mirrors it. Update it with:
 
    ```sh
-   git clone https://github.com/dlommm/Kegwall.wiki.git
+   git clone https://github.com/dlommm/Kegwall.wiki.git kegwall.wiki
    # edit the matching page, then:
    git -C kegwall.wiki add -A && git -C kegwall.wiki commit -m "docs: sync <topic>" && git -C kegwall.wiki push
    ```
 
-An MR that changes behaviour without touching docs is incomplete. Reviewers should send it back.
+A pull request that changes behaviour without touching docs is incomplete. Reviewers should send it back.
 
 ## Invariants
 

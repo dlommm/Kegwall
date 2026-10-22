@@ -5,7 +5,7 @@ USB, boot it, walk away. Debian installs itself, reboots, and the first boot ins
 cog wall.
 
 > **amd64 only.** A Raspberry Pi doesn't boot ISOs — it needs an SD-card image (a separate
-> pipeline, not built yet). This page is for x86 mini-PCs.
+> build, not made yet). This page is for x86 mini-PCs.
 
 ## The idea (why it stays up to date)
 
@@ -15,18 +15,19 @@ Kegwall itself is **not baked in** — on the first boot, `kegwall-firstboot.ser
 
 - Even an old ISO installs **today's** Kegwall — the app is fetched fresh, never frozen.
 - CI just re-spins the ISO per release to refresh the Debian base + preseed
-  ([`scripts/build-kegwall-iso.sh`](../../scripts/build-kegwall-iso.sh), the `build-iso` job).
+  ([`scripts/build-kegwall-iso.sh`](../../scripts/build-kegwall-iso.sh), the `iso` job in the
+  Publish workflow).
 
 ## Use it
 
-1. **Get the ISO** — the `build-iso` CI job (manual) builds it and publishes to the project's
-   **Package Registry** under `kegwall-iso` (the ISO is too big for a job artifact). Every build
-   gets its own trackable version (a release tag, else `<app-version>-dev.<sha>`) and also updates
-   the `latest` alias. Grab it from **Deploy → Package Registry**, or by URL — newest:
+1. **Get the ISO** — every release attaches `kegwall-installer-amd64.iso` (plus a `.sha256`) to
+   its [GitHub Release](https://github.com/dlommm/Kegwall/releases). Newest:
    ```
-   https://github.com/api/v4/projects/2/packages/generic/kegwall-iso/latest/kegwall-installer-amd64.iso
+   https://github.com/dlommm/Kegwall/releases/latest/download/kegwall-installer-amd64.iso
    ```
-   …or a specific version by swapping `latest` for it. The ISO also carries `/kegwall-version.txt`.
+   …or a specific version from that release's page. The ISO also carries `/kegwall-version.txt`.
+   To test a branch, run the **Publish** workflow from the Actions tab with no tag — the ISO
+   (versioned `<app-version>-dev.<sha>`) lands as a workflow artifact.
    Or build locally on a Debian box:
    ```bash
    sudo apt-get install -y xorriso isolinux curl ca-certificates

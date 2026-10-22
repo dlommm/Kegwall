@@ -23,7 +23,7 @@ Then open `http://<host>:8080`. First visit sends you to a one-time admin setup 
 This builds the image locally from the `Dockerfile` in the repo root (`deploy/docker-compose.yml`
 sets `build.context: ..`). A published multi-arch (amd64 + arm64) image also exists at
 `ghcr.io/dlommm/kegwall` — tagged `latest` plus each release version, built
-by `.gitlab-ci.yml` on every `v*` tag. To use it instead of building locally, swap the
+by GitHub Actions for every release. To use it instead of building locally, swap the
 `build:` block for `image: ghcr.io/dlommm/kegwall:latest` (or start from
 `deploy/docker-compose.unraid.yml`, which is already pull-only).
 

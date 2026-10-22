@@ -7,15 +7,16 @@ TV stick too.
 
 ## Get the APK
 
-Every release pipeline builds it: GitLab → **Build → Pipelines** → open a `vX.Y.Z`
-pipeline → the `android-apk` job → **Browse/Download artifacts** →
-`kegwall-tablet.apk`. (On any branch pipeline the job exists as a manual "play"
-button.)
+Every release attaches it: download `kegwall-tablet.apk` from the
+[latest release](https://github.com/dlommm/Kegwall/releases/latest) — or directly from
+`https://github.com/dlommm/Kegwall/releases/latest/download/kegwall-tablet.apk`. (For a
+branch test build, run the **Publish** workflow from the Actions tab with no tag; the
+APK lands as a workflow artifact.)
 
 ## Install on the tablet
 
-1. Copy the APK to the tablet (USB, a file-share, or just open the GitLab artifact
-   URL in the tablet's browser while logged in).
+1. Copy the APK to the tablet (USB, a file-share, or just open the release
+   download URL above in the tablet's browser).
 2. Open the APK from the Files app. Android will ask to allow installs from that
    source ("Install unknown apps") — allow it for the Files app/browser you used.
 3. Launch **Kegwall**, enter your tablet URL (e.g. `http://192.168.1.50:8080/tablet/main`),
@@ -43,7 +44,7 @@ Permissions → Camera**; no reinstall needed.
 
 ## Updates
 
-By default CI produces a **debug-signed** APK whose signature changes every build, so
+Without a signing key, CI produces only branch test builds — **debug-signed** APKs whose signature changes every build, so
 Android refuses to install an update over the old one — **uninstall Kegwall first,
 then install the new APK**. (Your saved URL is lost on uninstall; it's one field.)
 
@@ -55,10 +56,10 @@ keytool -genkeypair -v -keystore kegwall-kiosk.keystore -alias kegwall \
 base64 -i kegwall-kiosk.keystore | pbcopy   # macOS; use `base64 -w0` on Linux
 ```
 
-Then add four CI/CD variables in GitLab (Settings → CI/CD → Variables, all masked
-where possible): `ANDROID_KEYSTORE_B64` (the base64 you just copied),
+Then add four repository secrets on GitHub (Settings → Secrets and variables →
+Actions → **New repository secret**): `ANDROID_KEYSTORE_B64` (the base64 you just copied),
 `ANDROID_KEYSTORE_PASS`, `ANDROID_KEY_ALIAS` (`kegwall`), `ANDROID_KEY_PASS`. From the
-next build on, the job produces a release-signed APK with a stable signature. Keep the
+next build on, the job produces (and every release requires) a release-signed APK with a stable signature. Keep the
 keystore file safe — losing it means one final uninstall/reinstall cycle with a new
 key.
 

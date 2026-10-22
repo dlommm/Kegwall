@@ -712,7 +712,7 @@ Compose file (`deploy/docker-compose.unraid.yml`).
 
 First shippable version of Kegtron Dashboard: a self-hosted, standalone-first tap wall
 for Kegtron keg monitors with optional Home Assistant integration. Built across six
-phases (`docs/superpowers/plans/`); this entry summarizes what shipped, not a commit log.
+phases; this entry summarizes what shipped, not a commit log.
 
 ### Server core
 
