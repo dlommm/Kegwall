@@ -1,0 +1,187 @@
+# Kegwall — release artifacts. Called by release.yml for each new vX.Y.Z tag, or run by
+# hand (Actions → Publish → Run workflow):
+#
+#   - with a `tag`: (re)publish that release — Docker image, signed APK, ISO, all attached
+#     to the existing GitHub Release;
+#   - without a tag: a test build of the selected branch — debug-signed APK, Flutter bundle
+#     and a dev ISO as workflow artifacts only; nothing is pushed or attached.
+#
+# Only the image job gates anything; the APK, Flutter and ISO jobs are continue-on-error so
+# a toolchain hiccup never blocks a release.
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to (re)publish, e.g. v1.17.0 — leave empty for a branch test build
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  # Multi-arch (amd64 + arm64 — Raspberry Pi 4/5) image, tagged X.Y.Z and latest. latest is
+  # skipped for prerelease tags (anything containing a '-', e.g. v0.6.0-rc.1) so a prerelease
+  # can never move :latest out from under a real release.
+  image:
+    if: inputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/kegwall
+          tags: |
+            type=semver,pattern={{version}},value=${{ inputs.tag }}
+            type=raw,value=latest,enable=${{ !contains(inputs.tag, '-') }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Tablet kiosk APK (android/ — a WebView wrapper around /tablet/:slug). A release build
+  # needs the ANDROID_KEYSTORE_* repository secrets (docs/install/android-tablet.md) and
+  # refuses to publish an unsigned/debug APK; a branch test build without them is
+  # debug-signed (its signature changes per build — uninstall before updating).
+  android-apk:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+      - name: Build
+        working-directory: android
+        env:
+          # Signing secrets travel as ORG_GRADLE_PROJECT_* env vars (Gradle maps each to the
+          # matching project property, same as -P) instead of -P CLI args — so they never
+          # appear in the process argv / --info build output.
+          ORG_GRADLE_PROJECT_keystoreB64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ORG_GRADLE_PROJECT_keystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          ORG_GRADLE_PROJECT_keyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_keyPass: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          if [ -n "$ORG_GRADLE_PROJECT_keystoreB64" ]; then
+            gradle --no-daemon assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk ../kegwall-tablet.apk
+          elif [ -n "$TAG" ]; then
+            echo "Release build with no ANDROID_KEYSTORE_B64 — refusing to publish an unsigned/debug APK." >&2
+            exit 1
+          else
+            echo "No keystore (branch build) — building a debug-signed APK (uninstall before updating)."
+            gradle --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../kegwall-tablet.apk
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kegwall-tablet-apk
+          path: kegwall-tablet.apk
+      - name: Attach to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" kegwall-tablet.apk --clobber
+
+  # Native wall client (apps/wall-native — flutter-pi kiosk). Compile-verifies the Flutter/Dart:
+  # analyze + unit tests + a bundle build.
+  wall-native:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: apps/wall-native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      # --no-fatal-infos: style/deprecation infos (e.g. withOpacity on a newer stable Flutter)
+      # shouldn't fail the build; real warnings/errors still do.
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+      - run: flutter build bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kegwall-wall-bundle
+          path: apps/wall-native/build/flutter_assets/
+          retention-days: 7
+
+  # Unattended installer ISO (deploy/debian/) — the stock Debian amd64 netinst remastered with
+  # our preseed baked in. It carries only Debian + the preseed; the app is pulled fresh at first
+  # boot (kegwall-firstboot.sh). Attached to the release so
+  # releases/latest/download/kegwall-installer-amd64.iso always resolves. Boot-test it in a VM
+  # before trusting it — it erases the target disk.
+  iso:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq xorriso isolinux curl ca-certificates
+      - name: Build
+        env:
+          ISO_VERSION: ${{ inputs.tag }}
+          KEGWALL_REF: ${{ inputs.tag || github.ref_name }}
+        run: |
+          bash scripts/build-kegwall-iso.sh
+          sha256sum kegwall-installer-amd64.iso | tee kegwall-installer-amd64.iso.sha256
+      - name: Attach to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" kegwall-installer-amd64.iso kegwall-installer-amd64.iso.sha256 --clobber
+      - name: Keep a branch test build as a workflow artifact
+        if: env.TAG == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: kegwall-installer-iso
+          path: |
+            kegwall-installer-amd64.iso
+            kegwall-installer-amd64.iso.sha256
+          retention-days: 7

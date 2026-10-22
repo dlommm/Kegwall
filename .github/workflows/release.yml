@@ -1,0 +1,70 @@
+# Kegwall — automated release cycle. Every push to main:
+#
+#   1. runs CI (ci.yml);
+#   2. runs semantic-release: conventional commit messages decide the next version
+#      (fix -> patch, feat -> minor, a "BREAKING CHANGE:" footer or "!" -> major),
+#      CHANGELOG.md and package.json are committed back ("chore(release): ... [skip ci]",
+#      which GitHub does not re-run), the vX.Y.Z tag is pushed, and a GitHub Release with
+#      generated notes is created. Commits that warrant no release (docs/chore/test)
+#      produce none;
+#   3. when a release was cut, calls publish.yml for that tag: the multi-arch Docker
+#      image on ghcr.io plus the tablet APK and installer ISO as release assets.
+#
+# Tags pushed with the built-in GITHUB_TOKEN never trigger other workflows, which is why
+# publishing is chained here instead of hanging off a tag-push trigger.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # release commit, tag, GitHub Release
+      issues: write # semantic-release comments on released issues/PRs
+      pull-requests: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # semantic-release needs the full history + tags to find the last release.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: git tag -l 'v*' | sort > "$RUNNER_TEMP/tags-before"
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: tag
+        name: Detect the tag this run created (empty when no release was cut)
+        run: |
+          NEW=$(git tag -l 'v*' | sort | comm -13 "$RUNNER_TEMP/tags-before" - | tail -1)
+          echo "tag=$NEW" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write

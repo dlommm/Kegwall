@@ -35,8 +35,6 @@
       "assets": ["CHANGELOG.md", "package.json", "package-lock.json"],
       "message": "chore(release): v${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
     }],
-    ["@semantic-release/gitlab", {
-      "gitlabUrl": "https://github.com"
-    }]
+    "@semantic-release/github"
   ]
 }
