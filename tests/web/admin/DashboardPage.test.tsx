@@ -509,4 +509,23 @@ describe('DashboardPage', () => {
     await flush();
     expect(screen.queryByTestId('dashboard-setup-hint')).not.toBeInTheDocument();
   });
+
+  it('lists taps whose cleaning reminders are ignored, linking to each tap, without triaging them', async () => {
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(1), makeTap(2, { tapNumber: 4 })], stale: false, connected: true, reconnectCount: 0,
+    });
+    (getCleaningStatuses as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        { tapId: 1, lastCleanedAt: null, gallonsSince: 0, daysSince: null, due: false, ignored: false },
+        { tapId: 2, lastCleanedAt: null, gallonsSince: 20, daysSince: null, due: false, ignored: true },
+      ],
+    });
+    renderAdminPage(<DashboardPage />);
+    await flush();
+    const note = screen.getByTestId('dashboard-cleaning-ignored');
+    expect(note).toHaveTextContent('Line-cleaning reminders are off for Tap 4.');
+    expect(screen.getByRole('link', { name: 'Tap 4' })).toHaveAttribute('href', '/admin/taps?tap=2');
+    expect(screen.queryByText(/due for a line cleaning/)).not.toBeInTheDocument();
+  });
 });

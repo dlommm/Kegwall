@@ -3,9 +3,11 @@ import {
 } from 'vitest';
 import type { Mock } from 'vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
-import { PoursPage } from '../../../src/web/routes/admin/PoursPage';
 import {
-  listRecentPours, listBeers, listKegs, listTaps, setPourDrinker,
+  PoursPage, POURS_PAGE_SIZE, formatPourTime, pourQueryFor,
+} from '../../../src/web/routes/admin/PoursPage';
+import {
+  listRecentPours, listBeers, listKegs, listTaps, setPourDrinker, setPoursDrinker,
 } from '../../../src/web/lib/adminApi';
 import { getDrinkers } from '../../../src/web/lib/api';
 import type { Pour, Keg } from '../../../src/server/db/kegs';
@@ -19,6 +21,7 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   listKegs: vi.fn(),
   listTaps: vi.fn(),
   setPourDrinker: vi.fn(),
+  setPoursDrinker: vi.fn(),
 }));
 
 vi.mock('../../../src/web/lib/api', () => ({
@@ -167,5 +170,128 @@ describe('PoursPage', () => {
     expect(screen.getByTestId('pours-row-error')).toHaveTextContent('Something went wrong');
     // Controlled by `pour.drinkerId`, which the failed call never updated — reverts.
     expect(screen.getByTestId('pours-row-drinker-select')).toHaveValue('10');
+  });
+  it('pages back with a keyset cursor and appends older pours', async () => {
+    const firstPage = Array.from({ length: POURS_PAGE_SIZE }, (_, i) => makePour({ id: 500 - i }));
+    (listRecentPours as Mock).mockResolvedValueOnce({ ok: true, data: firstPage });
+    renderAdminPage(<PoursPage />, adminContext('viewer'));
+    await screen.findByTestId('pours-table');
+    expect(screen.getByTestId('pours-count')).toHaveTextContent(`Showing ${POURS_PAGE_SIZE} pours`);
+
+    (listRecentPours as Mock).mockResolvedValueOnce({ ok: true, data: [makePour({ id: 3 }), makePour({ id: 2 })] });
+    fireEvent.click(screen.getByTestId('pours-load-more'));
+    await flush();
+
+    expect(listRecentPours).toHaveBeenLastCalledWith({ beforeId: 401, limit: POURS_PAGE_SIZE });
+    expect(screen.getAllByTestId('pours-row')).toHaveLength(POURS_PAGE_SIZE + 2);
+    // A short page means the history is exhausted.
+    expect(screen.queryByTestId('pours-load-more')).not.toBeInTheDocument();
+  });
+
+  it('hides "Load older pours" when the first page is not full', async () => {
+    (listRecentPours as Mock).mockResolvedValue({ ok: true, data: [makePour()] });
+    renderAdminPage(<PoursPage />);
+    await screen.findByTestId('pours-row');
+    expect(screen.queryByTestId('pours-load-more')).not.toBeInTheDocument();
+  });
+
+  it('sends the drinker filter to the server and explains an empty filtered result', async () => {
+    renderAdminPage(<PoursPage />);
+    await screen.findByTestId('pours-empty');
+    fireEvent.change(screen.getByTestId('pours-filter-drinker'), { target: { value: '11' } });
+    await flush();
+    expect(listRecentPours).toHaveBeenLastCalledWith({ drinkerId: 11, limit: POURS_PAGE_SIZE });
+    expect(screen.getByTestId('pours-empty')).toHaveTextContent('No pours match these filters.');
+    fireEvent.click(screen.getByTestId('pours-filter-clear'));
+    await flush();
+    expect(listRecentPours).toHaveBeenLastCalledWith({ limit: POURS_PAGE_SIZE });
+  });
+
+  it('bulk-assigns selected pours in one call and drops them from the unclaimed view', async () => {
+    (listRecentPours as Mock).mockResolvedValue({
+      ok: true, data: [makePour({ id: 1 }), makePour({ id: 2 }), makePour({ id: 3 })],
+    });
+    (setPoursDrinker as Mock).mockResolvedValue({
+      ok: true, data: [makePour({ id: 1, drinkerId: 11 }), makePour({ id: 3, drinkerId: 11 })],
+    });
+    renderAdminPage(<PoursPage />, adminContext('editor'));
+    await screen.findByTestId('pours-table');
+    fireEvent.click(screen.getByLabelText('Unclaimed only'));
+    await flush();
+    expect(listRecentPours).toHaveBeenLastCalledWith({ unclaimed: true, limit: POURS_PAGE_SIZE });
+
+    const boxes = screen.getAllByTestId('pours-row-select');
+    fireEvent.click(boxes[0]!);
+    fireEvent.click(boxes[2]!);
+    expect(screen.getByTestId('pours-bulk-count')).toHaveTextContent('2 selected');
+    expect(screen.getByTestId('pours-bulk-apply')).toBeDisabled();
+    fireEvent.change(screen.getByTestId('pours-bulk-target'), { target: { value: '11' } });
+    fireEvent.click(screen.getByTestId('pours-bulk-apply'));
+    await flush();
+
+    expect(setPoursDrinker).toHaveBeenCalledWith([1, 3], 11);
+    expect(screen.getAllByTestId('pours-row')).toHaveLength(1);
+    expect(screen.getByTestId('pours-bulk-message')).toHaveTextContent('Assigned 2 pours to Sam.');
+    expect(screen.queryByTestId('pours-bulk-bar')).not.toBeInTheDocument();
+  });
+
+  it('select-all plus "Unclaimed" bulk-unclaims; a failure keeps the selection and shows why', async () => {
+    (listRecentPours as Mock).mockResolvedValue({
+      ok: true, data: [makePour({ id: 1, drinkerId: 10 }), makePour({ id: 2, drinkerId: 10 })],
+    });
+    (setPoursDrinker as Mock).mockResolvedValue({ ok: false, status: 404, message: 'pour 2 not found' });
+    renderAdminPage(<PoursPage />, adminContext('editor'));
+    await screen.findByTestId('pours-table');
+    fireEvent.click(screen.getByTestId('pours-select-all'));
+    fireEvent.change(screen.getByTestId('pours-bulk-target'), { target: { value: 'unclaim' } });
+    fireEvent.click(screen.getByTestId('pours-bulk-apply'));
+    await flush();
+
+    expect(setPoursDrinker).toHaveBeenCalledWith([1, 2], null);
+    expect(screen.getByTestId('pours-bulk-message')).toHaveTextContent('pour 2 not found');
+    expect(screen.getByTestId('pours-bulk-count')).toHaveTextContent('2 selected');
+  });
+
+  it('viewers get no selection checkboxes', async () => {
+    (listRecentPours as Mock).mockResolvedValue({ ok: true, data: [makePour()] });
+    renderAdminPage(<PoursPage />, adminContext('viewer'));
+    await screen.findByTestId('pours-row');
+    expect(screen.queryByTestId('pours-row-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('pours-select-all')).not.toBeInTheDocument();
+  });
+
+  it('shows a machine-readable timestamp with the full date on hover', async () => {
+    (listRecentPours as Mock).mockResolvedValue({ ok: true, data: [makePour()] });
+    renderAdminPage(<PoursPage />);
+    const time = await screen.findByTestId('pours-row-time');
+    expect(time).toHaveAttribute('dateTime', '2026-07-28T11:55:00.000Z');
+    expect(time.getAttribute('title')).toBeTruthy();
+  });
+});
+
+describe('formatPourTime', () => {
+  const now = new Date('2026-09-26T12:00:00.000Z');
+  it('is relative inside a day', () => {
+    expect(formatPourTime('2026-09-26T11:48:00.000Z', now)).toBe('12 min ago');
+  });
+  it('is an absolute date after a day, adding the year only when it differs', () => {
+    const lastWeek = formatPourTime('2026-09-19T12:00:00.000Z', now);
+    expect(lastWeek).not.toMatch(/ago/);
+    expect(lastWeek).not.toMatch(/2026/);
+    expect(formatPourTime('2025-09-19T12:00:00.000Z', now)).toMatch(/2025/);
+  });
+  it('degrades to a dash for a bad timestamp', () => {
+    expect(formatPourTime('nope', now)).toBe('—');
+  });
+});
+
+describe('pourQueryFor', () => {
+  it('turns local date bounds into inclusive UTC ISO bounds', () => {
+    const q = pourQueryFor({ unclaimedOnly: false, drinkerId: '', from: '2026-09-01', to: '2026-09-02' });
+    expect(q.since).toBe(new Date('2026-09-01T00:00:00').toISOString());
+    expect(q.until).toBe(new Date('2026-09-02T23:59:59.999').toISOString());
+  });
+  it('lets "Unclaimed only" win over a drinker filter', () => {
+    expect(pourQueryFor({ unclaimedOnly: true, drinkerId: '10', from: '', to: '' })).toEqual({ unclaimed: true });
   });
 });

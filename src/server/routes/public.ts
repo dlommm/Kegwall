@@ -4,6 +4,7 @@ import { getWallBySlug } from './crud.js';
 import { allowedTapIdsForWall } from '../db/wallDevices.js';
 import {
   recentUnclaimedPours, setPourDrinker, countPoursForDrinker, lastPourForDrinker,
+  CLAIM_WINDOW_MINUTES,
 } from '../db/pours.js';
 import { listDrinkers, createDrinker, getUser } from '../db/users.js';
 import { getKeg } from '../db/kegs.js';
@@ -19,9 +20,6 @@ import { bestMatch } from '../core/faceMatch.js';
 import { listFaceEmbeddings, insertFaceEmbedding, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 
 const faceEmbeddingSchema = z.array(z.number().finite()).min(64).max(2048);
-
-/** Design 3b: pours are claimable for 10 minutes after they happen. */
-const CLAIM_WINDOW_MINUTES = 10;
 
 /** Minimum scored pours before someone can win the "smoothest pour" superlative —
  * one lucky 98 shouldn't beat a consistent 94 (design 6b). */

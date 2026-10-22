@@ -9,7 +9,8 @@ import { monitorRefKey, type MonitorRef } from './events.js';
 // arrive just past 30s later and get double-recorded. Widened to 90s to comfortably
 // clear that worst case; EXPIRY_MS (below) grows with it so an entry is never pruned
 // out from under a still-in-window comparison.
-const WINDOW_MS = 90_000;
+export const DEDUPE_WINDOW_MS = 90_000;
+const WINDOW_MS = DEDUPE_WINDOW_MS;
 // ...and its volume is within tolerance: max(TOLERANCE_PCT * max(volumeMl, entry.volumeMl), MIN_TOLERANCE_ML).
 // Anchored to the LARGER of the two volumes (not just the registered one) so the
 // outcome is symmetric regardless of which report — the original or the duplicate —
@@ -22,6 +23,12 @@ const MIN_TOLERANCE_ML = 30;
 // (2x it, same ratio as the original 60s/30s pairing) so a live-for-dedup entry is
 // never pruned before WINDOW_MS's own comparison would have aged it out anyway.
 const EXPIRY_MS = 180_000;
+
+/** True when two reports' volumes are close enough to be the same physical pour. Shared
+ * with the persisted-pour check (`findRecordedTwin`, db/pours.ts) so both agree. */
+export function volumesMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) <= Math.max(TOLERANCE_PCT * Math.max(a, b), MIN_TOLERANCE_ML);
+}
 
 interface Entry {
   volumeMl: number;
@@ -66,8 +73,7 @@ export class PourDeduper {
 
     const isDuplicate = live.some((e) => {
       if (Math.abs(tsMs - e.tsMs) > WINDOW_MS) return false;
-      const tolerance = Math.max(TOLERANCE_PCT * Math.max(volumeMl, e.volumeMl), MIN_TOLERANCE_ML);
-      return Math.abs(volumeMl - e.volumeMl) <= tolerance;
+      return volumesMatch(volumeMl, e.volumeMl);
     });
 
     if (isDuplicate) {

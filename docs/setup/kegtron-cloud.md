@@ -59,6 +59,12 @@ above for beer/keg metadata, historical data, and any device UDP alone can't cov
 both cloud and UDP report the same pour, the app deduplicates it (`PourDeduper`) so it's
 recorded once, not twice.
 
+The same holds across restarts. On startup the cloud source backfills servings since its last
+run, and each replayed serving is checked against pours already saved on that tap (any keg it
+has had, within 90 seconds and a similar volume). Pours that were recorded live before an
+upgrade, restart, or settings change are therefore not counted again. A replayed older pour
+is also never credited to whoever is currently signed in at the tablet.
+
 ### When UDP goes silent
 
 A powered Kegtron Pro broadcasts about once a second even while idle, so silence always means

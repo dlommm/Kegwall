@@ -40,13 +40,26 @@ function emitPour(volumeMl = 372, ts = '2026-07-29T01:00:00.000Z') {
 }
 
 describe('StateManager tablet attribution (Pour Wall overhaul Phase 3)', () => {
+  it('a late-delivered older pour (cloud backfill) is not credited to the armed pourer, who stays armed', () => {
+    const pourer = createDrinker(db, { displayName: 'Sam' });
+    arm.arm(pourer.id);
+    emitPour(372, new Date(Date.now() - 60 * 60 * 1000).toISOString());
+    const old = db.prepare('SELECT drinker_id FROM pours ORDER BY id DESC LIMIT 1').get() as any;
+    expect(old.drinker_id).toBeNull();
+    expect(arm.current()?.drinkerId).toBe(pourer.id);
+    // Arming mid-pour still counts (small grace before armedAt).
+    emitPour(300, new Date(Date.now() - 30 * 1000).toISOString());
+    const theirs = db.prepare('SELECT drinker_id FROM pours ORDER BY id DESC LIMIT 1').get() as any;
+    expect(theirs.drinker_id).toBe(pourer.id);
+  });
+
   it('attributes a recorded pour to the armed pourer and emits pour_attributed', () => {
     const pourer = createDrinker(db, { displayName: 'Sam' });
     arm.arm(pourer.id);
     const attributed = vi.fn();
     bus.on('pour_attributed', attributed);
 
-    emitPour(372);
+    emitPour(372, new Date().toISOString());
 
     const row = db.prepare('SELECT drinker_id FROM pours ORDER BY id DESC LIMIT 1').get() as any;
     expect(row.drinker_id).toBe(pourer.id);
@@ -70,7 +83,7 @@ describe('StateManager tablet attribution (Pour Wall overhaul Phase 3)', () => {
     bus.on('pour_attributed', attributed);
 
     arm.arm(armed.id);
-    emitPour(372);
+    emitPour(372, new Date().toISOString());
     let row = db.prepare('SELECT drinker_id FROM pours ORDER BY id DESC LIMIT 1').get() as any;
     expect(row.drinker_id).toBe(armed.id);
     expect(attributed).toHaveBeenCalledTimes(1);

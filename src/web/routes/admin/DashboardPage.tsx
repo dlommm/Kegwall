@@ -188,6 +188,12 @@ export function DashboardPage() {
     undervolted: false,
   });
 
+  // Ignored reminders never enter triage, but stay visible here so a line isn't forgotten.
+  const tapNumberById = new Map(taps.map((t) => [t.tapId, t.tapNumber]));
+  const ignoredCleaningTaps = cleanings
+    .filter((c) => c.ignored && tapNumberById.has(c.tapId))
+    .map((c) => ({ tapId: c.tapId, tapNumber: tapNumberById.get(c.tapId)! }));
+
   return (
     <section data-testid="admin-dashboard-page" className="dashboard">
       <h1 className="dashboard__title font-display">Dashboard</h1>
@@ -273,6 +279,19 @@ export function DashboardPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {ignoredCleaningTaps.length > 0 && (
+        <p className="dashboard-cleaning-ignored" data-testid="dashboard-cleaning-ignored">
+          Line-cleaning reminders are off for{' '}
+          {ignoredCleaningTaps.map((t, i) => (
+            <span key={t.tapId}>
+              {i > 0 && ', '}
+              <Link to={`/admin/taps?tap=${t.tapId}`}>Tap {t.tapNumber}</Link>
+            </span>
+          ))}
+          .
+        </p>
       )}
 
       <div className="dashboard__stats">

@@ -51,6 +51,24 @@ test('empty taps stay quiet and cleaning reminders can be ignored and resumed', 
     await expect(page.getByTestId('pours-row')).toHaveCount(3);
     await page.reload();
     await expect(page.getByTestId('pours-row-drinker-select').filter({ has: page.locator('option:checked', { hasText: 'Morgan' }) })).toHaveCount(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page).toHaveTitle('Pours · Kegwall');
+
+    // Bulk-assign the remaining unclaimed pours in one go (phone viewport).
+    await page.getByLabel('Unclaimed only').check();
+    await expect(page.getByTestId('pours-row')).toHaveCount(3);
+    await page.getByTestId('pours-select-all').check();
+    await page.getByTestId('pours-bulk-target').selectOption(String(drinker.id));
+    await page.getByTestId('pours-bulk-apply').click();
+    await expect(page.getByTestId('pours-bulk-message')).toHaveText('Assigned 3 pours to Morgan.');
+    await expect(page.getByTestId('pours-row')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('pours-mobile-after.png'), fullPage: true });
+
+    // The mobile menu closes on Escape.
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await expect(page.getByRole('link', { name: 'Logs' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('link', { name: 'Logs' })).toBeHidden();
 
   } finally {
     await app.close();

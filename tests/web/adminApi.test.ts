@@ -18,7 +18,7 @@ import {
   getPoursByDay, getHourHistogram, getActiveKegStats, getBeersByVolume, getSensors,
   getMonthlySpend, getPourHistory, getBeerHistory, getPourerHistory,
   getStatsTemps, getLeaderboard,
-  listRecentPours, setPourDrinker,
+  listRecentPours, setPourDrinker, setPoursDrinker,
   listAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
   runAutomation, listAutomationTemplates, createFromTemplate, listAutomationChannels,
   listNotifications, getUnackedCount, ackNotification, ackAllNotifications, testChannel,
@@ -752,6 +752,25 @@ describe('admin api client', () => {
     const result = await listRecentPours();
     expect(result).toEqual({ ok: true, data: [pour] });
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/pours?limit=100', expect.any(Object));
+  });
+
+  it('listRecentPours encodes filters and the load-more cursor', async () => {
+    mockFetchOnce(200, []);
+    await listRecentPours({
+      unclaimed: true, drinkerId: 7, since: '2026-09-01T04:00:00.000Z', beforeId: 42, limit: 50,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/pours?limit=50&unclaimed=true&drinkerId=7&since=2026-09-01T04%3A00%3A00.000Z&beforeId=42',
+      expect.any(Object),
+    );
+  });
+
+  it('setPoursDrinker PATCHes the bulk endpoint', async () => {
+    mockFetchOnce(200, []);
+    await setPoursDrinker([1, 2], null);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/pours/drinker', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ pourIds: [1, 2], drinkerId: null }),
+    }));
   });
 
   it('setPourDrinker PATCHes /api/pours/:id/drinker', async () => {

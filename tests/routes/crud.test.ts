@@ -1318,6 +1318,35 @@ describe('crud routes', () => {
       expect(res.statusCode).toBe(403);
     });
 
+    it('bulk-assigns and bulk-unclaims pours, logs it, and validates the batch', async () => {
+      const { pourId, drinkerId } = await recordPourViaTap();
+      const url = '/api/pours/drinker';
+      const ok = await app.inject({ method: 'PATCH', url, cookies: adminCookies, payload: { pourIds: [pourId], drinkerId } });
+      expect(ok.statusCode).toBe(200);
+      expect(ok.json().map((p: { drinkerId: number }) => p.drinkerId)).toEqual([drinkerId]);
+      const filtered = await app.inject({ method: 'GET', url: `/api/pours?drinkerId=${drinkerId}`, cookies: adminCookies });
+      expect(filtered.json().map((p: { id: number }) => p.id)).toEqual([pourId]);
+      const logs = await app.inject({ method: 'GET', url: '/api/logs?source=pours', cookies: adminCookies });
+      expect(JSON.stringify(logs.json())).toContain('1 pour(s) assigned');
+
+      // All-or-nothing: an unknown id 404s and leaves the good one untouched.
+      const missing = await app.inject({ method: 'PATCH', url, cookies: adminCookies, payload: { pourIds: [pourId, 99_999], drinkerId: null } });
+      expect(missing.statusCode).toBe(404);
+      const after = await app.inject({ method: 'GET', url: `/api/pours?drinkerId=${drinkerId}`, cookies: adminCookies });
+      expect(after.json()).toHaveLength(1);
+
+      expect((await app.inject({ method: 'PATCH', url, cookies: adminCookies, payload: { pourIds: [], drinkerId: null } })).statusCode).toBe(400);
+      expect((await app.inject({ method: 'PATCH', url, cookies: adminCookies, payload: { pourIds: [pourId], drinkerId: 99_999 } })).statusCode).toBe(400);
+      expect((await app.inject({ method: 'PATCH', url, payload: { pourIds: [pourId], drinkerId: null } })).statusCode).toBe(401);
+      const unclaimed = await app.inject({ method: 'PATCH', url, cookies: adminCookies, payload: { pourIds: [pourId], drinkerId: null } });
+      expect(unclaimed.json()[0].drinkerId).toBeNull();
+    });
+
+    it('rejects an unknown load-more cursor with 404', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/pours?beforeId=99999', cookies: adminCookies });
+      expect(res.statusCode).toBe(404);
+    });
+
     it('reassigns a pour to a drinker (editor)', async () => {
       const { pourId, drinkerId } = await recordPourViaTap();
       const res = await app.inject({

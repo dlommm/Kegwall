@@ -95,6 +95,7 @@ export function TapsPage() {
   const [cleanings, setCleanings] = useState<CleaningStatus[]>([]);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
+
   useEffect(() => {
     let cancelled = false;
     getMenu().then((result) => {
@@ -112,6 +113,19 @@ export function TapsPage() {
   }, []);
 
   const { taps } = useTapStates(initialTaps);
+
+  // `?tap=<id>` deep links (dashboard triage, ignored-reminder note) expand that tap and
+  // bring it into view once rows exist — also on back/forward between two such links.
+  const linkedTapId = Number(searchParams.get('tap'));
+  const hasLinkedTap = Number.isInteger(linkedTapId) && linkedTapId > 0;
+  const linkedRowReady = hasLinkedTap && tapsStatus === 'loaded' && taps.some((t) => t.tapId === linkedTapId);
+  useEffect(() => {
+    if (!hasLinkedTap) return;
+    setExpandedTapId(linkedTapId);
+    if (!linkedRowReady) return;
+    const row = document.querySelector(`[data-tap-id="${linkedTapId}"]`);
+    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [hasLinkedTap, linkedTapId, linkedRowReady]);
 
   // Beers/kegs/monitors/tapRows don't ride the /ws snapshot (only tap-level live state
   // does) — this reloads all four whenever `dataRefreshKey` is bumped (after a swap, a
@@ -241,7 +255,7 @@ export function TapsPage() {
             const isLow = !isKicked && tap.keg != null && levelPct <= 15;
             const ML_PER_PINT = 473.176;
             return (
-              <li key={tap.tapId} className="taps-row" data-testid="taps-row" data-kicked={isKicked}>
+              <li key={tap.tapId} className="taps-row" data-testid="taps-row" data-tap-id={tap.tapId} data-kicked={isKicked}>
                 <div className="taps-row__main">
                   <span className="taps-row__glyph" aria-hidden="true">
                     <KegSilhouette levelPct={Math.round(levelPct)} kegType={kegType} width={78} />

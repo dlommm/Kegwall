@@ -1,6 +1,12 @@
 import type Database from 'better-sqlite3';
 import type { Pour } from './kegs.js';
 import { NotFoundError } from '../core/errors.js';
+import { DEDUPE_WINDOW_MS, volumesMatch } from '../core/pourDedupe.js';
+
+/** Design 3b: guests can claim a pour for this many minutes after it happens; older
+ * pours are assigned by an editor on the admin Pours page. Shared with the menu's
+ * claim copy so the two can't drift. */
+export const CLAIM_WINDOW_MINUTES = 10;
 
 function rowToPour(r: any): Pour {
   return {
@@ -14,6 +20,7 @@ function rowToPour(r: any): Pour {
 
 export function listPours(db: Database.Database, filter: {
   kegId?: number; since?: string; until?: string; limit?: number; unclaimed?: boolean;
+  drinkerId?: number; beforeId?: number;
 } = {}): Pour[] {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -21,9 +28,18 @@ export function listPours(db: Database.Database, filter: {
   if (filter.since) { clauses.push('ts >= ?'); params.push(filter.since); }
   if (filter.until) { clauses.push('ts <= ?'); params.push(filter.until); }
   if (filter.unclaimed) clauses.push('drinker_id IS NULL');
+  if (filter.drinkerId !== undefined) { clauses.push('drinker_id = ?'); params.push(filter.drinkerId); }
+  if (filter.beforeId !== undefined) {
+    // Keyset cursor for "load more": rows strictly after the cursor pour in the
+    // (ts DESC, id DESC) order, so pages never overlap or skip same-timestamp rows.
+    const cursor = db.prepare('SELECT ts FROM pours WHERE id = ?').get(filter.beforeId) as { ts: string } | undefined;
+    if (!cursor) throw new NotFoundError(`pour ${filter.beforeId}`);
+    clauses.push('(ts < ? OR (ts = ? AND id < ?))');
+    params.push(cursor.ts, cursor.ts, filter.beforeId);
+  }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const limit = filter.limit ?? 500;
-  return db.prepare(`SELECT * FROM pours ${where} ORDER BY ts DESC LIMIT ?`)
+  return db.prepare(`SELECT * FROM pours ${where} ORDER BY ts DESC, id DESC LIMIT ?`)
     .all(...params, limit).map(rowToPour);
 }
 
@@ -43,6 +59,32 @@ export function latestPourByKeg(
   ).all(...kegIds) as { keg_id: number; ts: string; volume_ml: number }[];
   for (const r of rows) map.set(r.keg_id, { ts: r.ts, volumeMl: r.volume_ml });
   return map;
+}
+
+/**
+ * An already-RECORDED pour on any keg this tap has had, within the dedupe window of `ts`
+ * and a matching volume — the persisted half of duplicate suppression. The in-memory
+ * `PourDeduper` resets on every restart / source rebuild, but the Kegtron cloud backfill
+ * then replays every serving since its cursor, including pours the live feed (WS diff or
+ * UDP) already recorded; this catches those. Searches every keg on the tap, since a
+ * replayed pour may predate a keg swap. `julianday` tolerates both stored ts spellings
+ * (`…:00Z` from mdash, `…:00.000Z` from live sources).
+ */
+export function findRecordedTwin(
+  db: Database.Database, tapId: number, ts: string, volumeMl: number,
+): Pour | null {
+  const tsMs = Date.parse(ts);
+  if (Number.isNaN(tsMs)) return null;
+  const from = new Date(tsMs - DEDUPE_WINDOW_MS - 1000).toISOString().slice(0, 19);
+  const to = new Date(tsMs + DEDUPE_WINDOW_MS + 1000).toISOString().slice(0, 19);
+  const rows = db.prepare(`
+    SELECT * FROM pours
+     WHERE keg_id IN (SELECT id FROM kegs WHERE tap_id = ?)
+       AND ts >= ? AND ts <= ?
+       AND ABS(julianday(ts) - julianday(?)) * 86400000 <= ?`)
+    .all(tapId, from, `${to}Z`, ts, DEDUPE_WINDOW_MS);
+  const match = rows.find((r: any) => volumesMatch(r.volume_ml, volumeMl));
+  return match ? rowToPour(match) : null;
 }
 
 export function recentUnclaimedPours(db: Database.Database, windowMinutes: number): Pour[] {
@@ -72,6 +114,13 @@ export function ratePour(db: Database.Database, pourId: number, rating: number, 
     .run(rating, JSON.stringify(tags), pourId);
   if (res.changes === 0) throw new NotFoundError(`pour ${pourId}`);
   return rowToPour(db.prepare('SELECT * FROM pours WHERE id = ?').get(pourId));
+}
+
+/** Assigns (or, with `null`, unclaims) many pours in one transaction. All-or-nothing:
+ * an unknown pour id rolls the whole batch back with a NotFoundError. */
+export function setPoursDrinker(db: Database.Database, pourIds: number[], drinkerId: number | null): Pour[] {
+  const ids = [...new Set(pourIds)];
+  return db.transaction(() => ids.map((id) => setPourDrinker(db, id, drinkerId)))();
 }
 
 export function setPourDrinker(db: Database.Database, pourId: number, drinkerId: number | null): Pour {

@@ -116,6 +116,9 @@ export function LogsPage() {
 
   return (
     <div data-testid="logs-page">
+      <header className="admin-page-header">
+        <h1 className="admin-page-header__title font-display">Logs</h1>
+      </header>
       <div className="logs-toolbar">
         <input
           type="search"

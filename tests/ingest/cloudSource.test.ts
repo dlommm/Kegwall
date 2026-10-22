@@ -412,6 +412,55 @@ describe('KegtronCloudSource backfill cursor persistence (Final review C1)', () 
   });
 });
 
+describe('KegtronCloudSource backfill vs live-recorded pours', () => {
+  it('a restart backfill does not re-record a pour the live feed already recorded after the cursor', async () => {
+    const baseUrl = await listenHttp();
+    const db = openDb(mkdtempSync(join(tmpdir(), 'ktdash-')));
+    const localSettings = new SettingsStore(db);
+    localSettings.set('kegtronApiKey', API_KEY);
+    const localBus = new EventBus();
+    const state = new StateManager(db, localBus);
+    state.start();
+    const monitor = upsertMonitor(db, { type: 'kegtron_pro', identifier: 'device2', portIndex: 0 });
+    const beer = createBeer(db, { name: 'Pils' });
+    const tap = createTap(db, { number: 1 });
+    createKeg(db, { beerId: beer.id, sizeMl: 19700, volStartMl: 19700, tapId: tap.id });
+    bindMonitorToTap(db, monitor.id, tap.id);
+    const pourCount = () => (db.prepare('SELECT COUNT(*) c FROM pours').get() as { c: number }).c;
+
+    // First run: nothing historical; the backfill just sets the cursor to "now".
+    let liveRow: unknown[] | null = null;
+    servingsHandler = async (req: any) => {
+      const start = req.body.params[0] as string;
+      const startMs = Date.parse(start.replace(' ', 'T') + 'Z');
+      return { rows: liveRow && Date.parse(liveRow[0] as string) >= startMs ? [liveRow] : [] };
+    };
+    source = new KegtronCloudSource({ bus: localBus, settings: localSettings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+    await vi.waitFor(() => expect(Object.keys(localSettings.get('backfillCursors'))).toEqual(['device2']));
+
+    // Later, a pour arrives LIVE (WS shadow diff / UDP) and is recorded.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const liveTs = new Date().toISOString();
+    localBus.emit('pour_completed', {
+      monitor: { type: 'kegtron_pro', identifier: 'device2', portIndex: 0 },
+      volumeMl: 200, durationMs: 4000, source: 'cloud', ts: liveTs,
+    });
+    expect(pourCount()).toBe(1);
+    liveRow = [liveTs, '', "Moe's Tavern", 'device2', 0, 200, 7134, 88.0, 'King Cobra', 4000];
+    await source.stop();
+
+    // Process restart: fresh bus + StateManager (so a fresh in-memory deduper), same DB.
+    // mdash now reports that same serving.
+    const restartBus = new EventBus();
+    new StateManager(db, restartBus).start();
+    source = new KegtronCloudSource({ bus: restartBus, settings: localSettings, baseUrl, wsBaseUrl, ...FAST_OPTS });
+    await source.start();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(pourCount()).toBe(1);
+  });
+});
+
 describe('KegtronCloudSource stale poll guard', () => {
   it('discards an in-flight poll result once a WS "updated" applied newer state — the same pour is never re-emitted', async () => {
     settings.set('kegtronApiKey', API_KEY);

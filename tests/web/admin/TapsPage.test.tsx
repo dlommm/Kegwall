@@ -107,6 +107,19 @@ beforeEach(() => {
 });
 
 describe('TapsPage', () => {
+  it('a ?tap= deep link expands that tap and scrolls it into view', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    (useTapStates as Mock).mockReturnValue({
+      taps: [makeTap(1), makeTap(2)], stale: false, connected: true, reconnectCount: 0,
+    });
+    renderAdminPage(<TapsPage />, {}, '/x?tap=2');
+    const rows = await screen.findAllByTestId('taps-row');
+    expect(rows[1]).toContainElement(screen.getByTestId('taps-row-details'));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(rows[1]);
+  });
+
   it('renders one row per tap with number/name/beer/level from the live tap states', async () => {
     (useTapStates as Mock).mockReturnValue({
       taps: [

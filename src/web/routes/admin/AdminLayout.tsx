@@ -11,7 +11,7 @@ import {
   ADMIN_THEMES, getAdminTheme, loadAdminThemeId, saveAdminThemeId, type AdminThemeId,
 } from '../../lib/adminTheme';
 import { initials } from '../../lib/initials';
-import { ADMIN_NAV_ITEMS, visibleNavItems } from './adminNav';
+import { ADMIN_NAV_ITEMS, visibleNavItems, pageTitleFor } from './adminNav';
 import type { AdminOutletContext } from './useAdminContext';
 import { NotificationBell } from './NotificationBell';
 
@@ -40,7 +40,7 @@ type Status = 'loading' | 'ready' | 'error';
  * Pour Wall overhaul Phase 4 (design 5a shell): 230px sidebar — brand + site name, the
  * nav (active item: accent text, 3px left border, tinted bg), an appearance picker
  * (Midnight Slate / Workshop / Console — see lib/adminTheme.ts) and the user chip.
- * 62px topbar — current page title, quick-nav search (⌘K), the notification bell, and
+ * 62px topbar — quick-nav search (⌘K), the notification bell, and
  * a "View wall ↗" accent button to the first wall.
  */
 export function AdminLayout() {
@@ -99,13 +99,27 @@ export function AdminLayout() {
     };
   }, []);
 
-  // ⌘K / Ctrl+K focuses the quick-nav search (design topbar: "Search… ⌘K").
+  // Each page renders its own <h1>; the browser tab carries the section name so
+  // several open admin tabs stay distinguishable.
+  useEffect(() => {
+    document.title = `${pageTitleFor(location.pathname)} · Kegwall`;
+  }, [location.pathname]);
+
+  // The mobile menu closes on ANY navigation (dashboard links, search, back button),
+  // not only when a sidebar link is tapped.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname, location.search]);
+
+  // ⌘K / Ctrl+K focuses the quick-nav search (design topbar: "Search… ⌘K");
+  // Escape closes the mobile menu.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         searchRef.current?.focus();
       }
+      if (e.key === 'Escape') setMobileNavOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);

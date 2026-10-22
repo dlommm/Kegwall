@@ -4,6 +4,7 @@ import {
 import type { Mock } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ClaimSheet } from '../../src/web/components/ClaimSheet';
+import { CLAIM_WINDOW_MINUTES } from '../../src/server/db/pours';
 import {
   getRecentPours, getDrinkers, claimPour, createPourer,
 } from '../../src/web/lib/api';
@@ -349,4 +350,17 @@ it('reports failed pour loading instead of showing an empty claim list, and can 
   (getRecentPours as Mock).mockResolvedValue({ ok: true, data: [pour()] });
   fireEvent.click(screen.getByRole('button', { name: 'Refresh pours' }));
   expect(await screen.findByText('Citra IPA')).toBeInTheDocument();
+});
+
+it('states the server claim window and keeps the last list when a refresh fails', async () => {
+  (getRecentPours as Mock).mockResolvedValueOnce({ ok: true, data: [pour()] });
+  render(<ClaimSheet />);
+  expect(await screen.findByText('Citra IPA')).toBeInTheDocument();
+  expect(screen.getByTestId('claim-sheet-hint')).toHaveTextContent(`${CLAIM_WINDOW_MINUTES} minutes`);
+  (getRecentPours as Mock).mockResolvedValueOnce({ ok: false, status: 500, message: 'Unavailable' });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh pours' }));
+  expect(screen.getByTestId('claim-sheet-refresh')).toBeDisabled();
+  expect(await screen.findByTestId('claim-sheet-load-error')).toHaveTextContent('Showing the last list');
+  expect(screen.getByText('Citra IPA')).toBeInTheDocument();
+  expect(screen.getByTestId('claim-sheet-refresh')).not.toBeDisabled();
 });

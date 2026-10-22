@@ -29,7 +29,7 @@ import { settingsSchema } from '../db/settings.js';
 import { countFaceEmbeddingsByDrinker, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 import { ConflictError, NotFoundError, ValidationError } from '../core/errors.js';
 import { restartSourcesIfLive } from '../ingest/bootstrap.js';
-import { setPourDrinker } from '../db/pours.js';
+import { setPourDrinker, setPoursDrinker } from '../db/pours.js';
 import { SOURCE_RESTART_KEYS } from '../core/restartKeys.js';
 import { deleteLabelIfUnreferenced } from '../core/labelStore.js';
 import { join } from 'node:path';
@@ -479,8 +479,26 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       since: z.string().optional(), until: z.string().optional(),
       limit: z.coerce.number().int().min(1).max(2000).optional(),
       unclaimed: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
+      drinkerId: z.coerce.number().int().positive().optional(),
+      beforeId: z.coerce.number().int().positive().optional(),
     }).parse(req.query);
     return listPours(db, q);
+  });
+
+  // PATCH /api/pours/drinker — bulk assign/unclaim from the admin Pours page (editor).
+  // One transaction, one state_changed broadcast; an unknown pour id 404s the whole batch.
+  app.patch('/api/pours/drinker', editor, async (req) => {
+    const body = z.object({
+      pourIds: z.array(z.number().int().positive()).min(1).max(500),
+      drinkerId: z.number().int().nullable(),
+    }).parse(req.body);
+    assertValidDrinkerId(db, body.drinkerId);
+    const pours = setPoursDrinker(db, body.pourIds, body.drinkerId);
+    app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    app.ctx.log.info('pours', body.drinkerId === null
+      ? `${pours.length} pour(s) unclaimed by ${req.user?.displayName ?? 'an editor'}`
+      : `${pours.length} pour(s) assigned to drinker #${body.drinkerId} by ${req.user?.displayName ?? 'an editor'}`);
+    return pours;
   });
 
   // PATCH /api/pours/:id/drinker — admin reassign/unclaim (Phase 5 Task 0, editor role:
@@ -494,6 +512,9 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
     assertValidDrinkerId(db, body.drinkerId);
     const pour = setPourDrinker(db, parseId(req.params), body.drinkerId);
     app.ctx.bus.emit('state_changed', { scope: 'taps', ts: new Date().toISOString() });
+    app.ctx.log.info('pours', body.drinkerId === null
+      ? `Pour #${pour.id} unclaimed by ${req.user?.displayName ?? 'an editor'}`
+      : `Pour #${pour.id} assigned to drinker #${body.drinkerId} by ${req.user?.displayName ?? 'an editor'}`);
     return pour;
   });
 

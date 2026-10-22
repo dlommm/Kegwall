@@ -51,7 +51,7 @@ export function visibleNavItems(role: Role | null): AdminNavItem[] {
   return ADMIN_NAV_ITEMS.filter((item) => !item.adminOnly || role === 'admin');
 }
 
-/** Topbar page title for a pathname: longest matching nav item, plus the
+/** Browser-tab title for a pathname: longest matching nav item, plus the
  * no-sidebar-slot routes. */
 export function pageTitleFor(pathname: string): string {
   const specials: Record<string, string> = {

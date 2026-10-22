@@ -13,6 +13,9 @@
  */
 
 export const ARM_TTL_MS = 10 * 60 * 1000;
+/** A pour stamped up to this long BEFORE arming still counts (arming mid-pour, device
+ * clock drift); anything older is a late delivery, not this pourer's pour. */
+export const ARM_GRACE_MS = 2 * 60 * 1000;
 
 export interface ArmedPourer {
   drinkerId: number;
@@ -40,10 +43,15 @@ export class TabletArmRegistry {
 
   /** Claims the armed slot for a pour: returns the drinker id and disarms, or
    * null when nothing (unexpired) is armed. One pour per arming — the tablet's
-   * done screen re-arms explicitly if the pourer taps "stay signed in". */
-  consume(now: number = Date.now()): number | null {
+   * done screen re-arms explicitly if the pourer taps "stay signed in".
+   *
+   * `pourTsMs` (the pour's own completion time) guards against late deliveries: a
+   * pour stamped well before arming (e.g. replayed by the Kegtron cloud backfill) is
+   * not theirs, and leaves the slot armed for their real pour. */
+  consume(now: number = Date.now(), pourTsMs?: number): number | null {
     const armed = this.current(now);
     if (!armed) return null;
+    if (pourTsMs !== undefined && Number.isFinite(pourTsMs) && pourTsMs < armed.armedAt - ARM_GRACE_MS) return null;
     this.slot = null;
     return armed.drinkerId;
   }

@@ -148,6 +148,30 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('closes the mobile menu on Escape and on navigation from outside the sidebar', async () => {
+    mockFetchOnce(200, user());
+    renderLayout();
+    await screen.findByTestId('dashboard-placeholder');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    const search = screen.getByTestId('admin-topbar-search');
+    fireEvent.change(search, { target: { value: 'beers' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(await screen.findByTestId('beers-placeholder')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('names the browser tab after the current section', async () => {
+    mockFetchOnce(200, user());
+    renderLayout('/admin/beers');
+    await screen.findByTestId('beers-placeholder');
+    await waitFor(() => expect(document.title).toBe('Beers · Kegwall'));
+  });
+
   it('route-guards an admin-only page: a viewer navigating straight to /admin/users bounces to the dashboard', async () => {
     mockFetchOnce(200, user({ role: 'viewer' }));
     renderLayout('/admin/users');

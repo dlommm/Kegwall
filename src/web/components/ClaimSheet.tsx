@@ -9,6 +9,7 @@ import { formatRelativeTime } from '../lib/useRelativeTime';
 import { getRememberedPourer, rememberPourer, type RememberedPourer } from '../lib/pourerIdentity';
 import { initials } from '../lib/initials';
 import { usePolledFetch } from '../lib/usePolledFetch';
+import { CLAIM_WINDOW_MINUTES } from '../../server/db/pours.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -444,10 +445,26 @@ export function ClaimSheet() {
     <section className="claim-sheet" data-testid="claim-sheet" aria-labelledby="claim-sheet-section-heading">
       <h2 id="claim-sheet-section-heading" className="claim-sheet__heading font-display">Claim your pour</h2>
 
-      <p className="claim-sheet__empty">Guest claims are available for 10 minutes after a pour. Ask your host to assign older pours.</p>
-      <button type="button" className="taps-cleaning__log" onClick={() => setPoursRetry((value) => value + 1)}>Refresh pours</button>
-      {poursStatus === 'error' && <p role="alert">Couldn’t load pours. Refresh to try again.</p>}
-      {poursStatus === 'loading' && <p role="status">Loading pours…</p>}
+      <div className="claim-sheet__toolbar">
+        <p className="claim-sheet__hint" data-testid="claim-sheet-hint">
+          Pours can be claimed for {CLAIM_WINDOW_MINUTES} minutes. Ask your host to assign older ones.
+        </p>
+        <button
+          type="button"
+          className="claim-sheet__refresh"
+          data-testid="claim-sheet-refresh"
+          disabled={poursStatus === 'loading'}
+          onClick={() => { setPoursStatus('loading'); setPoursRetry((value) => value + 1); }}
+        >
+          {poursStatus === 'loading' ? 'Refreshing…' : 'Refresh pours'}
+        </button>
+      </div>
+      {poursStatus === 'error' && (
+        <p className="claim-sheet__notice claim-sheet__notice--error" role="alert" data-testid="claim-sheet-load-error">
+          {pours.length > 0 ? 'Couldn’t refresh pours. Showing the last list.' : 'Couldn’t load pours. Tap Refresh to try again.'}
+        </p>
+      )}
+      {poursStatus === 'loading' && pours.length === 0 && <p className="claim-sheet__empty" role="status">Loading pours…</p>}
       {pours.length === 0 ? (
         poursStatus === 'loaded' ? <p className="claim-sheet__empty" data-testid="claim-sheet-empty">No pours to claim right now.</p> : null
       ) : (

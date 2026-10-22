@@ -11,7 +11,7 @@ import {
   upsertMonitor, getMonitorByRef, resolveTapForRef, listMonitors,
 } from '../db/monitors.js';
 import { recordTelemetrySampled, latestTelemetryForDevice } from '../db/telemetry.js';
-import { latestPourByKeg, countPoursForDrinker } from '../db/pours.js';
+import { latestPourByKeg, countPoursForDrinker, findRecordedTwin } from '../db/pours.js';
 import { PourDeduper } from './pourDedupe.js';
 import { PourSampleTracker, computePourQuality } from './pourQuality.js';
 import type { TabletArmRegistry } from './tabletArm.js';
@@ -153,7 +153,9 @@ export class StateManager {
       const samples = this.samples.take(e.monitor);
       if (refEnabled(e.monitor) && this.deduper.shouldRecord(e.monitor, e.volumeMl, e.ts)) {
         const tapId = resolveTapForRef(this.db, e.monitor);
-        if (tapId !== null) {
+        // The persisted twin check backs up the in-memory deduper, which is empty after a
+        // restart while the cloud backfill replays already-recorded pours.
+        if (tapId !== null && !findRecordedTwin(this.db, tapId, e.ts, e.volumeMl)) {
           const keg = getActiveKegForTap(this.db, tapId);
           if (keg) {
             // Attribution precedence (Pour Wall overhaul Phase 3): the tablet's ARMED
@@ -161,7 +163,9 @@ export class StateManager {
             // pour per arming — see core/tabletArm.ts), then the tap's configured
             // default drinker (Phase 5 Task 0, admin pours management), else the pour
             // is born unclaimed for the public claim flow / admin reassignment.
-            const armedDrinkerId = this.tabletArm?.consume() ?? null;
+            // Only a pour that finished AFTER arming is theirs — a late cloud backfill of
+            // an older pour must not be credited to whoever is standing at the tablet.
+            const armedDrinkerId = this.tabletArm?.consume(Date.now(), Date.parse(e.ts)) ?? null;
             const tap = getTap(this.db, tapId);
             const { pour } = recordPourTx(this.db, {
               kegId: keg.id, ts: e.ts, volumeMl: e.volumeMl,

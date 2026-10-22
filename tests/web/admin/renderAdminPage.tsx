@@ -24,10 +24,12 @@ const DEFAULT_ME: AdminOutletContext['me'] = {
 export function renderAdminPage(
   ui: ReactElement,
   overrides: Partial<AdminOutletContext> = {},
+  /** Initial URL — pass a query string (e.g. `/x?tap=2`) to exercise deep links. */
+  entry = '/x',
 ): RenderResult {
   const ctx: AdminOutletContext = { me: DEFAULT_ME, units: 'us', ...overrides };
   return render(
-    <MemoryRouter initialEntries={['/x']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route element={<Outlet context={ctx} />}>
           <Route path="/x" element={ui} />
