@@ -11,6 +11,8 @@ import { ThemeProvider } from '../themes/ThemeProvider';
 import {
   filterMenuTaps, onTapCount, type MenuFilter,
 } from '../lib/menuFilter';
+// Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
+import './menu.css';
 
 const MENU_FILTERS: { key: MenuFilter; label: string }[] = [
   { key: 'all', label: 'All' },

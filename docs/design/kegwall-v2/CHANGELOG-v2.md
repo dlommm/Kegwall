@@ -5,6 +5,10 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Changed
 
+- **Changed:** TVs, phones and kiosks download only their own screen's code and styles. A wall
+  now loads 88 KB of CSS instead of 230 KB, and 237 KB of JavaScript instead of 374 KB; the
+  admin's styles load only with the admin.
+
 ## Added
 
 ## Fixed

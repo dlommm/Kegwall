@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import App from './App';
 import './index.css';
+// Kegwall V2 design tokens (ADR-0001): spacing, radius, motion and the semantic color roles.
+import './design/tokens.css';
 
 // Self-hosted fonts (no CDN) for the design direction's display/body faces —
 // Oswald Variable (condensed display, beer names) + Inter Variable (humanist

@@ -1,0 +1,22 @@
+/* src/web/routes/board.css: rules only the board route tree uses, split out of index.css (Kegwall V2 M1) so other surfaces never download them. Order within the file is the original order. */
+
+/*
+ * ============================================================================
+ * Leaderboard board (design 4a LEADERBOARD view + 6b quality/superlatives):
+ * /board and (Phase 5) the rotation playlist's leaderboard entry.
+ * ============================================================================
+ */
+.board-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.board-page__loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+}

@@ -576,8 +576,8 @@ pour fps); the device run is pending until a Pi is available.
 
 | Area | Baseline | Target |
 | --- | --- | --- |
-| CSS shipped to `/wall` | 230.5 KB (32.3 KB gz), all surfaces | ≤ 60 KB raw for wall + one look + takeovers |
-| Public entry JS | 374 KB (113.7 KB gz) | ≤ 300 KB raw for `/wall` after menu/tablet/board go lazy |
+| CSS shipped to `/wall` | 230.5 KB (32.3 KB gz), all surfaces. **M1: 88.2 KB** | ≤ 60 KB raw for wall + one look + takeovers |
+| Public entry JS | 374 KB (113.7 KB gz). **M1: 224.9 KB + 11.9 KB wall chunk** | ≤ 300 KB raw for `/wall` after menu/tablet/board go lazy |
 | Admin chunk | 815 KB (208.9 KB gz) | Not larger than +40 KB gz with Radix; split per page group where easy |
 | Wall idle CPU / memory (Pi, `cog`) | *not yet measured* | No continuous animation at idle; no heap growth > 10% over a 24 h soak |
 | Pour animation | *not yet measured* | Transform/opacity only; ≥ 50 fps on the Pi under `cog` |

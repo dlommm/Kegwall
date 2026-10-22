@@ -27,6 +27,8 @@ import { QrOverlay } from '../components/QrOverlay';
 import { GameStrip } from '../components/GameStrip';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
+// Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
+import './wall.css';
 
 declare global {
   interface Window {

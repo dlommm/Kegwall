@@ -1,0 +1,77 @@
+/*
+ * Kegwall V2 design tokens (ADR-0001). The single source of design values, in three tiers:
+ *
+ *   1. primitives: space, radius, type families, motion;
+ *   2. semantic:   --color-* roles every V2 component reads;
+ *   3. surfaces:   --tv-* (the 1920 × 1080 wall stage), --admin-*, --touch-*.
+ *
+ * Wall themes (themes.ts) still set the legacy names (--bg, --surface, --text, …) on the
+ * `.kegtron-theme-scope` element, and stored `theme.overrides` / `customCss` target those
+ * names. So the semantic roles are DEFINED FROM the legacy names, never the other way round:
+ * an override of `--bg` reaches every V2 component through `--color-ground`.
+ */
+
+:root {
+  /* Space: 4 px steps up to 64 px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radius: four values only. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Type families. Display = names and numbers; text = everything else. Fallbacks keep the
+     composition when a face hasn't loaded yet. */
+  --font-v2-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --font-v2-text: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --font-v2-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Motion (blueprint §I). Liquid moves only via transform; loops run only while pouring. */
+  --motion-press: 120ms;
+  --motion-sheet: 240ms;
+  --motion-exit: 160ms;
+  --motion-takeover: 320ms;
+  --motion-counter: 900ms;
+  --motion-lane: 800ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Touch targets (CLAUDE.md: ≥ 44 px on the tablet and menu). */
+  --touch-min: 44px;
+  --touch-primary: 56px;
+  --touch-hero: 64px;
+
+  /* Admin type scale. */
+  --admin-title: 24px;
+  --admin-body: 15px;
+  --admin-ui: 14px;
+  --admin-meta: 12px;
+}
+
+/* Semantic roles, derived from the active wall theme. */
+.kegtron-theme-scope {
+  --color-ground: var(--bg);
+  --color-surface-1: var(--surface);
+  --color-ink-1: var(--text);
+  --color-ink-2: var(--text-dim);
+  --color-ink-3: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-rule: var(--border);
+  --color-rule-strong: var(--border-strong);
+  --color-good: var(--ok);
+  --color-caution: var(--warn);
+  --color-problem: var(--danger);
+  --radius-card: var(--card-radius);
+}
+
+/* The TV type scale (--tv-*) lives on the stage element itself (design/Stage.module.css):
+   custom properties resolve where they are declared, so it must sit where `--u` is set. */

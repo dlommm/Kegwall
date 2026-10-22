@@ -4,6 +4,8 @@ import { LeaderboardBoard } from '../components/LeaderboardBoard';
 import { getLeaderboard, getMenu, type LeaderboardResponse } from '../lib/api';
 import { usePolledFetch } from '../lib/usePolledFetch';
 import type { VolumeUnits } from '../lib/units';
+// Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
+import './board.css';
 
 const REFRESH_INTERVAL_MS = 60_000;
 

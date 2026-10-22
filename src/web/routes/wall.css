@@ -1,0 +1,302 @@
+/* src/web/routes/wall.css: rules only the wall route tree uses, split out of index.css (Kegwall V2 M1) so other surfaces never download them. Order within the file is the original order. */
+
+/*
+ * WallPage chrome — fullscreen root, no browser chrome, dimmed + a "Reconnecting" pill
+ * once the WS feed has gone stale (see WallPage.tsx). The 1px ScreenCare drift (below)
+ * transitions smoothly so it reads as a barely-perceptible settle rather than a jump.
+ */
+.wall-page,
+.wall-page__loading,
+.wall-page__error {
+  /* The wall is a TV/kiosk page — no pointer belongs on it. `cursor: none` hides the mouse in
+     any engine that renders the page (chromium kiosk AND cog/WPE), so it needs no compositor
+     flag. The touch tablet/menu pages are deliberately unaffected. */
+  cursor: none;
+}
+
+.wall-page {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.wall-page__dimmable--stale {
+  filter: brightness(0.82) saturate(0.85);
+}
+
+.wall-page__reconnecting {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 70%, black);
+  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.wall-page__reconnecting-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: wall-reconnect-pulse 1.4s ease-in-out infinite;
+}
+
+/* BannerLane */
+.banner-lane {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  z-index: 45;
+  pointer-events: none;
+}
+
+.banner-lane__banner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--card-radius, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+}
+
+/* Reduced-motion gating mirrors LiquidFill/rotation: BannerLane.tsx computes whether
+   motion is allowed via usePrefersReducedMotion() and only adds this class in that case
+   (rather than a bare `@media` query) so it's the same testable, class-driven pattern
+   used everywhere else in the wall, not a CSS-only escape hatch. */
+.banner-lane__banner--animated {
+  animation: banner-lane-slide-in 400ms ease-out;
+}
+
+.banner-lane__banner--warning {
+  border-color: color-mix(in srgb, #e0793d 60%, transparent);
+}
+
+.banner-lane__banner--success {
+  border-color: color-mix(in srgb, #4caf6f 60%, transparent);
+}
+
+.banner-lane__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+
+/* QrOverlay */
+.qr-overlay {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  line-height: 0;
+}
+
+.qr-overlay svg {
+  width: 6rem;
+  height: 6rem;
+  display: block;
+}
+
+/* Page-rotation transitions — the content wrapper is remounted (React `key`) per page
+   change, which is what replays these entrance animations each time. */
+.wall-grid-transition--crossfade {
+  animation: wall-grid-crossfade 600ms ease;
+}
+
+.wall-grid-transition--slide {
+  animation: wall-grid-slide 500ms ease;
+}
+
+.wall-grid-transition--none {
+  animation: none;
+}
+
+.game-strip__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.game-strip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+}
+
+.game-strip__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.game-strip__tag {
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.game-strip__players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+}
+
+.game-strip__player {
+  display: grid;
+  grid-template-columns: 34px auto 180px 70px;
+  align-items: center;
+  gap: 10px;
+}
+
+.game-strip__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.game-strip__name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.game-strip__bar {
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+
+.game-strip__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent);
+}
+
+.game-strip__bar-fill--leader {
+  background: #E7B93F;
+}
+
+.game-strip__figure {
+  font-size: 16px;
+  text-align: right;
+}
+
+/* Wall server-health strip (showHostStats) — discreet fixed corner readout, above
+ * the looks but below banners/takeovers in visual weight. */
+.wall-host-stats {
+  position: fixed;
+  bottom: 0.5rem;
+  left: 0.75rem;
+  z-index: 30;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text, #fff) 45%, transparent);
+  pointer-events: none;
+}
+
+/*
+ * ============================================================================
+ * Wall LOOKS (Pour Wall overhaul, Phase 1): Ledger (1a) / Gallery (1b) /
+ * Tap Columns (1c), plus the shared look chrome (badges, ticker marquee, QR
+ * block, sensor chips). Sizes come from the 1920×1080 design document; every
+ * color reads through theme tokens so any look renders on any theme.
+ * ============================================================================
+ */
+.look-frame {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+  .wall-grid-transition {
+      transition: margin-right 400ms ease, opacity 400ms ease;
+    }
+
+}
+
+/*
+ * ============================================================================
+ * Phase 5: view rotation playlist bar (4a), display pairing (7c), and the
+ * Displays & locations admin page (11a).
+ * ============================================================================
+ */
+.playlist-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 42;
+  display: flex;
+  gap: 8px;
+}
+
+.playlist-bar__chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.playlist-bar__chip--active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.playlist-bar__seconds {
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+
+.wall-rotation-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+}

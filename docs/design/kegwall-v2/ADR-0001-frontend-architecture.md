@@ -167,3 +167,31 @@ Playwright's WebKit could not stand in for WPE on the workstation (missing host 
 `clamp()`, `rem`, `inset`, `aspect-ratio`, flex/grid `gap`, `transform` and `opacity` without a
 fallback. Container queries, `:has()`, `color-mix()`, `@starting-style` and `backdrop-filter`
 are used only inside `@supports`, with a plain layout outside it.
+
+## Implementation notes
+
+**M1 (2026-10-22).**
+
+- **Stage unit instead of root `rem`.** The Wall Editor already previews a wall as a fixed
+  1920 × 1080 frame scaled with a transform, inside the admin page. A root-`rem` stage would
+  take the admin's root size there. So `design/Stage.tsx` defines `--u`, one design pixel of
+  the 1080p stage (`min(100vw / 1920, 100vh / 1080) × --ui-scale` on a screen, exactly `1px`
+  in the preview), and V2 wall CSS is written as `calc(N * var(--u))` and the `--tv-*` scale.
+  Same composition at every resolution; the preview needs no special case.
+- **Semantic tokens derive from the legacy theme names** (`--color-ground: var(--bg)`, …) on
+  `.kegtron-theme-scope`, so stored `theme.overrides` reach V2 components. The TV scale is
+  declared on the stage element, because custom properties resolve where they are declared.
+- **CSS split by route tree, mechanically.** Each rule of the old `index.css` moved to the
+  route that alone uses its classes (found by walking each route's import graph), keeping
+  the original order: `routes/admin/admin.css`, `routes/tablet.css`, `routes/menu.css`,
+  `routes/wall.css`, `routes/board.css`. Rules used by more than one route, or whose classes
+  couldn't be traced, stay in `index.css`. Every declaration was accounted for, and the
+  visual harness showed no change beyond the noise floor on all 88 shots.
+- **Lazy public routes.** `/wall`, `/menu`, `/tablet` and `/board` are their own chunks.
+- **Fonts move to M2**, the first milestone that renders them.
+
+| Measured (`npm run build`) | Before (v1.17.0) | After M1 |
+| --- | --- | --- |
+| CSS a wall downloads | 230.5 KB (32.3 KB gz) | 88.2 KB (15.1 KB gz): entry 84.2 + wall 4.0 |
+| Entry JS | 374 KB (113.7 KB gz) | 224.9 KB (72.2 KB gz) + 11.9 KB wall chunk |
+| Admin CSS | in the entry | 96.1 KB, loaded only with the admin chunk |

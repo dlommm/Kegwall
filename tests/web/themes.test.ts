@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  THEMES, DEFAULT_THEME_ID, getTheme, resolveThemeTokens,
+  THEMES, DEFAULT_THEME_ID, getTheme, resolveThemeTokens, themePreview,
 } from '../../src/web/themes/themes';
 
 const REQUIRED_TOKEN_KEYS = [
@@ -122,5 +122,20 @@ describe('themes', () => {
 
   it('resolveThemeTokens falls back to midnight-slate tokens for an unknown theme id', () => {
     expect(resolveThemeTokens('nonexistent-theme')).toEqual(getTheme('midnight-slate').tokens);
+  });
+});
+
+describe('theme registry (Kegwall V2)', () => {
+  it('marks the light grounds as light and every other theme as dark', () => {
+    const light = THEMES.filter((t) => t.mode === 'light').map((t) => t.id).sort();
+    expect(light).toEqual(['bright', 'cream']);
+    expect(THEMES.every((t) => t.mode === 'light' || t.mode === 'dark')).toBe(true);
+  });
+
+  it('previews a theme from its own tokens', () => {
+    const t = getTheme('cream');
+    expect(themePreview(t)).toEqual({
+      ground: t.tokens['--bg'], surface: t.tokens['--surface'], ink: t.tokens['--text'], accent: t.tokens['--accent'],
+    });
   });
 });

@@ -1,0 +1,53 @@
+/*
+ * The 1920 × 1080 wall stage (ADR-0001 §5, Kegwall V2). Every V2 wall dimension is written in
+ * design pixels of a 1080p screen, multiplied by `--u`. On a real screen `--u` follows the
+ * viewport, so 720p, 1080p and 4K show the same composition. In the admin preview the stage
+ * is a fixed 1920 × 1080 box scaled with a transform, so `--u` is exactly 1px.
+ */
+
+/* Fills the whole viewport with the theme ground, so letterbox bars are never browser white. */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-ground, var(--bg));
+}
+
+.stage {
+  /* One design pixel before and after the wall's UI scale. */
+  --stage-px: min(calc(100vw / 1920), calc(100vh / 1080));
+  --u: calc(var(--stage-px) * var(--ui-scale, 1));
+
+  position: relative;
+  width: calc(1920 * var(--stage-px));
+  height: calc(1080 * var(--stage-px));
+  overflow: hidden;
+  color: var(--color-ink-1, var(--text));
+  background: var(--color-ground, var(--bg));
+
+  --tv-display: calc(168 * var(--u));
+  --tv-title: calc(56 * var(--u));
+  --tv-name: calc(42 * var(--u));
+  --tv-body: calc(26 * var(--u));
+  --tv-meta: calc(22 * var(--u));
+  --tv-margin: calc(64 * var(--u));
+  --tv-gutter: calc(24 * var(--u));
+}
+
+.fit {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+
+.fit .stage {
+  --stage-px: 1px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}

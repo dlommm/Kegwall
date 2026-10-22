@@ -31,7 +31,24 @@ const STATUS_LIGHT = { '--ok': '#4A9156', '--warn': '#C08A2E', '--danger': '#C54
 export interface Theme {
   id: string;
   name: string;
+  /** Whether the ground is dark or light. Looks pick ink and glare treatments from it, and
+   * the Wall Editor groups swatches by it (Kegwall V2). */
+  mode: 'dark' | 'light';
   tokens: Record<string, string>;
+}
+
+/** The four colors a theme swatch shows in the Wall Editor, read from the theme's own
+ * tokens so a swatch can never drift from what the wall renders. */
+export interface ThemePreview {
+  ground: string;
+  surface: string;
+  ink: string;
+  accent: string;
+}
+
+export function themePreview(theme: Theme): ThemePreview {
+  const t = theme.tokens;
+  return { ground: t['--bg']!, surface: t['--surface']!, ink: t['--text']!, accent: t['--accent']! };
 }
 
 /** Tabular alignment for ABV/IBU/% comes from `font-variant-numeric:
@@ -50,6 +67,7 @@ function fonts(display: string, body: string): Record<string, string> {
 const midnightSlateTheme: Theme = {
   id: 'midnight-slate',
   name: 'Midnight Slate',
+  mode: 'dark',
   tokens: {
     '--bg': '#0F1216',
     '--surface': 'rgba(255,255,255,0.04)',
@@ -68,6 +86,7 @@ const midnightSlateTheme: Theme = {
 const creamTheme: Theme = {
   id: 'cream',
   name: 'Cream',
+  mode: 'light',
   tokens: {
     '--bg': '#F4F1EB',
     '--surface': '#FFFFFF',
@@ -86,6 +105,7 @@ const creamTheme: Theme = {
 const cellarTealTheme: Theme = {
   id: 'cellar-teal',
   name: 'Cellar Teal',
+  mode: 'dark',
   tokens: {
     '--bg': '#0A0D12',
     '--surface': 'rgba(255,255,255,0.03)',
@@ -104,6 +124,7 @@ const cellarTealTheme: Theme = {
 const taproomGreenTheme: Theme = {
   id: 'taproom-green',
   name: 'Taproom Green',
+  mode: 'dark',
   tokens: {
     '--bg': '#12211B',
     '--surface': '#1A2E25',
@@ -122,6 +143,7 @@ const taproomGreenTheme: Theme = {
 const amberGlowTheme: Theme = {
   id: 'amber-glow',
   name: 'Amber Glow',
+  mode: 'dark',
   tokens: {
     '--bg': '#1A120C',
     '--surface': '#241A11',
@@ -140,6 +162,7 @@ const amberGlowTheme: Theme = {
 const arcadeTheme: Theme = {
   id: 'arcade',
   name: 'Arcade',
+  mode: 'dark',
   tokens: {
     '--bg': '#0D0B14',
     '--surface': 'rgba(180,140,255,0.06)',
@@ -163,6 +186,7 @@ const arcadeTheme: Theme = {
 const taproomTheme: Theme = {
   id: 'taproom',
   name: 'Taproom (legacy)',
+  mode: 'dark',
   tokens: {
     '--bg': '#19140F',
     '--surface': '#241C15',
@@ -181,6 +205,7 @@ const taproomTheme: Theme = {
 const chalkboardTheme: Theme = {
   id: 'chalkboard',
   name: 'Chalkboard (legacy)',
+  mode: 'dark',
   tokens: {
     '--bg': '#12211B',
     '--surface': '#1A2E25',
@@ -199,6 +224,7 @@ const chalkboardTheme: Theme = {
 const brightTheme: Theme = {
   id: 'bright',
   name: 'Bright (legacy)',
+  mode: 'light',
   tokens: {
     '--bg': '#F7F4EE',
     '--surface': '#FFFFFF',
@@ -217,6 +243,7 @@ const brightTheme: Theme = {
 const monoTheme: Theme = {
   id: 'mono',
   name: 'Mono (legacy)',
+  mode: 'dark',
   tokens: {
     '--bg': '#0A0A0A',
     '--surface': '#161616',
