@@ -6,10 +6,20 @@ export const wallConfigSchema = z.object({
   // (colors/fonts) and `cardTemplate` (which only applies to the 'classic' grid look).
   // 'classic' is the pre-overhaul WallGrid/TapCard wall, and stays the default so
   // existing walls' stored config (parsed with this key absent) render unchanged.
+  // Kegwall V2 adds 'just-tapped', 'handles' and 'tally' (additive). Every look id stays
+  // valid forever, so a stored config never fails to parse.
   look: z.enum([
     'classic', 'ledger', 'gallery', 'columns',
     'chalkboard', 'editorial', 'neon', 'terminal', 'poster', 'departures', 'zen',
+    'just-tapped', 'handles', 'tally',
   ]).default('classic'),
+  // Kegwall V2 (decision D3): which keg owns the Just Tapped look's spotlight half.
+  // 'newest' = the most recently tapped keg on the wall; 'pinned' = `tapId` (falling back
+  // to newest when that tap is empty or not on the wall). Other looks ignore it.
+  spotlight: z.object({
+    mode: z.enum(['newest', 'pinned']).default('newest'),
+    tapId: z.number().int().nullable().default(null),
+  }).default({ mode: 'newest', tapId: null }),
   // Glyph treatment for the looks' dynamic data glyphs (design 1d).
   glyphMode: z.enum(['flat', 'outline', 'duotone']).default('flat'),
   // Pour takeover (design turns 2 + 9): how the wall reacts to a live pour.

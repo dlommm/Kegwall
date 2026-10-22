@@ -6,7 +6,7 @@ function tap(tapId: number, over: Partial<TapState> = {}): TapState {
   return {
     tapId, tapNumber: tapId, tapName: null, beer: null, keg: null, lastPour: null,
     pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null,
-    avgRating: null, nextUpBeerName: null, ...over,
+    avgRating: null, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null, ...over,
   };
 }
 

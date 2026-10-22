@@ -50,6 +50,7 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       glyphMode: 'duotone',
       display: { sizeIn: 65, resolution: '4k', uiScale: 0.95 },
       takeover: { style: 'dock', minMl: 120 },
+      spotlight: { mode: 'pinned', tapId: 3 },
       viewRotation: {
         enabled: true,
         views: [

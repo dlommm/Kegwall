@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactElement } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import type { VolumeUnits } from '../../lib/units';
@@ -36,8 +36,9 @@ export interface WallLookProps {
 }
 
 /** Non-classic look id → component. `classic` never reaches here (WallPage
- * keeps its existing WallHeader/WallGrid path for it). */
-const LOOKS = {
+ * keeps its existing WallHeader/WallGrid path for it). Kegwall V2 looks register here as
+ * they are built; an id without a component renders as classic (see `resolveLook`). */
+const LOOKS: Partial<Record<WallConfig['look'], (props: WallLookProps) => ReactElement | null>> = {
   ledger: LedgerLook,
   gallery: GalleryLook,
   columns: ColumnsLook,
@@ -48,9 +49,14 @@ const LOOKS = {
   poster: PosterLook,
   departures: DeparturesLook,
   zen: ZenLook,
-} as const;
+};
 
-export type LookId = keyof typeof LOOKS | 'classic';
+export type LookId = WallConfig['look'];
+
+/** The look a wall actually renders: its configured look when one is built, else classic. */
+export function resolveLook(look: WallConfig['look'] | undefined): LookId {
+  return look && (look === 'classic' || LOOKS[look]) ? look : 'classic';
+}
 
 /** Dispatches to the configured look's component. Memoized (like every look it
  * dispatches to): the `/ws` feed pushes a full snapshot for every state change, and

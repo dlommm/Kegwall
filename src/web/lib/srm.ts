@@ -116,7 +116,7 @@ function rgbToHex(r: number, g: number, b: number): string {
 }
 
 /** Linearly interpolate between two hex colors; t=0 -> a, t=1 -> b. */
-function mixHex(a: string, b: string, t: number): string {
+export function mixHex(a: string, b: string, t: number): string {
   const [ar, ag, ab] = hexToRgb(a);
   const [br, bg, bb] = hexToRgb(b);
   return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);

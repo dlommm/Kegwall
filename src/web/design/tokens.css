@@ -30,7 +30,7 @@
 
   /* Type families. Display = names and numbers; text = everything else. Fallbacks keep the
      composition when a face hasn't loaded yet. */
-  --font-v2-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --font-v2-display: 'Big Shoulders Display Variable', 'Big Shoulders Display', 'Arial Narrow', sans-serif;
   --font-v2-text: 'Atkinson Hyperlegible', system-ui, sans-serif;
   --font-v2-mono: 'IBM Plex Mono', ui-monospace, monospace;
 

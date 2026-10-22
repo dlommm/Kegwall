@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ThemeProvider } from '../themes/ThemeProvider';
-import { WallLook } from './looks/WallLook';
+import { WallLook, resolveLook } from './looks/WallLook';
 import { WallHeader } from './WallHeader';
 import { WallGrid } from './WallGrid';
 import { PourTakeover } from './takeover/PourTakeover';
@@ -33,7 +33,7 @@ function sampleTap(
       createdAt: '', kegType: null, costCents: null, levelPct, remainingMl: sizeMl * (levelPct / 100),
     },
     lastPour: null, pouring: opts.pouring ?? false, curServMl: opts.pouring ? 300 : null,
-    monitorOnline: true, hidden: false, temp: 2.2, avgRating: 4.4, nextUpBeerName: null,
+    monitorOnline: true, hidden: false, temp: 2.2, avgRating: 4.4, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
   };
 }
 
@@ -107,7 +107,7 @@ export function WallLivePreview({ config, title, units, menuUrl, simulateNonce =
         style={{ transform: `scale(${scale})`, '--ui-scale': uiScale } as CSSProperties}
       >
         <ThemeProvider theme={config.theme} customCss={config.customCss} className="wall-live-preview__scope">
-          {config.look === 'classic' ? (
+          {resolveLook(config.look) === 'classic' ? (
             <>
               <WallHeader
                 title={title}

@@ -146,3 +146,23 @@ describe('wallConfigSchema theme overrides (CSS-injection hardening)', () => {
     })).toThrow();
   });
 });
+
+describe('Kegwall V2 additions (additive, stored configs untouched)', () => {
+  it('parses a pre-V2 stored config unchanged apart from the new spotlight default', () => {
+    const stored = { look: 'ledger', theme: { id: 'cream' }, takeover: { style: 'full', minMl: 90 } };
+    const parsed = wallConfigSchema.parse(stored);
+    expect(parsed.look).toBe('ledger');
+    expect(parsed.takeover).toEqual({ style: 'full', minMl: 90 });
+    expect(parsed.spotlight).toEqual({ mode: 'newest', tapId: null });
+    expect(wallConfigSchema.parse(parsed)).toEqual(parsed); // idempotent round trip
+  });
+
+  it.each(['just-tapped', 'handles', 'tally'])('accepts the new look %s', (look) => {
+    expect(wallConfigSchema.parse({ look }).look).toBe(look);
+  });
+
+  it('keeps a pinned spotlight tap', () => {
+    expect(wallConfigSchema.parse({ spotlight: { mode: 'pinned', tapId: 4 } }).spotlight)
+      .toEqual({ mode: 'pinned', tapId: 4 });
+  });
+});

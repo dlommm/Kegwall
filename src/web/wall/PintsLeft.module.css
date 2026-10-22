@@ -1,0 +1,13 @@
+.left {
+  font-family: var(--font-v2-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.left[data-state='low'] {
+  color: var(--color-caution, var(--warn));
+}
+
+.left[data-state='kicked'],
+.left[data-state='empty'] {
+  color: var(--color-ink-3, var(--text-faint));
+}

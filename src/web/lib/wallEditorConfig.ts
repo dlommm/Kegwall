@@ -24,6 +24,9 @@ export interface WallConfigFormState {
   glyphMode: WallConfig['glyphMode'];
   takeoverStyle: WallConfig['takeover']['style'];
   takeoverMinMl: number;
+  /** Kegwall V2 Just Tapped spotlight: newest keg, or a pinned tap. */
+  spotlightMode: WallConfig['spotlight']['mode'];
+  spotlightTapId: number | null;
   viewRotationEnabled: boolean;
   /** The rotation playlist (design 4b), fixed order wall → leaderboard for now. */
   viewRotationViews: WallConfig['viewRotation']['views'];
@@ -131,6 +134,8 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     glyphMode: config.glyphMode,
     takeoverStyle: config.takeover.style,
     takeoverMinMl: config.takeover.minMl,
+    spotlightMode: config.spotlight.mode,
+    spotlightTapId: config.spotlight.tapId,
     viewRotationEnabled: config.viewRotation.enabled,
     viewRotationViews: config.viewRotation.views.map((v) => ({ ...v })),
     cardTemplate: config.cardTemplate,
@@ -192,6 +197,7 @@ export function formStateToConfigCandidate(
     look: form.look,
     glyphMode: form.glyphMode,
     takeover: { style: form.takeoverStyle, minMl: form.takeoverMinMl },
+    spotlight: { mode: form.spotlightMode, tapId: form.spotlightTapId },
     viewRotation: {
       enabled: form.viewRotationEnabled,
       views: form.viewRotationViews.map((v) => ({ ...v })),

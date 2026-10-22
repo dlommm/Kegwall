@@ -318,4 +318,5 @@ reinstalling 1.17.x keeps every wall's config (new keys such as `spotlight` are 
 | Milestone | Status | Commit |
 | --- | --- | --- |
 | M0 · Preparation and baselines | Done. Harness, probe, 88-shot baseline; Pi and WPE measurements pending hardware | `chore: add the V2 visual harness…` |
+| M2 · Wall data and shared wall parts | Done. Tap snapshot gains `tonight`, `lastHourPours`, `kickDate`; wall payload gains `servingSizeMl`; schema adds 3 look ids + `spotlight`; `wallTapModel`, `wallHeadline`, contrast helpers, `TapMarker`, `PintsLeft`, V2 fonts. `WallShell` moved to M3 with its first look | `feat: add tonight…` |
 | M1 · Foundation | Done. Tokens, theme modes, `Stage` (`--u` stage unit, see ADR notes), CSS split per route, lazy public routes; all 88 shots unchanged; fonts moved to M2 | `perf: split…` |

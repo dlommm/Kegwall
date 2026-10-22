@@ -367,3 +367,30 @@ describe('StateManager with a disabled device', () => {
     expect(sm.getTapStates().find((t) => t.tapId === tapId)!.temp).toBe(2.8);
   });
 });
+
+describe('StateManager wall numbers (Kegwall V2)', () => {
+  it('reports tonight, last-hour pours and a kick date for the current keg', () => {
+    const now = new Date(2026, 9, 22, 21, 0);
+    const keg = getActiveKegForTap(db, tapId)!;
+    const at = (minutesAgo: number) => new Date(now.getTime() - minutesAgo * 60_000).toISOString();
+    const pour = (ts: string, volumeMl: number) => db.prepare(
+      `INSERT INTO pours (keg_id, ts, volume_ml, source) VALUES (?, ?, ?, 'cloud')`,
+    ).run(keg.id, ts, volumeMl);
+    pour(at(20), 400); // tonight + last hour
+    pour(at(90), 500); // tonight only
+    pour(at(60 * 24 * 2), 600); // two days ago: burn only
+    db.prepare('UPDATE kegs SET date_tapped = ? WHERE id = ?').run(at(60 * 24 * 10), keg.id);
+
+    const tap = sm.getTapStates(now).find((t) => t.tapId === tapId)!;
+    expect(tap.tonight).toEqual({ pours: 2, volumeMl: 900 });
+    expect(tap.lastHourPours).toBe(1);
+    expect(tap.kickDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('has no kick date and zero tonight for an untouched keg', () => {
+    const tap = sm.getTapStates().find((t) => t.tapId === tapId)!;
+    expect(tap.tonight).toEqual({ pours: 0, volumeMl: 0 });
+    expect(tap.lastHourPours).toBe(0);
+    expect(tap.kickDate).toBeNull();
+  });
+});

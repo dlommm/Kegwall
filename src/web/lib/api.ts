@@ -21,6 +21,9 @@ export interface WallResponse {
   allowedTapIds?: number[];
   /** The taproom's configured display units (global settings' `displayUnits`). */
   units: VolumeUnits;
+  /** One serving in mL (settings' `servingSizeMl`); V2 walls count keg level in servings.
+   * Optional so an older server payload falls back to a US pint. */
+  servingSizeMl?: number;
 }
 
 /** GET /api/public/menu. */

@@ -19,7 +19,7 @@ import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { WallHeader } from '../components/WallHeader';
 import { WallGrid } from '../components/WallGrid';
-import { WallLook } from '../components/looks/WallLook';
+import { WallLook, resolveLook } from '../components/looks/WallLook';
 import { PourTakeover } from '../components/takeover/PourTakeover';
 import { useTakeover } from '../lib/useTakeover';
 import { BannerLane } from '../components/BannerLane';
@@ -338,9 +338,9 @@ export function WallPage() {
 
   const title = config.header.title ?? wall.name;
   const menuUrl = `${window.location.origin}/menu`;
-  // Server-parsed configs always carry `look` (schema default 'classic'), but the
-  // defensive fallback keeps any not-yet-reparsed config on the classic path.
-  const look = config.look ?? 'classic';
+  // Server-parsed configs always carry `look` (schema default 'classic'); `resolveLook`
+  // also sends a look that isn't built yet down the classic path.
+  const look = resolveLook(config.look);
   // Party mode layers a fixed accent override on top of the wall's OWN configured theme
   // (id + its own overrides untouched) -- see PARTY_MODE_OVERRIDES' doc comment above.
   const theme = partyMode

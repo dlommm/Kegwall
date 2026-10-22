@@ -11,6 +11,10 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Added
 
+- **Added:** every tap in the live wall feed now carries tonight's pours and volume (since
+  4 am), pours in the last hour and a projected kick date, and the wall payload carries the
+  taproom's serving size. None of it reveals keg cost.
+
 ## Fixed
 
 ## Developer

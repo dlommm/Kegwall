@@ -101,7 +101,7 @@ describe('BeersPage', () => {
           keg: {
             id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 5000, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 72, remainingMl: 14000,
           },
-          lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null,
+          lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
         }],
       },
     });
@@ -132,7 +132,7 @@ describe('BeersPage', () => {
           keg: {
             id: 1, beerId: 1, tapId: 2, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 5300, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 72, remainingMl: 14000,
           },
-          lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null,
+          lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
         }],
       },
     });

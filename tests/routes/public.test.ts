@@ -64,6 +64,25 @@ describe('public routes', () => {
     expect(res.body).not.toContain('2026-05-20');
   });
 
+  it('serves the V2 wall numbers on the wall payload without any owner-cost field', async () => {
+    const db = app.ctx.db;
+    const supplierId = createSupplier(db, { name: 'Joes Distributing' }).id;
+    db.prepare(`UPDATE kegs SET cost_cents = 12345, deposit_cents = 3000,
+      supplier_id = ?, purchased_at = '2026-05-20'`).run(supplierId);
+    const res = await app.inject({ method: 'GET', url: '/api/public/wall/main' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.servingSizeMl).toBe(473);
+    const tap = body.taps[0];
+    expect(tap.tonight.pours).toBe(1); // the fixture's pour was just now
+    expect(tap.tonight.volumeMl).toBe(400);
+    expect(tap.lastHourPours).toBe(1);
+    expect(tap.keg.costCents).toBeNull();
+    expect(res.body).not.toContain('12345');
+    expect(res.body).not.toContain('2026-05-20');
+    expect(res.body).not.toContain('Joes Distributing');
+  });
+
   it('serves the computed display price when pricing is enabled, never the owner cost', async () => {
     const db = app.ctx.db;
     // 47,318 mL (≈100 pints) keg at $131.00; markup 245% → $4.50/pint at $0.25 rounding.

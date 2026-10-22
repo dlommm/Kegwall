@@ -7,6 +7,9 @@ import { getWall } from './api';
 import { useTapStates } from './useTapStates';
 import type { VolumeUnits } from './units';
 
+/** A US pint: the server's own `servingSizeMl` default. */
+const DEFAULT_SERVING_ML = 473;
+
 export interface UseWallDataOptions {
   /** Phase 5 Task 4: threaded straight through to `useTapStates` -- see that hook's doc
    * comment. Lets WallPage subscribe to WS banner/theme_override messages over the SAME
@@ -20,6 +23,8 @@ export interface UseWallDataResult {
   /** The taproom's configured display units. Defaults to `'us'` until the first
    * successful `getWall` response resolves (matches the server's own default). */
   units: VolumeUnits;
+  /** One serving in mL, for "pints left" (Kegwall V2). 473 until the first fetch resolves. */
+  servingSizeMl: number;
   stale: boolean;
   connected: boolean;
   loading: boolean;
@@ -48,6 +53,7 @@ export function useWallData(
   // from wall_devices. null = an older server payload without the field (no filtering).
   const [allowedTapIds, setAllowedTapIds] = useState<number[] | null>(null);
   const [units, setUnits] = useState<VolumeUnits>('us');
+  const [servingSizeMl, setServingSizeMl] = useState(DEFAULT_SERVING_ML);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -73,6 +79,7 @@ export function useWallData(
         setInitialTaps(result.data.taps);
         setAllowedTapIds(result.data.allowedTapIds ?? null);
         setUnits(result.data.units ?? 'us');
+        setServingSizeMl(result.data.servingSizeMl ?? DEFAULT_SERVING_ML);
         setError(null);
         setNotFound(false);
       } else {
@@ -149,6 +156,6 @@ export function useWallData(
   }, [reconnectCount, wallsVersion]);
 
   return {
-    wall, taps, units, stale, connected, loading, error, notFound,
+    wall, taps, units, servingSizeMl, stale, connected, loading, error, notFound,
   };
 }

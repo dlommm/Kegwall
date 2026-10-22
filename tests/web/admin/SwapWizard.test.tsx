@@ -47,7 +47,7 @@ function makeKeg(overrides: Partial<Keg> = {}): Keg {
 function makeTap(overrides: Partial<TapState> = {}): TapState {
   return {
     tapId: 1, tapNumber: 1, tapName: null, beer: null, keg: null, lastPour: null,
-    pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, ...overrides,
+    pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null, ...overrides,
   };
 }
 

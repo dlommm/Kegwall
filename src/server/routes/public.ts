@@ -74,6 +74,8 @@ export async function publicRoutes(app: FastifyInstance) {
       taps: taps.map(toPublicTap), // strips owner cost; attaches display price when enabled
       allowedTapIds,
       units: app.ctx.settings.get('displayUnits'),
+      // Kegwall V2: walls state keg level as servings left ("≈ 32 pints").
+      servingSizeMl: app.ctx.settings.get('servingSizeMl'),
     };
   });
 

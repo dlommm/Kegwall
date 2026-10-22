@@ -14,7 +14,7 @@ function tap(tapNumber: number, beerId: number | null, levelPct: number, status:
     tapId: tapNumber, tapNumber, tapName: null,
     beer: beerId ? { id: beerId, name: `Beer ${beerId}`, brewery: null, style: null, abv: null, ibu: null, srm: 5, description: null, labelImage: null, createdAt: '' } : null,
     keg: beerId ? { id: tapNumber, beerId, tapId: tapNumber, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status, createdAt: '', kegType: null, costCents: null, levelPct, remainingMl: 0 } : null,
-    lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null,
+    lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
   };
 }
 

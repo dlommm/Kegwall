@@ -13,7 +13,7 @@ function tap(id: number, over: Partial<TapState['keg']> | null, beer = true): Ta
   return {
     tapId: id, tapNumber: id, tapName: null,
     beer: beer ? { id: 1, name: 'Beer', brewery: null, style: null, abv: null, ibu: null, srm: 5, description: null, labelImage: null, createdAt: '', markupOverridePct: null, exclusiveSupplierId: null } : null,
-    keg, lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null,
+    keg, lastPour: null, pouring: false, curServMl: null, monitorOnline: true, hidden: false, temp: null, avgRating: null, nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
   };
 }
 

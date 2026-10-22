@@ -147,6 +147,32 @@ export function hourHistogram(db: Database.Database, now = new Date()): HourHist
 }
 
 /**
+ * The burn-rate kick projection shared by `activeKegStats` (admin) and the live tap snapshot
+ * (Kegwall V2 walls: "kicks in ~3 days"). See `activeKegStats` for why the divisor is
+ * `min(7, max(1, daysSinceTapped))` rather than a flat 7.
+ */
+export function projectKick(input: {
+  remainingMl: number; burnLast7DaysMl: number; dateTapped: string | null; now: Date;
+}): { dailyBurnMl: number; projectedKickDate: string | null } {
+  const { remainingMl, burnLast7DaysMl, dateTapped, now } = input;
+  // `createKeg` always stamps `date_tapped` on insert (see db/kegs.ts), so a `null`
+  // here would only ever come from a malformed/legacy row — fall back to the full
+  // trailing window (the old, pre-fix behavior) rather than dividing by a bogus value.
+  const daysSinceTapped = dateTapped
+    ? Math.ceil((now.getTime() - new Date(dateTapped).getTime()) / MS_PER_DAY)
+    : 7;
+  const burnDivisor = Math.min(7, Math.max(1, daysSinceTapped));
+  const dailyBurnMl = Math.round(burnLast7DaysMl / burnDivisor);
+  // localDayStr, not a toISOString() slice — the UTC date of an evening-local moment is
+  // already tomorrow, which read as a kick date one day late (same UTC-vs-local class as
+  // poursByDay/hourHistogram).
+  const projectedKickDate = dailyBurnMl > 0
+    ? localDayStr(new Date(now.getTime() + (remainingMl / dailyBurnMl) * MS_PER_DAY))
+    : null;
+  return { dailyBurnMl, projectedKickDate };
+}
+
+/**
  * `GET /api/stats/kegs` — every currently-`on_tap` keg's level, remaining volume, a
  * burn rate, and a projected kick date.
  *
@@ -194,20 +220,9 @@ export function activeKegStats(db: Database.Database, now = new Date()): KegBurn
       : 0;
     const remainingMl = Math.max(0, r.vol_start_ml - r.vol_dispensed_ml);
     const { total } = burnStmt.get(r.keg_id, burnCutoff) as { total: number };
-    // `createKeg` always stamps `date_tapped` on insert (see db/kegs.ts), so a `null`
-    // here would only ever come from a malformed/legacy row — fall back to the full
-    // trailing window (the old, pre-fix behavior) rather than dividing by a bogus value.
-    const daysSinceTapped = r.date_tapped
-      ? Math.ceil((now.getTime() - new Date(r.date_tapped).getTime()) / MS_PER_DAY)
-      : 7;
-    const burnDivisor = Math.min(7, Math.max(1, daysSinceTapped));
-    const dailyBurnMl = Math.round(total / burnDivisor);
-    // localDayStr, not a toISOString() slice — the UTC date of an evening-local moment is
-    // already tomorrow, which read as a kick date one day late (same UTC-vs-local class as
-    // poursByDay/hourHistogram).
-    const projectedKickDate = dailyBurnMl > 0
-      ? localDayStr(new Date(now.getTime() + (remainingMl / dailyBurnMl) * MS_PER_DAY))
-      : null;
+    const { dailyBurnMl, projectedKickDate } = projectKick({
+      remainingMl, burnLast7DaysMl: total, dateTapped: r.date_tapped, now,
+    });
     return {
       kegId: r.keg_id, beerName: r.beer_name, tapNumber: r.tap_number, srm: r.srm,
       levelPct, remainingMl, dailyBurnMl, projectedKickDate,

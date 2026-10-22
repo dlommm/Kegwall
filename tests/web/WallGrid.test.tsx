@@ -16,7 +16,7 @@ function makeTap(tapId: number, overrides: Partial<TapState> = {}): TapState {
     monitorOnline: true, hidden: false,
     temp: null,
     avgRating: null,
-    nextUpBeerName: null,
+    nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
     ...overrides,
   };
 }

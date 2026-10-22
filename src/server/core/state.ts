@@ -16,6 +16,8 @@ import { PourDeduper } from './pourDedupe.js';
 import { PourSampleTracker, computePourQuality } from './pourQuality.js';
 import type { TabletArmRegistry } from './tabletArm.js';
 import { ValidationError } from './errors.js';
+import { serviceDayStart } from './serviceDay.js';
+import { projectKick } from '../db/stats.js';
 
 export interface TapState {
   tapId: number;
@@ -41,6 +43,14 @@ export interface TapState {
   /** The next on-deck keg's beer name for this tap (design 6e "Next up: X"),
    * or null when nothing is queued. */
   nextUpBeerName: string | null;
+  /** Kegwall V2: pours on this tap's current keg since the service day began (04:00 local,
+   * see core/serviceDay.ts). Zero when the tap has no keg. */
+  tonight: { pours: number; volumeMl: number };
+  /** Kegwall V2: pours on this tap's current keg in the last 60 minutes. */
+  lastHourPours: number;
+  /** Kegwall V2: projected kick date (local `YYYY-MM-DD`) from the trailing-7-day burn rate
+   * (db/stats.ts `projectKick`), or null when there's nothing to project from. */
+  kickDate: string | null;
 }
 
 /** Strips operator-only fields from a TapState before it reaches an unauthenticated or
@@ -215,7 +225,7 @@ export class StateManager {
     return this.deviceKeg.get(monitorRefKey(ref)) ?? null;
   }
 
-  getTapStates(): TapState[] {
+  getTapStates(now: Date = new Date()): TapState[] {
     // Every consumer of `state_changed` re-derives this snapshot, and `pour_progress`
     // fires it many times a second during an active pour — so everything per-tap here is
     // batched into a fixed handful of all-taps queries instead of ~6 queries PER tap
@@ -257,6 +267,23 @@ export class StateManager {
       `).all() as { tap_id: number; name: string }[])
         .map((r): [number, string] => [r.tap_id, r.name]),
     );
+    // Kegwall V2 wall numbers (tonight, last hour, 7-day burn), one grouped query over the
+    // trailing week. `ts` is stored as ISO-8601 UTC, so string comparison orders correctly.
+    const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+    const tonightSince = serviceDayStart(now).toISOString();
+    const hourAgo = new Date(now.getTime() - 3_600_000).toISOString();
+    const recentByKeg = new Map(
+      (this.db.prepare(`
+        SELECT keg_id,
+               SUM(volume_ml) AS week_ml,
+               SUM(CASE WHEN ts >= @tonight THEN volume_ml ELSE 0 END) AS tonight_ml,
+               SUM(CASE WHEN ts >= @tonight THEN 1 ELSE 0 END) AS tonight_n,
+               SUM(CASE WHEN ts >= @hour THEN 1 ELSE 0 END) AS hour_n
+        FROM pours WHERE ts >= @week GROUP BY keg_id
+      `).all({ week: weekAgo, tonight: tonightSince, hour: hourAgo }) as {
+        keg_id: number; week_ml: number; tonight_ml: number; tonight_n: number; hour_n: number;
+      }[]).map((r): [number, typeof r] => [r.keg_id, r]),
+    );
     // Device-level: temp arrives once per physical Kegtron (recorded on port 0), so a
     // tap bound to port 2 reads its DEVICE's telemetry, not its port row's — queried
     // once per distinct physical device instead of once per tap.
@@ -279,6 +306,13 @@ export class StateManager {
       const lastPourRow = keg ? lastPourByKeg.get(keg.id) : undefined;
       const temp = mon ? deviceTemp(mon.type, mon.identifier) : null;
       const avgRating = beer ? avgRatingByBeer.get(beer.id) ?? null : null;
+      const recent = keg ? recentByKeg.get(keg.id) : undefined;
+      const remainingMl = keg ? computeRemainingMl(keg.volStartMl, keg.volDispensedMl) : 0;
+      const kickDate = keg && keg.status === 'on_tap'
+        ? projectKick({
+          remainingMl, burnLast7DaysMl: recent?.week_ml ?? 0, dateTapped: keg.dateTapped, now,
+        }).projectedKickDate
+        : null;
       return {
         tapId: tap.id,
         tapNumber: tap.number,
@@ -288,7 +322,7 @@ export class StateManager {
           ? {
               ...keg,
               levelPct: computeLevelPct(keg.volStartMl, keg.volDispensedMl),
-              remainingMl: computeRemainingMl(keg.volStartMl, keg.volDispensedMl),
+              remainingMl,
             }
           : null,
         lastPour: lastPourRow ? { ts: lastPourRow.ts, volumeMl: lastPourRow.volumeMl } : null,
@@ -299,6 +333,9 @@ export class StateManager {
         temp,
         avgRating: avgRating != null ? Math.round(avgRating * 10) / 10 : null,
         nextUpBeerName: nextUpByTap.get(tap.id) ?? null,
+        tonight: { pours: recent?.tonight_n ?? 0, volumeMl: recent?.tonight_ml ?? 0 },
+        lastHourPours: recent?.hour_n ?? 0,
+        kickDate,
       };
     });
   }
