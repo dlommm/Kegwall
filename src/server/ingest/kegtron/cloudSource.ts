@@ -8,7 +8,7 @@ import { parseDeviceShadow, diffToEvents, type ParsedDevice, type ShadowEmission
 // ---------------------------------------------------------------------------
 // Kegtron Pro cloud source: discovers devices via mdash.net's /customer + device-shadow
 // GET, then keeps them live via the per-device WebSocket notify channel documented in
-// docs/kegtron/Notify.md (wss://{base}/api/v2/m/device/notify?access_token=<DEVICE_PUBLIC_KEY>),
+// Kegtron's WebSocket Notifications doc (wss://{base}/api/v2/m/device/notify?access_token=<DEVICE_PUBLIC_KEY>),
 // falling back to periodic polling while a socket is down. Never touches the DB — only
 // emits bus events (Tasks 5/8's StateManager/monitors.ts consume them).
 // ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 /** Recursively applies `patch`'s keys onto `base` (plain objects only; arrays/scalars in
  * `patch` replace the corresponding `base` value wholesale). Used to fold a WS `updated`
- * notification's partial shadow (see docs/kegtron/Notify.md) into the cached full shadow
+ * notification's partial shadow (see Kegtron's WebSocket Notifications doc) into the cached full shadow
  * body before re-parsing — the notify payload only carries the keys that changed. */
 function deepMerge(base: unknown, patch: unknown): unknown {
   if (!isPlainObject(base) || !isPlainObject(patch)) {
@@ -91,7 +91,7 @@ function deepMerge(base: unknown, patch: unknown): unknown {
 }
 
 /** Formats `d` as an absolute "YYYY-MM-DD HH:MM:SS" UTC string — one of SQLite's
- * accepted time-string forms (docs/kegtron/kegtron-pro.v2.yaml ~lines 1795-1798:
+ * accepted time-string forms (Kegtron's ktpro-api v2 OpenAPI spec ~lines 1795-1798:
  * "'datetime' can be any valid SQLite time string";
  * https://www.sqlite.org/lang_datefunc.html). Every caller in this file uses this same
  * shape for both the 7-day window boundary AND the persisted backfillCursors value
@@ -260,7 +260,7 @@ export class KegtronCloudSource implements Source {
       // present (live-diagnosed against the real server; a bare `new WebSocket(url)`
       // sends none). Kegtron's own Node.js example works around this by passing `{
       // origin: url }` — the whole notify URL itself, not just a scheme+host — to the
-      // `ws` client (docs/kegtron/Notify.md's Examples section); matching that exactly
+      // `ws` client (Kegtron's WebSocket Notifications doc's Examples section); matching that exactly
       // here is what makes every device connection actually succeed instead of 403ing
       // and permanently degrading this source to 5-min polling. See
       // tests/ingest/cloudSource.test.ts's dedicated regression test.

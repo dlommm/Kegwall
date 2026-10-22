@@ -35,7 +35,7 @@ UDP too (below).
 
 Kegtron Pro devices can additionally push their readings directly over the local network
 via UDP multicast, bypassing the cloud round-trip entirely
-(`docs/kegtron/UDPStreaming.pdf`; see `src/server/ingest/kegtron/udpSource.ts`'s header
+(Kegtron's "UDP Streaming" guide; see `src/server/ingest/kegtron/udpSource.ts`'s header
 comment for the full protocol citation). Where cloud updates arrive with 5-30s of lag,
 UDP packets arrive at up to 1/sec while idle and every 200ms during an active pour — this
 is what makes a "pouring" indicator on the wall feel live instead of laggy.

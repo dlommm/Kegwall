@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseDeviceShadow, diffToEvents, decodeUntappdLabelUrl } from '../../src/server/ingest/kegtron/shadow.js';
 
-// Fixture nesting mirrors docs/kegtron/kegtron-pro.v2.yaml's GetDeviceShadow response
+// Fixture nesting mirrors Kegtron's ktpro-api v2 OpenAPI spec's GetDeviceShadow response
 // schema exactly — it's a JSON transcription of the spec's own "Example KT-420" sample
 // value (kegtron-pro.v2.yaml lines ~620-818): id -> shadow.state.reported.{config,
 // config_readonly,online,ota}, with config.portN carrying beer metadata (userName/maker/

@@ -41,7 +41,7 @@ let serverSockets: WebSocket[];
 let serverConnectionUrls: string[];
 // Live-diagnosed bug fix regression coverage: mdash.net's real WS handshake 403s with NO
 // `Origin` header (Kegtron's own Node example works around this by passing `{ origin: url
-// }` to the `ws` client — see docs/kegtron/Notify.md's Examples section, and
+// }` to the `ws` client — see Kegtron's WebSocket Notifications doc's Examples section, and
 // cloudSource.ts's `openWs`). This fake server doesn't reject a missing Origin (that would
 // turn every OTHER test in this file red too, since they all share this same `wss`) — it
 // just records what each handshake actually carried, so one dedicated test below can
@@ -207,7 +207,7 @@ describe('KegtronCloudSource discovery flow', () => {
   });
 
   // Live-diagnosed tonight against real mdash.net: it 403s the notify WS handshake when no
-  // `Origin` header is present. Kegtron's own Node.js example (docs/kegtron/Notify.md)
+  // `Origin` header is present. Kegtron's own Node.js example (Kegtron's WebSocket Notifications doc)
   // works around this by passing `{ origin: url }` to the `ws` client constructor — a bare
   // `new WebSocket(url)` (no origin option) sends no Origin header at all, so every real
   // device connection 403s and the source degrades to 5-min polling ("all N device

@@ -1,4 +1,4 @@
-# Source: docs/kegtron/UDPStreaming.pdf ("UDP Streaming", Kegtron, April 2026).
+# Source: Kegtron's "UDP Streaming" PDF ("UDP Streaming", Kegtron, April 2026).
 # Data Definitions section (page 3) defines the payload JSON shape used on every line
 # below: num/fwRev/portCount/serialNum/temp at the top level, plus exactly one
 # "port<i>" object per packet carrying abv/cleanActive/curServ/drinkSize/ibu/maker/

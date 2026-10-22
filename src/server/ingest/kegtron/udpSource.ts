@@ -6,7 +6,7 @@ import type { Source } from '../source.js';
 import { SourceStatusThrottle, DEFAULT_STATUS_INTERVAL_MS } from '../statusThrottle.js';
 
 // ---------------------------------------------------------------------------
-// Kegtron Pro UDP Streaming source (docs/kegtron/UDPStreaming.pdf, "UDP Streaming",
+// Kegtron Pro UDP Streaming source (Kegtron's "UDP Streaming" PDF, "UDP Streaming",
 // April 2026). Listens for the raw UDP multicast payloads Kegtron Pro devices push
 // directly on the LAN, bypassing the 5-30s cloud-reporting latency (page 2). Never
 // touches the DB — only emits bus events (StateManager/monitors.ts consume them).

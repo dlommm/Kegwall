@@ -10,7 +10,7 @@ import { SettingsStore } from '../../src/server/db/settings.js';
 import { EventBus } from '../../src/server/core/events.js';
 import { KegtronUdpSource } from '../../src/server/ingest/kegtron/udpSource.js';
 
-// Built from docs/kegtron/UDPStreaming.pdf (see the fixture's own header comment for the
+// Built from Kegtron's "UDP Streaming" PDF (see the fixture's own header comment for the
 // full citation). Lines starting with '#' are fixture-file documentation, not payload.
 const FIXTURE_PATH = join(
   dirname(fileURLToPath(import.meta.url)), '../fixtures/kegtron/udp-packets.jsonl',

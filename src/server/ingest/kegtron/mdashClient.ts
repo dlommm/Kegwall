@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // mdash.net REST client for Kegtron Pro devices.
 //
-// Auth model (docs/kegtron/kegtron-pro.v2.yaml): every endpoint authenticates via an
+// Auth model (Kegtron's ktpro-api v2 OpenAPI spec): every endpoint authenticates via an
 // `access_token` QUERY PARAM — never a header, never in the request body.
 //   - GET /customer                          -> access_token = CUSTOMER_KEY (this.apiKey)
 //   - everything under /api/v2/m/device/...  -> access_token = a DEVICE_PUBLIC_KEY

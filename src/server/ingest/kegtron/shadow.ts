@@ -3,9 +3,9 @@ import type { EventMap, MonitorRef } from '../../core/events.js';
 
 // ---------------------------------------------------------------------------
 // Kegtron Pro device-shadow shape (mdash.net GET /api/v2/m/device response,
-// and the WS `notify` "updated" payload — same nesting, see docs/kegtron/Notify.md).
+// and the WS `notify` "updated" payload — same nesting, see Kegtron's WebSocket Notifications doc).
 //
-// Confirmed against docs/kegtron/kegtron-pro.v2.yaml (GetDeviceShadow response
+// Confirmed against Kegtron's ktpro-api v2 OpenAPI spec (GetDeviceShadow response
 // schema, ~lines 40-618, and the "Example KT-420" sample value, ~lines 620-818):
 //
 //   {
@@ -170,7 +170,7 @@ function normalizeDate(v: string | null | undefined): string | null {
 
 /**
  * Decodes a Kegtron Pro port's `labelUrl` config field (`ParsedPort.labelUrl`) into an
- * Untappd beer-label image URL. Per docs/kegtron/kegtron-pro.v2.yaml (`port-config`
+ * Untappd beer-label image URL. Per Kegtron's ktpro-api v2 OpenAPI spec (`port-config`
  * schema, `labelUrl`, ~line 2398): "Untappd beer label encoded as a 64-bit integer. Upper
  * 32 bits contain the hex portion of the Untappd image filename; lower 32 bits contain
  * the decimal portion. 0 = no label set."

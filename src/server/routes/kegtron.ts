@@ -122,7 +122,7 @@ export async function kegtronRoutes(
     }
 
     // Phase 5 Task 0 spec-parity item: decode the port's labelUrl (Untappd label id,
-    // per docs/kegtron/kegtron-pro.v2.yaml — see decodeUntappdLabelUrl's doc comment)
+    // per Kegtron's ktpro-api v2 OpenAPI spec — see decodeUntappdLabelUrl's doc comment)
     // and download it through the shared SSRF-guarded remote label download helper
     // (routes/lookup.ts's downloadAndStoreLabel). A download failure (unreachable,
     // oversized, wrong format, guard rejection, ...) is NOT a reason to fail the whole
@@ -152,7 +152,7 @@ export async function kegtronRoutes(
     const { monitor, deviceKey } = requireProMonitor(db, Number((req.params as any).monitorId));
     const body = resetVolumeSchema.parse(req.body ?? {});
 
-    // The YAML's Kegtron.ResetVolume RPC schema (docs/kegtron/kegtron-pro.v2.yaml, the
+    // The YAML's Kegtron.ResetVolume RPC schema (Kegtron's ktpro-api v2 OpenAPI spec, the
     // `/api/v2/m/device/rpc/Kegtron.ResetVolume` operation) takes ONLY `{port: 0..3}` —
     // calling it always resets config_readonly.porti.{volDisp,pulseCnt} to 0 and
     // volStart to the port's *configured* config.volSize on-device; there is no field on
@@ -176,7 +176,7 @@ export async function kegtronRoutes(
   });
 
   // Kegtron.GetWiFiRssi's response body is a BARE integer (dBm — e.g. `-47`; see
-  // docs/kegtron/kegtron-pro.v2.yaml, larger/less-negative = stronger signal), not an
+  // Kegtron's ktpro-api v2 OpenAPI spec, larger/less-negative = stronger signal), not an
   // object — wrapped here as `{rssi}` so the client gets a normal JSON object shape like
   // every other endpoint in this app, matching the RPC's own request shape (no `port`
   // param — the spec's GetWiFiRssi takes no params at all, unlike ResetVolume).

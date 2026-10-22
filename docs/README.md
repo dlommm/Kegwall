@@ -46,5 +46,6 @@ and wiki are updated with every change).
 
 ## Reference
 
-- [kegtron/](kegtron/) — vendor Kegtron API/BLE reference (Intro, WebSocket notifications, the
-  reverse-engineered Pro BLE advertisement format, the OpenAPI spec, and vendor PDFs).
+- [kegtron/pro-ble-format.md](kegtron/pro-ble-format.md) — the reverse-engineered Kegtron Pro BLE
+  advertisement format. Kegtron's own API, WebSocket, and UDP streaming docs come from Kegtron and
+  aren't redistributed here.
