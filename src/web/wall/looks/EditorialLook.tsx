@@ -28,7 +28,7 @@ function standfirst(m: WallTapModel): string {
  */
 export const EditorialLook = memo(function EditorialLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -68,7 +68,7 @@ export const EditorialLook = memo(function EditorialLook(props: WallLookProps) {
             <li
               key={m.tap.tapId}
               data-tap-state={m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-              data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+              data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
             >
               <span className={styles.n}>{m.tapNumber}</span>
               <div className={styles.entry}>

@@ -47,7 +47,7 @@ function departsIn(m: WallTapModel): string {
  */
 export const DeparturesLook = memo(function DeparturesLook(props: WallLookProps) {
   const {
-    taps, config, units, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, config, units, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -71,7 +71,7 @@ export const DeparturesLook = memo(function DeparturesLook(props: WallLookProps)
             key={m.tap.tapId}
             className={styles.line}
             data-tap-state={m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-            data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+            data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
           >
             <Flaps text={String(m.tapNumber).padStart(2, '0')} n={2} />
             <Flaps text={m.name ?? 'EMPTY'} n={20} />

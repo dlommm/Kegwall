@@ -47,7 +47,7 @@ function Tally({ n }: { n: number }) {
  */
 export const ChalkboardLook = memo(function ChalkboardLook(props: WallLookProps) {
   const {
-    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -75,7 +75,7 @@ export const ChalkboardLook = memo(function ChalkboardLook(props: WallLookProps)
               className={styles.item}
               style={{ '--chalk': chalkFor(m) } as CSSProperties}
               data-tap-state={m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-              data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+              data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
             >
               <div className={styles.what}>
                 <h2 className={styles.name}><em>{m.tapNumber}</em>{m.name ?? 'Empty tap'}</h2>

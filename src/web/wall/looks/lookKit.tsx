@@ -42,9 +42,9 @@ export function pickSpotlight(models: WallTapModel[], spotlight: WallConfig['spo
 }
 
 /** The spotlight-takeover treatment for a row or card: lifted when it pours, dimmed otherwise. */
-export function spotlightState(tapId: number, spotlightTapId: number | null | undefined): 'lit' | 'dim' | undefined {
-  if (spotlightTapId == null) return undefined;
-  return tapId === spotlightTapId ? 'lit' : 'dim';
+export function spotlightState(tapId: number, spotlightTapIds: ReadonlySet<number> | null | undefined): 'lit' | 'dim' | undefined {
+  if (!spotlightTapIds || spotlightTapIds.size === 0) return undefined;
+  return spotlightTapIds.has(tapId) ? 'lit' : 'dim';
 }
 
 export interface MenuQrProps {

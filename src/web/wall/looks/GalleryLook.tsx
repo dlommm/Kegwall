@@ -14,7 +14,7 @@ const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'
  */
 export const GalleryLook = memo(function GalleryLook(props: WallLookProps) {
   const {
-    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId, pageIndex, pageCount,
+    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds, pageIndex, pageCount,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -39,7 +39,7 @@ export const GalleryLook = memo(function GalleryLook(props: WallLookProps) {
             key={m.tap.tapId}
             className={styles.work}
             data-tap-state={m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-            data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+            data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
           >
             <div className={styles.frame}>
               <div className={styles.canvas}>

@@ -41,7 +41,7 @@ function spotlightSentence(m: WallTapModel, now: Date): { lead: string; rest: st
  */
 export const JustTappedLook = memo(function JustTappedLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -110,7 +110,7 @@ export const JustTappedLook = memo(function JustTappedLook(props: WallLookProps)
               className={styles.row}
               data-tap-state={m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
               data-feature={feature && m.tap.tapId === feature.tap.tapId ? 'true' : undefined}
-              data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+              data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
             >
               <span className={styles.tapNo}>{m.tapNumber}</span>
               <TapMarker model={m} size={62} showNumber={false} />

@@ -5,6 +5,11 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Changed
 
+- **Changed:** pour takeovers are rebuilt. Full shows a glass filling from a stream of beer,
+  Split slides a panel in the beer's color, Dock lifts the wall for a filling bar, Fill floods
+  the screen, Spotlight lifts the pouring card, and Off keeps the wall still with a live
+  counter on the pouring row. Every style handles several taps pouring at once, one lane each.
+
 - **Changed:** the Chalkboard, Editorial, Neon, Terminal, Poster, Departures and Zen looks are
   redrawn from their names, each showing what's left as a picture and in pints: chalk tally
   gates, a magazine contents page with level rules, neon rings, ASCII gauges with the pour
@@ -47,6 +52,10 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   taproom's serving size. None of it reveals keg cost.
 
 ## Fixed
+
+- **Fixed:** the end of a pour showed the last live reading instead of the recorded volume,
+  which could be several ounces short when the last Kegtron packet lagged the final pour.
+- **Fixed:** the Dock and Fill takeovers had no finish; Split's light panel broke dark themes.
 
 ## Developer
 

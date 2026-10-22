@@ -51,6 +51,33 @@ keep one beer in the spotlight; if that tap is empty or kicked, the newest keg l
 night. The kick forecast divides what's left by the keg's pour rate over the last 7 days
 (or since it was tapped, if that's sooner).
 
+## Pour takeovers
+
+When a tap pours past the wall's trigger (**Pour takeover → trigger**, 60 mL / about 2 oz by
+default, so foam blips never flash the screen), the wall reacts in the chosen style:
+
+| Style | What happens |
+| --- | --- |
+| `full` | The screen becomes the beer: its name, a large live counter, and a glass filling by measured volume over your serving size (8/12/16 oz marks on a pint), with a stream of beer from the spout. The head forms past half a glass and spills over at the finish |
+| `spotlight` | The wall stays; every pouring row or card lifts and the rest dim |
+| `split` | The wall slides aside and a panel in the beer's color rises with the counter |
+| `dock` | A bar rises from the bottom and fills left to right; the wall lifts to make room |
+| `fill` | The screen floods with the beer to the measured level, then drains |
+| `off` (Badge) | Nothing moves: the pouring row shows "Pouring now · 8.0 oz" in the look itself |
+
+Every style follows the same rules:
+
+- **Several taps at once.** Each pour gets its own lane: one pour fills the screen, two split
+  it, three make thirds, four make a 2 × 2 grid, and more show as "+N more pouring". Lanes
+  open and close on their own as pours start and finish.
+- **Measured, never invented.** The counter eases toward each Kegtron reading and never shows
+  more than was measured.
+- **The finish shows the recorded pour.** When the pour is saved, the lane shows its recorded
+  volume (and who poured it, if anyone claimed it at the kiosk or tap), then the wall returns
+  within 6 seconds.
+- **Reduced motion.** With the TV's reduce-motion setting on, every move becomes a fade and
+  the numbers still update.
+
 ## Layout
 
 - **Pages** — group taps into rotating pages. With no pages set, a wall with more taps than

@@ -90,6 +90,13 @@ export interface EventMap {
    * NOT for default-drinker or claim-flow attributions. The WS layer relays it as
    * `{type:'pour_attributed', ...}` so the tablet can flip to its done screen with the
    * final volume, beer, and the pourer's lifetime pour count. */
+  /** Kegwall V2: every pour that becomes a recorded row (after dedupe). The wall's pour
+   * takeover finishes on `volumeMl` (the recorded volume) instead of the last live counter.
+   * `pourerName` is the attributed drinker's public display name, or null when unclaimed. */
+  pour_recorded: {
+    pourId: number; tapId: number; tapNumber: number; volumeMl: number; durationMs: number | null;
+    pourerName: string | null; pourerPourCount: number | null; ts: string;
+  };
   pour_attributed: {
     drinkerId: number; pourId: number; tapId: number; tapNumber: number;
     beerName: string | null; volumeMl: number; pourCount: number; ts: string;

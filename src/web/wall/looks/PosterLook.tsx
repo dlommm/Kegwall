@@ -36,7 +36,7 @@ function billing(rest: WallTapModel[]): Array<{ size: number; acts: WallTapModel
  */
 export const PosterLook = memo(function PosterLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -72,7 +72,7 @@ export const PosterLook = memo(function PosterLook(props: WallLookProps) {
             <span
               key={m.tap.tapId}
               data-tap-state={m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-              data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+              data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
             >
               {m.name}
               <em>{m.pouring && m.pourLabel ? `pouring ${m.pourLabel}` : `${Math.max(0, Math.round(m.servings ?? 0))} left`}</em>

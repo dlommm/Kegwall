@@ -1,0 +1,250 @@
+/* Shared pour pieces (Kegwall V2). Design pixels of the 1080p stage via --u. */
+.volume {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(14 * var(--u, 1px));
+  font-variant-numeric: tabular-nums;
+}
+
+.volume b {
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  line-height: 0.8;
+}
+
+.volume span {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+/* ---- glass + stream ---- */
+.rig {
+  --px: var(--u, 1px);
+  --spout-h: calc(54 * var(--px));
+  --gap: calc(70 * var(--px));
+  position: relative;
+  width: calc(var(--gw) * var(--px));
+  height: calc(var(--gh) * var(--px) + var(--spout-h) + var(--gap));
+  flex: none;
+}
+
+.spout {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(90 * var(--px));
+  height: var(--spout-h);
+  margin-left: calc(-45 * var(--px));
+  border-radius: 0 0 calc(14 * var(--px)) calc(14 * var(--px));
+  background: #A3A8AD;
+  box-shadow: inset 0 calc(-8 * var(--px)) 0 #7C8186;
+  z-index: 3;
+}
+
+/* The stream: a tapered body from the spout to the beer's surface, with slanted ripples
+   flowing down (one background-position loop while flowing). */
+.stream {
+  position: absolute;
+  left: 50%;
+  top: var(--spout-h);
+  width: calc(64 * var(--px));
+  margin-left: calc(-32 * var(--px));
+  height: calc(var(--gap) + (1 - var(--frac) * 0.94) * var(--gh) * var(--px));
+  clip-path: polygon(12% 0, 88% 0, 72% 100%, 28% 100%);
+  background:
+    repeating-linear-gradient(168deg, rgba(255, 255, 255, 0) 0 18%, rgba(255, 255, 255, 0.22) 18% 26%, rgba(255, 255, 255, 0) 26% 44%),
+    var(--beer);
+  background-size: 100% calc(44 * var(--px));
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 350ms ease-in, height var(--motion-counter) var(--ease-out);
+  z-index: 2;
+}
+
+.stream::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 34%;
+  width: 10%;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.rig[data-flowing='true'] .stream {
+  transform: scaleY(1);
+  animation: flowdown 300ms linear infinite;
+}
+
+/* At the finish the tail drops into the glass. */
+.rig[data-finished='true'] .stream {
+  transform-origin: bottom;
+  transform: scaleY(0);
+  animation: none;
+}
+
+@keyframes flowdown {
+  to { background-position: 0 calc(44 * var(--px)); }
+}
+
+.bloom {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--spout-h) + var(--gap) + (1 - var(--frac) * 0.94) * var(--gh) * var(--px) - 22 * var(--px));
+  width: calc(150 * var(--px));
+  height: calc(44 * var(--px));
+  margin-left: calc(-75 * var(--px));
+  border-radius: 50%;
+  background: #F4ECD8;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 300ms ease, transform 300ms ease, top var(--motion-counter) var(--ease-out);
+  z-index: 2;
+}
+
+.rig[data-flowing='true'] .bloom {
+  opacity: 0.95;
+  animation: bloom 500ms ease-in-out infinite alternate;
+}
+
+@keyframes bloom {
+  from { transform: scale(0.85, 0.8); }
+  to { transform: scale(1.1, 1); }
+}
+
+.glass {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--gh) * var(--px));
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.liquid {
+  position: absolute;
+  inset: 0;
+  background: var(--beer);
+  transform-origin: bottom;
+  transform: scaleY(calc(var(--frac) * 0.94));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.foam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--frac) * 94%);
+  height: calc(50 * var(--px));
+  border-radius: calc(25 * var(--px)) calc(25 * var(--px)) 0 0;
+  background: #F4ECD8;
+  transform-origin: bottom;
+  transform: scaleY(var(--head));
+  transition: bottom var(--motion-counter) var(--ease-out), transform var(--motion-counter) ease;
+}
+
+.bubbles i {
+  position: absolute;
+  bottom: calc(-20 * var(--px));
+  left: var(--x);
+  width: calc(10 * var(--px));
+  height: calc(10 * var(--px));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+}
+
+.rig[data-flowing='true'] .bubbles i {
+  animation: rise var(--d) linear infinite;
+  animation-delay: var(--dl);
+}
+
+@keyframes rise {
+  from { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.9; }
+  to { transform: translateY(calc(-900 * var(--px))); opacity: 0; }
+}
+
+.mark {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--at) * 94%);
+  padding-right: calc(46 * var(--px));
+  transform: translateY(50%);
+  font-family: var(--font-v2-text);
+  font-weight: 700;
+  font-size: calc(22 * var(--px));
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.mark::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: calc(34 * var(--px));
+  height: calc(3 * var(--px));
+  background: currentColor;
+}
+
+.rim {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 calc(5 * var(--px)) rgba(255, 255, 255, 0.45);
+}
+
+/* At the finish the head spills over the rim. */
+.spill {
+  position: absolute;
+  left: calc(6 * var(--px));
+  right: calc(6 * var(--px));
+  bottom: calc(var(--gh) * var(--px) - 10 * var(--px));
+  height: calc(40 * var(--px));
+  opacity: 0;
+}
+
+.spill b {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(20 * var(--px));
+  background: #F4ECD8;
+}
+
+.spill i {
+  position: absolute;
+  top: calc(18 * var(--px));
+  width: calc(22 * var(--px));
+  height: calc(70 * var(--px));
+  border-radius: calc(11 * var(--px));
+  background: #F4ECD8;
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+.spill i:nth-of-type(1) { left: 8%; }
+.spill i:nth-of-type(2) { left: 48%; }
+.spill i:nth-of-type(3) { left: 84%; }
+
+.rig[data-finished='true'] .spill {
+  opacity: 1;
+  transition: opacity 200ms;
+}
+
+.rig[data-finished='true'] .spill i {
+  animation: drip 1.6s var(--ease-out) forwards;
+}
+
+@keyframes drip {
+  to { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rig *,
+  .rig {
+    animation: none !important;
+    transition-duration: 0.01s !important;
+  }
+}

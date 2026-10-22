@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { WallLook } from './looks/WallLook';
-import { PourTakeover } from './takeover/PourTakeover';
-import type { TakeoverState } from '../lib/useTakeover';
+import { PourLayer } from '../wall/pour/PourLayer';
+import type { PourLane } from '../wall/pour/usePourLanes';
 import type { WallConfig } from '../../server/core/wallConfig.js';
 import type { TapState } from '../../server/core/state.js';
 
@@ -53,6 +53,11 @@ export interface WallLivePreviewProps {
 }
 
 const POUR_TOTAL_ML = 473; // full US pint
+/** The preview's simulated pour, as one takeover lane (nothing is recorded). */
+const SIM_LANE: Omit<PourLane, 'tap'> = {
+  key: 'preview', tapId: 2, phase: 'pouring', measuredMl: 0, recordedMl: null, durationMs: null,
+  pourerName: null, pourerPourCount: null, startedAt: 0,
+};
 const POUR_TICK_MS = 80;
 const POUR_STEP_ML = 8 * 8; // 8mL/80ms real cadence, ×8 so the preview animation is snappy
 const POUR_HOLD_MS = 1800;
@@ -60,7 +65,7 @@ const POUR_HOLD_MS = 1800;
 export function WallLivePreview({ config, title, units, menuUrl, simulateNonce = 0 }: WallLivePreviewProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.25);
-  const [sim, setSim] = useState<TakeoverState | null>(null);
+  const [sim, setSim] = useState<PourLane | null>(null);
 
   // Pour simulation (redesign 1c): animate the "Midnight Porter" sample tap in the selected
   // takeover style. 'off' shows only the badge (already on the sample tap), so nothing to run.
@@ -71,10 +76,13 @@ export function WallLivePreview({ config, title, units, menuUrl, simulateNonce =
     let hold: ReturnType<typeof setTimeout> | undefined;
     const tick = setInterval(() => {
       ml = Math.min(POUR_TOTAL_ML, ml + POUR_STEP_ML);
-      setSim({ phase: 'active', tap: { ...base, pouring: true, curServMl: ml }, pourMl: ml });
+      setSim({ ...SIM_LANE, tap: { ...base, pouring: true, curServMl: ml }, measuredMl: ml });
       if (ml >= POUR_TOTAL_ML) {
         clearInterval(tick);
-        setSim({ phase: 'complete', tap: { ...base, pouring: false, curServMl: null }, pourMl: POUR_TOTAL_ML });
+        setSim({
+          ...SIM_LANE, phase: 'finish', tap: { ...base, pouring: false, curServMl: null },
+          measuredMl: POUR_TOTAL_ML, recordedMl: POUR_TOTAL_ML,
+        });
         hold = setTimeout(() => setSim(null), POUR_HOLD_MS);
       }
     }, POUR_TICK_MS);
@@ -93,8 +101,7 @@ export function WallLivePreview({ config, title, units, menuUrl, simulateNonce =
   }, []);
 
   const uiScale = config.display?.uiScale ?? 1;
-  const spotlightTapId = sim && sim.phase !== 'idle' && config.takeover.style === 'spotlight'
-    ? sim.tap.tapId : null;
+  const spotlightTapIds = sim && config.takeover.style === 'spotlight' ? new Set([sim.tapId]) : null;
   const overlayStyle = config.takeover.style;
   const showOverlay = sim !== null && overlayStyle !== 'spotlight' && overlayStyle !== 'off';
 
@@ -118,11 +125,13 @@ export function WallLivePreview({ config, title, units, menuUrl, simulateNonce =
               pageIndex={0}
               pageCount={1}
               rotationSeconds={config.rotationSeconds}
-              spotlightTapId={spotlightTapId}
+              spotlightTapIds={spotlightTapIds}
             />
           </div>
-          {showOverlay && sim && sim.phase !== 'idle' && (
-            <PourTakeover style={overlayStyle} state={sim} units={units} tempC={2.2} />
+          {showOverlay && sim && (
+            <div className="wall-live-preview__stage-overlay" style={{ '--u': `${uiScale}px` } as CSSProperties}>
+              <PourLayer style={overlayStyle} lanes={[sim]} units={units} servingSizeMl={POUR_TOTAL_ML} />
+            </div>
           )}
         </ThemeProvider>
       </div>

@@ -8,7 +8,7 @@ import styles from './ColumnsLook.module.css';
 /** Columns (V2): each column is the keg, filled in the beer's color to its level. */
 export const ColumnsLook = memo(function ColumnsLook(props: WallLookProps) {
   const {
-    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props, { tempLabel: '' });
   const models = useWallModels(taps, units, servingSizeMl);
@@ -33,7 +33,7 @@ export const ColumnsLook = memo(function ColumnsLook(props: WallLookProps) {
               className={styles.col}
               data-testid="columns-col"
               data-tap-state={m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-              data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+              data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
             >
               <div className={styles.lab}>
                 <span className={styles.tapNo}>{`Tap ${m.tapNumber}`}</span>

@@ -22,7 +22,7 @@ export function asciiLevel(levelPct: number): string {
   return '█'.repeat(full) + '░'.repeat(BAR - full);
 }
 
-function Row({ m, units, spotlightTapId }: { m: WallTapModel; units: WallLookProps['units']; spotlightTapId?: number | null }) {
+function Row({ m, units, spotlightTapIds }: { m: WallTapModel; units: WallLookProps['units']; spotlightTapIds?: ReadonlySet<number> | null }) {
   const n = String(m.tapNumber).padStart(3);
   const name = cell((m.name ?? 'empty').toLowerCase(), 28);
   const state = m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok';
@@ -36,7 +36,7 @@ function Row({ m, units, spotlightTapId }: { m: WallTapModel; units: WallLookPro
   const pints = String(Math.max(0, Math.round(m.servings ?? 0))).padStart(3);
   const tonight = m.tonightMl > 0 ? formatWholeVolume(m.tonightMl, units).padStart(8) : '       —';
   return (
-    <span data-tap-state={state} data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)} className={styles.row}>
+    <span data-tap-state={state} data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)} className={styles.row}>
       {`${n}  `}
       <span className={styles.h}>{name}</span>
       {'  '}
@@ -57,7 +57,7 @@ function Row({ m, units, spotlightTapId }: { m: WallTapModel; units: WallLookPro
  */
 export const TerminalLook = memo(function TerminalLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, allTaps, config, units, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -80,7 +80,7 @@ export const TerminalLook = memo(function TerminalLook(props: WallLookProps) {
           {`TAP  ${cell('BEER', 28)}  ${cell('STYLE', 18)}  ${cell('LEFT IN KEG', BAR)} ${'PTS'.padStart(3)}   ${'1H'.padStart(3)}  ${'TONIGHT'.padStart(8)}`}
         </span>
         {'\n'}
-        {models.map((m) => <Row key={m.tap.tapId} m={m} units={units} spotlightTapId={spotlightTapId} />)}
+        {models.map((m) => <Row key={m.tap.tapId} m={m} units={units} spotlightTapIds={spotlightTapIds} />)}
         {log.length > 0 && <span className={styles.d}>{'\npour log\n'}</span>}
         {log.map((m) => {
           const t = new Date(m.tap.lastPour!.ts);

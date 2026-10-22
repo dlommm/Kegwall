@@ -20,7 +20,7 @@ export function handleNameSize(name: string): number {
  */
 export const HandlesLook = memo(function HandlesLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props, { tempLabel: '' });
   const models = useWallModels(taps, units, servingSizeMl);
@@ -45,7 +45,7 @@ export const HandlesLook = memo(function HandlesLook(props: WallLookProps) {
               key={m.tap.tapId}
               className={styles.handle}
               data-tap-state={m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-              data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+              data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
               style={{ '--body': body, '--ink': ink, '--low': low, '--beer': levelColor(m.beerColor) } as CSSProperties}
             >
               <div className={styles.body}>

@@ -20,8 +20,8 @@ import {
   WallLook, autoPageSize, resolveLook,
 } from '../components/looks/WallLook';
 import { Stage } from '../design/Stage';
-import { PourTakeover } from '../components/takeover/PourTakeover';
-import { useTakeover } from '../lib/useTakeover';
+import { PourLayer } from '../wall/pour/PourLayer';
+import { usePourLanes, type RecordedPour } from '../wall/pour/usePourLanes';
 import { BannerLane } from '../components/BannerLane';
 import { GameStrip } from '../components/GameStrip';
 import { ScreenCare } from '../components/ScreenCare';
@@ -72,6 +72,22 @@ function isWsBannerMessage(msg: unknown): msg is WsBannerMessage {
 function isWsThemeOverrideMessage(msg: unknown): msg is WsThemeOverrideMessage {
   return typeof msg === 'object' && msg !== null && (msg as { type?: unknown }).type === 'theme_override'
     && typeof (msg as { minutes?: unknown }).minutes === 'number';
+}
+
+/** Kegwall V2: a recorded pour, relayed by ws.ts so the takeover finishes on its volume. */
+interface WsPourRecordedMessage {
+  type: 'pour_recorded';
+  tapId: number;
+  volumeMl: number;
+  durationMs: number | null;
+  pourerName: string | null;
+  pourerPourCount: number | null;
+}
+
+function isWsPourRecordedMessage(msg: unknown): msg is WsPourRecordedMessage {
+  const m = msg as { type?: unknown; tapId?: unknown; volumeMl?: unknown } | null;
+  return typeof m === 'object' && m !== null && m.type === 'pour_recorded'
+    && typeof m.tapId === 'number' && typeof m.volumeMl === 'number';
 }
 
 /** The 60s host-health frame ws.ts relays for walls with showHostStats. */
@@ -166,12 +182,19 @@ export function WallPage() {
   // messages already handled here.
   const { stage, onWsMessage, wake } = useDisplayPower(slug);
 
+  // Recent `pour_recorded` frames (Kegwall V2): a takeover finishes on the recorded volume.
+  const [recordedPours, setRecordedPours] = useState<RecordedPour[]>([]);
   const handleWsMessage = useCallback((msg: unknown) => {
     onWsMessage(msg);
     if (isWsBannerMessage(msg)) {
       push(msg.text, mapServerBannerKind(msg.kind), msg.durationMs);
     } else if (isWsHostStatsMessage(msg)) {
       setHostStats(msg);
+    } else if (isWsPourRecordedMessage(msg)) {
+      setRecordedPours((prev) => [...prev.slice(-9), {
+        tapId: msg.tapId, volumeMl: msg.volumeMl, durationMs: msg.durationMs,
+        pourerName: msg.pourerName, pourerPourCount: msg.pourerPourCount, at: Date.now(),
+      }]);
     } else if (isWsThemeOverrideMessage(msg)) {
       if (partyModeTimerRef.current) clearTimeout(partyModeTimerRef.current);
       setPartyMode(true);
@@ -247,9 +270,9 @@ export function WallPage() {
   const currentTaps = pages[pageIndex] ?? [];
   const transition = reducedMotion ? 'none' : (config?.transition ?? 'crossfade');
 
-  // Pour takeover (design turns 2 + 9): watches ALL of the wall's taps (not just the
-  // current rotating page) so a pour on another page still takes the screen over.
-  const takeoverState = useTakeover(taps, config?.takeover);
+  // Pour takeover (Kegwall V2): one lane per qualifying pour on ANY of the wall's taps (not
+  // just the current page), finishing on the recorded volume from the WS feed.
+  const pourLanes = usePourLanes(taps, config?.takeover, recordedPours);
   const takeoverStyle = config?.takeover?.style ?? 'off';
 
   // View rotation (design 4a/4b): enabled playlist views cycle on their own
@@ -291,12 +314,11 @@ export function WallPage() {
     // hand-rolled effect's `[rotationViews]` dependency did.
     restartKey: rotationViews,
   });
-  const takeoverVisible = takeoverState.phase !== 'idle';
-  // Spotlight (2b) isn't an overlay: the wall itself highlights the pouring row.
-  const spotlightTapId = takeoverStyle === 'spotlight' && takeoverVisible
-    ? takeoverState.tap.tapId
-    : null;
-  const overlayActive = takeoverVisible && takeoverStyle !== 'spotlight' && takeoverStyle !== 'off';
+  // Spotlight isn't an overlay: the look lifts every pouring row or card and dims the rest.
+  const spotlightTapIds = useMemo(
+    () => (takeoverStyle === 'spotlight' && pourLanes.length ? new Set(pourLanes.map((l) => l.tapId)) : null),
+    [takeoverStyle, pourLanes],
+  );
 
   // Dev-only manual banner hook (`window.__wall.banner('text')`) — `import.meta.env.DEV`
   // is false in a real `vite build` output, so this never ships to the production wall.
@@ -375,6 +397,9 @@ export function WallPage() {
                 className={`wall-grid-transition wall-grid-transition--${transition} look-frame`}
                 data-testid="wall-page-content"
                 data-transition={transition}
+                // Split and Dock move the wall aside to make room (see wall.css).
+                data-pour={pourLanes.length && (takeoverStyle === 'split' || takeoverStyle === 'dock') ? takeoverStyle : undefined}
+                style={{ '--pour-lanes': pourLanes.length } as React.CSSProperties}
               >
                 <WallLook
                   taps={currentTaps}
@@ -388,21 +413,12 @@ export function WallPage() {
                   pageIndex={pageIndex}
                   pageCount={pages.length}
                   rotationSeconds={config.rotationSeconds}
-                  spotlightTapId={spotlightTapId}
+                  spotlightTapIds={spotlightTapIds}
                   sensors={ambientSensors}
                 />
               </div>
           )}
-          {/* `overlayActive` implies a non-idle takeover (TS narrows through the
-              aliased condition, so `state` types as active|complete here). */}
-          {overlayActive && (
-            <PourTakeover
-              style={takeoverStyle}
-              state={takeoverState}
-              units={units}
-              tempC={maxTempC}
-            />
-          )}
+          <PourLayer style={takeoverStyle} lanes={pourLanes} units={units} servingSizeMl={servingSizeMl} />
           <PlaylistBar views={rotationViews} activeIndex={rotationIndex} />
           {/* Additive live game strip (redesign 5c) — renders itself only when a game runs. */}
           <GameStrip />

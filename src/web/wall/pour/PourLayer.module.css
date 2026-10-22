@@ -1,0 +1,442 @@
+/* Pour takeover layer (Kegwall V2). Design pixels of the 1080p stage via --u. Movement is
+   transform/opacity (Split's entrance wipe is the one clip-path); loops run only while a pour
+   flows; reduced motion turns every move into a fade. */
+.layer {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  color: #F7F4EE;
+  font-family: var(--font-v2-text);
+  pointer-events: none;
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  line-height: 0.86;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.who {
+  font-size: calc(32 * var(--px));
+  opacity: 0.8;
+}
+
+.src {
+  display: block;
+  margin-top: calc(14 * var(--px));
+  font-size: calc(24 * var(--px));
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter b { font-size: calc(var(--counter, 300) * var(--px)); }
+.counter span { font-size: calc(var(--counter, 300) * 0.3 * var(--px)); }
+
+.lane {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  animation: laneIn var(--motion-lane) cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+.lane[data-phase='leaving'] {
+  animation: laneOut var(--motion-lane) cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes laneIn {
+  from { flex-grow: 0.0001; opacity: 0; }
+  to { flex-grow: 1; opacity: 1; }
+}
+
+@keyframes laneOut {
+  from { flex-grow: 1; opacity: 1; }
+  to { flex-grow: 0.0001; opacity: 0; }
+}
+
+/* ---------- FULL: the screen becomes the beer, one lane per pour ---------- */
+.layer[data-style='full'] {
+  background: #0B0A09;
+  flex-wrap: wrap;
+}
+
+.layer[data-style='full'] .lane {
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.layer[data-style='full'] .lane + .lane {
+  box-shadow: calc(-4 * var(--px)) 0 0 #1B1916;
+}
+
+.layer[data-style='full'][data-lanes='4'] .lane {
+  flex-basis: 50%;
+  height: 50%;
+}
+
+.fullBody {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(60 * var(--px)) calc(48 * var(--px)) calc(40 * var(--px));
+  --counter: 180;
+}
+
+.layer[data-lanes='1'] .fullBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: calc(90 * var(--px));
+  padding: calc(90 * var(--px)) calc(110 * var(--px));
+  --counter: 330;
+}
+
+.layer[data-lanes='3'] .fullBody,
+.layer[data-lanes='4'] .fullBody {
+  --counter: 150;
+}
+
+.copy {
+  align-self: stretch;
+  min-width: 0;
+}
+
+.fullBody .name {
+  margin-top: calc(12 * var(--px));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: calc(110 * var(--px));
+  animation: rise 700ms var(--ease-out) 100ms both;
+}
+
+.layer[data-lanes='1'] .fullBody .name { font-size: calc(170 * var(--px)); }
+.layer[data-lanes='3'] .fullBody .name,
+.layer[data-lanes='4'] .fullBody .name { font-size: calc(72 * var(--px)); }
+
+.fullBody .counter {
+  margin-top: calc(30 * var(--px));
+}
+
+@keyframes rise {
+  from { transform: translateY(calc(30 * var(--px))); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.fin {
+  margin-top: calc(18 * var(--px));
+  animation: pop 400ms var(--ease-spring) both;
+}
+
+.fin b {
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  font-size: calc(88 * var(--px));
+  text-transform: uppercase;
+  color: var(--beer);
+}
+
+@keyframes pop {
+  from { transform: translateY(calc(20 * var(--px))); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* ---------- SPLIT: the wall slides aside; panels rise in the beer's color ---------- */
+.layer[data-style='split'] {
+  left: auto;
+  width: 46%;
+  flex-direction: column;
+  animation: wipe 700ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes wipe {
+  from { clip-path: polygon(115% 0, 115% 0, 100% 100%, 100% 100%); }
+  to { clip-path: polygon(14% 0, 100% 0, 100% 100%, 0 100%); }
+}
+
+.layer[data-style='split'] .lane {
+  flex: 1 1 0;
+  width: 100%;
+  animation-name: none;
+}
+
+.layer[data-style='split'] .lane + .lane {
+  border-top: calc(4 * var(--px)) solid #0B0A09;
+}
+
+.splitBody {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: calc(56 * var(--px)) calc(70 * var(--px)) calc(56 * var(--px)) calc(150 * var(--px));
+  background: var(--beer);
+  color: var(--beer-ink);
+  --counter: 220;
+}
+
+.layer[data-lanes='2'] .splitBody,
+.layer[data-lanes='3'] .splitBody,
+.layer[data-lanes='4'] .splitBody {
+  --counter: 120;
+  padding-left: calc(120 * var(--px));
+}
+
+/* The level, as a shade rising through the panel. */
+.liquid {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.14);
+  transform-origin: bottom;
+  transform: scaleY(var(--frac));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.numeral {
+  position: absolute;
+  right: calc(-40 * var(--px));
+  top: calc(-160 * var(--px));
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  font-size: calc(1100 * var(--px));
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.14);
+}
+
+.lane[data-phase='pouring'] .numeral {
+  animation: drift 9s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  to { transform: translateY(calc(80 * var(--px))); }
+}
+
+.inkCopy {
+  position: relative;
+}
+
+.splitBody .name {
+  font-size: calc(110 * var(--px));
+  margin-top: calc(6 * var(--px));
+}
+
+.layer[data-lanes='2'] .splitBody .name,
+.layer[data-lanes='3'] .splitBody .name { font-size: calc(64 * var(--px)); }
+.layer[data-lanes='4'] .splitBody .name { font-size: calc(48 * var(--px)); }
+
+/* ---------- DOCK: a bar per pour rises from the bottom and fills left to right ---------- */
+.layer[data-style='dock'] {
+  top: auto;
+  flex-direction: column;
+  animation: dockUp 600ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes dockUp {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+
+.layer[data-style='dock'] .lane {
+  height: calc(190 * var(--px));
+  animation: none;
+  box-shadow: 0 calc(-20 * var(--px)) calc(50 * var(--px)) rgba(0, 0, 0, 0.5);
+}
+
+.layer[data-style='dock'][data-lanes='3'] .lane,
+.layer[data-style='dock'][data-lanes='4'] .lane {
+  height: calc(130 * var(--px));
+}
+
+.layer[data-style='dock'] .lane[data-phase='leaving'] {
+  animation: fadeOut var(--motion-lane) ease both;
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; }
+}
+
+.dockBody {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: calc(36 * var(--px));
+  padding: 0 calc(56 * var(--px));
+  background: #161412;
+  --counter: 140;
+}
+
+.layer[data-lanes='3'] .dockBody,
+.layer[data-lanes='4'] .dockBody { --counter: 96; }
+
+.dockBody > :not(.bar):not(.sheen) {
+  position: relative;
+}
+
+.bar {
+  position: absolute;
+  inset: 0;
+  background: var(--beer);
+  opacity: 0.24;
+  transform-origin: left;
+  transform: scaleX(var(--frac));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.sheen {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-240 * var(--px));
+  width: calc(240 * var(--px));
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  opacity: 0;
+}
+
+.lane[data-phase='pouring'] .sheen {
+  opacity: 1;
+  animation: sheen 1.6s linear infinite;
+}
+
+@keyframes sheen {
+  to { transform: translateX(calc(2300 * var(--px))); }
+}
+
+.dockCopy {
+  min-width: 0;
+}
+
+.dockBody .name {
+  font-size: calc(72 * var(--px));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layer[data-lanes='3'] .dockBody .name,
+.layer[data-lanes='4'] .dockBody .name { font-size: calc(48 * var(--px)); }
+
+/* At the finish the volume flies off as a pill toward the wall. */
+.pill {
+  position: absolute !important;
+  right: calc(56 * var(--px));
+  top: calc(-70 * var(--px));
+  padding: calc(6 * var(--px)) calc(22 * var(--px));
+  border-radius: calc(40 * var(--px));
+  background: var(--beer);
+  color: var(--beer-ink);
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  font-size: calc(56 * var(--px));
+  animation: fly 1.3s cubic-bezier(0.65, 0, 0.35, 1) 350ms both;
+}
+
+@keyframes fly {
+  0% { opacity: 0; transform: none; }
+  15% { opacity: 1; }
+  80% { opacity: 1; transform: translate(calc(-900 * var(--px)), calc(-560 * var(--px))) scale(0.7); }
+  100% { opacity: 0; transform: translate(calc(-900 * var(--px)), calc(-560 * var(--px))) scale(0.4); }
+}
+
+/* ---------- FILL: the screen floods with the beer; the name recolors as it rises ---------- */
+.layer[data-style='fill'] .lane {
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.fillBody {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 10, 9, 0.88);
+  --counter: 300;
+}
+
+.layer[data-lanes='2'] .fillBody { --counter: 190; }
+.layer[data-lanes='3'] .fillBody,
+.layer[data-lanes='4'] .fillBody { --counter: 130; }
+
+.flood {
+  position: absolute;
+  inset: 0;
+  background: var(--beer);
+  transform-origin: bottom;
+  transform: scaleY(calc(var(--frac) * 0.85));
+  transition: transform 1s var(--ease-out);
+}
+
+.lane[data-phase='leaving'] .flood {
+  transform: scaleY(0);
+}
+
+.etch {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(120 * var(--px));
+  z-index: 1;
+  text-align: center;
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  font-size: calc(260 * var(--px));
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.08);
+  mix-blend-mode: difference;
+}
+
+.fillCopy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(70 * var(--px));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-shadow: 0 calc(2 * var(--px)) calc(18 * var(--px)) rgba(0, 0, 0, 0.55);
+}
+
+.fillBody .name {
+  font-size: calc(140 * var(--px));
+}
+
+.layer[data-lanes='2'] .fillBody .name { font-size: calc(90 * var(--px)); }
+.layer[data-lanes='3'] .fillBody .name,
+.layer[data-lanes='4'] .fillBody .name { font-size: calc(60 * var(--px)); }
+
+.chip {
+  position: absolute;
+  right: calc(32 * var(--px));
+  top: calc(32 * var(--px));
+  z-index: 3;
+  padding: calc(8 * var(--px)) calc(18 * var(--px));
+  border-radius: calc(30 * var(--px));
+  background: #F7F4EE;
+  color: #141110;
+  font-weight: 700;
+  font-size: calc(24 * var(--px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layer,
+  .layer * {
+    animation: none !important;
+    transition-duration: 0.01s !important;
+  }
+
+  .lane[data-phase='leaving'] {
+    opacity: 0;
+    transition: opacity 0.3s ease !important;
+  }
+}

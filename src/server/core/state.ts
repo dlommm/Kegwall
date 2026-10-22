@@ -12,6 +12,7 @@ import {
 } from '../db/monitors.js';
 import { recordTelemetrySampled, latestTelemetryForDevice } from '../db/telemetry.js';
 import { latestPourByKeg, countPoursForDrinker, findRecordedTwin } from '../db/pours.js';
+import { getUser } from '../db/users.js';
 import { PourDeduper } from './pourDedupe.js';
 import { PourSampleTracker, computePourQuality } from './pourQuality.js';
 import type { TabletArmRegistry } from './tabletArm.js';
@@ -182,6 +183,17 @@ export class StateManager {
               durationMs: e.durationMs, source: e.source,
               drinkerId: armedDrinkerId ?? tap?.defaultDrinkerId ?? null,
               quality: computePourQuality(samples),
+            });
+            const drinker = pour.drinkerId != null ? getUser(this.db, pour.drinkerId) : null;
+            this.bus.emit('pour_recorded', {
+              pourId: pour.id,
+              tapId,
+              tapNumber: tap?.number ?? 0,
+              volumeMl: e.volumeMl,
+              durationMs: e.durationMs ?? null,
+              pourerName: drinker?.displayName ?? null,
+              pourerPourCount: pour.drinkerId != null ? countPoursForDrinker(this.db, pour.drinkerId) : null,
+              ts: e.ts,
             });
             if (armedDrinkerId !== null) {
               const beer = getBeer(this.db, keg.beerId);

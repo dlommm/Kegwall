@@ -143,6 +143,21 @@ describe('/ws', () => {
     ws.close();
   });
 
+  it('relays a pour_recorded bus event with only public fields (Kegwall V2 takeover finish)', async () => {
+    const ws = new WebSocket(url);
+    await nextMessage(ws); // initial snapshot
+    app.ctx.bus.emit('pour_recorded', {
+      pourId: 9, tapId: 2, tapNumber: 2, volumeMl: 412, durationMs: 6100,
+      pourerName: 'Alex', pourerPourCount: 15, ts: '2026-10-22T21:00:00.000Z',
+    });
+    const msg = await nextMessage(ws);
+    expect(msg).toEqual({
+      type: 'pour_recorded', tapId: 2, tapNumber: 2, volumeMl: 412, durationMs: 6100,
+      pourerName: 'Alex', pourerPourCount: 15, ts: '2026-10-22T21:00:00.000Z',
+    });
+    ws.close();
+  });
+
   it('relays a wall_theme_override bus event as {type:"theme_override", minutes}', async () => {
     const ws = new WebSocket(url);
     await nextMessage(ws);

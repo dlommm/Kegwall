@@ -68,9 +68,9 @@ export interface WallLookProps {
   pageIndex: number;
   pageCount: number;
   rotationSeconds: number;
-  /** Spotlight takeover (2b): the currently pouring tap's id — its row/card
-   * highlights and every other one dims. Null/undefined = no spotlight. */
-  spotlightTapId?: number | null;
+  /** Spotlight takeover: the taps pouring right now. Their rows/cards lift and every other
+   * one dims. Null/empty = no spotlight. */
+  spotlightTapIds?: ReadonlySet<number> | null;
   /** Named Govee ambient sensors (Phase 6) for the header sensor strip. */
   sensors?: AmbientSensor[];
   /** Kegwall V2: every tap on the wall (not just this page), for wall-wide choices such as

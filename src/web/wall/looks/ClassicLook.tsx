@@ -23,14 +23,14 @@ export function kegFillColor(beerColor: string, mode: 'dark' | 'light'): string 
   return mode === 'light' ? mixHex(beerColor, '#FFFFFF', 0.62) : mixHex(beerColor, '#000000', 0.58);
 }
 
-function Card({ m, mode, spotlightTapId }: { m: WallTapModel; mode: 'dark' | 'light'; spotlightTapId?: number | null }) {
+function Card({ m, mode, spotlightTapIds }: { m: WallTapModel; mode: 'dark' | 'light'; spotlightTapIds?: ReadonlySet<number> | null }) {
   const level = m.isKicked || !m.hasBeer ? 0 : m.levelPct / 100;
   const n = m.servings != null ? Math.max(0, Math.round(m.servings)) : null;
   return (
     <article
       className={styles.card}
       data-tap-state={m.isKicked ? 'kicked' : !m.hasBeer ? 'empty' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-      data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+      data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
       style={{
         '--beer': m.beerColor,
         '--fill': kegFillColor(m.beerColor, mode),
@@ -71,7 +71,7 @@ function Card({ m, mode, spotlightTapId }: { m: WallTapModel; mode: 'dark' | 'li
  */
 export const ClassicLook = memo(function ClassicLook(props: WallLookProps) {
   const {
-    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
+    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds,
   } = props;
   const meta = useLookMeta(props, { tempLabel: '' });
   const models = useWallModels(taps, units, servingSizeMl);
@@ -94,7 +94,7 @@ export const ClassicLook = memo(function ClassicLook(props: WallLookProps) {
         </span>
       </header>
       <div className={styles.grid}>
-        {models.map((m) => <Card key={m.tap.tapId} m={m} mode={mode} spotlightTapId={spotlightTapId} />)}
+        {models.map((m) => <Card key={m.tap.tapId} m={m} mode={mode} spotlightTapIds={spotlightTapIds} />)}
       </div>
       {(config.ticker || config.showQr) && (
         <footer className={styles.foot}>

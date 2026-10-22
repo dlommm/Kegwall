@@ -394,3 +394,27 @@ describe('StateManager wall numbers (Kegwall V2)', () => {
     expect(tap.kickDate).toBeNull();
   });
 });
+
+describe('StateManager pour_recorded (Kegwall V2)', () => {
+  it('emits the recorded volume and the attributed pourer once the pour row is written', () => {
+    const drinker = createDrinker(db, { displayName: 'Alex' });
+    db.prepare('UPDATE taps SET default_drinker_id = ? WHERE id = ?').run(drinker.id, tapId);
+    const seen: unknown[] = [];
+    bus.on('pour_recorded', (e) => seen.push(e));
+    bus.emit('pour_completed', {
+      monitor: ref, volumeMl: 412, durationMs: 6100, source: 'udp', ts: '2026-10-22T21:00:00.000Z',
+    });
+    expect(seen).toEqual([expect.objectContaining({
+      tapId, tapNumber: 1, volumeMl: 412, durationMs: 6100, pourerName: 'Alex', pourerPourCount: 1,
+    })]);
+  });
+
+  it('does not emit for a duplicate report the deduper suppresses', () => {
+    const seen: unknown[] = [];
+    bus.on('pour_recorded', (e) => seen.push(e));
+    const pour = { monitor: ref, volumeMl: 300, durationMs: 4000, source: 'udp' as const, ts: '2026-10-22T21:00:00.000Z' };
+    bus.emit('pour_completed', pour);
+    bus.emit('pour_completed', pour);
+    expect(seen).toHaveLength(1);
+  });
+});

@@ -13,7 +13,7 @@ import styles from './LedgerLook.module.css';
  */
 export const LedgerLook = memo(function LedgerLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId, pageIndex, pageCount,
+    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapIds, pageIndex, pageCount,
   } = props;
   const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
@@ -44,7 +44,7 @@ export const LedgerLook = memo(function LedgerLook(props: WallLookProps) {
             key={m.tap.tapId}
             className={styles.line}
             data-tap-state={m.isKicked ? 'kicked' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-            data-spotlight={spotlightState(m.tap.tapId, spotlightTapId)}
+            data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
           >
             <span className={styles.n}>{m.tapNumber}</span>
             <span className={styles.beer}>

@@ -109,6 +109,20 @@ if (!ONLY || ONLY.startsWith('pour')) {
   app.ctx.bus.emit('pour_completed', { monitor, volumeMl: 412, durationMs: 6100, source: 'udp', ts: ts() });
   await new Promise((r) => setTimeout(r, 700));
   for (const [s, p] of pages) { await snap(p, `pour-${s}-complete-1080`); log.push(`ok pour-${s}-complete`); }
+  // Two taps pouring at once: every style opens a lane per pour.
+  await new Promise((r) => setTimeout(r, 6000));
+  const second = taproom.monitorFor(1);
+  app.ctx.bus.emit('pour_started', { monitor, ts: ts() });
+  app.ctx.bus.emit('pour_started', { monitor: second, ts: ts() });
+  for (const ml of [90, 180, 260]) {
+    app.ctx.bus.emit('pour_progress', { monitor, curServMl: ml, ts: ts() });
+    app.ctx.bus.emit('pour_progress', { monitor: second, curServMl: ml * 0.7, ts: ts() });
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  await new Promise((r) => setTimeout(r, 900));
+  for (const [s, p] of pages) { await snap(p, `pour-${s}-two-1080`); log.push(`ok pour-${s}-two`); }
+  app.ctx.bus.emit('pour_completed', { monitor, volumeMl: 300, durationMs: 5000, source: 'udp', ts: ts() });
+  app.ctx.bus.emit('pour_completed', { monitor: second, volumeMl: 200, durationMs: 4000, source: 'udp', ts: ts() });
   await ctx.close();
 }
 

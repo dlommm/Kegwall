@@ -120,6 +120,22 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
     broadcast(JSON.stringify({ type: 'theme_override', minutes: e.minutes }));
   });
 
+  // Kegwall V2: the recorded pour, so a wall's takeover finishes on the recorded volume
+  // rather than the last live counter. Public fields only: volume, tap and the pourer's
+  // display name (already public on the leaderboard); never anything about cost.
+  app.ctx.bus.on('pour_recorded', (e) => {
+    broadcast(JSON.stringify({
+      type: 'pour_recorded',
+      tapId: e.tapId,
+      tapNumber: e.tapNumber,
+      volumeMl: e.volumeMl,
+      durationMs: e.durationMs,
+      pourerName: e.pourerName,
+      pourerPourCount: e.pourerPourCount,
+      ts: e.ts,
+    }));
+  });
+
   // Pour Wall overhaul Phase 3: relay tablet-armed pour attributions so the kiosk can
   // flip to its done screen the moment the pour records. Broadcast to every client like
   // everything else on this feed; non-tablet listeners ignore the unknown type.
