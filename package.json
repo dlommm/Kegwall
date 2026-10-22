@@ -1,6 +1,6 @@
 {
   "name": "kegwall",
-  "version": "1.16.1",
+  "version": "1.17.0",
   "description": "Self-hosted, PourWall-style tap wall for Kegtron keg monitors — standalone-first with optional Home Assistant integration.",
   "repository": {
     "type": "git",

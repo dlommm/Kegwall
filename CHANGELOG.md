@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.17.0](https://github.com/dlommm/Kegwall/compare/v1.16.1...v1.17.0) (2026-10-22)
+
+This release moves Kegwall to GitHub and turns the admin **Pours** page into a full pour history.
+Installs from before the move need a one-time switch — see
+[Moving an existing install to GitHub](docs/install/moving-to-github.md).
+
+- **Changed:** source, releases, and the Docker image now live on GitHub —
+  `https://github.com/dlommm/Kegwall`, release downloads on the Releases page, and the image at
+  `ghcr.io/dlommm/kegwall` (`latest` + each version, amd64 + arm64).
+- **Changed:** **Settings → System → Check for updates** reads the GitHub Releases feed and links
+  each release's notes on github.com.
+- **Changed:** the native installer and unattended-install ISO fetch from GitHub. Re-running the
+  installer over an existing install re-points it at GitHub and refreshes release tags; the in-app
+  updater now force-refreshes tags.
+- **Added:** every release attaches the unattended-installer ISO (with a `.sha256`) and, once a
+  signing key is configured, the tablet APK — `releases/latest/download/…` always resolves.
+- **Added:** the **Pours** page lists every pour, newest first, with **Unclaimed only**,
+  **Drinker**, and **From**/**To** filters applied on the server, **Load older pours** paging,
+  relative times, and all-or-nothing bulk assign/unclaim. Every admin assignment is logged under
+  the **Pours** source.
+- **Added:** `PATCH /api/pours/drinker` for bulk assignment; `GET /api/pours` accepts
+  `since`/`until`/`beforeId`.
+- **Added:** the dashboard lists taps whose line-cleaning reminders are ignored, each opening that
+  tap in **Taps & kegs**.
+- **Changed:** admin pages show their own title and name the browser tab after the section; the
+  mobile menu closes on **Escape** and on any navigation.
+- **Fixed:** after a restart, the Kegtron cloud backfill no longer re-records pours already saved
+  live, and a replayed older pour is never credited to whoever is signed in at the tablet.
+
 ## [1.16.1](https://github.com/dlommm/Kegwall/compare/v1.16.0...v1.16.1) (2026-09-25)
 
 This patch makes the admin dashboard easier to scan and gives the mobile layout a quieter shell.
