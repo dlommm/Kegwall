@@ -214,6 +214,12 @@ if [ ! -d "$DIR/.git" ]; then
   else
     git clone "$REPO_URL" "$DIR"
   fi
+else
+  # Re-running over an existing checkout: point it at REPO_URL (installs from before the move to
+  # GitHub still track the old GitLab remote) and refresh tags. --force because the release tags
+  # were re-created on GitHub, so same-named tags may point at different commits.
+  git -C "$DIR" remote set-url origin "$REPO_URL"
+  git -C "$DIR" fetch --tags --force --prune --prune-tags origin
 fi
 chown -R kegwall: "$DIR"
 cd "$DIR"
@@ -296,7 +302,8 @@ rm -f "\$TRIGGER"
 
 cd "\$DIR"
 status fetching
-sudo -u kegwall git fetch --tags origin
+# --force: a same-named tag may legitimately move (the release tags were re-created on GitHub).
+sudo -u kegwall git fetch --tags --force origin
 
 if [ "\$REQ" = "latest" ]; then
   TAG=\$(sudo -u kegwall git tag -l 'v*' --sort=-v:refname | grep -v -- - | head -1)

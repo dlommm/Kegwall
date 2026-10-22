@@ -5,7 +5,7 @@
 # preseed's kegwall-firstboot.service pulls the latest pi-install.sh and installs Kegwall, so the
 # ISO stays current on its own; CI just re-spins it per release to refresh the Debian base.
 #
-# Runs in CI (see the build-iso job) or locally on a Debian box:
+# Runs in CI (see the iso job in .github/workflows/publish.yml) or locally on a Debian box:
 #   sudo apt-get install -y xorriso isolinux curl ca-certificates
 #   DEB_VER=12.11.0 bash scripts/build-kegwall-iso.sh
 #
@@ -27,7 +27,8 @@ command -v xorriso >/dev/null || { echo "!! install xorriso (and isolinux for is
 
 # Version every ISO so builds are trackable: a release tag as-is, else <app version>-dev.<sha>.
 APPVER=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HERE/../package.json" | head -1)
-VER="${ISO_VERSION:-${CI_COMMIT_TAG:-${APPVER:-0.0.0}-dev.${CI_COMMIT_SHORT_SHA:-local}}}"
+SHA="${GITHUB_SHA:-local}"
+VER="${ISO_VERSION:-${APPVER:-0.0.0}-dev.${SHA:0:7}}"
 echo "==> ISO version: $VER"
 echo "$VER" > "$(dirname "$OUT")/iso-version.txt"
 
@@ -54,10 +55,10 @@ printf 'kegwall-installer %s\narch %s\nbase %s\n' "$VER" "$ARCH" "$ISO" > iso/ke
 # Drop the preseed on the media root, pointing its first-boot fetch at the SAME git ref that built
 # this ISO (branch or tag), so a test ISO built from a branch pulls that branch's files — not main.
 cp "$PRESEED" iso/preseed.cfg
-REF="${KEGWALL_REF:-${CI_COMMIT_REF_NAME:-main}}"
+REF="${KEGWALL_REF:-${GITHUB_REF_NAME:-main}}"
 if [ "$REF" != "main" ]; then
   echo "==> Pinning first-boot fetch to ref: $REF"
-  sed -i "s#/raw/main/deploy/debian#/raw/$REF/deploy/debian#g; s#KEGWALL_REF=main#KEGWALL_REF=$REF#g" iso/preseed.cfg
+  sed -i "s#/Kegwall/main/deploy/debian#/Kegwall/$REF/deploy/debian#g; s#KEGWALL_REF=main#KEGWALL_REF=$REF#g" iso/preseed.cfg
 fi
 
 # Make the AUTOMATED install the default boot entry (no keypress, no boot args). Debian netinst
