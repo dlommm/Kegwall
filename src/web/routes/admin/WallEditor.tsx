@@ -32,17 +32,18 @@ const CARD_TEMPLATES: { value: CardTemplate; label: string }[] = [
   { value: 'minimal', label: 'Minimal' },
 ];
 
-// Wall LOOK: the layout template axis. Kegwall V2 looks (wall/looks/) are drawn on the
-// 1920 × 1080 stage; the rest are pre-V2 looks being redrawn in M4.
+// Wall LOOK: the layout template axis. Every look is a Kegwall V2 stage look (wall/looks/).
 const LOOKS: { value: WallConfig['look']; label: string }[] = [
   { value: 'just-tapped', label: 'Just Tapped' },
   { value: 'classic', label: 'Classic' },
   { value: 'ledger', label: 'Ledger' },
   { value: 'gallery', label: 'Gallery' },
   { value: 'columns', label: 'Columns' },
+  { value: 'handles', label: 'Tap Handles' },
+  { value: 'tally', label: 'Tally' },
   { value: 'chalkboard', label: 'Chalkboard' },
   { value: 'editorial', label: 'Editorial' },
-  { value: 'neon', label: 'Neon arcade' },
+  { value: 'neon', label: 'Neon' },
   { value: 'terminal', label: 'Terminal' },
   { value: 'poster', label: 'Poster' },
   { value: 'departures', label: 'Departures' },

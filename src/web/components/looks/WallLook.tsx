@@ -3,14 +3,20 @@ import type { TapState } from '../../../server/core/state.js';
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import type { VolumeUnits } from '../../lib/units';
 import type { AmbientSensor } from './lookShared';
-import {
-  ChalkboardLook, EditorialLook, NeonLook, TerminalLook, PosterLook, DeparturesLook, ZenLook,
-} from './styleLooks';
 import { JustTappedLook } from '../../wall/looks/JustTappedLook';
 import { ClassicLook } from '../../wall/looks/ClassicLook';
 import { LedgerLook } from '../../wall/looks/LedgerLook';
 import { ColumnsLook } from '../../wall/looks/ColumnsLook';
 import { GalleryLook } from '../../wall/looks/GalleryLook';
+import { ChalkboardLook } from '../../wall/looks/ChalkboardLook';
+import { EditorialLook } from '../../wall/looks/EditorialLook';
+import { NeonLook } from '../../wall/looks/NeonLook';
+import { TerminalLook } from '../../wall/looks/TerminalLook';
+import { PosterLook } from '../../wall/looks/PosterLook';
+import { DeparturesLook } from '../../wall/looks/DeparturesLook';
+import { ZenLook } from '../../wall/looks/ZenLook';
+import { HandlesLook } from '../../wall/looks/HandlesLook';
+import { TallyLook } from '../../wall/looks/TallyLook';
 
 type LookComponent = ComponentType<WallLookProps>;
 
@@ -25,6 +31,15 @@ export const V2_LOOKS: Partial<Record<WallConfig['look'], { component: LookCompo
   ledger: { component: LedgerLook, pageSize: 12 },
   columns: { component: ColumnsLook, pageSize: 8 },
   gallery: { component: GalleryLook, pageSize: 8 },
+  chalkboard: { component: ChalkboardLook, pageSize: 8 },
+  editorial: { component: EditorialLook, pageSize: 12 },
+  neon: { component: NeonLook, pageSize: 8 },
+  terminal: { component: TerminalLook, pageSize: 12 },
+  poster: { component: PosterLook, pageSize: 12 },
+  departures: { component: DeparturesLook, pageSize: 11 },
+  zen: { component: ZenLook, pageSize: 12 },
+  handles: { component: HandlesLook, pageSize: 8 },
+  tally: { component: TallyLook, pageSize: 12 },
 };
 
 /** True when this look is a V2 stage look. */
@@ -32,16 +47,14 @@ export function isStageLook(look: WallConfig['look']): boolean {
   return V2_LOOKS[look] !== undefined;
 }
 
-/** Taps per auto-generated page: the V2 look's own capacity, or 6 for the pre-V2 looks. */
+/** Taps per auto-generated page: the look's own capacity (its density ladder). */
 export function autoPageSize(look: WallConfig['look']): number {
-  return V2_LOOKS[look]?.pageSize ?? 6;
+  return V2_LOOKS[look]?.pageSize ?? 12;
 }
 
-/** The props every wall look receives (the "look contract"): the current
- * page's taps, the wall config, resolved title, and the shared chrome inputs
- * (clock/temp/QR/pagination). Looks own their entire 1080p frame — header,
- * body, footer — unlike the classic WallGrid path where WallPage composes
- * WallHeader + grid separately. */
+/** The props every wall look receives (the "look contract"): the current page's taps, the
+ * wall config, resolved title, and the shared chrome inputs (clock/temp/QR/pagination).
+ * Looks own their entire 1080p frame: header, body and footer. */
 export interface WallLookProps {
   taps: TapState[];
   config: WallConfig;
@@ -67,24 +80,11 @@ export interface WallLookProps {
   servingSizeMl?: number;
 }
 
-/** Non-classic look id → component. `classic` never reaches here (WallPage
- * keeps its existing WallHeader/WallGrid path for it). Kegwall V2 looks register here as
- * they are built; an id without a component renders as classic (see `resolveLook`). */
-const LOOKS: Partial<Record<WallConfig['look'], LookComponent>> = {
-  chalkboard: ChalkboardLook,
-  editorial: EditorialLook,
-  neon: NeonLook,
-  terminal: TerminalLook,
-  poster: PosterLook,
-  departures: DeparturesLook,
-  zen: ZenLook,
-};
-
 export type LookId = WallConfig['look'];
 
-/** The look a wall actually renders: its configured look when one is built, else classic. */
+/** The look a wall actually renders: its configured look, or classic for an unknown id. */
 export function resolveLook(look: WallConfig['look'] | undefined): LookId {
-  return look && (look === 'classic' || LOOKS[look] || V2_LOOKS[look]) ? look : 'classic';
+  return look && V2_LOOKS[look] ? look : 'classic';
 }
 
 /** Dispatches to the configured look's component. Memoized (like every look it
@@ -95,7 +95,7 @@ export function resolveLook(look: WallConfig['look'] | undefined): LookId {
  * render — never a remount, so scroll/animation state always survives snapshots. */
 export const WallLook = memo(function WallLook(props: WallLookProps) {
   const look = resolveLook(props.config.look);
-  const Component = V2_LOOKS[look]?.component ?? (look !== 'classic' ? LOOKS[look] : undefined);
+  const Component = V2_LOOKS[look]?.component;
   if (!Component) return null;
   return <Component {...props} />;
 });

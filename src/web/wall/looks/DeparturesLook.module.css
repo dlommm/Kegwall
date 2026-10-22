@@ -1,0 +1,102 @@
+/* Departures (Kegwall V2): a split-flap board. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(44 * var(--px)) calc(56 * var(--px));
+  background: #050505;
+  color: #F6F6F6;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: calc(32 * var(--px));
+  margin-bottom: calc(20 * var(--px));
+  color: #FFCE3D;
+}
+
+.header h1 {
+  flex: 1;
+  margin: 0;
+  font-size: calc(50 * var(--px));
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.header > span {
+  font-size: calc(32 * var(--px));
+  font-weight: 700;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: calc(110 * var(--px)) calc(700 * var(--px)) calc(200 * var(--px)) calc(240 * var(--px)) minmax(0, 1fr);
+  column-gap: calc(22 * var(--px));
+  align-items: center;
+  flex: 1;
+  max-height: calc(76 * var(--px));
+  border-top: calc(2 * var(--px)) solid #1E1E1E;
+  transition: opacity var(--motion-takeover) var(--ease-out);
+}
+
+.th {
+  flex: none;
+  padding-bottom: calc(10 * var(--px));
+  border-top: 0;
+  font-size: calc(22 * var(--px));
+  letter-spacing: 0.1em;
+  color: #A3A3A3;
+}
+
+.flaps {
+  display: inline-flex;
+  gap: calc(3 * var(--px));
+}
+
+.flaps i {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: calc(31 * var(--px));
+  height: calc(52 * var(--px));
+  border-radius: calc(3 * var(--px));
+  background: #161616;
+  font-style: normal;
+  font-size: calc(32 * var(--px));
+  font-weight: 700;
+}
+
+.flaps i::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: calc(2 * var(--px));
+  background: #050505;
+}
+
+.small {
+  font-size: calc(26 * var(--px));
+  color: #D6D6D6;
+}
+
+.status {
+  justify-self: start;
+  padding: calc(4 * var(--px)) calc(12 * var(--px));
+  font-size: calc(26 * var(--px));
+  font-weight: 700;
+}
+
+.status[data-tone='ok'] { color: #7CE07C; }
+.status[data-tone='pour'] { color: #050505; background: #7CE07C; }
+.status[data-tone='board'] { color: #050505; background: #FFCE3D; }
+.status[data-tone='gone'] { color: #A3A3A3; text-decoration: line-through; }
+
+.line[data-spotlight='dim'] {
+  opacity: 0.3;
+}

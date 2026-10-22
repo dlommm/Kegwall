@@ -1,4 +1,7 @@
 import { useMemo } from 'react';
+import type { WallLookProps } from '../../components/looks/WallLook';
+import { useLookClock } from '../../components/looks/lookShared';
+import { formatTempC } from '../../lib/units';
 import type { TapState } from '../../../server/core/state.js';
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import { qrCodeSvg } from '../../lib/qr';
@@ -99,4 +102,30 @@ export function levelColor(beerColor: string): string {
 /** "pint" / "pints" / "pour" / "pours" for a whole count. */
 export function servingsWord(m: Pick<WallTapModel, 'servingNoun'>, n: number): string {
   return `${m.servingNoun}${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * The meta line every V2 look prints in its header: clock, kegerator temperature, any named
+ * ambient sensors, and the page when the wall rotates. Each piece follows the wall's header
+ * settings, so a look never drops one.
+ */
+export function useLookMeta(props: WallLookProps, opts: { tempLabel?: string } = {}): string[] {
+  const clock = useLookClock();
+  const { config, tempC, units, sensors = [], pageIndex, pageCount } = props;
+  const parts: Array<string | false | null> = [
+    config.header.showClock && clock,
+    config.header.showTemp && tempC != null && `${opts.tempLabel ?? 'kegerator'} ${formatTempC(tempC, units)}`.trim(),
+    ...sensors.map((s) => {
+      const bits = [s.tempC != null && formatTempC(s.tempC, units), s.humidity != null && `${Math.round(s.humidity)}% RH`].filter(Boolean);
+      return bits.length ? `${s.name} ${bits.join(' ')}` : null;
+    }),
+    pageCount > 1 && `page ${pageIndex + 1} of ${pageCount}`,
+  ];
+  return parts.filter((p): p is string => Boolean(p));
+}
+
+/** "$7" / "$7.50" from cents. */
+export function formatPrice(cents: number): string {
+  const v = cents / 100;
+  return `$${v % 1 ? v.toFixed(2) : v}`;
 }

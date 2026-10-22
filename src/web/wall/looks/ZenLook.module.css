@@ -1,0 +1,133 @@
+/* Zen (Kegwall V2): one beer at a time, on paper. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(520 * var(--px));
+  background: #E9E6DF;
+  color: #1B1916;
+  font-family: var(--font-v2-text);
+}
+
+.main {
+  display: grid;
+  grid-template-columns: calc(360 * var(--px)) minmax(0, 1fr);
+  gap: calc(72 * var(--px));
+  align-items: center;
+  padding: calc(80 * var(--px)) calc(96 * var(--px));
+}
+
+.orb {
+  position: relative;
+  width: calc(360 * var(--px));
+  height: calc(360 * var(--px));
+  border-radius: 50%;
+  background: #D8D3C9;
+  overflow: hidden;
+}
+
+.orb i {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  transform: scaleY(var(--level));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.k {
+  font-size: calc(28 * var(--px));
+  color: #5E584F;
+}
+
+.name {
+  margin: calc(16 * var(--px)) 0 0;
+  font-family: 'Playfair Display', serif;
+  font-weight: 500;
+  font-size: calc(128 * var(--px));
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text {
+  margin: calc(24 * var(--px)) 0 0;
+  font-size: calc(30 * var(--px));
+  line-height: 1.45;
+  color: #3A3631;
+}
+
+.text b {
+  color: #1B1916;
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(18 * var(--px));
+  padding: calc(70 * var(--px)) calc(56 * var(--px));
+  background: #DEDAD1;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(60 * var(--px));
+  gap: calc(6 * var(--px)) calc(14 * var(--px));
+  align-items: center;
+  font-size: calc(28 * var(--px));
+  color: #3A3631;
+  transition: opacity var(--motion-takeover) var(--ease-out);
+}
+
+.itemName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemLeft {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.item i {
+  position: relative;
+  grid-column: 1 / -1;
+  display: block;
+  height: calc(4 * var(--px));
+  background: #C9C3B8;
+  overflow: hidden;
+}
+
+.item b {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  transform: scaleX(var(--level));
+}
+
+.item[data-on='true'],
+.item[data-tap-state='pouring'],
+.item[data-spotlight='lit'] {
+  color: #1B1916;
+  font-weight: 700;
+}
+
+.item[data-tap-state='low'] .itemLeft {
+  color: #8A3E00;
+}
+
+.item[data-spotlight='dim'] {
+  opacity: 0.3;
+}
+
+.qr {
+  margin-top: calc(18 * var(--px));
+  display: flex;
+  justify-content: flex-end;
+}

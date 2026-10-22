@@ -1,0 +1,110 @@
+/* Poster (Kegwall V2): a festival line-up printed on paper. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(52 * var(--px)) calc(80 * var(--px)) calc(40 * var(--px));
+  text-align: center;
+  background: #F0E6D2;
+  color: #1A1410;
+  font-family: var(--font-v2-display);
+}
+
+.pre {
+  font-family: var(--font-v2-text);
+  font-size: calc(30 * var(--px));
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.headliner {
+  max-width: 100%;
+  margin-top: calc(10 * var(--px));
+  font-size: calc(var(--name-size) * var(--px));
+  font-weight: 900;
+  line-height: 0.92;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bar {
+  display: flex;
+  width: calc(1200 * var(--px));
+  height: calc(14 * var(--px));
+  margin: calc(20 * var(--px)) 0 calc(6 * var(--px));
+}
+
+.bar i {
+  position: relative;
+  flex: 1;
+  background: #DCD2BE;
+  overflow: hidden;
+}
+
+.bar i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--beer);
+  transform-origin: bottom;
+  transform: scaleY(var(--level));
+}
+
+.line {
+  max-width: 100%;
+  margin-top: calc(14 * var(--px));
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: calc(34 * var(--px));
+  font-size: calc(var(--size) * var(--px));
+  font-weight: 900;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.line span {
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--motion-takeover) var(--ease-out);
+}
+
+.line em {
+  margin-left: calc(10 * var(--px));
+  font-family: var(--font-v2-text);
+  font-style: normal;
+  font-weight: 700;
+  font-size: max(calc(22 * var(--px)), 0.24em);
+  text-transform: none;
+  vertical-align: 0.9em;
+}
+
+.line span[data-tap-state='low'] em {
+  color: #8A3E00;
+}
+
+.line span[data-spotlight='dim'] {
+  opacity: 0.25;
+}
+
+.foot {
+  margin-top: auto;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: calc(24 * var(--px));
+  font-family: var(--font-v2-text);
+  font-size: calc(26 * var(--px));
+  text-align: left;
+}

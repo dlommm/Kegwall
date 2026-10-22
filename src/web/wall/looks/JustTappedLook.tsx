@@ -1,7 +1,5 @@
 import { memo, useMemo, type CSSProperties } from 'react';
 import type { WallLookProps } from '../../components/looks/WallLook';
-import { useLookClock } from '../../components/looks/lookShared';
-import { formatTempC } from '../../lib/units';
 import { getTheme } from '../../themes/themes';
 import { mixHex } from '../../lib/srm';
 import { ensureContrast, pickInk } from '../../lib/contrast';
@@ -9,7 +7,7 @@ import { TapMarker } from '../TapMarker';
 import { JUST_TAPPED_HOURS } from '../headline';
 import type { WallTapModel } from '../wallModel';
 import {
-  MenuQr, metaParts, pickSpotlight, spotlightState, useWallModels,
+  MenuQr, metaParts, useLookMeta, pickSpotlight, spotlightState, useWallModels,
 } from './lookKit';
 import styles from './JustTappedLook.module.css';
 
@@ -43,9 +41,9 @@ function spotlightSentence(m: WallTapModel, now: Date): { lead: string; rest: st
  */
 export const JustTappedLook = memo(function JustTappedLook(props: WallLookProps) {
   const {
-    taps, allTaps, config, units, title, menuUrl, tempC, servingSizeMl = 473, spotlightTapId,
+    taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
   } = props;
-  const clock = useLookClock();
+  const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
   const wallModels = useWallModels(allTaps ?? taps, units, servingSizeMl);
   const feature = useMemo(() => pickSpotlight(wallModels, config.spotlight), [wallModels, config.spotlight]);
@@ -102,11 +100,7 @@ export const JustTappedLook = memo(function JustTappedLook(props: WallLookProps)
         <header className={styles.top}>
           <span className={styles.brand}>{title}</span>
           <span className={styles.meta} data-testid="look-meta">
-            {metaParts([
-              config.header.showClock && clock,
-              config.header.showTemp && tempC != null && `kegerator ${formatTempC(tempC, units)}`,
-              props.pageCount > 1 && `page ${props.pageIndex + 1} of ${props.pageCount}`,
-            ])}
+            {metaParts(meta)}
           </span>
         </header>
         <ol className={styles.rows} style={{ '--rows': Math.max(rows.length, 8) } as CSSProperties}>

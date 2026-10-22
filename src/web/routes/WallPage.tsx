@@ -11,14 +11,13 @@ import { useViewRotation } from '../lib/useViewRotation';
 import { PlaylistBar } from '../components/PlaylistBar';
 import { LeaderboardBoard } from '../components/LeaderboardBoard';
 import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
-import { useKioskScale } from '../lib/useKioskScale';
 import { formatTempC } from '../lib/units';
 import { useBanners, type BannerKind } from '../lib/useBanners';
 import { usePolledFetch } from '../lib/usePolledFetch';
 import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import {
-  WallLook, autoPageSize, isStageLook, resolveLook,
+  WallLook, autoPageSize, resolveLook,
 } from '../components/looks/WallLook';
 import { Stage } from '../design/Stage';
 import { PourTakeover } from '../components/takeover/PourTakeover';
@@ -222,10 +221,6 @@ export function WallPage() {
     };
   }, [baseConfig, displayOverrides]);
 
-  // Pre-V2 looks scale to the TV with document zoom; V2 stage looks scale themselves
-  // (design/Stage.tsx), so zooming them too would apply the factor twice.
-  useKioskScale(!isStageLook(resolveLook(config?.look)));
-
   // Page cycling: with no manual pages configured, a wall with more taps than its look
   // holds auto-chunks into pages. Pre-V2 looks were designed around 6 taps per screen;
   // Kegwall V2 stage looks declare their own capacity (the density ladder).
@@ -233,8 +228,7 @@ export function WallPage() {
     const configuredPages = config?.pages ?? [];
     const look = resolveLook(config?.look);
     const size = autoPageSize(look);
-    const chunked = look !== 'classic' || isStageLook(look);
-    if (chunked && configuredPages.length === 0 && taps.length > size) {
+    if (configuredPages.length === 0 && taps.length > size) {
       const chunks: typeof taps[] = [];
       for (let i = 0; i < taps.length; i += size) {
         chunks.push(taps.slice(i, i + size));
@@ -342,9 +336,6 @@ export function WallPage() {
 
   const title = config.header.title ?? wall.name;
   const menuUrl = `${window.location.origin}/menu`;
-  // Server-parsed configs always carry `look` (schema default 'classic'); `resolveLook`
-  // also sends a look that isn't built yet down the classic path.
-  const look = resolveLook(config.look);
   // Party mode layers a fixed accent override on top of the wall's OWN configured theme
   // (id + its own overrides untouched) -- see PARTY_MODE_OVERRIDES' doc comment above.
   const theme = partyMode
@@ -361,6 +352,9 @@ export function WallPage() {
         // visual no-op, so walls with no display config render exactly as before.
         style={{ '--ui-scale': config.display?.uiScale ?? 1 } as React.CSSProperties}
       >
+        {/* Everything on the wall is drawn on the 1920 × 1080 stage (Kegwall V2), so 720p,
+            1080p and 4K show the same composition, letterboxed in the theme ground. */}
+        <Stage uiScale={config.display?.uiScale ?? 1}>
         <ScreenCare stage={effectiveStage} taps={taps} title={title} onWake={() => wake()}>
           {currentViewKind === 'leaderboard' ? (
             <div
@@ -375,11 +369,8 @@ export function WallPage() {
                 <p className="wall-rotation-loading" data-testid="wall-rotation-loading">Loading the leaderboard…</p>
               )}
             </div>
-          ) : isStageLook(look) ? (
-            // Kegwall V2 looks: drawn on the 1920 × 1080 stage, so 720p, 1080p and 4K show
-            // the same composition, letterboxed in the theme ground.
-            <Stage uiScale={config.display?.uiScale ?? 1}>
-              <div
+          ) : (
+            <div
                 key={pageIndex}
                 className={`wall-grid-transition wall-grid-transition--${transition} look-frame`}
                 data-testid="wall-page-content"
@@ -401,31 +392,6 @@ export function WallPage() {
                   sensors={ambientSensors}
                 />
               </div>
-            </Stage>
-          ) : (
-            // Pour Wall overhaul looks (Ledger/Gallery/Columns…) own their whole
-            // frame — header, rows/cards, footer ticker + QR — so the classic
-            // WallHeader/QrOverlay chrome stays out of their way entirely.
-            <div
-              key={pageIndex}
-              className={`wall-grid-transition wall-grid-transition--${transition} look-frame${takeoverStyle === 'split' && overlayActive ? ' takeover-squeeze' : ''}`}
-              data-testid="wall-page-content"
-              data-transition={transition}
-            >
-              <WallLook
-                taps={currentTaps}
-                config={config}
-                units={units}
-                title={title}
-                menuUrl={menuUrl}
-                tempC={maxTempC}
-                pageIndex={pageIndex}
-                pageCount={pages.length}
-                rotationSeconds={config.rotationSeconds}
-                spotlightTapId={spotlightTapId}
-                sensors={ambientSensors}
-              />
-            </div>
           )}
           {/* `overlayActive` implies a non-idle takeover (TS narrows through the
               aliased condition, so `state` types as active|complete here). */}
@@ -450,6 +416,7 @@ export function WallPage() {
             </div>
           )}
         </ScreenCare>
+        </Stage>
       </div>
       {stale && (
         <div className="wall-page__reconnecting" data-testid="wall-reconnecting-pill">

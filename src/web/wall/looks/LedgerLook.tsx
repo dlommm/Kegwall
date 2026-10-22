@@ -1,10 +1,9 @@
 import { memo, type CSSProperties } from 'react';
 import type { WallLookProps } from '../../components/looks/WallLook';
-import { useLookClock } from '../../components/looks/lookShared';
 import { formatWholeVolume } from '../../lib/lookData';
 import { TapMarker } from '../TapMarker';
 import {
-  MenuQr, kicksInLabel, metaParts, spotlightState, tappedLabel, useWallModels,
+  MenuQr, useLookMeta, kicksInLabel, metaParts, spotlightState, tappedLabel, useWallModels,
 } from './lookKit';
 import styles from './LedgerLook.module.css';
 
@@ -16,7 +15,7 @@ export const LedgerLook = memo(function LedgerLook(props: WallLookProps) {
   const {
     taps, allTaps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId, pageIndex, pageCount,
   } = props;
-  const clock = useLookClock();
+  const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
   const wall = useWallModels(allTaps ?? taps, units, servingSizeMl);
   const pours = wall.reduce((n, m) => n + m.tonightPours, 0);
@@ -29,7 +28,7 @@ export const LedgerLook = memo(function LedgerLook(props: WallLookProps) {
         <p className={styles.meta} data-testid="look-meta">
           {metaParts([
             title,
-            config.header.showClock && clock,
+            ...meta.filter((x) => !x.startsWith('page ')),
             `${pours} ${pours === 1 ? 'pour' : 'pours'} tonight`,
             pageCount > 1 && `page ${pageIndex + 1} of ${pageCount}`,
           ])}

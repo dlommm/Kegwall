@@ -1,13 +1,11 @@
 import { memo, type CSSProperties } from 'react';
 import type { WallLookProps } from '../../components/looks/WallLook';
-import { useLookClock } from '../../components/looks/lookShared';
-import { formatTempC } from '../../lib/units';
 import { getTheme } from '../../themes/themes';
 import { mixHex } from '../../lib/srm';
 import { TapMarker } from '../TapMarker';
 import type { WallTapModel } from '../wallModel';
 import {
-  MenuQr, metaParts, spotlightState, useWallModels,
+  MenuQr, metaParts, useLookMeta, spotlightState, useWallModels,
 } from './lookKit';
 import styles from './ClassicLook.module.css';
 
@@ -73,9 +71,9 @@ function Card({ m, mode, spotlightTapId }: { m: WallTapModel; mode: 'dark' | 'li
  */
 export const ClassicLook = memo(function ClassicLook(props: WallLookProps) {
   const {
-    taps, config, units, title, menuUrl, tempC, servingSizeMl = 473, spotlightTapId, pageIndex, pageCount,
+    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
   } = props;
-  const clock = useLookClock();
+  const meta = useLookMeta(props, { tempLabel: '' });
   const models = useWallModels(taps, units, servingSizeMl);
   const mode = getTheme(config.theme?.id).mode;
   const density = classicDensity(models.length);
@@ -92,11 +90,7 @@ export const ClassicLook = memo(function ClassicLook(props: WallLookProps) {
       <header className={styles.header}>
         <h1 className={styles.brand}>{title}</h1>
         <span className={styles.meta} data-testid="look-meta">
-          {metaParts([
-            config.header.showClock && clock,
-            config.header.showTemp && tempC != null && formatTempC(tempC, units),
-            pageCount > 1 && `page ${pageIndex + 1} of ${pageCount}`,
-          ])}
+          {metaParts(meta)}
         </span>
       </header>
       <div className={styles.grid}>

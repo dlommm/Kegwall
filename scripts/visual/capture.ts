@@ -101,6 +101,11 @@ if (!ONLY || ONLY.startsWith('pour')) {
   }
   await new Promise((r) => setTimeout(r, 900));
   for (const [s, p] of pages) { await snap(p, `pour-${s}-active-1080`); log.push(`ok pour-${s}-active`); }
+  // One takeover at 4K proves overlays scale with the stage too.
+  await pages[0]![1].setViewportSize(VP.tv4k);
+  await new Promise((r) => setTimeout(r, 300));
+  await snap(pages[0]![1], `pour-${pages[0]![0]}-active-4k`);
+  await pages[0]![1].setViewportSize(VP.tv1080);
   app.ctx.bus.emit('pour_completed', { monitor, volumeMl: 412, durationMs: 6100, source: 'udp', ts: ts() });
   await new Promise((r) => setTimeout(r, 700));
   for (const [s, p] of pages) { await snap(p, `pour-${s}-complete-1080`); log.push(`ok pour-${s}-complete`); }

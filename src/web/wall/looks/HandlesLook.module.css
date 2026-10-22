@@ -1,0 +1,193 @@
+/* Tap Handles (Kegwall V2): the bar back. Steel and bar-back black are material. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(40 * var(--px)) calc(56 * var(--px)) 0;
+  background: #161412;
+  color: #F5F1EA;
+  font-family: var(--font-v2-text);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: calc(24 * var(--px));
+}
+
+.brand {
+  margin: 0;
+  font-family: 'Anybody Variable', var(--font-v2-display);
+  font-stretch: 62%;
+  font-weight: 850;
+  font-size: calc(58 * var(--px));
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  flex: none;
+  font-size: calc(28 * var(--px));
+  color: #C9C1B5;
+}
+
+.row {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: calc(22 * var(--px));
+  padding: calc(40 * var(--px)) calc(6 * var(--px)) 0;
+}
+
+.handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  transform-origin: 50% 100%;
+  transition: transform var(--motion-takeover) var(--ease-spring), opacity var(--motion-takeover) var(--ease-out);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(8 * var(--px));
+  padding: calc(46 * var(--px)) calc(14 * var(--px)) calc(20 * var(--px));
+  border-radius: 999px 999px calc(14 * var(--px)) calc(14 * var(--px));
+  background: var(--body);
+  color: var(--ink);
+  text-align: center;
+}
+
+.tapNo,
+.name,
+.abv {
+  font-family: 'Anybody Variable', var(--font-v2-display);
+  font-stretch: 62%;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.tapNo {
+  font-size: calc(26 * var(--px));
+}
+
+.name {
+  margin: 0;
+  max-width: 100%;
+  font-size: calc(var(--name-size) * var(--px));
+  line-height: 0.9;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.small {
+  max-width: 100%;
+  font-size: calc(22 * var(--px));
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.abv {
+  margin-top: auto;
+  font-size: calc(72 * var(--px));
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+.glass {
+  position: relative;
+  flex: none;
+  width: 50%;
+  height: calc(220 * var(--px));
+  border: calc(7 * var(--px)) solid #100E0C;
+  border-radius: calc(14 * var(--px));
+  background: #100E0C;
+  box-shadow: 0 0 0 calc(3 * var(--px)) rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+}
+
+.glass i {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(6 * var(--px));
+  background: var(--beer);
+  transform-origin: bottom;
+  transform: scaleY(var(--level));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.left {
+  font-size: calc(22 * var(--px));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.handle[data-tap-state='low'] .left {
+  color: var(--low);
+}
+
+.ferrule {
+  width: 54%;
+  height: calc(26 * var(--px));
+  background: #A3A8AD;
+}
+
+.shank {
+  width: 22%;
+  height: calc(34 * var(--px));
+  border-radius: 0 0 calc(8 * var(--px)) calc(8 * var(--px));
+  background: #6E7378;
+}
+
+/* A pulled tap tips toward the room. */
+.handle[data-tap-state='pouring'],
+.handle[data-spotlight='lit'] {
+  transform: perspective(calc(900 * var(--px))) rotateX(16deg);
+}
+
+.handle[data-tap-state='pouring'] .body,
+.handle[data-spotlight='lit'] .body {
+  box-shadow: 0 0 0 calc(5 * var(--px)) #F5F1EA;
+}
+
+.handle[data-spotlight='dim'] {
+  opacity: 0.3;
+}
+
+.tray {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: calc(24 * var(--px));
+  height: calc(92 * var(--px));
+  margin: 0 calc(-56 * var(--px));
+  padding: 0 calc(56 * var(--px));
+  background: #2D3134;
+}
+
+.tray p {
+  margin: 0;
+  font-size: calc(26 * var(--px));
+  color: #E2E5E8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

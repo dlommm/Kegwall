@@ -5,6 +5,14 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Changed
 
+- **Changed:** the Chalkboard, Editorial, Neon, Terminal, Poster, Departures and Zen looks are
+  redrawn from their names, each showing what's left as a picture and in pints: chalk tally
+  gates, a magazine contents page with level rules, neon rings, ASCII gauges with the pour
+  log, a festival line-up, a split-flap board sorted by kick time, and an orb.
+- **Changed:** every part of a wall (rotation, leaderboard view, banners, game strip, pour
+  takeovers, screensaver) scales with the screen the same way, so a 4K TV no longer needs
+  the browser zoom workaround.
+
 - **Changed:** the Classic, Ledger, Columns and Gallery wall looks are redrawn. Every card,
   row, column or plate is the keg itself, filled in the beer's color, with what's left stated
   in pints ("≈ 32 pints left") using the taproom's serving size. Classic picks its layout by
@@ -21,6 +29,11 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   admin's styles load only with the admin.
 
 ## Added
+
+- **Added:** two new wall looks: **Tap Handles** (each tap a handle in its beer's color with a
+  sight glass; the pouring handle tips forward) and **Tally** (the night as a sentence, every
+  keg's pints left as tally marks).
+- **Added:** prices on the Chalkboard look when pricing is turned on.
 
 - **Added:** the **Just Tapped** wall look, the default for new walls: the newest (or a
   pinned) keg fills half the screen in its own color, with the tap list beside it.

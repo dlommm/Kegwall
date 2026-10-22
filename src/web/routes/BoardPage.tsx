@@ -6,6 +6,7 @@ import { usePolledFetch } from '../lib/usePolledFetch';
 import type { VolumeUnits } from '../lib/units';
 // Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
 import './board.css';
+import { Stage } from '../design/Stage';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -51,10 +52,11 @@ export function BoardPage() {
   return (
     <ThemeProvider className="board-page">
       {data ? (
-        <>
+        // The leaderboard is drawn on the 1920 × 1080 stage, like every wall view (Kegwall V2).
+        <Stage surface="board">
           {error && <p role="alert">Couldn’t refresh the leaderboard. Showing the last loaded results.</p>}
           <LeaderboardBoard data={data} units={units} title={siteName} onWindowChange={setWindow} />
-        </>
+        </Stage>
       ) : (
         <main className="board-page__loading" data-testid="board-page-loading">
           <p>{error ?? 'Loading the leaderboard…'}</p>

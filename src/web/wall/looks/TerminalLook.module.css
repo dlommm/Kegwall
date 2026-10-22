@@ -1,0 +1,62 @@
+/* Terminal (Kegwall V2): a live `top` on a black screen. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  padding: calc(44 * var(--px)) calc(60 * var(--px));
+  background: #070907;
+  color: #B8F5B0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: calc(25 * var(--px));
+}
+
+.pre {
+  margin: 0;
+  font: inherit;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.h {
+  color: #E9FFE5;
+  font-weight: 600;
+}
+
+.d {
+  color: #7FB679;
+}
+
+.w {
+  color: #FFD36B;
+}
+
+.inv {
+  background: #B8F5B0;
+  color: #070907;
+}
+
+.live {
+  color: #070907;
+  background: #FFD36B;
+}
+
+.row[data-spotlight='lit'] {
+  background: #1C2B1A;
+}
+
+.row[data-spotlight='dim'] {
+  opacity: 0.35;
+}
+
+.qr {
+  position: absolute;
+  right: calc(60 * var(--px));
+  bottom: calc(44 * var(--px));
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* A steady cursor: nothing blinks on an idle wall. */
+.cursor {
+  color: #B8F5B0;
+}

@@ -1,18 +1,16 @@
 import { memo, type CSSProperties } from 'react';
 import type { WallLookProps } from '../../components/looks/WallLook';
-import { useLookClock } from '../../components/looks/lookShared';
-import { formatTempC } from '../../lib/units';
 import {
-  MenuQr, levelColor, metaParts, servingsWord, spotlightState, useWallModels,
+  MenuQr, levelColor, metaParts, servingsWord, spotlightState, useLookMeta, useWallModels,
 } from './lookKit';
 import styles from './ColumnsLook.module.css';
 
 /** Columns (V2): each column is the keg, filled in the beer's color to its level. */
 export const ColumnsLook = memo(function ColumnsLook(props: WallLookProps) {
   const {
-    taps, config, units, title, menuUrl, tempC, servingSizeMl = 473, spotlightTapId, pageIndex, pageCount,
+    taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId,
   } = props;
-  const clock = useLookClock();
+  const meta = useLookMeta(props, { tempLabel: '' });
   const models = useWallModels(taps, units, servingSizeMl);
 
   return (
@@ -20,11 +18,7 @@ export const ColumnsLook = memo(function ColumnsLook(props: WallLookProps) {
       <header className={styles.header}>
         <h1 className={styles.brand}>{title}</h1>
         <span className={styles.meta} data-testid="look-meta">
-          {metaParts([
-            config.header.showClock && clock,
-            config.header.showTemp && tempC != null && formatTempC(tempC, units),
-            pageCount > 1 && `page ${pageIndex + 1} of ${pageCount}`,
-          ])}
+          {metaParts(meta)}
         </span>
         {config.showQr && <MenuQr url={menuUrl} size={64} />}
       </header>

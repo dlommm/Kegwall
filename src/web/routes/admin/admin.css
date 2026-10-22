@@ -5002,16 +5002,6 @@ h2.admin-field__label-text {
   color: color-mix(in srgb, var(--ok) 55%, var(--text));
 }
 
-.logs-toolbar__tail--on .look-pour-dot {
-  animation: look-pour-pulse 1.2s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-  .logs-toolbar__tail--on .look-pour-dot { animation: none; }
-
-}
-
 .logs-toolbar__export {
   padding: 7px 14px;
   border-radius: 9px;

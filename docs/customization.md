@@ -29,12 +29,22 @@ taproom board rather than a dashboard. Every redrawn look:
 | `ledger` | The cellar ledger: when each keg went on, what poured tonight, a level bar with pints left, and when it will kick | 12 |
 | `columns` | Each column is the keg, filled in the beer's color | 8 |
 | `gallery` | A museum wall: each beer a framed plate painted to its level, with a wall label | 8 |
+| `handles` (new) | The bar back: each tap is a handle in its beer's color with a sight glass showing the level; a pouring handle tips forward. The drip tray carries the wall's headline sentence | 8 |
+| `tally` (new) | A tally board: the night written as a sentence, each keg's remaining pints as tally marks (one mark = five pints for very large kegs) | 12 |
+| `chalkboard` | The chalk menu: prices when you show them, pints left as chalk tally gates | 8 |
+| `editorial` | A magazine feature on the spotlight keg, with the others as the contents page | 12 |
+| `neon` | A wall of bar signs; each neon ring is drawn as far round as the keg is full | 8 |
+| `terminal` | `top` for the taps: ASCII level bars, pours in the last hour, tonight's volume, the pour log | 12 |
+| `poster` | A festival line-up: the spotlight keg headlines, the rest billed below with pints left | 12 |
+| `departures` | A split-flap board: kegs sorted by when they'll kick; low kegs are boarding, kicked kegs have departed | 11 |
+| `zen` | One beer at a time: the spotlight keg's orb holds what's left, with a quiet list beside it | 12 |
 
-`chalkboard`, `editorial`, `neon`, `terminal`, `poster`, `departures` and `zen` are still
-the pre-2.0 designs and are redrawn next. `handles` and `tally` are reserved for two new
-looks and show as `classic` until they ship.
+Just Tapped, Classic, Ledger, Columns and Gallery take their colors from the wall's theme.
+The others are drawn in their own material (slate, paper, a black board, neon on brick) and
+look the same whatever theme is picked. Editorial, Poster, Zen and Just Tapped feature the
+**spotlight** keg.
 
-**Spotlight** (Just Tapped): by default the most recently tapped keg leads. Pin a tap to
+**Spotlight**: by default the most recently tapped keg leads. Pin a tap to
 keep one beer in the spotlight; if that tap is empty or kicked, the newest keg leads instead.
 
 **Kick forecast and tonight.** "Tonight" counts pours since 4 am, so a late night stays one
@@ -51,9 +61,9 @@ night. The kick forecast divides what's left by the keg's pour rate over the las
   temperature (from a bound Kegtron Pro monitor's sensor, if any).
 - **Ticker** — optional footer text.
 - **QR code** — show a scannable code for the phone menu and claiming pours.
-- **Columns, card template, fields and fill style** apply only to the pre-2.0 looks. The
-  redrawn looks choose their own composition; the settings are kept so switching back to
-  an older look restores them.
+- **Columns, card template, fields, glyph style and fill style** no longer change the wall:
+  every look chooses its own composition. They are kept in the stored config (nothing is
+  lost on upgrade) and leave the Wall Editor in a later 2.0 milestone.
 
 ## Themes
 
@@ -107,7 +117,9 @@ them. Use the stable hooks instead:
 | `[data-tap-state="ok" \| "low" \| "pouring" \| "kicked" \| "empty"]` | Each tap's row, card or column |
 | `[data-testid="tap-marker"]` | Each tap marker |
 
-The pre-2.0 looks keep their old class names throughout 2.x.
+Every wall look is drawn on the stage, so the pre-2.0 look class names (`.ledger-look`,
+`.tap-card` on the wall, …) no longer exist on walls. The phone menu keeps its class names
+until it is redrawn.
 
 ## Display power
 

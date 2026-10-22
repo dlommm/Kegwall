@@ -14,7 +14,10 @@ import { setWallDevices } from '../../src/server/db/wallDevices.js';
 import { DEVICES, THEMES, seedTaproom } from './seed.js';
 
 /** The looks drawn on the V2 stage; each milestone adds the looks it redraws. */
-export const STAGE_LOOKS = ['just-tapped', 'classic', 'ledger', 'columns', 'gallery'] as const;
+export const STAGE_LOOKS = [
+  'just-tapped', 'classic', 'ledger', 'columns', 'gallery', 'chalkboard', 'editorial', 'neon',
+  'terminal', 'poster', 'departures', 'zen', 'handles', 'tally',
+] as const;
 
 const ONLY = process.argv[2] ?? '';
 const dataDir = mkdtempSync(join(tmpdir(), 'kw-contrast-'));

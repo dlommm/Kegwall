@@ -1,8 +1,7 @@
 import { memo, type CSSProperties } from 'react';
 import type { WallLookProps } from '../../components/looks/WallLook';
-import { useLookClock } from '../../components/looks/lookShared';
 import {
-  MenuQr, levelColor, metaParts, spotlightState, useWallModels,
+  MenuQr, useLookMeta, levelColor, metaParts, spotlightState, useWallModels,
 } from './lookKit';
 import styles from './GalleryLook.module.css';
 
@@ -17,7 +16,7 @@ export const GalleryLook = memo(function GalleryLook(props: WallLookProps) {
   const {
     taps, config, units, title, menuUrl, servingSizeMl = 473, spotlightTapId, pageIndex, pageCount,
   } = props;
-  const clock = useLookClock();
+  const meta = useLookMeta(props);
   const models = useWallModels(taps, units, servingSizeMl);
   const pouring = models.filter((m) => m.hasBeer && !m.isKicked).length;
 
@@ -27,7 +26,7 @@ export const GalleryLook = memo(function GalleryLook(props: WallLookProps) {
         <h1 className={styles.title}>{`Now showing at ${title}`}</h1>
         <span className={styles.meta} data-testid="look-meta">
           {metaParts([
-            config.header.showClock && clock,
+            ...meta.filter((x) => !x.startsWith('page ')),
             `${COUNT_WORDS[pouring] ?? pouring} ${pouring === 1 ? 'work' : 'works'} pouring`,
             pageCount > 1 && `room ${pageIndex + 1} of ${pageCount}`,
           ])}

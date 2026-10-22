@@ -30,6 +30,10 @@ export interface WallTapModel extends TapLookModel {
   tonightPours: number;
   tonightMl: number;
   lastHourPours: number;
+  /** Public price per pint in cents, present only when the owner turns prices on. */
+  priceCents: number | null;
+  /** Servings in a full keg of this size (for tallies), or null with no keg. */
+  fullServings: number | null;
 }
 
 export interface WallModelOptions {
@@ -87,5 +91,7 @@ export function wallTapModel(tap: TapState, opts: WallModelOptions): WallTapMode
     tonightPours: tap.tonight?.pours ?? 0,
     tonightMl: tap.tonight?.volumeMl ?? 0,
     lastHourPours: tap.lastHourPours ?? 0,
+    priceCents: (tap as TapState & { pricePerPintCents?: number | null }).pricePerPintCents ?? null,
+    fullServings: tap.keg ? Math.floor(tap.keg.volStartMl / opts.servingSizeMl) : null,
   };
 }

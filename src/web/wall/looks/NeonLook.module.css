@@ -1,0 +1,145 @@
+/* Neon (Kegwall V2): bar signs on a dark wall. Glow is static text-shadow/drop-shadow:
+   no animation runs while the wall is idle. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(44 * var(--px)) calc(70 * var(--px));
+  background: #160E11;
+  color: #FFE9F4;
+  font-family: 'Tilt Neon', var(--font-v2-text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: calc(32 * var(--px));
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: calc(92 * var(--px));
+  font-weight: 400;
+  color: #FFD7EC;
+  text-shadow: 0 0 calc(6 * var(--px)) #FF4FB6, 0 0 calc(22 * var(--px)) #FF4FB6, 0 0 calc(48 * var(--px)) #C0137A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  margin: 0;
+  font-size: calc(32 * var(--px));
+  color: #9FF7EB;
+  text-shadow: 0 0 calc(8 * var(--px)) #13C2AE;
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  margin-top: calc(26 * var(--px));
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: calc(30 * var(--px)) calc(40 * var(--px));
+}
+
+.sign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(10 * var(--px));
+  min-width: 0;
+  text-align: center;
+  transition: opacity var(--motion-takeover) var(--ease-out), transform var(--motion-takeover) var(--ease-out);
+}
+
+.ring {
+  position: relative;
+  width: calc(190 * var(--px));
+  height: calc(190 * var(--px));
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+  filter: drop-shadow(0 0 calc(6 * var(--px)) var(--c)) drop-shadow(0 0 calc(16 * var(--px)) var(--c));
+}
+
+.track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 7;
+}
+
+.tube {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.count {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(64 * var(--px));
+  line-height: 1;
+  color: #FFF5FA;
+  text-shadow: 0 0 calc(10 * var(--px)) var(--c);
+  font-variant-numeric: tabular-nums;
+}
+
+.count small {
+  font-size: calc(22 * var(--px));
+  margin-top: calc(4 * var(--px));
+}
+
+.name {
+  max-width: 100%;
+  margin: 0;
+  font-size: calc(44 * var(--px));
+  font-weight: 400;
+  line-height: 1;
+  color: #FFF5FA;
+  text-shadow: 0 0 calc(10 * var(--px)) var(--c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-v2-text);
+  font-size: calc(22 * var(--px));
+  color: #E6D3DE;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sign[data-tap-state='low'] .count small {
+  color: #FFD27A;
+}
+
+.sign[data-tap-state='kicked'] .name {
+  color: #A8939E;
+  text-shadow: none;
+}
+
+.sign[data-spotlight='lit'] {
+  transform: scale(1.08);
+}
+
+.sign[data-spotlight='dim'] {
+  opacity: 0.25;
+}

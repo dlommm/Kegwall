@@ -83,33 +83,20 @@ describe('WallLook dispatch', () => {
     expect(screen.getByTestId(testId)).toBeInTheDocument();
   });
 
-  it('renders a look that is not built yet as classic', () => {
-    renderLook(makeConfig({ look: 'tally' }), [makeTap(1)]);
-    expect(screen.getByTestId('look-classic')).toBeInTheDocument();
+  it.each([
+    'chalkboard', 'editorial', 'neon', 'terminal', 'poster', 'departures', 'zen', 'handles', 'tally',
+  ] as const)('renders the %s V2 stage look', (look) => {
+    renderLook(makeConfig({ look }), [makeTap(1)]);
+    expect(screen.getByTestId(`look-${look}`)).toBeInTheDocument();
   });
 });
 
-describe('label art wires into card/column/style looks too (redesign 1b)', () => {
-  function tapWithLabel(id: number, labelImage: string | null): TapState {
-    const t = makeTap(id);
-    return { ...t, beer: { ...t.beer!, labelImage } };
-  }
-
-  it.each(['poster', 'neon', 'chalkboard', 'editorial', 'terminal', 'departures', 'zen'] as const)(
-    'the %s look renders the label image when the field is on', (look) => {
-      renderLook(
-        makeConfig({ look, fields: { labelImage: true } }),
-        [tapWithLabel(1, '/labels/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png')],
-      );
-      expect(screen.getByTestId('look-label-art').getAttribute('src')).toContain('/labels/');
-    },
-  );
-
-  it.each(['poster', 'zen'] as const)(
-    'the %s look renders NO label slot when the field is off', (look) => {
-      renderLook(makeConfig({ look }), [tapWithLabel(1, '/labels/x.png')]);
-      expect(screen.queryByTestId('look-label-art')).toBeNull();
-      expect(screen.queryByTestId('look-label-art-empty')).toBeNull();
+describe('label art (redesign 1b, carried into V2)', () => {
+  it.each(['classic', 'just-tapped', 'ledger'] as const)(
+    'the %s look shows uploaded label art in the tap marker', (look) => {
+      const t = makeTap(1);
+      renderLook(makeConfig({ look }), [{ ...t, beer: { ...t.beer!, labelImage: '/labels/x.png' } }]);
+      expect(screen.getAllByTestId('tap-marker')[0]!.querySelector('img')).toHaveAttribute('src', '/labels/x.png');
     },
   );
 });

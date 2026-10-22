@@ -53,9 +53,9 @@
 
 /* BannerLane */
 .banner-lane {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 1.5rem;
+  bottom: calc(24 * var(--u, 1px));
   transform: translateX(-50%);
   z-index: 45;
   pointer-events: none;
@@ -65,13 +65,13 @@
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 1.1rem;
-  border-radius: var(--card-radius, 0.75rem);
+  gap: calc(12 * var(--u, 1px));
+  padding: calc(9.6 * var(--u, 1px)) calc(17.6 * var(--u, 1px));
+  border-radius: var(--card-radius, calc(12 * var(--u, 1px)));
   background: var(--surface);
   color: var(--text);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+  border: calc(1 * var(--u, 1px)) solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 calc(8 * var(--u, 1px)) calc(24 * var(--u, 1px)) rgba(0, 0, 0, 0.35);
 }
 
 /* Reduced-motion gating mirrors LiquidFill/rotation: BannerLane.tsx computes whether
@@ -94,10 +94,10 @@
   background: none;
   border: none;
   color: var(--text-dim);
-  font-size: 1.1rem;
+  font-size: calc(17.6 * var(--u, 1px));
   line-height: 1;
   cursor: pointer;
-  padding: 0.1rem 0.3rem;
+  padding: calc(1.6 * var(--u, 1px)) calc(4.8 * var(--u, 1px));
 }
 
 /* QrOverlay */
@@ -135,27 +135,27 @@
 .game-strip__head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: calc(12 * var(--u, 1px));
+  margin-bottom: calc(8 * var(--u, 1px));
 }
 
 .game-strip__dot {
-  width: 10px;
-  height: 10px;
+  width: calc(10 * var(--u, 1px));
+  height: calc(10 * var(--u, 1px));
   border-radius: 50%;
   background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
+  box-shadow: 0 0 calc(8 * var(--u, 1px)) var(--ok);
 }
 
 .game-strip__title {
-  font-size: 22px;
+  font-size: calc(22 * var(--u, 1px));
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 
 .game-strip__tag {
   font-family: var(--font-mono, monospace);
-  font-size: 13px;
+  font-size: calc(13 * var(--u, 1px));
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--accent);
@@ -164,36 +164,36 @@
 .game-strip__players {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 28px;
+  gap: calc(10 * var(--u, 1px)) calc(28 * var(--u, 1px));
 }
 
 .game-strip__player {
   display: grid;
-  grid-template-columns: 34px auto 180px 70px;
+  grid-template-columns: calc(34 * var(--u, 1px)) auto calc(180 * var(--u, 1px)) calc(70 * var(--u, 1px));
   align-items: center;
-  gap: 10px;
+  gap: calc(10 * var(--u, 1px));
 }
 
 .game-strip__avatar {
-  width: 34px;
-  height: 34px;
+  width: calc(34 * var(--u, 1px));
+  height: calc(34 * var(--u, 1px));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 14px;
+  font-size: calc(14 * var(--u, 1px));
   font-weight: 700;
 }
 
 .game-strip__name {
-  font-size: 18px;
+  font-size: calc(18 * var(--u, 1px));
   font-weight: 600;
 }
 
 .game-strip__bar {
-  height: 10px;
-  border-radius: 5px;
+  height: calc(10 * var(--u, 1px));
+  border-radius: calc(5 * var(--u, 1px));
   background: color-mix(in srgb, var(--text) 12%, transparent);
   overflow: hidden;
 }
@@ -201,7 +201,7 @@
 .game-strip__bar-fill {
   display: block;
   height: 100%;
-  border-radius: 5px;
+  border-radius: calc(5 * var(--u, 1px));
   background: var(--accent);
 }
 
@@ -210,18 +210,18 @@
 }
 
 .game-strip__figure {
-  font-size: 16px;
+  font-size: calc(16 * var(--u, 1px));
   text-align: right;
 }
 
 /* Wall server-health strip (showHostStats) — discreet fixed corner readout, above
  * the looks but below banners/takeovers in visual weight. */
 .wall-host-stats {
-  position: fixed;
-  bottom: 0.5rem;
-  left: 0.75rem;
+  position: absolute;
+  bottom: calc(8 * var(--u, 1px));
+  left: calc(12 * var(--u, 1px));
   z-index: 30;
-  font-size: 0.7rem;
+  font-size: calc(11.2 * var(--u, 1px));
   letter-spacing: 0.02em;
   color: color-mix(in srgb, var(--text, #fff) 45%, transparent);
   pointer-events: none;
@@ -239,7 +239,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100%;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -257,26 +257,26 @@
  * ============================================================================
  */
 .playlist-bar {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 14px;
+  bottom: calc(14 * var(--u, 1px));
   transform: translateX(-50%);
   z-index: 42;
   display: flex;
-  gap: 8px;
+  gap: calc(8 * var(--u, 1px));
 }
 
 .playlist-bar__chip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
+  gap: calc(8 * var(--u, 1px));
+  padding: calc(6 * var(--u, 1px)) calc(14 * var(--u, 1px));
+  border-radius: calc(999 * var(--u, 1px));
   background: color-mix(in srgb, var(--text) 3%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  border: calc(1 * var(--u, 1px)) solid color-mix(in srgb, var(--text) 9%, transparent);
   color: var(--text-dim);
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: calc(12 * var(--u, 1px));
   font-weight: 600;
   letter-spacing: 0.1em;
 }
@@ -288,12 +288,12 @@
 }
 
 .playlist-bar__seconds {
-  font-size: 10.5px;
+  font-size: calc(10.5 * var(--u, 1px));
   opacity: 0.7;
 }
 
 .wall-rotation-loading {
-  min-height: 100vh;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
