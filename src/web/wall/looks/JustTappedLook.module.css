@@ -1,0 +1,215 @@
+/* Just Tapped (Kegwall V2 default look). Design pixels of the 1080p stage via --u. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: calc(1040 * var(--px)) minmax(0, 1fr);
+  background: var(--color-ground);
+  color: var(--color-ink-1);
+  font-family: var(--font-v2-text);
+  overflow: hidden;
+}
+
+/* ---- spotlight: the beer's own color as a field ---- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  transition: background-color var(--motion-takeover) var(--ease-out);
+}
+
+.heroEmpty {
+  background: var(--color-surface-1);
+}
+
+.bignum {
+  position: absolute;
+  right: calc(-40 * var(--px));
+  top: calc(-150 * var(--px));
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  font-size: calc(1100 * var(--px));
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.copy {
+  position: absolute;
+  left: calc(72 * var(--px));
+  right: calc(72 * var(--px));
+  bottom: calc(64 * var(--px));
+}
+
+.heroName {
+  margin: 0;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(var(--name-size) * var(--px));
+  line-height: 0.84;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.heroText {
+  margin: calc(28 * var(--px)) 0 0;
+  font-size: calc(34 * var(--px));
+  line-height: 1.35;
+  max-width: calc(840 * var(--px));
+}
+
+/* ---- the list panel, in a deep tone of the spotlight beer ---- */
+.list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: calc(44 * var(--px)) calc(52 * var(--px)) calc(36 * var(--px)) calc(48 * var(--px));
+  background: var(--panel);
+  color: var(--panel-ink);
+  transition: background-color var(--motion-takeover) var(--ease-out);
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: calc(24 * var(--px));
+}
+
+.brand {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(46 * var(--px));
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  flex: none;
+  font-size: calc(26 * var(--px));
+  color: var(--panel-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.rows {
+  list-style: none;
+  margin: calc(22 * var(--px)) 0 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(var(--rows), minmax(0, calc(76 * var(--px))));
+  align-content: start;
+  row-gap: calc(4 * var(--px));
+}
+
+.row {
+  display: grid;
+  grid-template-columns: calc(44 * var(--px)) calc(62 * var(--px)) minmax(0, 1fr) calc(128 * var(--px));
+  column-gap: calc(18 * var(--px));
+  align-items: center;
+  border-radius: calc(6 * var(--px));
+  min-height: 0;
+}
+
+.tapNo {
+  font-size: calc(26 * var(--px));
+  text-align: right;
+  color: var(--panel-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(38 * var(--px));
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.style {
+  margin-top: calc(4 * var(--px));
+  font-size: calc(22 * var(--px));
+  color: var(--panel-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.left {
+  text-align: right;
+  line-height: 1;
+  padding-right: calc(6 * var(--px));
+  font-variant-numeric: tabular-nums;
+}
+
+.left b {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(44 * var(--px));
+}
+
+.left span {
+  display: block;
+  margin-top: calc(2 * var(--px));
+  font-size: calc(22 * var(--px));
+  color: var(--panel-ink-2);
+}
+
+.row[data-tap-state='low'] .left {
+  color: var(--panel-low);
+}
+
+.row[data-tap-state='low'] .left span {
+  color: var(--panel-low);
+}
+
+/* The spotlight beer is already on the left: its row steps back to the secondary ink. */
+.row[data-feature='true'] .name,
+.row[data-feature='true'] .left b {
+  color: var(--panel-ink-2);
+}
+
+.row[data-tap-state='pouring'],
+.row[data-spotlight='lit'] {
+  background: var(--panel-ink);
+  color: var(--panel);
+  --panel-ink-2: var(--panel);
+  --panel-low: var(--panel);
+  margin: 0 calc(-10 * var(--px));
+  padding: 0 calc(10 * var(--px));
+}
+
+.row[data-spotlight='dim'] {
+  opacity: 0.35;
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: calc(28 * var(--px));
+  margin-top: calc(14 * var(--px));
+}
+
+.foot p {
+  margin: 0;
+  font-size: calc(24 * var(--px));
+  line-height: 1.35;
+  color: var(--panel-ink-2);
+}

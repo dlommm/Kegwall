@@ -8,6 +8,7 @@ import { groupMonitors } from '../../lib/monitorDevices';
 import { ThemeProvider } from '../../themes/ThemeProvider';
 import { HaSetupWizard } from '../../components/HaSetupWizard';
 import type { Settings } from '../../../server/db/settings.js';
+import { NEW_WALL_LOOK } from '../../../server/core/wallConfig.js';
 
 /**
  * `/admin/welcome`: the guided first-run wizard, entered right after SetupPage creates
@@ -111,7 +112,7 @@ export function WelcomePage() {
       if (!existing.ok) { setError(existing.message); return; }
       let target = existing.data[0] ?? null;
       if (!target) {
-        const created = await createWall({ slug: 'main', name: siteName.trim() || 'Kegwall' });
+        const created = await createWall({ slug: 'main', name: siteName.trim() || 'Kegwall', config: { look: NEW_WALL_LOOK } });
         if (created.ok) {
           target = created.data;
         } else {

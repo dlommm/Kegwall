@@ -87,7 +87,7 @@ describe('WelcomePage', () => {
     fireEvent.click(screen.getByTestId('welcome-create-wall'));
     await flush();
     // createWall omits config so the SERVER fills wallConfig defaults.
-    expect(createWall).toHaveBeenCalledWith({ slug: 'main', name: 'The Keg Cave' });
+    expect(createWall).toHaveBeenCalledWith({ slug: 'main', name: 'The Keg Cave', config: { look: 'just-tapped' } });
 
     // updates step — native preselected from install:'native'
     expect((screen.getByTestId('welcome-updates-native') as HTMLInputElement).checked).toBe(true);

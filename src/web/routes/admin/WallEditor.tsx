@@ -32,14 +32,14 @@ const CARD_TEMPLATES: { value: CardTemplate; label: string }[] = [
   { value: 'minimal', label: 'Minimal' },
 ];
 
-// Wall LOOK (Pour Wall overhaul): the layout template axis. 'classic' keeps the
-// pre-overhaul WallGrid; the design-doc looks own their whole frame (see
-// components/looks/). Card template/columns only apply to 'classic'.
+// Wall LOOK: the layout template axis. Kegwall V2 looks (wall/looks/) are drawn on the
+// 1920 × 1080 stage; the rest are pre-V2 looks being redrawn in M4.
 const LOOKS: { value: WallConfig['look']; label: string }[] = [
-  { value: 'classic', label: 'Classic grid' },
-  { value: 'ledger', label: 'Ledger (rows)' },
-  { value: 'gallery', label: 'Gallery (cards)' },
-  { value: 'columns', label: 'Tap columns' },
+  { value: 'just-tapped', label: 'Just Tapped' },
+  { value: 'classic', label: 'Classic' },
+  { value: 'ledger', label: 'Ledger' },
+  { value: 'gallery', label: 'Gallery' },
+  { value: 'columns', label: 'Columns' },
   { value: 'chalkboard', label: 'Chalkboard' },
   { value: 'editorial', label: 'Editorial' },
   { value: 'neon', label: 'Neon arcade' },

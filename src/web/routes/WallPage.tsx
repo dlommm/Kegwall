@@ -17,13 +17,13 @@ import { useBanners, type BannerKind } from '../lib/useBanners';
 import { usePolledFetch } from '../lib/usePolledFetch';
 import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
-import { WallHeader } from '../components/WallHeader';
-import { WallGrid } from '../components/WallGrid';
-import { WallLook, resolveLook } from '../components/looks/WallLook';
+import {
+  WallLook, autoPageSize, isStageLook, resolveLook,
+} from '../components/looks/WallLook';
+import { Stage } from '../design/Stage';
 import { PourTakeover } from '../components/takeover/PourTakeover';
 import { useTakeover } from '../lib/useTakeover';
 import { BannerLane } from '../components/BannerLane';
-import { QrOverlay } from '../components/QrOverlay';
 import { GameStrip } from '../components/GameStrip';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
@@ -122,7 +122,6 @@ export function WallPage() {
   const [searchParams] = useSearchParams();
   const reducedMotion = usePrefersReducedMotion();
   // TV scale-to-fit: 720p/1080p/4K all render the 1080p-designed wall identically.
-  useKioskScale();
   const { queue, push, dismiss } = useBanners();
 
   // This page is a TV/kiosk — no pointer belongs on it, ever. Hide it at the DOCUMENT ROOT while the
@@ -193,7 +192,7 @@ export function WallPage() {
   }, []);
 
   const {
-    wall, taps, units, stale, connected, loading, error, notFound,
+    wall, taps, units, servingSizeMl, stale, connected, loading, error, notFound,
   } = useWallData(slug, { onMessage: handleWsMessage });
 
   // F3 fix: a dead/unreachable server can't push a fresh display_power frame, so the last
@@ -223,17 +222,22 @@ export function WallPage() {
     };
   }, [baseConfig, displayOverrides]);
 
-  // Page cycling for >6 taps (design 1c/4): the overhaul looks are designed
-  // around 6 taps per screen — with no manual pages configured, larger tap
-  // sets auto-chunk into 6-per-page cycles.
-  const AUTO_PAGE_SIZE = 6;
+  // Pre-V2 looks scale to the TV with document zoom; V2 stage looks scale themselves
+  // (design/Stage.tsx), so zooming them too would apply the factor twice.
+  useKioskScale(!isStageLook(resolveLook(config?.look)));
+
+  // Page cycling: with no manual pages configured, a wall with more taps than its look
+  // holds auto-chunks into pages. Pre-V2 looks were designed around 6 taps per screen;
+  // Kegwall V2 stage looks declare their own capacity (the density ladder).
   const pages = useMemo(() => {
     const configuredPages = config?.pages ?? [];
-    const look = config?.look ?? 'classic';
-    if (look !== 'classic' && configuredPages.length === 0 && taps.length > AUTO_PAGE_SIZE) {
+    const look = resolveLook(config?.look);
+    const size = autoPageSize(look);
+    const chunked = look !== 'classic' || isStageLook(look);
+    if (chunked && configuredPages.length === 0 && taps.length > size) {
       const chunks: typeof taps[] = [];
-      for (let i = 0; i < taps.length; i += AUTO_PAGE_SIZE) {
-        chunks.push(taps.slice(i, i + AUTO_PAGE_SIZE));
+      for (let i = 0; i < taps.length; i += size) {
+        chunks.push(taps.slice(i, i + size));
       }
       return chunks;
     }
@@ -371,33 +375,33 @@ export function WallPage() {
                 <p className="wall-rotation-loading" data-testid="wall-rotation-loading">Loading the leaderboard…</p>
               )}
             </div>
-          ) : look === 'classic' ? (
-            <>
-              <WallHeader
-                title={title}
-                showClock={config.header.showClock}
-                showTemp={config.header.showTemp}
-                tempC={maxTempC}
-                units={units}
-                ticker={config.ticker}
-              />
+          ) : isStageLook(look) ? (
+            // Kegwall V2 looks: drawn on the 1920 × 1080 stage, so 720p, 1080p and 4K show
+            // the same composition, letterboxed in the theme ground.
+            <Stage uiScale={config.display?.uiScale ?? 1}>
               <div
                 key={pageIndex}
-                className={`wall-grid-transition wall-grid-transition--${transition}${takeoverStyle === 'split' && overlayActive ? ' takeover-squeeze' : ''}`}
+                className={`wall-grid-transition wall-grid-transition--${transition} look-frame`}
                 data-testid="wall-page-content"
                 data-transition={transition}
               >
-                <WallGrid
+                <WallLook
                   taps={currentTaps}
-                  columns={config.columns}
-                  template={config.cardTemplate}
-                  fields={config.fields}
-                  fillStyle={config.fillStyle}
+                  allTaps={taps}
+                  config={config}
                   units={units}
+                  servingSizeMl={servingSizeMl}
+                  title={title}
+                  menuUrl={menuUrl}
+                  tempC={maxTempC}
+                  pageIndex={pageIndex}
+                  pageCount={pages.length}
+                  rotationSeconds={config.rotationSeconds}
                   spotlightTapId={spotlightTapId}
+                  sensors={ambientSensors}
                 />
               </div>
-            </>
+            </Stage>
           ) : (
             // Pour Wall overhaul looks (Ledger/Gallery/Columns…) own their whole
             // frame — header, rows/cards, footer ticker + QR — so the classic
@@ -437,7 +441,6 @@ export function WallPage() {
           {/* Additive live game strip (redesign 5c) — renders itself only when a game runs. */}
           <GameStrip />
           <BannerLane queue={queue} onDismiss={dismiss} />
-          {look === 'classic' && config.showQr && <QrOverlay url={menuUrl} />}
           {config.showHostStats && hostStats && (
             <div className="wall-host-stats font-tabular" data-testid="wall-host-stats">
               {`CPU ${Math.round(hostStats.cpuPct)}% · RAM ${Math.round(hostStats.memPct)}%`}

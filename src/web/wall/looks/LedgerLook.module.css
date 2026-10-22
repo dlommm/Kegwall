@@ -1,0 +1,177 @@
+/* Ledger (Kegwall V2): the cellar ledger. Design pixels of the 1080p stage via --u. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(48 * var(--px)) calc(64 * var(--px)) calc(36 * var(--px));
+  background: var(--color-ground);
+  color: var(--color-ink-1);
+  font-family: var(--font-v2-text);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: calc(24 * var(--px));
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(62 * var(--px));
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.meta {
+  margin: 0;
+  font-size: calc(26 * var(--px));
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.line {
+  display: grid;
+  grid-template-columns:
+    calc(70 * var(--px)) minmax(0, 1fr) calc(170 * var(--px)) calc(170 * var(--px))
+    calc(430 * var(--px)) calc(200 * var(--px));
+  column-gap: calc(28 * var(--px));
+  align-items: center;
+  min-height: 0;
+  border-bottom: calc(1 * var(--px)) solid var(--color-rule-strong);
+}
+
+.th {
+  margin-top: calc(30 * var(--px));
+  padding-bottom: calc(10 * var(--px));
+  border-bottom: calc(3 * var(--px)) solid var(--color-ink-1);
+  font-size: calc(22 * var(--px));
+  color: var(--color-ink-2);
+}
+
+.right {
+  text-align: right;
+}
+
+.rows {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+}
+
+.n {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(40 * var(--px));
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.beer {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--px));
+  min-width: 0;
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(34 * var(--px));
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.style {
+  margin-top: calc(3 * var(--px));
+  font-size: calc(22 * var(--px));
+  color: var(--color-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v,
+.k {
+  font-size: calc(26 * var(--px));
+  font-variant-numeric: tabular-nums;
+}
+
+.lv {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--px));
+}
+
+.bar {
+  flex: 1;
+  height: calc(16 * var(--px));
+  border-radius: calc(3 * var(--px));
+  background: var(--color-surface-1);
+  box-shadow: inset 0 0 0 calc(1 * var(--px)) var(--color-rule);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  transform: scaleX(var(--level));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.lv b {
+  width: calc(64 * var(--px));
+  text-align: right;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(40 * var(--px));
+  font-variant-numeric: tabular-nums;
+}
+
+.line[data-tap-state='low'] .lv b,
+.line[data-tap-state='low'] .k {
+  color: var(--color-caution);
+}
+
+.line[data-tap-state='kicked'] {
+  color: var(--color-ink-3);
+}
+
+.line[data-tap-state='pouring'],
+.line[data-spotlight='lit'] {
+  background: var(--color-surface-1);
+  box-shadow: inset calc(6 * var(--px)) 0 0 var(--color-accent);
+}
+
+.line[data-spotlight='dim'] {
+  opacity: 0.35;
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: calc(28 * var(--px));
+  margin-top: calc(14 * var(--px));
+}
+
+.foot p {
+  margin: 0;
+  font-size: calc(24 * var(--px));
+  color: var(--color-ink-2);
+}

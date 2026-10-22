@@ -1,0 +1,161 @@
+/* Columns (Kegwall V2): each column is the keg. Design pixels of the 1080p stage via --u. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(22 * var(--px));
+  padding: calc(40 * var(--px)) calc(52 * var(--px)) calc(36 * var(--px));
+  background: var(--color-ground);
+  color: var(--color-ink-1);
+  font-family: var(--font-v2-text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: calc(28 * var(--px));
+}
+
+.brand {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(52 * var(--px));
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: calc(26 * var(--px));
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: calc(14 * var(--px));
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: calc(12 * var(--px));
+  background: var(--color-surface-1);
+  overflow: hidden;
+  transition: transform var(--motion-takeover) var(--ease-out), opacity var(--motion-takeover) var(--ease-out);
+}
+
+.lab {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--px));
+  height: calc(370 * var(--px));
+  padding: calc(18 * var(--px)) calc(16 * var(--px)) calc(14 * var(--px));
+}
+
+.tapNo {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(26 * var(--px));
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(38 * var(--px));
+  line-height: 0.95;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.style {
+  font-size: calc(22 * var(--px));
+  color: var(--color-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.abv {
+  margin-top: auto;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(54 * var(--px));
+  line-height: 0.9;
+  margin-bottom: calc(10 * var(--px));
+  font-variant-numeric: tabular-nums;
+}
+
+.keg {
+  position: relative;
+  flex: 1;
+  margin: 0 calc(8 * var(--px)) calc(8 * var(--px));
+  border-radius: calc(8 * var(--px));
+  background: rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+:global([data-theme-mode='light']) .keg {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.keg i {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  transform: scaleY(var(--level));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.figure {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(44 * var(--px));
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure small {
+  display: block;
+  font-family: var(--font-v2-text);
+  font-weight: 400;
+  font-size: calc(22 * var(--px));
+}
+
+.col[data-tap-state='low'] .figure {
+  color: var(--color-caution);
+}
+
+.col[data-tap-state='kicked'] {
+  color: var(--color-ink-3);
+}
+
+.col[data-tap-state='pouring'],
+.col[data-spotlight='lit'] {
+  box-shadow: inset 0 0 0 calc(4 * var(--px)) var(--color-accent);
+}
+
+.col[data-spotlight='lit'] {
+  transform: translateY(calc(-12 * var(--px)));
+}
+
+.col[data-spotlight='dim'] {
+  opacity: 0.3;
+}

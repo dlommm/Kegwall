@@ -6,33 +6,62 @@ the admin UI at **Settings -> Walls -> (pick a wall) -> Edit** (editor role or h
 this doc explains what each option actually does, sourced from the wall config schema
 (`src/server/core/wallConfig.ts`).
 
+## Looks
+
+A wall's **look** is its whole layout. Kegwall 2.0 redraws the looks so a wall reads like a
+taproom board rather than a dashboard. Every redrawn look:
+
+- shows each beer's real color (from its SRM) and a **tap marker**: the beer's color, its
+  initials and its tap number. Uploaded label art replaces the initials;
+- states what's left **twice**: as a picture (a fill, a bar, a plate) and in servings, for
+  example "≈ 32 pints left". Servings use **Settings → Site → Serving size**: a pint-sized
+  serving (440–600 mL) reads as pints, anything else as pours;
+- is drawn on a fixed 1920 × 1080 layout scaled to the screen, so a 720p, 1080p or 4K TV
+  shows the same composition (letterboxed in the theme's background if the screen isn't
+  16:9). **Display fit → UI scale** still enlarges the type;
+- uses the Kegwall type (Big Shoulders Display and Atkinson Hyperlegible) whatever the
+  theme's own fonts are, and picks text colors that meet WCAG contrast in every theme.
+
+| Look | What it is | Taps per page |
+| --- | --- | --- |
+| `just-tapped` (**default for new walls**) | The spotlight keg owns half the screen as a field of its own color, with its tap number set huge. The rest are listed beside it with pints left. Kicked kegs move to a sentence in the footer | 12 |
+| `classic` | Every card is its keg, filled from the bottom to the level, pints left as the big number. 1–4 taps show as large cards, 5–8 as two rows of cards, 9–12 as board rows | 12 |
+| `ledger` | The cellar ledger: when each keg went on, what poured tonight, a level bar with pints left, and when it will kick | 12 |
+| `columns` | Each column is the keg, filled in the beer's color | 8 |
+| `gallery` | A museum wall: each beer a framed plate painted to its level, with a wall label | 8 |
+
+`chalkboard`, `editorial`, `neon`, `terminal`, `poster`, `departures` and `zen` are still
+the pre-2.0 designs and are redrawn next. `handles` and `tally` are reserved for two new
+looks and show as `classic` until they ship.
+
+**Spotlight** (Just Tapped): by default the most recently tapped keg leads. Pin a tap to
+keep one beer in the spotlight; if that tap is empty or kicked, the newest keg leads instead.
+
+**Kick forecast and tonight.** "Tonight" counts pours since 4 am, so a late night stays one
+night. The kick forecast divides what's left by the keg's pour rate over the last 7 days
+(or since it was tapped, if that's sooner).
+
 ## Layout
 
-- **Columns** (1-6) — grid width.
-- **Card template** — `full`, `standard`, `compact`, or `minimal`. Controls how much detail
-  (ABV, IBU, brewery, description...) each tap card shows; denser templates fit more taps
-  on screen.
-- **Pages** — group taps into rotating pages (e.g. 8 taps split across 2 pages of 4) if you
-  have more taps than fit comfortably on one screen at your chosen column count.
+- **Pages** — group taps into rotating pages. With no pages set, a wall with more taps than
+  its look holds (see the table above) splits into pages automatically.
 - **Rotation** — seconds between page rotations, minimum 3s.
 - **Transition** — `crossfade`, `slide`, or `none` between page rotations.
-- **Header** — optional title text, and toggles for a live clock and ambient temperature
-  (from a bound Kegtron Pro monitor's sensor, if any).
-- **Ticker** — optional scrolling text banner.
-- **Fields** — per-field visibility toggles (which beer attributes show on cards).
-- **Fill style** — `Beer-colored liquid` (default) shows the SRM-true `LiquidFill` swatch;
-  `Keg cutaway` shows `KegFill` instead, a photorealistic cutaway of the actual keg type
-  (auto-matched from the tap's keg size, or pinned via that keg's own "Keg type" field in
-  the swap wizard / on-deck queue) with a green/yellow/red level fill and a large percent
-  readout. Only takes effect on the `full`/`standard`/`minimal` card templates — `compact`
-  always shows the small liquid swatch regardless (its card row is too short for the
-  cutaway art).
-- **QR code** — optionally show a QR code linking to a menu/detail page.
+- **Header** — optional title text, and toggles for a live clock and the kegerator
+  temperature (from a bound Kegtron Pro monitor's sensor, if any).
+- **Ticker** — optional footer text.
+- **QR code** — show a scannable code for the phone menu and claiming pours.
+- **Columns, card template, fields and fill style** apply only to the pre-2.0 looks. The
+  redrawn looks choose their own composition; the settings are kept so switching back to
+  an older look restores them.
 
 ## Themes
 
-Four built-in themes (`src/web/themes/themes.ts`): `taproom`, `chalkboard`, `bright`, and
-`mono`. Each defines a set of CSS custom-property tokens (colors, fonts). Pick a base theme,
+Ten built-in themes (`src/web/themes/themes.ts`): `midnight-slate` (default), `cream`,
+`cellar-teal`, `taproom-green`, `amber-glow`, `arcade`, `taproom`, `chalkboard`, `bright`
+and `mono`. Each defines a set of CSS custom-property tokens (colors, fonts). On the redrawn
+2.0 looks a theme sets the background, surfaces and text colors; secondary text and warning
+colors are adjusted automatically so they stay readable on that theme. Pick a base theme,
 then optionally override individual tokens (color pickers/text fields in the editor) without
 writing CSS — token overrides are applied as scoped CSS custom properties on the wall,
 validated against a safe `--custom-property: value` shape before being written to the page
@@ -64,6 +93,21 @@ gated by the same role as the rest of the wall editor, not by anything stricter.
 the same way you'd treat handing someone `<style>` access to your public site: fine for
 your own CSS, or CSS from a source you actually trust, not something to paste blindly from
 a random forum post.
+
+### Styling the redrawn looks
+
+The 2.0 looks use generated class names, which change between releases, so don't target
+them. Use the stable hooks instead:
+
+| Hook | On |
+| --- | --- |
+| `.kegtron-theme-scope` | The wall's theme wrapper (unchanged) |
+| `[data-look="just-tapped"]` (and every other look id) | The look's root |
+| `[data-surface="wall"]` | The 1920 × 1080 stage |
+| `[data-tap-state="ok" \| "low" \| "pouring" \| "kicked" \| "empty"]` | Each tap's row, card or column |
+| `[data-testid="tap-marker"]` | Each tap marker |
+
+The pre-2.0 looks keep their old class names throughout 2.x.
 
 ## Display power
 

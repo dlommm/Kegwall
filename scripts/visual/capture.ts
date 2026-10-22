@@ -74,6 +74,8 @@ await shot('wall-main-1080', '/wall/main', VP.tv1080);
 await shot('wall-main-4k', '/wall/main', VP.tv4k);
 await shot('wall-look-ledger-720', '/wall/look-ledger', VP.tv720);
 await shot('wall-look-gallery-4k', '/wall/look-gallery', VP.tv4k);
+await shot('wall-look-just-tapped-720', '/wall/look-just-tapped', VP.tv720);
+await shot('wall-look-just-tapped-4k', '/wall/look-just-tapped', VP.tv4k);
 await shot('wall-taps4-1080', '/wall/taps4', VP.tv1080);
 await shot('wall-taps12-1080', '/wall/taps12', VP.tv1080);
 await shot('wall-fill-keg-1080', '/wall/fill-keg', VP.tv1080);

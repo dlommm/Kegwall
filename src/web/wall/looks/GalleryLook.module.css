@@ -1,0 +1,136 @@
+/* Gallery (Kegwall V2): a museum wall of framed color plates. Design pixels via --u. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(56 * var(--px)) calc(84 * var(--px)) calc(44 * var(--px));
+  background: var(--color-ground);
+  color: var(--color-ink-1);
+  font-family: var(--font-v2-text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: calc(28 * var(--px));
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: 'Playfair Display', serif;
+  font-weight: 500;
+  font-size: calc(58 * var(--px));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: calc(24 * var(--px));
+  color: var(--color-ink-2);
+}
+
+.wall {
+  flex: 1;
+  min-height: 0;
+  margin-top: calc(30 * var(--px));
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: calc(40 * var(--px)) calc(44 * var(--px));
+}
+
+.work {
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: calc(190 * var(--px)) minmax(0, 1fr);
+  gap: calc(20 * var(--px));
+  align-items: end;
+  transition: opacity var(--motion-takeover) var(--ease-out), transform var(--motion-takeover) var(--ease-out);
+}
+
+.frame {
+  height: 100%;
+  max-height: calc(400 * var(--px));
+  padding: calc(12 * var(--px));
+  background: #0E0E0D;
+  box-shadow: 0 calc(14 * var(--px)) calc(30 * var(--px)) rgba(0, 0, 0, 0.35);
+}
+
+.canvas {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: #F3F0E8;
+}
+
+.canvas i {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  transform: scaleY(var(--level));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+.label {
+  min-width: 0;
+  padding: calc(14 * var(--px)) calc(16 * var(--px));
+  background: #F1EFEA;
+  color: #1B1A18;
+}
+
+.no {
+  font-size: calc(22 * var(--px));
+  color: #4C4944;
+  font-variant-numeric: tabular-nums;
+}
+
+.name {
+  margin: calc(4 * var(--px)) 0 0;
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: calc(30 * var(--px));
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.label p {
+  margin: calc(6 * var(--px)) 0 0;
+  font-size: calc(22 * var(--px));
+  line-height: 1.3;
+  color: #4C4944;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.label b {
+  display: block;
+  margin-top: calc(8 * var(--px));
+  font-size: calc(24 * var(--px));
+  font-variant-numeric: tabular-nums;
+}
+
+.work[data-tap-state='low'] .label b {
+  color: #8A4300;
+}
+
+.work[data-spotlight='lit'] {
+  transform: scale(1.04);
+}
+
+.work[data-spotlight='dim'] {
+  opacity: 0.3;
+}

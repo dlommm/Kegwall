@@ -52,14 +52,14 @@ test.afterAll(async () => {
 function tapCardByName(page: Page, beerName: string) {
   // None of the four seeded beer names is a substring of another (see fixtures.ts), so a
   // plain substring `hasText` filter on the card is enough to disambiguate.
-  return page.getByTestId('tap-card').filter({ hasText: beerName });
+  return page.getByTestId('classic-card').filter({ hasText: beerName });
 }
 
-test('/wall/main renders 4 tap cards with beer names', async ({ page }) => {
+test('/wall/main renders 4 classic keg cards with beer names', async ({ page }) => {
   await page.goto(`${baseURL}/wall/main`);
 
-  await expect(page.getByTestId('tap-card')).toHaveCount(4);
-  const names = await page.getByTestId('tap-card-name').allTextContents();
+  await expect(page.getByTestId('classic-card')).toHaveCount(4);
+  const names = await page.getByTestId('classic-card-name').allTextContents();
   expect(names.sort()).toEqual(
     ['Belgian Sun', 'Citra Haze', 'Midnight Oats', 'Vienna Nights'].sort(),
   );
@@ -68,14 +68,16 @@ test('/wall/main renders 4 tap cards with beer names', async ({ page }) => {
   // name and card, just marked kicked — confirms the KICKED fallback path (Task 4/5
   // review requirement) is actually reachable through the real API, not just in tests
   // that call StateManager directly.
-  await expect(tapCardByName(page, 'Midnight Oats')).toHaveAttribute('data-kicked', 'true');
+  await expect(tapCardByName(page, 'Midnight Oats')).toHaveAttribute('data-tap-state', 'kicked');
 });
 
 test('a server-side volume_update updates a card live over WS', async ({ page }) => {
   await page.goto(`${baseURL}/wall/main`);
 
-  const liquidBody = tapCardByName(page, 'Citra Haze').getByTestId('liquid-fill-body');
-  await expect(liquidBody).toHaveAttribute('height', '83.2');
+  // Kegwall V2 classic: the card's keg fill is scaled by its --level custom property.
+  const card = tapCardByName(page, 'Citra Haze');
+  const level = () => card.evaluate((el) => (el as HTMLElement).style.getPropertyValue('--level'));
+  expect(Number(await level())).toBeCloseTo(0.83, 2);
 
   // Emitted directly on the live app's event bus — this is the same bus
   // ingest sources publish to; StateManager reacts by updating the keg's dispensed
@@ -92,7 +94,7 @@ test('a server-side volume_update updates a card live over WS', async ({ page })
       sizeMl: 19000,
       ts: new Date().toISOString(),
     });
-    await expect(liquidBody).toHaveAttribute('height', '50');
+    expect(Number(await level())).toBeCloseTo(0.5, 2);
   }).toPass({ timeout: 10_000, intervals: [100, 250, 500, 1000] });
 });
 

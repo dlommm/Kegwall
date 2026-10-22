@@ -1,0 +1,31 @@
+.qr {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u, 1px));
+  color: inherit;
+  text-decoration: none;
+  flex: none;
+}
+
+.qrLabel {
+  max-width: calc(170 * var(--u, 1px));
+  font-family: var(--font-v2-text);
+  font-size: calc(22 * var(--u, 1px));
+  line-height: 1.25;
+  text-align: right;
+}
+
+.qrCode {
+  display: block;
+  width: calc(var(--qr-size) * var(--u, 1px));
+  height: calc(var(--qr-size) * var(--u, 1px));
+  padding: calc(6 * var(--u, 1px));
+  border-radius: calc(6 * var(--u, 1px));
+  background: #fff;
+}
+
+.qrCode svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

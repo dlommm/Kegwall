@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/** Kegwall V2 (decision D2): the look a NEWLY created wall starts on. The schema default stays
+ * 'classic' so a stored config without a `look` key keeps rendering as it always did. */
+export const NEW_WALL_LOOK = 'just-tapped' as const;
+
 export const wallConfigSchema = z.object({
   columns: z.number().int().min(1).max(6).default(2),
   // Wall LOOK (Pour Wall overhaul): the layout template axis, separate from `theme`

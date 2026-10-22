@@ -7,7 +7,7 @@ import {
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
 
-const LOOK_OPTIONS = ['', 'classic', 'ledger', 'gallery', 'columns'] as const;
+const LOOK_OPTIONS = ['', 'just-tapped', 'classic', 'ledger', 'gallery', 'columns'] as const;
 const TAKEOVER_OPTIONS = ['', 'off', 'full', 'spotlight', 'split', 'dock', 'fill'] as const;
 
 /**

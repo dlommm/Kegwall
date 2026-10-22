@@ -1,7 +1,7 @@
 {
   "name": "kegwall",
   "version": "1.17.0",
-  "description": "Self-hosted, PourWall-style tap wall for Kegtron keg monitors — standalone-first with optional Home Assistant integration.",
+  "description": "Self-hosted, PourWall-style tap wall for Kegtron keg monitors \u2014 standalone-first with optional Home Assistant integration.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dlommm/Kegwall.git"
@@ -18,7 +18,8 @@
     "seed": "tsx scripts/seed.ts",
     "test:e2e": "playwright test",
     "visual:capture": "tsx scripts/visual/capture.ts",
-    "visual:diff": "tsx scripts/visual/diff.ts"
+    "visual:diff": "tsx scripts/visual/diff.ts",
+    "visual:contrast": "tsx scripts/visual/contrast.ts"
   },
   "keywords": [
     "kegtron",

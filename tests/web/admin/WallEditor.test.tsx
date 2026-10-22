@@ -291,7 +291,7 @@ describe('WallEditor', () => {
     expect(screen.getByTestId('wall-editor-live-note')).toHaveTextContent(/live/i);
     // Changing the look updates the preview instantly — without saving.
     fireEvent.change(screen.getByTestId('wall-editor-look'), { target: { value: 'ledger' } });
-    expect(screen.getByTestId('ledger-look')).toBeInTheDocument();
+    expect(screen.getByTestId('look-ledger')).toBeInTheDocument();
     expect(updateWall).not.toHaveBeenCalled();
   });
 

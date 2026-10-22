@@ -2610,6 +2610,14 @@ h2.admin-field__label-text {
   transform-origin: top left;
 }
 
+/* Kegwall V2 looks fill a positioned 1920 × 1080 box (they are `position: absolute; inset: 0`). */
+.wall-live-preview__stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+}
+
 .wall-live-preview__scope {
   width: 100%;
   height: 100%;

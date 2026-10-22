@@ -1,0 +1,273 @@
+/* Classic (Kegwall V2): every card is its keg. Design pixels of the 1080p stage via --u. */
+.look {
+  --px: var(--u, 1px);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(22 * var(--px));
+  padding: calc(40 * var(--px)) calc(52 * var(--px)) calc(36 * var(--px));
+  background: var(--color-ground);
+  color: var(--color-ink-1);
+  font-family: var(--font-v2-text);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: calc(24 * var(--px));
+}
+
+.brand {
+  margin: 0;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(60 * var(--px));
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  flex: none;
+  font-size: calc(28 * var(--px));
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: calc(18 * var(--px));
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.look[data-density='rows'] .grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: calc(10 * var(--px)) calc(18 * var(--px));
+}
+
+/* ---- card ---- */
+.card {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(24 * var(--px)) calc(24 * var(--px)) calc(20 * var(--px));
+  border-radius: calc(10 * var(--px));
+  background: var(--color-surface-1);
+  transition: transform var(--motion-takeover) var(--ease-out), opacity var(--motion-takeover) var(--ease-out);
+}
+
+/* The keg: a full-height layer scaled to the level (transform only, cheap on a Pi). */
+.fill {
+  position: absolute;
+  inset: 0;
+  background: var(--fill);
+  transform-origin: bottom;
+  transform: scaleY(var(--level));
+  transition: transform var(--motion-counter) var(--ease-out);
+}
+
+/* The liquid's surface line, in the beer's own color. */
+.surface {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(6 * var(--px));
+  top: calc((1 - var(--level)) * 100%);
+  background: var(--beer);
+}
+
+.card[data-tap-state='kicked'] .surface,
+.card[data-tap-state='empty'] .surface {
+  display: none;
+}
+
+.card > :not(.fill):not(.surface) {
+  position: relative;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.tapNo {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(30 * var(--px));
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.name {
+  margin: calc(18 * var(--px)) 0 0;
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(50 * var(--px));
+  line-height: 0.95;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.style {
+  margin-top: calc(8 * var(--px));
+  font-size: calc(22 * var(--px));
+  /* Main ink, not secondary: this line often sits on the keg fill, not the card surface. */
+  color: var(--color-ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.left {
+  margin-top: auto;
+  display: flex;
+  align-items: baseline;
+  gap: calc(10 * var(--px));
+  font-variant-numeric: tabular-nums;
+}
+
+.left b {
+  font-family: var(--font-v2-display);
+  font-weight: 900;
+  font-size: calc(104 * var(--px));
+  line-height: 0.8;
+}
+
+.left span {
+  font-size: calc(24 * var(--px));
+}
+
+.leftWord {
+  font-family: var(--font-v2-display);
+  font-weight: 800;
+  font-size: calc(36 * var(--px)) !important;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.card[data-tap-state='low'] .left {
+  color: var(--color-caution);
+}
+
+.card[data-tap-state='kicked'] .name,
+.card[data-tap-state='empty'] .name {
+  color: var(--color-ink-3);
+}
+
+.card[data-tap-state='pouring'],
+.card[data-spotlight='lit'] {
+  box-shadow: inset 0 0 0 calc(4 * var(--px)) var(--beer);
+}
+
+.card[data-spotlight='lit'] {
+  transform: scale(1.04);
+  z-index: 1;
+}
+
+.card[data-spotlight='dim'] {
+  opacity: 0.3;
+}
+
+/* Hero density: four big cards. */
+.look[data-density='hero'] .name {
+  font-size: calc(84 * var(--px));
+}
+
+.look[data-density='hero'] .style {
+  font-size: calc(30 * var(--px));
+}
+
+.look[data-density='hero'] .left b {
+  font-size: calc(160 * var(--px));
+}
+
+.look[data-density='hero'] .left span {
+  font-size: calc(32 * var(--px));
+}
+
+/* Board rows: the card becomes a row, the keg fills left to right. */
+.look[data-density='rows'] .card {
+  display: grid;
+  grid-template-columns: calc(64 * var(--px)) minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: calc(18 * var(--px));
+  align-items: center;
+  padding: calc(8 * var(--px)) calc(20 * var(--px));
+}
+
+.look[data-density='rows'] .fill {
+  transform-origin: left;
+  transform: scaleX(var(--level));
+}
+
+.look[data-density='rows'] .surface {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  width: calc(6 * var(--px));
+  left: calc(var(--level) * 100%);
+}
+
+.look[data-density='rows'] .top {
+  grid-row: 1 / 3;
+}
+
+.look[data-density='rows'] .top :global([data-testid='tap-marker']) {
+  --marker-size: 56 !important;
+}
+
+.look[data-density='rows'] .tapNo {
+  display: none;
+}
+
+.look[data-density='rows'] .name {
+  margin: 0;
+  font-size: calc(38 * var(--px));
+  -webkit-line-clamp: 1;
+}
+
+.look[data-density='rows'] .style {
+  margin: 0;
+  grid-column: 2;
+}
+
+.look[data-density='rows'] .left {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  margin: 0;
+}
+
+.look[data-density='rows'] .left b {
+  font-size: calc(64 * var(--px));
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: calc(28 * var(--px));
+}
+
+.foot p {
+  margin: 0;
+  font-size: calc(24 * var(--px));
+  color: var(--color-ink-2);
+}

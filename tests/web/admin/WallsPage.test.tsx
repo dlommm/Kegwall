@@ -132,7 +132,7 @@ describe('WallsPage', () => {
     fireEvent.click(screen.getByTestId('walls-create-submit'));
     await flush();
 
-    expect(createWall).toHaveBeenCalledWith({ name: 'Patio', slug: 'patio' });
+    expect(createWall).toHaveBeenCalledWith({ name: 'Patio', slug: 'patio', config: { look: 'just-tapped' } });
     expect(screen.queryByTestId('walls-create-form')).not.toBeInTheDocument();
     expect(listWalls).toHaveBeenCalledTimes(2); // initial + post-create refresh
   });

@@ -67,7 +67,10 @@ export function servingsLabelFor(
 export function wallTapModel(tap: TapState, opts: WallModelOptions): WallTapModel {
   const now = opts.now ?? new Date();
   const base = tapLookModel(tap, opts.units, now);
-  const beerColor = srmToColor(base.srm).liquid;
+  // The SRM table's palest steps (1-5) are highlighter yellows that read as UI color, not
+  // beer, when they fill half a TV; a little warmth brings them back to straw.
+  const srm = srmToColor(base.srm).liquid;
+  const beerColor = base.srm != null && base.srm < 6 ? mixHex(srm, '#C8962E', 0.28) : srm;
   const remainingMl = tap.keg && !base.isKicked ? tap.keg.remainingMl : 0;
   const servings = tap.keg ? remainingMl / opts.servingSizeMl : null;
   const servingNoun = servingNounFor(opts.servingSizeMl);

@@ -90,7 +90,7 @@ test('a wall_banner automation rule created via the API fires a real banner on p
   expect(created.status()).toBe(201);
 
   await page.goto(`${baseURL}/wall/main`);
-  await expect(page.getByTestId('tap-card')).toHaveCount(4);
+  await expect(page.getByTestId('classic-card')).toHaveCount(4);
 
   // Emitted directly on the live app's event bus -- the same bus a real cloud/UDP/BLE
   // ingest report publishes `pour_completed` to; the engine (running for real in this

@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ThemeProvider } from '../themes/ThemeProvider';
-import { WallLook, resolveLook } from './looks/WallLook';
-import { WallHeader } from './WallHeader';
-import { WallGrid } from './WallGrid';
+import { WallLook } from './looks/WallLook';
 import { PourTakeover } from './takeover/PourTakeover';
 import type { TakeoverState } from '../lib/useTakeover';
 import type { WallConfig } from '../../server/core/wallConfig.js';
@@ -107,27 +105,9 @@ export function WallLivePreview({ config, title, units, menuUrl, simulateNonce =
         style={{ transform: `scale(${scale})`, '--ui-scale': uiScale } as CSSProperties}
       >
         <ThemeProvider theme={config.theme} customCss={config.customCss} className="wall-live-preview__scope">
-          {resolveLook(config.look) === 'classic' ? (
-            <>
-              <WallHeader
-                title={title}
-                showClock={config.header.showClock}
-                showTemp={config.header.showTemp}
-                tempC={2.2}
-                units={units}
-                ticker={config.ticker}
-              />
-              <WallGrid
-                taps={SAMPLE_TAPS}
-                columns={config.columns}
-                template={config.cardTemplate}
-                fields={config.fields}
-                fillStyle={config.fillStyle}
-                units={units}
-                spotlightTapId={spotlightTapId}
-              />
-            </>
-          ) : (
+          {/* V2 stage looks size themselves in stage units: in this fixed 1920 × 1080 frame one
+              design pixel is 1px × the wall's UI scale (Stage.tsx does the same on a screen). */}
+          <div className="wall-live-preview__stage" style={{ '--u': `${uiScale}px` } as CSSProperties}>
             <WallLook
               taps={SAMPLE_TAPS}
               config={config}
@@ -140,7 +120,7 @@ export function WallLivePreview({ config, title, units, menuUrl, simulateNonce =
               rotationSeconds={config.rotationSeconds}
               spotlightTapId={spotlightTapId}
             />
-          )}
+          </div>
           {showOverlay && sim && sim.phase !== 'idle' && (
             <PourTakeover style={overlayStyle} state={sim} units={units} tempC={2.2} />
           )}

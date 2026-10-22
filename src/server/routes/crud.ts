@@ -24,7 +24,7 @@ import {
   createUser, createDrinker, listUsers, updateUser, deleteUser, deleteSessionsForUser,
 } from '../db/users.js';
 import { hashToken } from '../core/auth.js';
-import { wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
+import { NEW_WALL_LOOK, wallConfigSchema, parseWallConfig } from '../core/wallConfig.js';
 import { settingsSchema } from '../db/settings.js';
 import { countFaceEmbeddingsByDrinker, deleteFaceEmbeddingsForDrinker } from '../db/faceEmbeddings.js';
 import { ConflictError, NotFoundError, ValidationError } from '../core/errors.js';
@@ -105,7 +105,7 @@ export function createWall(db: any, input: { slug: string; name: string; config?
 export function ensureDefaultWall(db: any): Wall | null {
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM walls').get() as { n: number };
   if (n > 0) return null;
-  return createWall(db, { slug: 'main', name: 'Kegwall' });
+  return createWall(db, { slug: 'main', name: 'Kegwall', config: { look: NEW_WALL_LOOK } });
 }
 
 export async function crudRoutes(app: FastifyInstance, dataDir = './data') {

@@ -138,17 +138,17 @@ describe('WallPage view rotation (design 4a)', () => {
     renderWall('/wall/main?display=4');
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(getDisplayView).toHaveBeenCalledWith(4);
-    expect(screen.getByTestId('ledger-look')).toBeInTheDocument();
-    expect(screen.queryByTestId('wall-grid')).toBeNull();
+    expect(screen.getByTestId('look-ledger')).toBeInTheDocument();
+    expect(screen.queryByTestId('look-classic')).toBeNull();
   });
 
-  it('auto-chunks >6 taps into pages for a non-classic look', async () => {
-    const taps = Array.from({ length: 8 }, (_, i) => makeTap(i + 1));
+  it('auto-chunks taps into pages by the look\'s own capacity (Columns holds 8)', async () => {
+    const taps = Array.from({ length: 10 }, (_, i) => makeTap(i + 1));
     mockWall({ look: 'columns' }, taps);
     renderWall();
     await act(async () => { await Promise.resolve(); });
-    // Page 1 shows 6 columns; the dots footer announces 2 pages.
-    expect(screen.getAllByTestId('columns-col-empty')).toHaveLength(6);
-    expect(screen.getByTestId('columns-look-dots')).toHaveTextContent('PAGE 1 OF 2');
+    // Page 1 shows 8 columns; the header announces 2 pages.
+    expect(screen.getAllByTestId('columns-col')).toHaveLength(8);
+    expect(screen.getByTestId('look-meta')).toHaveTextContent('page 1 of 2');
   });
 });

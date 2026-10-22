@@ -5,10 +5,13 @@
  * is a fixed 1920 × 1080 box scaled with a transform, so `--u` is exactly 1px.
  */
 
-/* Fills the whole viewport with the theme ground, so letterbox bars are never browser white. */
+/* Fills the whole viewport with the theme ground, so letterbox bars are never browser white.
+   Sized in viewport units rather than `position: fixed`: the wall's ScreenCare drift puts a
+   transform on an ancestor, which would turn a fixed box into one sized by its parent. */
 .screen {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;

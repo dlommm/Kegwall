@@ -176,15 +176,6 @@
  * inline by WallGrid.tsx). Fewer columns means more room per cell, which is the entire
  * "card scale" story per the design direction: no separate zoom/scale knob needed.
  */
-.wall-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--wall-columns, 2), minmax(0, 1fr));
-  gap: 1.25rem;
-  width: 100%;
-  height: 100%;
-  padding: 1.5rem;
-  box-sizing: border-box;
-}
 
 /* TapCard templates. */
 .tap-card {
@@ -430,51 +421,6 @@
 }
 
 /* WallHeader */
-.wall-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.5rem 0;
-}
-
-.wall-header__identity {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.wall-header__logo {
-  height: 2.5rem;
-  width: auto;
-}
-
-.wall-header__title {
-  font-size: 1.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.wall-header__meta {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  color: var(--text-dim);
-  font-size: 1rem;
-}
-
-.wall-header__ticker {
-  /* .wall-header is a flex (not grid) container — flex-basis 100% with flex-grow: 1 is
-     the flex equivalent of "span the full row", forcing this onto its own line once
-     .wall-header wraps (see the wrap rule above) instead of cramming inline next to the
-     clock/temp meta group. */
-  flex: 1 0 100%;
-  color: var(--text-dim);
-  font-size: 0.95rem;
-  padding: 0.35rem 0 0;
-}
 
 @keyframes banner-lane-slide-in {
   from { transform: translateY(1rem); opacity: 0; }
@@ -673,21 +619,6 @@
   outline-offset: 2px;
 }
 
-.ledger-look,
-.gallery-look,
-.columns-look {
-  /* The line color every data glyph draws its outline/details in — a
-     translucent mix of the theme's text color (design: rgba(text, 0.55)). */
-  --glyph-line: color-mix(in srgb, var(--text) 55%, transparent);
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-}
-
 /* --- Shared: badges ------------------------------------------------------ */
 .look-badge {
   flex: none;
@@ -870,82 +801,6 @@
 }
 
 /* --- Ledger (1a) ---------------------------------------------------------- */
-.ledger-look__header {
-  height: 94px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  padding: 0 30px;
-  border-bottom: 1px solid var(--border);
-}
-
-.ledger-look__logo {
-  height: 56px;
-  width: auto;
-  flex: none;
-}
-
-.ledger-look__identity {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ledger-look__title {
-  font-size: 36px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.ledger-look__subtitle {
-  font-size: 15px;
-  color: var(--text-dim);
-}
-
-.ledger-look__spacer,
-.gallery-look__spacer,
-.columns-look__spacer {
-  flex: 1;
-}
-
-.ledger-look__meta {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-
-.ledger-look__clock,
-.gallery-look__clock {
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 600;
-}
-
-.ledger-look__rows {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.ledger-row {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 64px 164px 164px 1fr 210px 300px;
-  align-items: center;
-  gap: 18px;
-  padding: 8px 30px;
-  border-bottom: 1px solid var(--border);
-  min-height: 0;
-}
-
-.ledger-row--empty {
-  grid-template-columns: 64px 1fr;
-}
 
 /* Redesign 1b: label art on every look. Shared base — the per-look class sets the footprint.
    DESIGN NOTE: README specifies `1px dashed rgba(255,255,255,0.1)` for the empty slot; using the
@@ -979,25 +834,11 @@
 
 /* Ledger: a 150px column inserted after the tap-number circle. Toggling the field swaps this
    template in/out; no other column moves. */
-.ledger-row--with-label {
-  grid-template-columns: 64px 150px 164px 164px 1fr 210px 300px;
-}
-
-.ledger-row__label {
-  width: 150px;
-  height: 150px;
-}
 
 /* Gallery: an 110px square at the start of the card body. */
-.gallery-card__label {
-  width: 110px;
-  height: 110px;
-  border-radius: 12px;
-}
 
 /* Other looks: each label thumb sized to that look's rhythm (see per-look DESIGN NOTES in
    styleLooks.tsx for the text/minimal looks where art is a deliberate compromise). */
-.columns-col__label { width: 90px; height: 90px; border-radius: 12px; }
 
 .chalk-row__label { width: 72px; height: 72px; border-radius: 10px; }
 
@@ -1020,481 +861,9 @@
   margin-right: 12px;
 }
 
-.ledger-row__empty-text {
-  color: var(--text-faint);
-  font-size: 15px;
-}
-
-.ledger-row--kicked {
-  opacity: 0.55;
-  filter: saturate(0.6);
-}
-
-.ledger-row__tapnum {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  border: 1px solid var(--border-strong);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 21px;
-  font-weight: 600;
-  color: var(--text-dim);
-}
-
-.ledger-row__cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-
-.ledger-row__cell-top {
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-
-.ledger-row__cell-bottom {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.ledger-row__abv {
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.ledger-row__main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
-}
-
-.ledger-row__name-line {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.ledger-row__name {
-  font-size: 31px;
-  line-height: 1.05;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ledger-row__style {
-  font-size: 15px;
-  color: var(--text-dim);
-}
-
-.ledger-row__notes {
-  font-size: 14px;
-  line-height: 1.35;
-  color: var(--text-faint);
-  max-width: 760px;
-  text-wrap: pretty;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.ledger-row__level {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  justify-content: flex-end;
-}
-
-.ledger-row__level-figures {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.ledger-row__level-dim {
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.ledger-row__level-main {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.ledger-look__footer {
-  height: 46px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  border-top: 1px solid var(--border);
-}
-
-.ledger-look__footer-spacer {
-  flex: 1;
-}
-
-.ledger-look__qr {
-  flex: none;
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 0 16px;
-  border-left: 1px solid var(--border);
-}
-
 /* --- Gallery (1b) --------------------------------------------------------- */
-.gallery-look__header {
-  height: 88px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0 32px;
-}
-
-.gallery-look__logo {
-  height: 52px;
-  width: auto;
-  flex: none;
-}
-
-.gallery-look__identity {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.gallery-look__title {
-  font-size: 33px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.gallery-look__subtitle {
-  font-size: 14px;
-  color: var(--text-dim);
-}
-
-.gallery-look__grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
-  gap: 18px;
-  padding: 0 32px 26px;
-  min-height: 0;
-}
-
-.gallery-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 22px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.gallery-card--empty {
-  align-items: center;
-  justify-content: center;
-}
-
-.gallery-card__empty-text {
-  color: var(--text-faint);
-  font-size: 15px;
-}
-
-.gallery-card--kicked {
-  opacity: 0.55;
-  filter: saturate(0.6);
-}
-
-.gallery-card__body {
-  display: flex;
-  gap: 20px;
-  min-width: 0;
-  flex: 1;
-}
-
-.gallery-card__glass {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  justify-content: center;
-}
-
-.gallery-card__srm {
-  font-family: var(--font-mono-numeric);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-dim);
-}
-
-.gallery-card__info {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: center;
-}
-
-.gallery-card__tap-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.gallery-card__tap-label {
-  font-size: 11.5px;
-  letter-spacing: 0.14em;
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.gallery-card__name {
-  font-size: 30px;
-  line-height: 1.05;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.gallery-card__style {
-  font-size: 14.5px;
-  color: var(--text-dim);
-}
-
-.gallery-card__chips {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.gallery-card__chip {
-  padding: 4px 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.gallery-card__notes {
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--text-dim);
-  text-wrap: pretty;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.gallery-card__status {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.gallery-card__bar {
-  height: 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  overflow: hidden;
-}
-
-.gallery-card__bar-fill {
-  height: 100%;
-  border-radius: 6px;
-}
-
-.gallery-card__bar-fill--ok { background: var(--ok); }
-
-.gallery-card__bar-fill--warn { background: var(--warn); }
-
-.gallery-card__bar-fill--danger { background: var(--danger); }
-
-.gallery-card__status-line {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
 
 /* --- Tap Columns (1c) ----------------------------------------------------- */
-.columns-look__header {
-  height: 80px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0 32px;
-}
-
-.columns-look__subtitle {
-  font-size: 14px;
-  color: var(--text-dim);
-}
-
-.columns-look__title {
-  font-size: 32px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.columns-look__clock {
-  font-size: 26px;
-  line-height: 1;
-  font-weight: 600;
-}
-
-.columns-look__grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(var(--look-cols, 6), 1fr);
-  gap: 14px;
-  padding: 0 32px;
-  min-height: 0;
-}
-
-.columns-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 24px 14px 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  min-width: 0;
-}
-
-.columns-col--empty {
-  justify-content: center;
-}
-
-.columns-col__empty-text {
-  color: var(--text-faint);
-  font-size: 14px;
-}
-
-.columns-col--kicked {
-  opacity: 0.55;
-  filter: saturate(0.6);
-}
-
-.columns-col__tap-label {
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.columns-col__badges {
-  display: flex;
-  gap: 6px;
-  min-height: 22px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.columns-col__name {
-  font-size: 27px;
-  line-height: 1.1;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  text-align: center;
-  text-wrap: balance;
-}
-
-.columns-col__style {
-  font-size: 13.5px;
-  color: var(--text-dim);
-  text-align: center;
-}
-
-.columns-col__figures {
-  font-size: 14px;
-}
-
-.columns-col__glyphs {
-  display: flex;
-  gap: 22px;
-  align-items: flex-end;
-  margin-top: auto;
-}
-
-.columns-col__glyph {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.columns-col__glyph-label {
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.columns-col__servings {
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-
-.columns-look__footer {
-  height: 58px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.columns-look__dots {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.columns-look__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text) 18%, transparent);
-}
-
-.columns-look__dot--active {
-  background: var(--accent);
-}
-
-.columns-look__page-label {
-  font-size: 12.5px;
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
-  margin-left: 8px;
-}
 
 /*
  * ============================================================================
@@ -1505,16 +874,10 @@
  * ============================================================================
  */
 /* --- Spotlight (2b): row/card treatment, applied by the looks + WallGrid --- */
-.ledger-row--dimmed,
-.gallery-card--dimmed,
-.columns-col--dimmed,
 .tap-card--spotlight-dimmed {
   opacity: 0.42;
 }
 
-.ledger-row--spotlit,
-.gallery-card--spotlit,
-.columns-col--spotlit,
 .tap-card--spotlit {
   border: 1px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
@@ -1523,10 +886,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
 
-  .ledger-row,
-    .gallery-card,
-    .columns-col,
-    .tap-card {
+  .tap-card {
       transition: opacity 300ms ease;
     }
 
@@ -2997,10 +2357,6 @@
   color: var(--text-dim);
 }
 
-.ledger-row__rating {
-  color: var(--accent);
-}
-
 .screen-care__saver-clock {
   font-size: 6rem;
   line-height: 1;
@@ -3069,20 +2425,5 @@
 @media (min-width: 901px) and (max-width: 1600px) {
 
   /* Give the beer name priority over fixed-width illustrations on smaller TVs. */
-  .ledger-row { grid-template-columns: 44px 90px 90px minmax(0, 1fr) 110px 200px; gap: 14px; padding-inline: 24px; }
-
-  .ledger-row--with-label { grid-template-columns: 44px 110px 90px 90px minmax(0, 1fr) 110px 200px; }
-
-  .ledger-row--empty { grid-template-columns: 44px minmax(0, 1fr); }
-
-  .ledger-row__label { width: 110px; height: 110px; }
-
-  .ledger-row__name { white-space: normal; font-size: 28px; }
-
-  .ledger-look__header { gap: 14px; padding-inline: 24px; }
-
-  .ledger-look__title { font-size: 28px; }
-
-  .ledger-look__meta { gap: 12px; min-width: 0; }
 
 }

@@ -1,14 +1,41 @@
-import { memo, type ReactElement } from 'react';
+import { memo, type ComponentType } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { WallConfig } from '../../../server/core/wallConfig.js';
 import type { VolumeUnits } from '../../lib/units';
 import type { AmbientSensor } from './lookShared';
-import { LedgerLook } from './LedgerLook';
-import { GalleryLook } from './GalleryLook';
-import { ColumnsLook } from './ColumnsLook';
 import {
   ChalkboardLook, EditorialLook, NeonLook, TerminalLook, PosterLook, DeparturesLook, ZenLook,
 } from './styleLooks';
+import { JustTappedLook } from '../../wall/looks/JustTappedLook';
+import { ClassicLook } from '../../wall/looks/ClassicLook';
+import { LedgerLook } from '../../wall/looks/LedgerLook';
+import { ColumnsLook } from '../../wall/looks/ColumnsLook';
+import { GalleryLook } from '../../wall/looks/GalleryLook';
+
+type LookComponent = ComponentType<WallLookProps>;
+
+/**
+ * Kegwall V2 looks: drawn on the 1920 × 1080 stage (design/Stage.tsx), so the wall shows the
+ * same composition at any resolution. `pageSize` is how many taps one page holds before the
+ * wall auto-paginates (the density ladder for that look).
+ */
+export const V2_LOOKS: Partial<Record<WallConfig['look'], { component: LookComponent; pageSize: number }>> = {
+  'just-tapped': { component: JustTappedLook, pageSize: 12 },
+  classic: { component: ClassicLook, pageSize: 12 },
+  ledger: { component: LedgerLook, pageSize: 12 },
+  columns: { component: ColumnsLook, pageSize: 8 },
+  gallery: { component: GalleryLook, pageSize: 8 },
+};
+
+/** True when this look is a V2 stage look. */
+export function isStageLook(look: WallConfig['look']): boolean {
+  return V2_LOOKS[look] !== undefined;
+}
+
+/** Taps per auto-generated page: the V2 look's own capacity, or 6 for the pre-V2 looks. */
+export function autoPageSize(look: WallConfig['look']): number {
+  return V2_LOOKS[look]?.pageSize ?? 6;
+}
 
 /** The props every wall look receives (the "look contract"): the current
  * page's taps, the wall config, resolved title, and the shared chrome inputs
@@ -33,15 +60,17 @@ export interface WallLookProps {
   spotlightTapId?: number | null;
   /** Named Govee ambient sensors (Phase 6) for the header sensor strip. */
   sensors?: AmbientSensor[];
+  /** Kegwall V2: every tap on the wall (not just this page), for wall-wide choices such as
+   * the Just Tapped spotlight and the headline. Defaults to `taps`. */
+  allTaps?: TapState[];
+  /** Kegwall V2: one serving in mL, for "pints left". Defaults to a US pint. */
+  servingSizeMl?: number;
 }
 
 /** Non-classic look id → component. `classic` never reaches here (WallPage
  * keeps its existing WallHeader/WallGrid path for it). Kegwall V2 looks register here as
  * they are built; an id without a component renders as classic (see `resolveLook`). */
-const LOOKS: Partial<Record<WallConfig['look'], (props: WallLookProps) => ReactElement | null>> = {
-  ledger: LedgerLook,
-  gallery: GalleryLook,
-  columns: ColumnsLook,
+const LOOKS: Partial<Record<WallConfig['look'], LookComponent>> = {
   chalkboard: ChalkboardLook,
   editorial: EditorialLook,
   neon: NeonLook,
@@ -55,7 +84,7 @@ export type LookId = WallConfig['look'];
 
 /** The look a wall actually renders: its configured look when one is built, else classic. */
 export function resolveLook(look: WallConfig['look'] | undefined): LookId {
-  return look && (look === 'classic' || LOOKS[look]) ? look : 'classic';
+  return look && (look === 'classic' || LOOKS[look] || V2_LOOKS[look]) ? look : 'classic';
 }
 
 /** Dispatches to the configured look's component. Memoized (like every look it
@@ -65,8 +94,8 @@ export function resolveLook(look: WallConfig['look'] | undefined): LookId {
  * whenever nothing this page shows actually changed. Same component identity every
  * render — never a remount, so scroll/animation state always survives snapshots. */
 export const WallLook = memo(function WallLook(props: WallLookProps) {
-  const look = props.config.look;
-  const Component = look !== 'classic' ? LOOKS[look] : undefined;
+  const look = resolveLook(props.config.look);
+  const Component = V2_LOOKS[look]?.component ?? (look !== 'classic' ? LOOKS[look] : undefined);
   if (!Component) return null;
   return <Component {...props} />;
 });

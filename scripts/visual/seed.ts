@@ -18,7 +18,7 @@ export const ADMIN_LOGIN = { username: 'owner', password: 'design-audit-pw' } as
 
 export const LOOKS = [
   'classic', 'ledger', 'gallery', 'columns', 'chalkboard', 'editorial', 'neon', 'terminal',
-  'poster', 'departures', 'zen',
+  'poster', 'departures', 'zen', 'just-tapped', 'handles', 'tally',
 ] as const;
 export const THEMES = [
   'midnight-slate', 'cream', 'cellar-teal', 'taproom-green', 'amber-glow', 'arcade', 'taproom',

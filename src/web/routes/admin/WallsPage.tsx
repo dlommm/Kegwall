@@ -5,6 +5,7 @@ import {
 import { WallEditor } from './WallEditor';
 import { WallPreview } from './WallPreview';
 import { useAdminContext } from './useAdminContext';
+import { NEW_WALL_LOOK } from '../../../server/core/wallConfig.js';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 interface CreateState { name: string; slug: string; slugTouched: boolean; error: string | null; submitting: boolean }
@@ -110,7 +111,7 @@ export function WallsPage() {
       return;
     }
     setCreateState({ ...createState, submitting: true, error: null });
-    const result = await createWall({ name: createState.name.trim(), slug: createState.slug });
+    const result = await createWall({ name: createState.name.trim(), slug: createState.slug, config: { look: NEW_WALL_LOOK } });
     if (!result.ok) {
       setCreateState({ ...createState, submitting: false, error: result.message });
       return;

@@ -132,8 +132,9 @@ describe('WallPage', () => {
       taps: [makeTap(1), makeTap(2)],
     }));
     renderWall();
-    expect(screen.getByTestId('wall-header-title')).toHaveTextContent('The Keg Cave');
-    expect(screen.getAllByTestId('tap-card')).toHaveLength(2);
+    // Kegwall V2: classic is a stage look that owns its frame, header included.
+    expect(screen.getByTestId('look-classic')).toHaveTextContent('The Keg Cave');
+    expect(screen.getAllByTestId('classic-card')).toHaveLength(2);
   });
 
   it('hides the mouse cursor on the document root while mounted, and restores it on unmount', () => {
@@ -153,11 +154,9 @@ describe('WallPage', () => {
       taps: [makeTap(1)],
     }));
     renderWall();
-    expect(screen.getByTestId('ledger-look')).toBeInTheDocument();
-    // The look owns its whole frame: no classic header, grid, or corner QR overlay.
-    expect(screen.queryByTestId('wall-header')).toBeNull();
-    expect(screen.queryByTestId('wall-grid')).toBeNull();
-    expect(screen.queryByTestId('qr-overlay')).toBeNull();
+    expect(screen.getByTestId('look-ledger')).toBeInTheDocument();
+    // The look owns its whole frame: no classic cards.
+    expect(screen.queryByTestId('look-classic')).toBeNull();
     // The look renders its own in-chrome QR instead.
     expect(screen.getByTestId('look-qr')).toBeInTheDocument();
   });
@@ -196,9 +195,9 @@ describe('WallPage', () => {
       ],
     }));
     renderWall();
-    const cards = screen.getAllByTestId('tap-card');
-    expect(cards[0]!.className).toContain('tap-card--spotlit');
-    expect(cards[1]!.className).toContain('tap-card--spotlight-dimmed');
+    const cards = screen.getAllByTestId('classic-card');
+    expect(cards[0]).toHaveAttribute('data-spotlight', 'lit');
+    expect(cards[1]).toHaveAttribute('data-spotlight', 'dim');
     expect(screen.queryByTestId('takeover-dock')).toBeNull();
     expect(screen.queryByTestId('takeover-full')).toBeNull();
   });
@@ -209,7 +208,7 @@ describe('WallPage', () => {
       taps: [],
     }));
     renderWall();
-    expect(screen.getByTestId('wall-header-title')).toHaveTextContent('Taproom Live');
+    expect(screen.getByTestId('look-classic')).toHaveTextContent('Taproom Live');
   });
 
   it('rotates pages on the configured interval and wraps around', () => {
@@ -224,15 +223,15 @@ describe('WallPage', () => {
     }));
     renderWall();
 
-    expect(screen.getByText('Tap 1 — nothing on tap')).toBeInTheDocument();
-    expect(screen.queryByText('Tap 2 — nothing on tap')).not.toBeInTheDocument();
+    expect(screen.getByText('Tap 1')).toBeInTheDocument();
+    expect(screen.queryByText('Tap 2')).not.toBeInTheDocument();
 
     act(() => { vi.advanceTimersByTime(10_000); });
-    expect(screen.getByText('Tap 2 — nothing on tap')).toBeInTheDocument();
-    expect(screen.queryByText('Tap 1 — nothing on tap')).not.toBeInTheDocument();
+    expect(screen.getByText('Tap 2')).toBeInTheDocument();
+    expect(screen.queryByText('Tap 1')).not.toBeInTheDocument();
 
     act(() => { vi.advanceTimersByTime(10_000); });
-    expect(screen.getByText('Tap 1 — nothing on tap')).toBeInTheDocument();
+    expect(screen.getByText('Tap 1')).toBeInTheDocument();
   });
 
   it('shows every tap on a single page when config.pages is empty', () => {
@@ -241,7 +240,7 @@ describe('WallPage', () => {
       taps: [makeTap(1), makeTap(2), makeTap(3)],
     }));
     renderWall();
-    expect(screen.getAllByTestId('tap-card')).toHaveLength(3);
+    expect(screen.getAllByTestId('classic-card')).toHaveLength(3);
   });
 
   it.each([
@@ -268,22 +267,22 @@ describe('WallPage', () => {
     expect(screen.getByTestId('wall-page-content')).toHaveAttribute('data-transition', 'none');
   });
 
-  it('renders a QR overlay only when config.showQr is true', () => {
+  it('renders the look\'s menu QR only when config.showQr is true', () => {
     (useWallData as Mock).mockReturnValue(baseResult({
       wall: { slug: 'main', name: 'Main', config: makeConfig({ showQr: true }) },
       taps: [],
     }));
     renderWall();
-    expect(screen.getByTestId('qr-overlay').querySelector('svg')).toBeTruthy();
+    expect(screen.getByTestId('look-qr').querySelector('svg')).toBeTruthy();
   });
 
-  it('omits the QR overlay when config.showQr is false', () => {
+  it('omits the menu QR when config.showQr is false', () => {
     (useWallData as Mock).mockReturnValue(baseResult({
       wall: { slug: 'main', name: 'Main', config: makeConfig({ showQr: false }) },
       taps: [],
     }));
     renderWall();
-    expect(screen.queryByTestId('qr-overlay')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('look-qr')).not.toBeInTheDocument();
   });
 
   it('shows the reconnecting pill when stale, and hides it otherwise', () => {
@@ -339,7 +338,7 @@ describe('WallPage', () => {
       units: 'metric',
     }));
     renderWall();
-    expect(screen.getByTestId('liquid-readout')).toHaveTextContent('473 mL');
+    expect(screen.getByTestId('classic-card')).toHaveTextContent('473 mL');
   });
 
   it('shows the max temp across every tap on the wall when showTemp is enabled', () => {
@@ -349,7 +348,7 @@ describe('WallPage', () => {
       units: 'metric',
     }));
     renderWall();
-    expect(screen.getByTestId('wall-header-temp')).toHaveTextContent('5°C');
+    expect(screen.getByTestId('look-meta')).toHaveTextContent('5°C');
   });
 
   it('hides the temp readout when no tap on the wall has a temp reading', () => {
@@ -358,7 +357,7 @@ describe('WallPage', () => {
       taps: [makeTap(1, { temp: null }), makeTap(2, { temp: null })],
     }));
     renderWall();
-    expect(screen.queryByTestId('wall-header-temp')).not.toBeInTheDocument();
+    expect(screen.getByTestId('look-meta')).not.toHaveTextContent('°');
   });
 
   it('derives the wall max temp from all taps, not just the currently rotating page', () => {
@@ -376,7 +375,7 @@ describe('WallPage', () => {
     }));
     renderWall();
     // page 1 only shows tap 1, but the header temp is the wall-wide max (tap 2's 9.6°C).
-    expect(screen.getByTestId('wall-header-temp')).toHaveTextContent('10°C');
+    expect(screen.getByTestId('look-meta')).toHaveTextContent('10°C');
   });
 
   // Phase 5 Task 4: the automation engine's wall_banner/party_mode actions relay over WS
