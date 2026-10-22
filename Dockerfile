@@ -139,9 +139,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # path relative to src/server/db/migrate.ts, so they must ship as files, not
 # be bundled) + the ONE operational script the image runs (`npx tsx scripts/seed.ts`,
 # run ad hoc against a live /data volume). No src/shared directory exists in this
-# repo — the server tree is self-contained. Only seed.ts is copied — the dev/audit
-# scripts (e2eAudit.ts, phase5AuditScreenshots.ts, host installers) have no business in
-# a production image.
+# repo — the server tree is self-contained. Only seed.ts is copied — the host
+# installers have no business in a production image.
 COPY src/server ./src/server
 COPY scripts/seed.ts ./scripts/seed.ts
 COPY --from=web /app/dist/web ./dist/web

@@ -18,8 +18,7 @@ data
 .gitignore
 .DS_Store
 
-# Project process/planning artifacts — not needed to build or run the app.
-.superpowers
+# Documentation — not needed to build or run the app.
 docs
 
 # Test suites and their artifacts — not needed to build or run the app.

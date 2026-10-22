@@ -10,8 +10,7 @@ import react from '@vitejs/plugin-react';
 // MQTT broker (net.Server + Aedes.createBroker()) to test mqtt.js-based code against
 // actual wire protocol traffic (see each file's own header comment for the rationale).
 // Each broker already binds to an OS-assigned ephemeral port (`listen(0, ...)`), so
-// there is no literal port collision between them. The flake documented since Phase 3
-// (docs/superpowers/reviews/phase3/progress.md, phase5/final-review-report.md T6) is a
+// there is no literal port collision between them. The flake seen since Phase 3 is a
 // genuine stream-level bug, empirically reproduced during Phase 6 hardening: running
 // these 4 files' vitest worker threads concurrently with each other (independent of the
 // rest of the suite -- reproduced with ONLY these 4 files selected, no other files

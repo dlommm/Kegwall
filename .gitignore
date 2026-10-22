@@ -1,13 +1,36 @@
+# Dependencies & build output
 node_modules/
-/data/
 dist/
+test-results/
+playwright-report/
+
+# Runtime data (SQLite DB, label images) — never commit
+/data/
 *.db
 *.db-wal
 *.db-shm
-test-results/
-playwright-report/
-esp32/secrets.yaml
-.DS_Store
+
+# Secrets & local environment
 .env
 .env.*
 !.env.example
+esp32/secrets.yaml
+*.keystore
+*.jks
+
+# Local build artifacts (scripts/build-kegwall-iso.sh, android/)
+/.iso-build/
+/kegwall-installer-*.iso
+/kegwall-installer-*.iso.sha256
+/iso-version.txt
+/kegwall-tablet.apk
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

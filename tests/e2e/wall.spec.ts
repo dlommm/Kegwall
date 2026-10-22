@@ -10,8 +10,7 @@ import { seedE2EFixtures, E2E_MONITORS, type E2EFixtures } from './fixtures.js';
  * E2E smoke (Task 7 of the Phase 3 plan): boots a REAL server — `buildApp()` against a
  * fresh temp SQLite DB, `startSources: false` (never touch real hardware/network), the
  * actual `dist/web` produced by `npm run build` — in this same process, seeds it via
- * `seedE2EFixtures` (same fixture data the polish-audit screenshots in
- * `scripts/e2eAudit.ts` use), then drives it with a real Chromium page. Booting in-
+ * `seedE2EFixtures`, then drives it with a real Chromium page. Booting in-
  * process (rather than Playwright's `webServer` option spawning a child) is what lets
  * this file reach `app.ctx.bus` directly to prove the live WS path: emitting
  * `volume_update` here and watching the already-rendered page update without a reload.

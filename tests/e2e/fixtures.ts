@@ -9,10 +9,8 @@ import { createWall, getWallBySlug } from '../../src/server/routes/crud.js';
 import { setWallDevices } from '../../src/server/db/wallDevices.js';
 
 /**
- * Deterministic seed data shared by `wall.spec.ts` (functional E2E smoke, Task 7 plan)
- * and `scripts/e2eAudit.ts` (the polish-audit screenshot pass) — one fixture set so the
- * screenshots the report cites are of the exact same taproom the E2E assertions run
- * against, not a second, drifted copy of `scripts/seed.ts`.
+ * Deterministic seed data for the Playwright E2E specs — one fixture set so every spec
+ * runs against the exact same taproom, not a second, drifted copy of `scripts/seed.ts`.
  *
  * Deliberately NOT randomized (unlike `scripts/seed.ts`'s pour history): every level and
  * every kicked/on-tap status here is fixed so screenshots and WS-update assertions are
