@@ -1,0 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+:root {
+  --ground: #0D0C0B; --ink: #F7F4EE; --ink-2: #BDB6AA; --ink-3: #8C857A;
+  --caution: #F4B740; --problem: #FF7A66; --good: #86D49A;
+  --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --text: 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--text); }
+.num { font-variant-numeric: tabular-nums; }
+.name { font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.005em; }
+.art-fallback { display: grid; place-items: center; background: #26221D; color: #CFC6B7; font-family: var(--display); font-weight: 800; }
+.marker { flex: none; display: grid; place-items: center; border-radius: 6px; font-family: var(--display); font-weight: 900; line-height: 1; letter-spacing: 0.01em; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); }

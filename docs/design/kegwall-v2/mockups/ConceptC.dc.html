@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Concept C — Flow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#7FD1C3}a:hover{color:#A6E3D8}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; padding: 40px 56px 36px; background: #0A0C0F; color: #EEF2F5; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+  <header style="display: flex; justify-content: space-between; align-items: baseline">
+    <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 48px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em">Garage Brewing Co.</h1>
+    <p style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 44px; font-variant-numeric: tabular-nums">38°F · 2:22 PM</p>
+  </header>
+  <main style="flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 16px; min-height: 0">
+    <sc-for list="{{taps}}" as="t" hint-placeholder-count="8">
+      <article style="display: flex; flex-direction: column; background: #12161B; border-radius: 18px; overflow: hidden; min-width: 0">
+        <div style="padding: 20px 18px 16px; display: flex; flex-direction: column; gap: 8px; height: 300px; box-sizing: border-box">
+          <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 30px; color: #8B96A1; font-variant-numeric: tabular-nums">Tap {{t.n}}</span>
+          <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 40px; line-height: 0.98; text-transform: uppercase; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden">{{t.name}}</h2>
+          <p style="margin: 0; font-size: 20px; color: #A9B3BC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.style}}</p>
+          <p style="margin: auto 0 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 64px; line-height: 0.9; font-variant-numeric: tabular-nums">{{t.abv}}</p>
+        </div>
+        <div style="flex: 1; position: relative; background: #181D23; margin: 0 10px 10px; border-radius: 12px; overflow: hidden">
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{t.pct}}; background: {{t.srm}}; border-top: 6px solid #F2E7CF"></div>
+          <span style="position: absolute; left: 14px; top: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 34px; color: {{t.labelInk}}; font-variant-numeric: tabular-nums">{{t.pctLabel}}</span>
+        </div>
+      </article>
+    </sc-for>
+  </main>
+  <footer style="display: flex; justify-content: space-between; align-items: center">
+    <p style="margin: 0; font-size: 24px; color: #A9B3BC">Trivia night Thursday · Happy hour 4–6 pm · New: Kriek Reserve on tap 6</p>
+    <p style="margin: 0; font-size: 24px">Scan the QR to claim your pour</p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+var TAPS = [
+  [1, 'Citra Haze', 'Hazy IPA', '6.8%', 0.83, '#F5CF4A'],
+  [2, 'Vienna Nights', 'Vienna Lager', '5.0%', 0.50, '#C97A22'],
+  [3, 'Belgian Sun', 'Belgian Tripel', '9.1%', 0.94, '#EDBE35'],
+  [4, 'Midnight Oats', 'Oatmeal Stout', '5.6%', 0.04, '#3A1C0F'],
+  [5, 'The Extraordinarily Long-Named Double Dry-Hopped Imperial West Coast IPA', 'Double IPA', '8.4%', 0.61, '#E3A428'],
+  [6, 'Kriek Reserve', 'Fruited Sour', '6.0%', 0.30, '#9A2E25'],
+  [7, 'Helles Yeah', 'Munich Helles', '4.8%', 0.72, '#F9E06B'],
+  [8, 'Campfire Porter', 'Smoked Porter', '6.2%', 0.18, '#5A2612']
+];
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      taps: TAPS.map(function (r) {
+        var p = Math.round(r[4] * 100);
+        return {
+          n: r[0], name: r[1], style: r[2], abv: r[3], srm: r[5],
+          pct: p + '%', pctLabel: p < 10 ? p + '% · last call' : p + '%',
+          labelInk: p < 10 ? '#F0B35C' : (p > 88 ? '#1A1206' : '#EEF2F5')
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Tap Handles — phone menu</title>
+<link rel="stylesheet" href="b.css">
+<style>
+  header { padding: 20px 16px 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  header h1 { margin: 0; font-size: 30px; line-height: 1; }
+  header span { color: var(--ink-2); font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 16px; }
+  .handle { height: 400px; }
+  .handle .body { padding: 30px 10px 14px; gap: 6px; }
+  .handle h2 { font-size: 27px; -webkit-line-clamp: 3; }
+  .handle .st { font-size: 13px; opacity: .8; }
+  .handle .abv { font-size: 40px; }
+  .handle .glass { height: 104px; width: 44%; border-width: 5px; }
+  .handle .left { font-size: 13px; font-weight: 700; }
+  .handle .ferrule { height: 14px; } .handle .shank { height: 16px; }
+  .claim { margin: 4px 16px 0; background: #F5F1EA; color: #161412; border-radius: 14px; padding: 12px 12px 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .claim a { height: 44px; padding: 0 16px; border-radius: 11px; background: #161412; color: #F5F1EA; display: flex; align-items: center; font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+<header><h1 class="d">Garage Brewing Co.</h1><span>11 on tap</span></header>
+<div class="claim"><span>Two pours have no name yet.</span><a href="#">Claim one</a></div>
+<div class="grid" id="g"></div>
+<script src="data.js"></script>
+<script>
+  document.getElementById('g').innerHTML = TAPS.filter((t) => !t.kicked).slice(0, 6).map((t) => {
+    const ink = inkOn(t.srm);
+    return `<div class="handle" style="--beer:${t.srm}"><div class="body" style="background:${t.srm};color:${ink}">
+      <span class="tapn d num" style="font-size:16px">Tap ${t.n}</span>
+      <h2 class="d" style="${t.name.length > 22 ? 'font-size:20px' : ''}">${esc(t.name)}</h2><span class="st">${esc(t.style)}</span>
+      <span class="abv d num">${t.abv}%</span><div class="glass"><i style="height:${t.pct}%"></i></div>
+      <span class="left num">${t.low ? 'Last pint' : t.pints + ' pints left'}</span></div><div class="ferrule"></div><div class="shank"></div></div>`;
+  }).join('');
+</script>
+</body>
+</html>

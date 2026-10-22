@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Screens</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .walls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
+  .w { background: var(--raise); border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; }
+  .w img { width: 100%; border-radius: 6px; display: block; }
+  .w h3 { margin: 4px 0 2px; font-size: 22px; }
+  .w .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .disp { margin-top: 40px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 40px; }
+  .zone { background: var(--raise); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .zone .tl { display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: center; font-size: 14px; color: var(--ink-3); }
+  .zone .tl i { display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
+  .zone .tl i span { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  document.getElementById('app').innerHTML = `${topNav('Screens')}
+    ${pageHead({ title: 'Two walls on three screens. The Patio TV is asleep.', sub: 'It went to sleep at 7:30 PM after 20 minutes with no motion, and wakes when someone walks in.', actions: '<a class="btn s" href="#">Pair a screen</a><a class="btn p" href="#">Add a wall</a>' })}
+    ${subTabs(SUB.Screens, 'Walls')}
+    <div class="walls">
+      <div class="w"><img src="../renders/a-tv.jpg" alt=""><div><span class="sub">Main wall · /wall/main</span><h3>Just Tapped look</h3><span class="sub">Taps 1–11 · spotlight on the newest keg · pours take over</span>
+        <div class="row"><span style="color:var(--good);font-weight:700">● Living room TV</span><span style="color:var(--good);font-weight:700">● Bar tablet</span></div>
+        <div class="row"><a class="btn p" href="#">Edit wall</a><a class="btn q" href="#">Open</a><a class="btn q" href="#">Copy link</a></div></div></div>
+      <div class="w"><img src="../renders/b-tv.jpg" alt=""><div><span class="sub">Patio wall · /wall/patio</span><h3>Tap Handles look</h3><span class="sub">Taps 1–8 · rotates to the leaderboard every 15 s</span>
+        <div class="row"><span style="color:var(--ink-2);font-weight:700">○ Patio TV, asleep</span></div>
+        <div class="row"><a class="btn p" href="#">Edit wall</a><a class="btn q" href="#">Wake now</a><a class="btn q" href="#">Copy link</a></div></div></div>
+    </div>
+    <div class="disp">
+      <section><h2 class="sec" style="font-size:28px">Paired screens</h2>
+        <table class="t"><thead><tr><th>Screen</th><th>Shows</th><th>Power</th><th>Reported by</th><th></th></tr></thead><tbody>
+          <tr><td><b>Living room TV</b><div class="sub">Raspberry Pi 5 · native wall</div></td><td>Main wall</td><td style="color:var(--good)">On</td><td class="sub">Display agent · 4 s ago</td><td class="r"><a class="btn q" href="#">Manage</a></td></tr>
+          <tr><td><b>Patio TV</b><div class="sub">Mini PC · Chromium kiosk</div></td><td>Patio wall</td><td style="color:var(--ink-2)">Asleep</td><td class="sub">Display agent · 1 min ago</td><td class="r"><a class="btn q" href="#">Manage</a></td></tr>
+          <tr><td><b>Bar tablet</b><div class="sub">Android kiosk app</div></td><td>Tablet kiosk</td><td style="color:var(--good)">On</td><td class="sub">Browser · now</td><td class="r"><a class="btn q" href="#">Manage</a></td></tr>
+        </tbody></table></section>
+      <section class="zone"><h2 class="sec" style="font-size:28px">Presence and power</h2>
+        <span class="sub">Screens sleep after 10 min without motion and turn off after 30.</span>
+        ${[['Living room', [[70, 'var(--good)'], [30, '#3A352F']]], ['Patio', [[45, 'var(--good)'], [25, '#5A5146'], [30, '#3A352F']]]].map(([z, seg]) => `<div class="tl"><span>${z}</span><i>${seg.map(([w, c]) => `<span style="width:${w}%;background:${c}"></span>`).join('')}</i></div>`).join('')}
+        <span class="sub">Tonight, 4 PM to now. Green: on · dark: asleep · darkest: off</span>
+        <table class="t" style="margin-top:0"><tbody>
+          <tr><td>mmWave sensor, living room</td><td class="r" style="color:var(--good)">Motion 1 min ago</td></tr>
+          <tr><td>Home Assistant motion, patio</td><td class="r sub">Quiet 22 min</td></tr></tbody></table>
+        <a class="btn s" href="#" style="align-self:flex-start">Add a motion sensor</a></section>
+    </div>`;
+</script>
+</body>
+</html>

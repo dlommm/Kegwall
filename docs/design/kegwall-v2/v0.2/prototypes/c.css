@@ -1,0 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap');
+:root { --board: #F4F3EF; --ink: #121110; --ink-2: #57524B; --ink-3: #8A847B; --spent: #DCD9D2; --caution: #A55A00; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--board); color: var(--ink); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; }
+.num { font-variant-numeric: tabular-nums; }
+.tally { display: flex; gap: var(--gg); align-items: flex-end; }
+.tally span { display: flex; gap: var(--sg); }
+.tally i { display: block; width: var(--sw); height: var(--sh); border-radius: 1px; background: var(--spent); }
+.tally i.f { background: var(--beer); }

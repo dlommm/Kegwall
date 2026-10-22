@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Tonight</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 56px; align-items: end; }
+  .todo { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; }
+  .todo .it { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; background: var(--raise); border-radius: 12px; padding: 14px 16px; }
+  .todo .it b { display: block; }
+  .last { display: flex; flex-direction: column; gap: 10px; }
+  .last .field2 { position: relative; overflow: hidden; height: 250px; border-radius: 8px; display: flex; align-items: flex-end; padding: 20px 24px; }
+  .last .field2 .bn { position: absolute; right: -10px; top: -60px; font-family: var(--display); font-weight: 900; font-size: 360px; line-height: 1; opacity: 0.18; }
+  .last .field2 b { position: relative; font-family: var(--display); font-weight: 900; font-size: 130px; line-height: 0.8; }
+  .last .field2 small { font-size: 48px; margin-left: 8px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 56px; margin-top: 56px; }
+  .rail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+  .tapc { background: var(--raise); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; position: relative; overflow: hidden; }
+  .tapc .f { position: absolute; left: 0; right: 0; bottom: 0; opacity: 0.38; }
+  .tapc > *:not(.f) { position: relative; }
+  .tapc b { font-family: var(--display); font-weight: 900; font-size: 40px; line-height: 0.9; }
+  .tapc .nm { font-size: 18px; }
+  .tapc.low b { color: var(--caution); }
+  .facts { list-style: none; margin: 14px 0 0; padding: 0; }
+  .facts li { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .facts li div span { display: block; font-size: 14px; color: var(--ink-2); margin-top: 2px; }
+  .facts li > span { white-space: nowrap; font-weight: 700; }
+  .hours { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 10px; align-items: end; height: 140px; margin-top: 18px; }
+  .hours div { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 8px; }
+  .hours i { display: block; background: #4A4239; border-radius: 3px 3px 0 0; }
+  .hours i.now { background: var(--ink); }
+  .hours span { font-size: 14px; color: var(--ink-3); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  const last = TAPS[0];
+  const todo = [
+    ['caution', 'Swap two kegs before the weekend', 'Midnight Oats on tap 4 (about a pint) and Old Thunder on tap 11 (about three).', 'Plan the swaps'],
+    ['problem', 'The Kegtron cloud stopped answering at 6:12 PM', 'Pours over local UDP still arrive on every tap, so nothing is missing yet.', 'Open the doctor'],
+    ['info', 'Two pours tonight have no name', 'Citra Haze 13.9 oz and Vienna Nights 12.0 oz. Guests can still claim them for 8 minutes.', 'Assign them'],
+    ['info', '11 taps are due for a line cleaning', 'The last cleaning was 21 days ago. Log one cleaning for all lines at once.', 'Log a cleaning'],
+  ];
+  const dot = { caution: 'var(--caution)', problem: 'var(--problem)', info: 'var(--info)' };
+  const hours = [['4', 1], ['5', 2], ['6', 3], ['7', 6], ['8', 9, true], ['9', 0], ['10', 0], ['11', 0], ['12', 0]];
+  document.getElementById('app').innerHTML = `${topNav('Tonight')}
+    <section class="hero">
+      <div>${pageHead({ title: 'Eleven on tap. Two kegs need a swap before the weekend.', sub: '21 pours so far tonight, 2.1 gallons. Everything else is running.' })}
+        <div class="todo">${todo.map(([k, t, s, a]) => `<div class="it"><span style="width:10px;height:10px;border-radius:50%;background:${dot[k]}"></span><div><b>${t}</b><span class="sub">${s}</span></div><a class="btn s" href="#">${a}</a></div>`).join('')}</div>
+      </div>
+      <figure class="last" style="margin:0">
+        <div class="field2" style="background:${last.srm};color:${inkOn(last.srm)}"><span class="bn num">${last.n}</span><b class="num">13.9<small>oz</small></b></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="nm" style="font-size:28px">${esc(last.name)}</span><span class="sub num" style="font-size:15px">Tap 1 · 1 min ago</span></div>
+        <span><span style="color:var(--caution)">No name on this pour yet.</span> <a href="#" style="color:var(--ink);font-weight:700">Assign it</a></span>
+      </figure>
+    </section>
+    <div class="cols">
+      <section><h2 class="sec">On tap now</h2>
+        <div class="rail">${TAPS.map((t) => `<div class="tapc ${t.low ? 'low' : ''}"><i class="f" style="height:${t.pct}%;background:${lum(t.srm) < 0.03 ? shade(t.srm, 2.4) : t.srm}"></i>
+          <span style="display:flex;justify-content:space-between;align-items:center">${marker(t, 30)}<span class="sub num">Tap ${t.n}</span></span>
+          <span class="nm ell">${esc(t.name)}</span><b class="num">${t.kicked ? '—' : t.pints}</b><span class="sub">${t.kicked ? 'kicked' : 'pints left'}</span></div>`).join('')}</div>
+        <h2 class="sec" style="margin-top:48px">Tonight so far</h2>
+        <div class="hours">${hours.map(([h, v, now]) => `<div><i class="${now ? 'now' : ''}" style="height:${v / 9 * 100}px"></i><span>${h === '12' ? '12 AM' : h + ' PM'}</span></div>`).join('')}</div>
+      </section>
+      <aside>
+        <section><h2 class="sec" style="font-size:28px">Screens</h2><ul class="facts">
+          <li><div>Living room TV<span>Main wall · Just Tapped</span></div><span style="color:var(--good)">On</span></li>
+          <li><div>Bar tablet<span>Kiosk · Alex Rivera signed in</span></div><span style="color:var(--good)">In use</span></li>
+          <li><div>Patio TV<span>Display agent reports it asleep</span></div><span style="color:var(--ink-2)">Asleep 7:30 PM</span></li></ul></section>
+        <section style="margin-top:36px"><h2 class="sec" style="font-size:28px">Hardware</h2><ul class="facts">
+          <li><div>Kegtron UDP<span>4 Pro monitors, 12 ports</span></div><span style="color:var(--good)">2 s ago</span></li>
+          <li><div>Kegtron cloud<span>Cloud-only taps may miss pours</span></div><span style="color:var(--problem)">Down 2 h</span></li>
+          <li><div>Kegerator<span>Highest of 4 probes</span></div><span class="num">38°F</span></li></ul></section>
+      </aside>
+    </div>`;
+</script>
+</body>
+</html>

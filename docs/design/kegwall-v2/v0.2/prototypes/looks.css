@@ -1,0 +1,175 @@
+/* V2 look library v0.4: every look is redrawn from its name; every look shows what's left as a
+   picture (fill, gauge, tally, plate) AND as a number of pints. */
+* { box-sizing: border-box; }
+body { margin: 0; }
+.stage { width: 1920px; height: 1080px; overflow: hidden; position: relative; font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; }
+.num { font-variant-numeric: tabular-nums; }
+.bs { font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif; font-weight: 800; text-transform: uppercase; }
+.marker { flex: none; display: grid; place-items: center; border-radius: 6px; font-family: 'Big Shoulders Display', sans-serif; font-weight: 900; line-height: 1; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* classic — the tap list where every card is its keg */
+.look-classic { background: #0E0D0B; color: #F7F4EE; padding: 40px 52px; display: flex; flex-direction: column; gap: 22px; }
+.look-classic header { display: flex; justify-content: space-between; align-items: baseline; }
+.look-classic header h1 { margin: 0; font-size: 60px; line-height: 1; }
+.look-classic header span { font-size: 28px; color: #BDB6AA; }
+.look-classic .grid { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.look-classic .card { position: relative; overflow: hidden; background: #1A1815; border-radius: 10px; padding: 24px 24px 20px; display: flex; flex-direction: column; min-width: 0; }
+.look-classic .card .fill { position: absolute; left: 0; right: 0; bottom: 0; }
+.look-classic .card .fill::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--beer); }
+.look-classic .card > *:not(.fill) { position: relative; }
+.look-classic .card .top { display: flex; justify-content: space-between; align-items: flex-start; }
+.look-classic .card .tn { font-size: 30px; color: #A49C90; }
+.look-classic .card h2 { margin: 18px 0 0; font-size: 50px; line-height: 0.92; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.look-classic .card .st { font-size: 22px; color: #D2CBBF; margin-top: 8px; }
+.look-classic .card .pl { margin-top: auto; display: flex; align-items: baseline; gap: 10px; }
+.look-classic .card .pl b { font-family: 'Big Shoulders Display', sans-serif; font-weight: 900; font-size: 104px; line-height: 0.8; }
+.look-classic .card .pl span { font-size: 24px; }
+.look-classic .card.low .pl { color: #FFC45A; }
+
+/* ledger — the cellar ledger: tapped, poured tonight, left, kicks in */
+.look-ledger { background: #14221B; color: #EEF2EC; padding: 48px 64px; display: flex; flex-direction: column; }
+.look-ledger header { display: flex; justify-content: space-between; align-items: baseline; }
+.look-ledger header h1 { margin: 0; font-size: 62px; line-height: 1; }
+.look-ledger header p { margin: 0; font-size: 26px; color: #A9BBB0; }
+.look-ledger .th, .look-ledger .r { display: grid; grid-template-columns: 70px minmax(0, 1fr) 170px 190px 430px 200px; column-gap: 28px; align-items: center; }
+.look-ledger .th { margin-top: 30px; padding-bottom: 10px; border-bottom: 3px solid #EEF2EC; font-size: 20px; color: #A9BBB0; }
+.look-ledger .rows { flex: 1; display: flex; flex-direction: column; }
+.look-ledger .r { flex: 1; border-bottom: 1px solid #2D4237; }
+.look-ledger .r .n { font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 40px; color: #7E9688; }
+.look-ledger .r h2 { margin: 0; font-size: 34px; line-height: 1; }
+.look-ledger .r .st { font-size: 18px; color: #A9BBB0; margin-top: 3px; }
+.look-ledger .r .v { font-size: 26px; }
+.look-ledger .r .lv { display: flex; align-items: center; gap: 16px; }
+.look-ledger .r .lv .b { flex: 1; height: 16px; background: #24382E; border-radius: 3px; overflow: hidden; }
+.look-ledger .r .lv .b i { display: block; height: 16px; }
+.look-ledger .r .lv b { font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 40px; width: 64px; text-align: right; }
+.look-ledger .r.low .lv b, .look-ledger .r.low .k { color: #FFC45A; }
+.look-ledger .r .k { font-size: 26px; text-align: right; }
+
+/* gallery — a museum wall: each beer a framed color plate painted to its level, with a wall label */
+.look-gallery { background: #222826; color: #F1EFEA; padding: 56px 84px 44px; display: flex; flex-direction: column; }
+.look-gallery header { display: flex; justify-content: space-between; align-items: baseline; }
+.look-gallery header h1 { margin: 0; font-family: 'Playfair Display', serif; font-weight: 500; font-size: 58px; }
+.look-gallery header span { font-size: 24px; color: #B9BEBA; }
+.look-gallery .wall { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 40px 44px; margin-top: 30px; }
+.look-gallery .work { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 20px; align-items: end; min-width: 0; }
+.look-gallery .frame { height: 100%; max-height: 400px; background: #0E0E0D; padding: 12px; box-shadow: 0 14px 30px rgba(0,0,0,0.35); }
+.look-gallery .canvas { height: 100%; background: #F3F0E8; position: relative; overflow: hidden; }
+.look-gallery .canvas i { position: absolute; left: 0; right: 0; bottom: 0; }
+.look-gallery .label { background: #F1EFEA; color: #1B1A18; padding: 14px 16px; min-width: 0; }
+.look-gallery .label h2 { margin: 0; font-family: 'Playfair Display', serif; font-style: italic; font-weight: 500; font-size: 30px; line-height: 1.05; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.look-gallery .label p { margin: 6px 0 0; font-size: 17px; color: #4C4944; line-height: 1.35; }
+.look-gallery .label b { display: block; margin-top: 8px; font-size: 22px; }
+.look-gallery .label.low b { color: #9A4E00; }
+
+/* columns — each column is the keg */
+.look-columns { background: #0A0C0F; color: #EEF2F5; padding: 40px 52px 36px; display: flex; flex-direction: column; gap: 22px; }
+.look-columns header { display: flex; justify-content: space-between; align-items: baseline; }
+.look-columns header h1 { margin: 0; font-size: 52px; }
+.look-columns header span { font-size: 26px; color: #A9B3BC; }
+.look-columns .row { flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px; min-height: 0; }
+.look-columns .col { display: flex; flex-direction: column; background: #12161B; border-radius: 12px; overflow: hidden; min-width: 0; }
+.look-columns .col .lab { padding: 18px 16px 14px; height: 270px; display: flex; flex-direction: column; gap: 6px; }
+.look-columns .col .lab .tn { font-size: 26px; color: #8B96A1; }
+.look-columns .col h2 { margin: 0; font-size: 38px; line-height: 0.95; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.look-columns .col .abv { margin-top: auto; font-size: 54px; line-height: 0.9; }
+.look-columns .col .keg { flex: 1; margin: 0 8px 8px; border-radius: 8px; background: #1A1F25; position: relative; overflow: hidden; }
+.look-columns .col .keg i { position: absolute; left: 0; right: 0; bottom: 0; box-shadow: 0 -6px 0 #F2E7CF; }
+.look-columns .col .keg span { position: absolute; left: 12px; top: 10px; font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 40px; line-height: 1; }
+.look-columns .col .keg span small { display: block; font-size: 20px; font-family: 'Atkinson Hyperlegible', sans-serif; font-weight: 400; text-transform: none; }
+
+/* chalkboard — the bar's real chalk menu: prices, and pints as chalk tally gates */
+.look-chalkboard { background: #262E2A; color: #EEF1EA; padding: 44px 80px 40px; font-family: 'Caveat', cursive; display: flex; flex-direction: column; }
+.look-chalkboard header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px dashed rgba(238,241,234,0.35); padding-bottom: 12px; }
+.look-chalkboard header h1 { margin: 0; font-size: 100px; font-weight: 700; line-height: 0.9; color: #F3E9B8; }
+.look-chalkboard header p { margin: 0; font-size: 40px; color: #C9D2C9; text-align: right; line-height: 1.1; }
+.look-chalkboard .menu { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); grid-auto-flow: column; column-gap: 110px; margin-top: 20px; }
+.look-chalkboard .it { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 24px; }
+.look-chalkboard .it h2 { margin: 0; font-size: 60px; font-weight: 700; line-height: 0.95; }
+.look-chalkboard .it h2 em { font-style: normal; color: var(--c); margin-right: 12px; }
+.look-chalkboard .it p { margin: 0; font-size: 34px; color: #C9D2C9; line-height: 1.1; }
+.look-chalkboard .it .pr { font-size: 64px; font-weight: 700; color: #F3E9B8; text-align: right; }
+.look-chalkboard .tal { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.look-chalkboard .tal span { font-size: 34px; color: var(--c); }
+
+/* editorial — a magazine feature: the cover story plus the contents */
+.look-editorial { background: #111010; color: #F2ECE2; display: grid; grid-template-columns: 980px minmax(0, 1fr); font-family: 'Playfair Display', serif; }
+.look-editorial .feature { background: var(--f); color: var(--fi); padding: 64px 72px; display: flex; flex-direction: column; justify-content: space-between; }
+.look-editorial .feature .kick { font-family: 'Atkinson Hyperlegible', sans-serif; font-size: 26px; display: flex; justify-content: space-between; }
+.look-editorial .feature h1 { margin: 0; font-size: 168px; line-height: 0.88; font-style: italic; font-weight: 700; letter-spacing: -0.02em; }
+.look-editorial .feature p { margin: 26px 0 0; font-size: 34px; line-height: 1.35; max-width: 780px; }
+.look-editorial .feature .facts { display: flex; gap: 56px; font-family: 'Atkinson Hyperlegible', sans-serif; font-size: 24px; }
+.look-editorial .feature .facts b { display: block; font-family: 'Playfair Display', serif; font-size: 64px; line-height: 1; }
+.look-editorial .contents { padding: 64px 64px 56px; display: flex; flex-direction: column; }
+.look-editorial .contents h2 { margin: 0 0 18px; font-size: 44px; font-weight: 500; font-style: italic; }
+.look-editorial ol { list-style: none; margin: 0; padding: 0; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.look-editorial li { display: grid; grid-template-columns: 54px minmax(0, 1fr) 72px; column-gap: 18px; align-items: baseline; }
+.look-editorial li .n { font-style: italic; font-size: 34px; color: #8A8276; }
+.look-editorial li h3 { margin: 0; font-size: 34px; font-weight: 500; line-height: 1.05; }
+.look-editorial li .lv { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-family: 'Atkinson Hyperlegible', sans-serif; font-size: 18px; color: #B9B0A2; }
+.look-editorial li .lv i { display: block; height: 6px; width: 140px; background: #2C2926; position: relative; }
+.look-editorial li .lv i b { position: absolute; left: 0; top: 0; bottom: 0; }
+.look-editorial li .a { font-size: 30px; text-align: right; }
+
+/* neon — a wall of bar signs; each tap's neon ring is its level gauge */
+.look-neon { background: #160E11; color: #FFE9F4; padding: 44px 70px; font-family: 'Tilt Neon', sans-serif; display: flex; flex-direction: column; }
+.look-neon header { display: flex; justify-content: space-between; align-items: baseline; }
+.look-neon header h1 { margin: 0; font-size: 92px; font-weight: 400; color: #FFD7EC; text-shadow: 0 0 6px #FF4FB6, 0 0 22px #FF4FB6, 0 0 48px #C0137A; }
+.look-neon header p { margin: 0; font-size: 34px; color: #7FF3E4; text-shadow: 0 0 8px #13C2AE; }
+.look-neon .grid { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 30px 40px; margin-top: 30px; }
+.look-neon .sign { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; min-width: 0; }
+.look-neon .ring { position: relative; width: 190px; height: 190px; }
+.look-neon .ring svg { position: absolute; inset: 0; filter: drop-shadow(0 0 6px var(--c)) drop-shadow(0 0 16px var(--c)); }
+.look-neon .ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 64px; color: #FFF5FA; text-shadow: 0 0 10px var(--c); line-height: 1; }
+.look-neon .ring span small { display: block; font-size: 20px; }
+.look-neon .sign h2 { margin: 0; font-size: 44px; font-weight: 400; line-height: 1; color: #FFF5FA; text-shadow: 0 0 10px var(--c); max-width: 100%; }
+.look-neon .sign p { margin: 0; font-family: 'Atkinson Hyperlegible', sans-serif; font-size: 22px; color: #D9C3CF; }
+
+/* terminal — a live `top` for the taps, with tonight's pours and the pour log */
+.look-terminal { background: #070907; color: #B8F5B0; font-family: 'IBM Plex Mono', monospace; padding: 44px 60px; font-size: 25px; }
+.look-terminal pre { margin: 0; font: inherit; line-height: 1.55; white-space: pre; }
+.look-terminal .h { color: #E9FFE5; font-weight: 600; }
+.look-terminal .d { color: #5E8F59; }
+.look-terminal .w { color: #FFD36B; }
+.look-terminal .inv { background: #B8F5B0; color: #070907; }
+
+/* poster — a festival line-up poster: the headliner huge, the rest stepping down */
+.look-poster { background: #F0E6D2; color: #1A1410; padding: 52px 80px 44px; display: flex; flex-direction: column; align-items: center; text-align: center; font-family: 'Big Shoulders Display', sans-serif; }
+.look-poster .pre { font-family: 'Atkinson Hyperlegible', sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 0.02em; }
+.look-poster .line { margin-top: 18px; display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; column-gap: 34px; line-height: 0.92; text-transform: uppercase; font-weight: 900; }
+.look-poster .line span { white-space: nowrap; }
+.look-poster .line em { font-style: normal; font-family: 'Atkinson Hyperlegible', sans-serif; font-weight: 700; font-size: 0.24em; vertical-align: 0.9em; margin-left: 10px; text-transform: none; }
+.look-poster .bar { display: flex; height: 14px; width: 1200px; margin: 20px 0; }
+.look-poster .bar i { flex: 1; }
+.look-poster .foot { margin-top: auto; font-family: 'Atkinson Hyperlegible', sans-serif; font-size: 26px; display: flex; justify-content: space-between; width: 100%; }
+
+/* departures — kegs as flights, sorted by when each keg will kick */
+.look-departures { background: #050505; color: #F6F6F6; padding: 44px 56px; font-family: 'IBM Plex Mono', monospace; }
+.look-departures header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+.look-departures header h1 { margin: 0; font-size: 50px; font-weight: 700; letter-spacing: 0.1em; color: #FFCE3D; }
+.look-departures header span { font-size: 44px; font-weight: 700; color: #FFCE3D; }
+.look-departures .th, .look-departures .tr { display: grid; grid-template-columns: 110px 700px 220px 260px minmax(0, 1fr); column-gap: 22px; align-items: center; }
+.look-departures .th { font-size: 20px; color: #8D8D8D; letter-spacing: 0.1em; padding-bottom: 10px; }
+.look-departures .tr { height: 76px; border-top: 2px solid #1E1E1E; }
+.look-departures .flap { display: inline-flex; gap: 3px; }
+.look-departures .flap i { font-style: normal; display: inline-grid; place-items: center; width: 31px; height: 52px; background: #161616; border-radius: 3px; font-size: 32px; font-weight: 700; position: relative; }
+.look-departures .flap i::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #050505; }
+.look-departures .tr .sm { font-size: 26px; color: #D6D6D6; }
+.look-departures .tr .st { font-weight: 700; font-size: 26px; justify-self: start; padding: 4px 12px; }
+.look-departures .st.ok { color: #7CE07C; } .look-departures .st.br { color: #050505; background: #FFCE3D; } .look-departures .st.po { color: #050505; background: #7CE07C; } .look-departures .st.gone { color: #8D8D8D; text-decoration: line-through; }
+
+/* zen — one beer at a time; the orb holds what's left */
+.look-zen { background: #E9E6DF; color: #1B1916; display: grid; grid-template-columns: minmax(0, 1fr) 520px; }
+.look-zen main { padding: 80px 96px; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 72px; align-items: center; }
+.look-zen .orb { width: 360px; height: 360px; border-radius: 50%; background: #D8D3C9; position: relative; overflow: hidden; }
+.look-zen .orb i { position: absolute; left: 0; right: 0; bottom: 0; }
+.look-zen .k { font-size: 28px; color: #6E685F; }
+.look-zen h1 { margin: 16px 0 0; font-family: 'Playfair Display', serif; font-weight: 500; font-size: 128px; line-height: 0.95; letter-spacing: -0.02em; }
+.look-zen p { margin: 24px 0 0; font-size: 30px; line-height: 1.45; color: #3A3631; }
+.look-zen p b { color: #1B1916; }
+.look-zen aside { background: #DEDAD1; padding: 70px 56px; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+.look-zen aside div { display: grid; grid-template-columns: minmax(0, 1fr) 60px; gap: 14px; align-items: center; font-size: 28px; color: #3A3631; }
+.look-zen aside div i { display: block; height: 4px; background: #C9C3B8; grid-column: 1 / -1; margin-top: -6px; }
+.look-zen aside div i b { display: block; height: 4px; }
+.look-zen aside div.on { color: #1B1916; font-weight: 700; }

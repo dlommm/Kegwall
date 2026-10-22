@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Tally — phone menu</title>
+<link rel="stylesheet" href="c.css">
+<style>
+  .wrap { padding: 24px 16px 32px; }
+  .brand { font-size: 15px; color: var(--ink-2); display: flex; justify-content: space-between; }
+  h1 { margin: 14px 0 0; font-size: 34px; line-height: 1.08; font-weight: 700; letter-spacing: -0.01em; }
+  .claim { margin-top: 18px; background: var(--ink); color: var(--board); border-radius: 12px; padding: 12px 12px 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .claim a { height: 44px; padding: 0 16px; border-radius: 10px; background: var(--board); color: var(--ink); display: flex; align-items: center; font-weight: 700; text-decoration: none; }
+  ol { list-style: none; margin: 22px 0 0; padding: 0; --sw: 3px; --sh: 22px; --sg: 2px; --gg: 6px; }
+  li { border-top: 2px solid var(--ink); padding: 12px 0 14px; }
+  li .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  li .nm { font-size: 21px; font-weight: 700; line-height: 1.15; }
+  li .c { font-size: 24px; font-weight: 700; }
+  li .st { font-size: 14px; color: var(--ink-2); margin: 2px 0 10px; }
+  li.low .c { color: var(--caution); }
+</style>
+</head>
+<body>
+<div class="wrap" id="w"></div>
+<script src="data.js"></script>
+<script>
+  const tally = (t) => { const b = lum(t.srm) > 0.45 ? shade(t.srm, 0.82) : t.srm; let g = ''; for (let i = 0; i < t.fullPints; i += 5) { let s = ''; for (let k = i; k < Math.min(i + 5, t.fullPints); k++) s += `<i class="${k < t.pints ? 'f' : ''}"></i>`; g += `<span>${s}</span>`; } return `<div class="tally" style="--beer:${b}">${g}</div>`; };
+  document.getElementById('w').innerHTML = `
+    <div class="brand"><span>Garage Brewing Co.</span><span class="num">8:42 PM</span></div>
+    <h1>Eleven on tap. Midnight Oats is down to its last pint.</h1>
+    <div class="claim"><span>Two pours have no name yet.</span><a href="#">Claim one</a></div>
+    <ol>${TAPS.filter((t) => !t.kicked).slice(0, 7).map((t) => `<li class="${t.low ? 'low' : ''}"><div class="row"><span class="nm">${esc(t.name)}</span><span class="c num">${t.pints}</span></div><div class="st">Tap ${t.n} · ${esc(t.style)} · ${t.abv}%</div>${tally(t)}</li>`).join('')}</ol>`;
+</script>
+</body>
+</html>

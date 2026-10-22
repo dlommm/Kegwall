@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kiosk — who's pouring</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E6A673;text-decoration:none}a:hover{color:#F2BE91}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1024px; height: 768px; box-sizing: border-box; padding: 28px 32px; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; font-size: 17px; display: flex; flex-direction: column; gap: 20px">
+  <header style="display: flex; justify-content: space-between; align-items: center; gap: 20px">
+    <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 44px; line-height: 1">Who's pouring?</h1>
+    <label style="flex: 0 1 380px; display: flex; align-items: center; gap: 10px; height: 56px; border-radius: 16px; background: #1F1914; padding: 0 16px; color: #A99A85">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input aria-label="Find your name" placeholder="Find your name" style="flex: 1; border: 0; background: none; color: #F4EBDD; font: inherit; font-size: 18px; outline: none">
+    </label>
+  </header>
+  <section aria-label="Poured recently" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+    <sc-for list="{{recent}}" as="r" hint-placeholder-count="2">
+      <button type="button" style="display: flex; align-items: center; gap: 16px; height: 96px; border-radius: 20px; border: 0; background: #2A2019; box-shadow: inset 0 0 0 2px #5A4433; color: #F4EBDD; padding: 0 20px; text-align: left">
+        <span style="width: 60px; height: 60px; border-radius: 50%; background: {{r.c}}; display: grid; place-items: center; font-weight: 600; font-size: 22px; color: #15110D">{{r.i}}</span>
+        <span style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 22px; font-weight: 600">{{r.name}}</strong><span style="color: #C4B5A0; font-size: 15px">{{r.last}}</span></span>
+      </button>
+    </sc-for>
+  </section>
+  <section aria-label="Everyone" style="flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: 132px; gap: 12px; align-content: start">
+    <sc-for list="{{people}}" as="p" hint-placeholder-count="9">
+      <button type="button" style="border-radius: 20px; border: 0; background: #1F1914; color: #F4EBDD; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
+        <span style="width: 64px; height: 64px; border-radius: 50%; background: {{p.c}}; display: grid; place-items: center; font-weight: 600; font-size: 22px; color: #15110D">{{p.i}}</span>
+        <strong style="font-size: 18px; font-weight: 600">{{p.name}}</strong>
+      </button>
+    </sc-for>
+  </section>
+  <footer style="display: flex; align-items: center; gap: 16px">
+    <button type="button" style="height: 64px; padding: 0 28px; border-radius: 18px; border: 0; background: #D38D52; color: #1A120B; font-weight: 600; font-size: 20px">I'm new — add me</button>
+    <p style="margin: 0; color: #C4B5A0; font-size: 16px; line-height: 1.4">Or just pour. Unnamed pours can be claimed from the QR on the wall for 10 minutes.</p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1024,"height":768}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var P = [['Alex Rivera','AR','#7FA2E0'],['Dan','D','#E0B266'],['Jordan','J','#A994E6'],['Mo','M','#69C2B6'],['Owner','O','#C9B79C'],['Priya','P','#E08AA6'],['Sam','S','#8CC08C'],['Taylor','T','#E3A07A'],['Casey','C','#9FC6E0']];
+    return {
+      recent: [{ name: 'Dan', i: 'D', c: '#E0B266', last: 'Poured Weiss Guy · 2 hr ago' }, { name: 'Jordan', i: 'J', c: '#A994E6', last: 'Poured Campfire Porter · 5 hr ago' }],
+      people: P.map(function (p) { return { name: p[0], i: p[1], c: p[2] }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

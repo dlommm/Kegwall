@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TV wall — Taproom look</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#D38D52}a:hover{color:#E6A673}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; padding: 52px 64px 44px; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+  <header style="display: flex; justify-content: space-between; align-items: center">
+    <div style="display: flex; align-items: center; gap: 22px">
+      <div style="width: 76px; height: 76px; border-radius: 50%; background: #D38D52; color: #15110D; display: grid; place-items: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 36px">GB</div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 56px; line-height: 1">Garage Brewing Co.</h1>
+        <p style="margin: 0; font-size: 24px; color: #C4B5A0">Fresh pours nightly</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 36px; align-items: center; font-variant-numeric: tabular-nums">
+      <span style="font-size: 28px; color: #C4B5A0">Kegerator 38°F</span>
+      <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 52px; line-height: 1">2:22 PM</span>
+    </div>
+  </header>
+  <main style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <sc-for list="{{taps}}" as="t" hint-placeholder-count="8">
+      <article style="{{t.cardStyle}}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start">
+          <svg viewBox="0 0 60 100" width="84" height="122" aria-hidden="true" style="opacity: {{t.glassOpacity}}">
+            <defs><clipPath id="wt{{t.n}}"><path d="{{t.path}}"></path></clipPath></defs>
+            <path d="{{t.path}}" fill="rgba(244,235,221,0.05)"></path>
+            <g clip-path="url(#wt{{t.n}})">
+              <rect x="0" y="{{t.liqY}}" width="60" height="100" fill="{{t.srm}}"></rect>
+              <rect x="0" y="{{t.foamY}}" width="60" height="{{t.foamH}}" fill="#F2E7CF"></rect>
+            </g>
+            <path d="{{t.path}}" fill="none" stroke="rgba(244,235,221,0.42)" stroke-width="2"></path>
+          </svg>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-variant-numeric: tabular-nums">
+            <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 54px; line-height: 0.9; color: #8E806D">{{t.n}}</span>
+            <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 40px; line-height: 1.1">{{t.abv}}</span>
+            <span style="font-size: 20px; color: #C4B5A0">{{t.ibuLine}}</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 12px; min-height: 84px; margin-top: 4px">
+          <sc-if value="{{t.hasLabel}}" hint-placeholder-val="{{false}}">
+            <div style="flex: none; width: 44px; height: 44px; border-radius: 50%; background: #2B3A4A; color: #F4EBDD; display: grid; place-items: center; font-size: 15px; font-weight: 600; margin-top: 2px">BL</div>
+          </sc-if>
+          <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 42px; line-height: 1; text-transform: uppercase; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: {{t.nameInk}}">{{t.name}}</h2>
+        </div>
+        <p style="margin: 0; font-size: 22px; color: #C4B5A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.meta}}</p>
+        <p style="margin: 0; font-size: 22px; font-variant-numeric: tabular-nums; color: {{t.statusInk}}">{{t.status}}</p>
+      </article>
+    </sc-for>
+  </main>
+  <footer style="display: flex; justify-content: space-between; align-items: center; gap: 32px">
+    <p style="margin: 0; font-size: 26px; color: #C4B5A0">Trivia night Thursday · Happy hour 4–6 pm · New: Kriek Reserve on tap 6</p>
+    <div style="display: flex; align-items: center; gap: 28px">
+      <div style="display: flex; gap: 10px; align-items: center" aria-label="Page 1 of 2">
+        <span style="width: 40px; height: 8px; border-radius: 4px; background: #F4EBDD"></span>
+        <span style="width: 16px; height: 8px; border-radius: 4px; background: #4A3F33"></span>
+      </div>
+      <p style="margin: 0; font-size: 22px; text-align: right; line-height: 1.3">Scan for the menu<br><span style="color: #D38D52">and claim your pour</span></p>
+      <div style="width: 84px; height: 84px; background: #F4EBDD; border-radius: 10px; display: grid; place-items: center; color: #15110D; font-size: 14px; font-weight: 600">QR</div>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+var GLASS = {
+  pint: 'M8 4 H52 L46 96 H14 Z',
+  tulip: 'M14 4 C8 26 16 44 26 54 V84 L16 96 H44 L34 84 V54 C44 44 52 26 46 4 Z',
+  stange: 'M17 4 H43 V96 H17 Z'
+};
+var BASE = 'border-radius: 20px; padding: 24px 26px; display: flex; flex-direction: column; gap: 10px; min-width: 0; box-sizing: border-box;';
+// n, name, meta, abv, ibu, level, srm, glass, pints, state
+var TAPS = [
+  [1, 'Citra Haze', 'Garage Brewing · Hazy IPA', '6.8%', 45, 0.83, '#F5CF4A', 'pint', '≈ 32 pints', 'ok'],
+  [2, 'Vienna Nights', 'Garage Brewing · Vienna Lager', '5.0%', 22, 0.50, '#C97A22', 'stange', '≈ 20 pints', 'pouring'],
+  [3, 'Belgian Sun', 'Abbey Road Ales · Belgian Tripel', '9.1%', 28, 0.94, '#EDBE35', 'tulip', '≈ 38 pints', 'ok'],
+  [4, 'Midnight Oats', 'Garage Brewing · Oatmeal Stout', '5.6%', 32, 0.04, '#2A140B', 'pint', '≈ 2 pints', 'low'],
+  [5, 'The Extraordinarily Long-Named Double Dry-Hopped Imperial West Coast IPA', 'Bottle Logic Brewing & Fermentation Laboratory · Double IPA', '8.4%', 85, 0.61, '#E3A428', 'tulip', '≈ 24 pints', 'label'],
+  [6, 'Kriek Reserve', 'Wild Cellar · Fruited Sour', '6.0%', 10, 0.30, '#8E2A22', 'tulip', '≈ 12 pints', 'new'],
+  [7, 'Helles Yeah', 'Garage Brewing · Munich Helles', '4.8%', 18, 0.72, '#F9E06B', 'stange', '≈ 29 pints', 'ok'],
+  [8, 'Gourd Times', 'Garage Brewing · Pumpkin Ale', '5.5%', 20, 0, '#B5651D', 'pint', '', 'kicked']
+];
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      taps: TAPS.map(function (r) {
+        var st = r[9], liq = 96 - r[5] * 90, pct = Math.round(r[5] * 100);
+        var status = pct + '% left · ' + r[8], statusInk = '#F4EBDD';
+        var card = BASE + 'background: #1F1914;';
+        if (st === 'pouring') { status = 'Pouring now · 6.2 oz'; statusInk = '#E6A673'; card = BASE + 'background: #2A2019; box-shadow: inset 0 0 0 3px #D38D52;'; }
+        if (st === 'low') { status = pct + '% left — almost gone'; statusInk = '#E9AE55'; }
+        if (st === 'new') { status = 'New this week · ' + pct + '% left'; statusInk = '#9FCB8F'; }
+        if (st === 'kicked') { status = 'Kicked · next up: Old Thunder'; statusInk = '#C4B5A0'; card = BASE + 'background: #19140F;'; }
+        return {
+          n: r[0], name: r[1], meta: r[2], abv: r[3], ibuLine: 'ABV · ' + r[4] + ' IBU', srm: r[6], path: GLASS[r[7]],
+          liqY: liq, foamY: liq - 4, foamH: r[5] > 0.03 ? 5 : 0,
+          status: status, statusInk: statusInk, cardStyle: card,
+          hasLabel: st === 'label', nameInk: st === 'kicked' ? '#8E806D' : '#F4EBDD', glassOpacity: st === 'kicked' ? 0.5 : 1
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

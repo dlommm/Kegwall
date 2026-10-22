@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#110D0A}
+a{color:#E6A673;text-decoration:none}a:hover{color:#F2BE91}
+button{font:inherit}
+</style>
+</helmet>
+<div style="min-height: 1180px; background: #110D0A; color: #F1E8DA; font-family: Inter, system-ui, sans-serif; font-size: 14px; display: flex; flex-wrap: wrap; align-items: stretch">
+  <nav aria-label="Admin" style="flex: 1 1 220px; max-width: 248px; box-sizing: border-box; padding: 18px 14px; display: flex; flex-direction: column; gap: 22px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+      <svg viewBox="0 0 60 100" width="18" height="28" aria-hidden="true"><path d="M8 4 H52 L46 96 H14 Z" fill="none" stroke="#D38D52" stroke-width="7"></path><path d="M12 40 H48 L45 92 H16 Z" fill="#D38D52"></path></svg>
+      <div style="display: flex; flex-direction: column"><strong style="font-size: 15px">Kegwall</strong><span style="font-size: 12px; color: #A89A86">Garage Brewing Co.</span></div>
+    </div>
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="5">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 600; color: #8F826F; padding: 0 10px 6px">{{g.label}}</span>
+        <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+          <a href="#" style="{{it.style}}">{{it.label}}<span style="color: {{it.badgeInk}}; font-variant-numeric: tabular-nums">{{it.badge}}</span></a>
+        </sc-for>
+      </div>
+    </sc-for>
+  </nav>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 8px; flex-wrap: wrap">
+      <label style="flex: 1 1 240px; max-width: 420px; display: flex; align-items: center; gap: 8px; background: #1C1611; border-radius: 10px; padding: 0 12px; height: 36px; color: #A89A86">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <input aria-label="Search beers, taps, kegs, people" placeholder="Search beers, taps, kegs, people" style="flex: 1; background: none; border: 0; color: #F1E8DA; font: inherit; outline: none">
+        <span style="font-size: 12px">Ctrl K</span>
+      </label>
+      <span style="flex: 1"></span>
+      <button type="button" aria-label="Notifications, 3 unread" style="height: 36px; padding: 0 12px; border-radius: 10px; border: 0; background: #1C1611; color: #F1E8DA; display: flex; align-items: center; gap: 8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>3
+      </button>
+      <a href="#" style="height: 36px; padding: 0 14px; border-radius: 10px; background: #D38D52; color: #1A120B; display: flex; align-items: center; font-weight: 600">Open wall</a>
+    </header>
+    <main style="flex: 1; margin: 0 8px 8px 0; background: #1A1511; border: 1px solid #2B231C; border-radius: 16px; padding: 28px 32px 36px; display: flex; flex-direction: column; gap: 28px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600">Tonight at Garage Brewing</h1>
+        <span style="color: #A89A86; display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #8FC27E"></span>Live · Kegtron UDP · updated 2 s ago</span>
+      </div>
+
+      <section aria-labelledby="rail-h" style="display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="rail-h" style="margin: 0; font-size: 15px; font-weight: 600">Taps</h2><a href="#">Taps &amp; kegs</a></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px">
+          <sc-for list="{{rail}}" as="t" hint-placeholder-count="12">
+            <a href="#" style="background: {{t.bg}}; border-radius: 12px; padding: 12px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #F1E8DA">
+              <svg viewBox="0 0 60 100" width="34" height="52" aria-hidden="true">
+                <defs><clipPath id="ad{{t.n}}"><path d="M8 4 H52 L46 96 H14 Z"></path></clipPath></defs>
+                <path d="M8 4 H52 L46 96 H14 Z" fill="rgba(241,232,218,0.05)"></path>
+                <g clip-path="url(#ad{{t.n}})"><rect x="0" y="{{t.liqY}}" width="60" height="100" fill="{{t.srm}}"></rect></g>
+                <path d="M8 4 H52 L46 96 H14 Z" fill="none" stroke="rgba(241,232,218,0.4)" stroke-width="4"></path>
+              </svg>
+              <span style="font-size: 12px; color: #A89A86">Tap {{t.n}}</span>
+              <span style="font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: {{t.ink}}">{{t.label}}</span>
+            </a>
+          </sc-for>
+        </div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+        <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+          <section aria-labelledby="att-h" style="display: flex; flex-direction: column; gap: 10px">
+            <h2 id="att-h" style="margin: 0; font-size: 15px; font-weight: 600">Needs attention</h2>
+            <sc-for list="{{attention}}" as="a" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 14px; background: #221B15; border-radius: 12px; padding: 12px 14px; flex-wrap: wrap">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: {{a.dot}}; flex: none"></span>
+                <div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 2px"><strong style="font-weight: 600">{{a.title}}</strong><span style="color: #A89A86">{{a.detail}}</span></div>
+                <a href="#" style="height: 34px; padding: 0 12px; border-radius: 9px; background: #2E251D; color: #F1E8DA; display: flex; align-items: center">{{a.action}}</a>
+              </div>
+            </sc-for>
+          </section>
+
+          <section aria-labelledby="pours-h" style="display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="pours-h" style="margin: 0; font-size: 15px; font-weight: 600">Pours today</h2><a href="#">All pours</a></div>
+            <div style="display: flex; gap: 40px; align-items: flex-end; flex-wrap: wrap">
+              <p style="margin: 0; display: flex; flex-direction: column"><span style="font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums">6</span><span style="color: #A89A86">pours · same as last Wednesday</span></p>
+              <p style="margin: 0; display: flex; flex-direction: column"><span style="font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums">85.2 oz</span><span style="color: #A89A86">≈ 5.3 pints</span></p>
+              <div role="img" aria-label="Pours by hour today, peak at 8 pm" style="flex: 1 1 240px; display: flex; align-items: flex-end; gap: 6px; height: 64px">
+                <sc-for list="{{hours}}" as="h" hint-placeholder-count="10"><span style="flex: 1; border-radius: 3px 3px 0 0; height: {{h.h}}; background: {{h.c}}"></span></sc-for>
+              </div>
+            </div>
+            <div style="overflow-x: auto">
+              <table style="width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums">
+                <thead><tr style="color: #A89A86; text-align: left"><th style="font-weight: 500; padding: 8px 0">Time</th><th style="font-weight: 500">Tap</th><th style="font-weight: 500">Beer</th><th style="font-weight: 500; text-align: right">Volume</th><th style="font-weight: 500; padding-left: 24px">Pourer</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{pours}}" as="p" hint-placeholder-count="5">
+                    <tr style="border-top: 1px solid #2B231C"><td style="padding: 10px 0; color: #A89A86">{{p.t}}</td><td>{{p.tap}}</td><td>{{p.beer}}</td><td style="text-align: right">{{p.vol}}</td><td style="padding-left: 24px; color: {{p.ink}}">{{p.who}}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+          <section aria-labelledby="hw-h" style="background: #221B15; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+            <h2 id="hw-h" style="margin: 0; font-size: 15px; font-weight: 600">Hardware right now</h2>
+            <sc-for list="{{sources}}" as="s" hint-placeholder-count="4">
+              <div style="display: flex; justify-content: space-between; gap: 12px"><span>{{s.name}}</span><span style="color: {{s.ink}}">{{s.state}}</span></div>
+            </sc-for>
+            <a href="#" style="margin-top: 4px">Open connection doctor</a>
+          </section>
+          <section aria-labelledby="temp-h" style="background: #221B15; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+            <h2 id="temp-h" style="margin: 0; font-size: 15px; font-weight: 600">Kegerator temperature</h2>
+            <p style="margin: 0; font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums">37–38°F</p>
+            <p style="margin: 0; color: #A89A86">4 monitors reporting · range over the last 7 days 36–39°F</p>
+          </section>
+          <section aria-labelledby="fc-h" style="background: #221B15; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+            <h2 id="fc-h" style="margin: 0; font-size: 15px; font-weight: 600">Next kegs to kick</h2>
+            <sc-for list="{{forecast}}" as="f" hint-placeholder-count="3">
+              <div style="display: flex; justify-content: space-between; gap: 12px"><span>{{f.beer}}</span><span style="color: {{f.ink}}; font-variant-numeric: tabular-nums">{{f.when}}</span></div>
+            </sc-for>
+            <p style="margin: 0; color: #A89A86">At the current pace of pours.</p>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+var NAV = [
+  ['Taproom', [['Dashboard', '', 1], ['Taps & kegs', ''], ['Beers', ''], ['Kegs', ''], ['Suppliers', '']]],
+  ['Screens', [['Walls', ''], ['Displays & presence', '']]],
+  ['Guests', [['Pours', '2 unclaimed'], ['People', ''], ['Games', '']]],
+  ['Insights', [['Analytics', ''], ['Logs', '']]],
+  ['System', [['Monitors', ''], ['Automations', ''], ['Settings', '']]]
+];
+var RAIL = [[1,0.83,'#F5CF4A'],[2,0.50,'#C97A22'],[3,0.94,'#EDBE35'],[4,0.04,'#2A140B'],[5,0.61,'#E3A428'],[6,0.30,'#8E2A22'],[7,0.72,'#F9E06B'],[8,0.18,'#4A1E0E'],[9,1.0,'#F5CF4A'],[10,0.40,'#EBC872'],[11,0.09,'#9B4A1A'],[12,0,'#B5651D']];
+class Component extends DCLogic {
+  renderVals() {
+    var base = 'display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border-radius: 9px; color: #D8CCBA;';
+    return {
+      groups: NAV.map(function (g) { return { label: g[0], items: g[1].map(function (i) {
+        return { label: i[0], badge: i[1], badgeInk: '#E6A673', style: i[2] ? base + 'background: #2A221B; color: #F1E8DA; font-weight: 600;' : base };
+      }) }; }),
+      rail: RAIL.map(function (r) {
+        var p = Math.round(r[1] * 100), kicked = r[1] === 0, low = !kicked && r[1] < 0.1;
+        return { n: r[0], srm: r[2], liqY: 96 - r[1] * 90,
+          label: kicked ? 'Kicked' : (r[0] === 2 ? 'Pouring' : p + '%'),
+          ink: kicked ? '#8F826F' : (low ? '#E9AE55' : (r[0] === 2 ? '#E6A673' : '#F1E8DA')),
+          bg: low ? '#2C2016' : (r[0] === 2 ? '#2E2219' : '#221B15') };
+      }),
+      attention: [
+        { dot: '#E2705B', title: 'Kegtron cloud is not reachable', detail: 'Pours still arrive over UDP. Cloud-only taps may be missing pours.', action: 'Open doctor' },
+        { dot: '#E9AE55', title: '2 kegs almost gone', detail: 'Midnight Oats on tap 4 (4%) · Old Thunder on tap 11 (9%)', action: 'Plan swaps' },
+        { dot: '#E9AE55', title: '11 taps due for line cleaning', detail: 'Last cleaned 21 or more days ago. Tap 12 is kicked and skipped.', action: 'Review cleaning' },
+        { dot: '#8FA9C2', title: 'An OS update is waiting for a reboot', detail: 'The wall and kiosk reconnect on their own after the restart.', action: 'Details' }
+      ],
+      hours: [0,0,1,0,2,3,6,9,5,3].map(function (v, i) { return { h: (v / 9 * 100) + '%', c: i === 7 ? '#D38D52' : '#5A4A3B' }; }),
+      pours: [
+        { t: '1 min ago', tap: 'Tap 1', beer: 'Citra Haze', vol: '13.9 oz', who: 'Unclaimed · Assign', ink: '#E6A673' },
+        { t: '3 min ago', tap: 'Tap 2', beer: 'Vienna Nights', vol: '12.0 oz', who: 'Unclaimed · Assign', ink: '#E6A673' },
+        { t: '2 hr ago', tap: 'Tap 5', beer: 'The Extraordinarily Long-Named Double…', vol: '17.1 oz', who: 'Jordan', ink: '#F1E8DA' },
+        { t: '2 hr ago', tap: 'Tap 9', beer: 'Weiss Guy', vol: '11.9 oz', who: 'Dan', ink: '#F1E8DA' },
+        { t: '5 hr ago', tap: 'Tap 8', beer: 'Campfire Porter', vol: '16.4 oz', who: 'Jordan', ink: '#F1E8DA' }
+      ],
+      sources: [
+        { name: 'Kegtron UDP (local)', state: 'Receiving', ink: '#8FC27E' },
+        { name: 'Kegtron cloud', state: 'Not reachable', ink: '#E2705B' },
+        { name: 'Govee sensors', state: 'Not set up', ink: '#A89A86' },
+        { name: 'Wall displays', state: '2 on · 1 asleep', ink: '#F1E8DA' }
+      ],
+      forecast: [
+        { beer: 'Midnight Oats · tap 4', when: '≈ 1 day', ink: '#E9AE55' },
+        { beer: 'Campfire Porter · tap 8', when: '≈ 3 days', ink: '#F1E8DA' },
+        { beer: 'Old Thunder · tap 11', when: '≈ 5 days', ink: '#F1E8DA' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

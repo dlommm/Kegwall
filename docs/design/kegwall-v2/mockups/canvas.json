@@ -1,0 +1,37 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-22T18:40:00Z"},
+  "title": "Kegwall V2 Redesign",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1920, "h": 1080, "title": "Proposed · Concept A — Cellar (Modern Craft Taproom) · RECOMMENDED"},
+    "ConceptB.dc.html": {"x": 2000, "y": 0, "w": 1920, "h": 1080, "title": "Proposed · Concept B — Label (Boutique Brewery)"},
+    "ConceptC.dc.html": {"x": 4000, "y": 0, "w": 1920, "h": 1080, "title": "Proposed · Concept C — Flow (Next-gen Digital Beer Wall)"},
+    "WallTaproom.dc.html": {"x": 0, "y": 1500, "w": 1920, "h": 1080, "title": "Proposed · TV wall, Taproom look, 8 taps (1080p stage)"},
+    "PourLive.dc.html": {"x": 2000, "y": 1500, "w": 1920, "h": 1080, "title": "Proposed · Live pour — Full takeover, measured volume"},
+    "PourComplete.dc.html": {"x": 4000, "y": 1500, "w": 1920, "h": 1080, "title": "Proposed · Pour complete — recorded volume + claim"},
+    "Wall12.dc.html": {"x": 6000, "y": 1500, "w": 1920, "h": 1080, "title": "Proposed · Density ladder — 12 taps"},
+    "AdminDashboard.dc.html": {"x": 0, "y": 3000, "w": 1440, "h": 1180, "title": "Proposed · Admin dashboard (Cellar admin look)", "expand": "fill"},
+    "WallEditor.dc.html": {"x": 1520, "y": 3000, "w": 1440, "h": 900, "title": "Proposed · Wall Editor — studio layout", "is_interactive": true},
+    "DesignSystem.dc.html": {"x": 3040, "y": 3000, "w": 1440, "h": 1240, "title": "Proposed · Design system foundations"},
+    "MobileMenu.dc.html": {"x": 0, "y": 4600, "w": 390, "h": 844, "title": "Proposed · QR menu (phone)", "is_interactive": true},
+    "BeerSheet.dc.html": {"x": 470, "y": 4600, "w": 390, "h": 844, "title": "Proposed · Beer detail + claim sheet (phone)", "is_interactive": true},
+    "KioskWho.dc.html": {"x": 940, "y": 4600, "w": 1024, "h": 768, "title": "Proposed · Tablet kiosk — who's pouring"},
+    "KioskPouring.dc.html": {"x": 2044, "y": 4600, "w": 1024, "h": 768, "title": "Proposed · Tablet kiosk — armed / pouring"}
+  },
+  "order": [
+    "Main.dc.html", "ConceptB.dc.html", "ConceptC.dc.html",
+    "WallTaproom.dc.html", "PourLive.dc.html", "PourComplete.dc.html", "Wall12.dc.html",
+    "AdminDashboard.dc.html", "WallEditor.dc.html", "DesignSystem.dc.html",
+    "MobileMenu.dc.html", "BeerSheet.dc.html", "KioskWho.dc.html", "KioskPouring.dc.html"
+  ],
+  "notes": {
+    "row1": {"x": 0, "y": -320, "text": "Kegwall V2 — PROPOSED designs, not implemented · 1. Three directions", "kind": "title1", "maxW": 5920},
+    "row2": {"x": 0, "y": 1210, "text": "2. Recommended direction on the TV: wall, live pour, completion, 12-tap density", "kind": "title1", "maxW": 7920},
+    "row3": {"x": 0, "y": 2710, "text": "3. Admin, Wall Editor and the shared design system", "kind": "title1", "maxW": 4480},
+    "row4": {"x": 0, "y": 4310, "text": "4. Guests: QR menu and tablet kiosk", "kind": "title1", "maxW": 3068},
+    "data": {"x": 6000, "y": -320, "w": 520, "text": "All beers, levels and pours on these boards are the same synthetic data used for the baseline screenshots (docs/design/kegwall-v2/baseline). Nothing here is a real taproom or a shipped screen.", "fill": "orange", "size": "m"}
+  },
+  "designSystems": []
+}

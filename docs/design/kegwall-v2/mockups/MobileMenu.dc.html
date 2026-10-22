@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>QR menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E6A673;text-decoration:none}a:hover{color:#F2BE91}
+button{font:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; font-size: 15px; display: flex; flex-direction: column; overflow: hidden; position: relative">
+  <header style="padding: 20px 16px 12px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1">Garage Brewing Co.</h1>
+      <a href="#" style="height: 44px; padding: 0 14px; border-radius: 22px; background: #2A221B; color: #F4EBDD; display: flex; align-items: center; gap: 8px"><span style="width: 24px; height: 24px; border-radius: 50%; background: #3E6EC8; display: grid; place-items: center; font-size: 11px; font-weight: 600">AR</span>Passport</a>
+    </div>
+    <label style="display: flex; align-items: center; gap: 8px; height: 44px; border-radius: 12px; background: #1F1914; padding: 0 12px; color: #A99A85">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input aria-label="Search beers" placeholder="Search 11 beers on tap" style="flex: 1; border: 0; background: none; color: #F4EBDD; font: inherit; font-size: 16px; outline: none">
+    </label>
+    <div role="group" aria-label="Filter" style="display: flex; gap: 8px; overflow-x: auto">
+      <sc-for list="{{chips}}" as="c" hint-placeholder-count="6">
+        <button type="button" aria-pressed="{{c.on}}" style="{{c.style}}">{{c.label}}</button>
+      </sc-for>
+    </div>
+  </header>
+  <ul style="list-style: none; margin: 0; padding: 0 16px 120px; display: flex; flex-direction: column; gap: 8px; overflow: hidden">
+    <sc-for list="{{taps}}" as="t" hint-placeholder-count="7">
+      <li>
+        <a href="BeerSheet.dc.html" style="display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 14px; align-items: center; background: #1F1914; border-radius: 14px; padding: 12px 14px; color: #F4EBDD; min-height: 44px">
+          <svg viewBox="0 0 60 100" width="30" height="46" aria-hidden="true">
+            <defs><clipPath id="mm{{t.n}}"><path d="{{t.path}}"></path></clipPath></defs>
+            <g clip-path="url(#mm{{t.n}})"><rect x="0" y="{{t.liqY}}" width="60" height="100" fill="{{t.srm}}"></rect></g>
+            <path d="{{t.path}}" fill="none" stroke="rgba(244,235,221,0.45)" stroke-width="4"></path>
+          </svg>
+          <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+            <strong style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 22px; line-height: 1.05; text-transform: uppercase; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">{{t.name}}</strong>
+            <span style="color: #C4B5A0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.meta}}</span>
+          </span>
+          <span style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-variant-numeric: tabular-nums">
+            <span style="font-size: 13px; color: #A99A85">Tap {{t.n}}</span>
+            <span style="font-size: 14px; color: {{t.levelInk}}">{{t.level}}</span>
+          </span>
+        </a>
+      </li>
+    </sc-for>
+  </ul>
+  <a href="BeerSheet.dc.html" style="position: absolute; left: 12px; right: 12px; bottom: 16px; min-height: 56px; border-radius: 16px; background: #D38D52; color: #1A120B; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.45)"><span>2 pours waiting to be claimed</span><span>Claim</span></a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+var GL = { pint: 'M8 4 H52 L46 96 H14 Z', stange: 'M17 4 H43 V96 H17 Z', tulip: 'M14 4 C8 26 16 44 26 54 V84 L16 96 H44 L34 84 V54 C44 44 52 26 46 4 Z' };
+var TAPS = [[1,'Citra Haze','Hazy IPA · 6.8% · 45 IBU',0.83,'#F5CF4A','pint'],[2,'Vienna Nights','Vienna Lager · 5.0% · 22 IBU',0.5,'#C97A22','stange'],[3,'Belgian Sun','Belgian Tripel · 9.1% · 28 IBU',0.94,'#EDBE35','tulip'],[4,'Midnight Oats','Oatmeal Stout · 5.6% · 32 IBU',0.04,'#2A140B','pint'],[5,'The Extraordinarily Long-Named Double Dry-Hopped Imperial West Coast IPA','Double IPA · 8.4% · 85 IBU',0.61,'#E3A428','tulip'],[6,'Kriek Reserve','Fruited Sour · 6.0% · 10 IBU',0.3,'#8E2A22','tulip'],[7,'Helles Yeah','Munich Helles · 4.8% · 18 IBU',0.72,'#F9E06B','stange']];
+class Component extends DCLogic {
+  renderVals() {
+    var base = 'flex: none; height: 40px; padding: 0 16px; border-radius: 20px; border: 0;';
+    return {
+      chips: ['All', 'New', 'Almost gone', 'Light', 'Hoppy', 'Dark'].map(function (c, i) {
+        return { label: c, on: i === 0 ? 'true' : 'false', style: base + (i === 0 ? 'background: #F4EBDD; color: #15110D; font-weight: 600;' : 'background: #2A221B; color: #F4EBDD;') };
+      }),
+      taps: TAPS.map(function (r) {
+        var p = Math.round(r[3] * 100), low = r[3] < 0.1;
+        return { n: r[0], name: r[1], meta: r[2], srm: r[4], path: GL[r[5]], liqY: 96 - r[3] * 90, level: low ? 'Last call' : p + '% left', levelInk: low ? '#E9AE55' : '#C4B5A0' };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

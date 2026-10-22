@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Diagnostics</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; margin-top: 26px; }
+  .chk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 10px; background: var(--raise); }
+  .chk + .chk { margin-top: 8px; }
+  .chk b { display: block; }
+  .log { background: #080807; border-radius: 12px; padding: 14px 16px; font: 14px/1.7 'IBM Plex Mono', ui-monospace, monospace; color: #CFC8BD; }
+  .log .w { color: var(--caution); } .log .e { color: var(--problem); } .log .d { color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  document.getElementById('app').innerHTML = `${topNav('Settings')}
+    ${pageHead({ crumb: 'Settings / Logs and diagnostics', title: 'One problem: the Kegtron cloud stopped answering at 6:12 PM.', sub: 'Local UDP still brings in every pour, so the walls and counts are right. Check your API key or internet connection.', actions: '<a class="btn p" href="#">Run all checks</a>' })}
+    <div class="two">
+      <section><h2 class="sec" style="font-size:28px">Connection doctor</h2><div style="margin-top:14px">
+        <div class="chk">${stateTag('failed', '')}<div><b>Kegtron cloud API</b><span class="sub">Timed out after 10 s at 8:40 PM. Last good answer 6:11 PM.</span></div><a class="btn s" href="#">Test again</a></div>
+        <div class="chk">${stateTag('completed', '')}<div><b>Kegtron UDP on this network</b><span class="sub">4 devices sending about once a second.</span></div><a class="btn q" href="#">Listen 10 s</a></div>
+        <div class="chk">${stateTag('completed', '')}<div><b>Home Assistant over MQTT</b><span class="sub">Connected to homeassistant.local:1883 · 48 entities published.</span></div><a class="btn q" href="#">Details</a></div>
+        <div class="chk">${stateTag('disabled', '')}<div><b>Govee sensors</b><span class="sub">Not set up.</span></div><a class="btn q" href="#">Set up</a></div>
+        <div class="chk">${stateTag('completed', '')}<div><b>This server</b><span class="sub">CPU 7% · memory 41% · disk 22% · 51°C · last backup 3:00 AM</span></div><a class="btn q" href="#">Backups</a></div></div></section>
+      <section><h2 class="sec" style="font-size:28px;display:flex;justify-content:space-between">Live log <span style="font:400 14px var(--text);color:var(--good);text-transform:none">● following</span></h2>
+        <div class="tabs" style="margin-top:14px"><span class="on">Everything</span><span>Problems · 3</span><span>Pours</span><span>Walls</span><span>Kiosk</span></div>
+        <div class="log" style="margin-top:12px">
+<span class="d">20:41:07</span> pours   tap 1 finished · 412 mL · udp · Alex Rivera<br>
+<span class="d">20:40:12</span> <span class="e">cloud   request timed out after 10 s</span><br>
+<span class="d">20:38:52</span> pours   tap 2 finished · 355 mL · udp · no name<br>
+<span class="d">20:31:15</span> pours   tap 6 finished · 337 mL · udp · Jordan<br>
+<span class="d">20:30:02</span> kiosk   Alex Rivera signed in on Bar tablet<br>
+<span class="d">19:58:10</span> rules   keg below 15% · Old Thunder · email sent<br>
+<span class="d">19:30:00</span> screens Patio TV asleep after 20 min without motion<br>
+<span class="d">18:14:44</span> <span class="w">rules   push to Owner's phone was rejected</span><br>
+<span class="d">18:12:03</span> <span class="e">cloud   stopped answering</span></div>
+        <a class="btn q" href="#" style="margin-top:8px">Download logs</a></section>
+    </div>`;
+</script>
+</body>
+</html>

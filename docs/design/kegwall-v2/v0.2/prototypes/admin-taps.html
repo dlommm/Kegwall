@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Taps &amp; kegs</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 440px; }
+  .main { min-width: 0; }
+  .bar { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  th { text-align: left; font-weight: 400; color: var(--ink-3); font-size: 14px; padding: 8px 10px; }
+  td { padding: 12px 10px; border-top: 1px solid var(--line); vertical-align: middle; }
+  td .nm { font-family: var(--display); font-weight: 800; font-size: 24px; text-transform: uppercase; line-height: 1.05; max-width: 280px; }
+  td .sub { font-size: 14px; color: var(--ink-3); }
+  .lvl { width: 170px; }
+  .lvl .b { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+  .lvl .b i { display: block; height: 6px; }
+  tr.sel td { background: #1D1A17; }
+  tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
+  .low { color: var(--caution); }
+  .drawer { background: var(--raise); padding: 28px 30px; display: flex; flex-direction: column; gap: 20px; box-shadow: -1px 0 0 var(--line); }
+  .drawer h2 { margin: 0; font-size: 30px; line-height: 1.1; font-weight: 700; }
+  .opt { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px; border-radius: 10px; background: var(--raise-2); }
+  .opt.on { box-shadow: inset 0 0 0 2px var(--ink); }
+  .opt b { font-family: var(--display); font-weight: 800; font-size: 22px; text-transform: uppercase; }
+  .opt span.sub { display: block; font-size: 14px; color: var(--ink-3); }
+  .steps { display: flex; gap: 10px; font-size: 14px; color: var(--ink-3); }
+  .steps b { color: var(--ink); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap" style="max-width:none;padding-bottom:0;box-shadow:0 1px 0 var(--line)" id="n"></div>
+<div class="page">
+  <div class="main"><div class="wrap" id="m"></div></div>
+  <aside class="drawer" aria-label="Swap keg" id="d"></aside>
+</div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  const kicksIn = (t) => t.kicked ? '—' : t.low ? 'about a day' : `≈ ${Math.max(2, Math.round(t.pints / 3.5))} days`;
+  const mon = (t) => `Pro ${'ABCD'[Math.floor((t.n - 1) / 3)]} · port ${(t.n - 1) % 3}`;
+  document.getElementById('n').innerHTML = topNav('Taps & kegs');
+  document.getElementById('m').innerHTML = `
+    ${pageHead({ title: 'Twelve taps. Tap 12 is empty and two more kegs are nearly done.', sub: 'Swap Midnight Oats on tap 4 first; it has about a pint left. Harvest Märzen is next in the cellar.', actions: '<a class="btn p" href="#">Add a tap</a>' })}
+    ${subTabs(SUB['Taps & kegs'], 'Taps')}
+    <div class="bar" style="margin-top:18px"><div class="tabs"><span class="on">All 12</span><span>Needs a swap · 3</span><span>Due for cleaning · 11</span></div></div>
+    <table><thead><tr><th>Tap</th><th>Beer and keg</th><th>Left</th><th>Kicks in</th><th>Monitor</th><th></th></tr></thead><tbody>
+    ${TAPS.map((t) => `<tr class="${t.n === 4 ? 'sel' : ''}">
+      <td class="bs num" style="font-size:26px;color:var(--ink-3);width:60px">${t.n}</td>
+      <td><div style="display:flex;gap:14px;align-items:center">${marker(t, 44)}<div style="min-width:0"><div class="nm ell" style="${t.kicked ? 'color:var(--ink-3)' : ''}">${esc(t.name)}</div><div class="sub">${t.kicked ? 'Kicked Monday · 19 L Corny' : `19 L Corny · tapped ${t.tapped}`}</div></div></div></td>
+      <td class="lvl num"><span class="${t.low ? 'low' : ''}">${t.kicked ? 'Empty' : `${t.pints} of ${t.fullPints} pints`}</span><div class="b"><i style="width:${t.pct}%;background:${lum(t.srm) < 0.03 ? shade(t.srm, 2.2) : t.srm}"></i></div></td>
+      <td class="num ${t.low ? 'low' : ''}">${kicksIn(t)}</td>
+      <td class="sub num" style="white-space:nowrap">${mon(t)}<br><span style="color:var(--good)">● 2 s ago</span></td>
+      <td style="text-align:right">${t.kicked || t.low ? '<a class="btn s" href="#">Swap keg</a>' : '<a class="btn q" href="#">Details</a>'}</td></tr>`).join('')}
+    </tbody></table>`;
+  const t4 = TAPS[3];
+  document.getElementById('d').innerHTML = `
+    <div class="steps"><b>1 Choose keg</b><span>2 Confirm volume</span><span>3 Done</span></div>
+    <h2>Swap the keg on tap 4</h2>
+    <p style="margin:0;color:var(--ink-2)">Midnight Oats has about a pint left. The old keg is marked kicked and its pours stay in history.</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="opt on"><span class="marker" style="width:52px;height:52px;background:#B3661E;color:#F7F4EE;font-size:22px">HM</span><span><b>Harvest Märzen</b><span class="sub">On deck · 19 L Corny · from Hillside Supply</span></span><span class="state" style="color:var(--ink)">Next up</span></div>
+      <div class="opt"><span class="marker" style="width:52px;height:52px;background:#2B1209;color:#F7F4EE;font-size:22px">MO</span><span><b>Midnight Oats</b><span class="sub">Another keg of the same beer</span></span><span></span></div>
+      <div class="opt"><span class="marker" style="width:52px;height:52px;background:#2A2723;color:#8C857A;font-size:26px">+</span><span><b>A different beer</b><span class="sub">Pick from the library or the catalog</span></span><span></span></div>
+    </div>
+    <div class="row2"><div class="field"><label>Keg size</label><div class="in">19 L Corny</div></div><div class="field"><label>Starts at</label><div class="in num">19.0 L (full)</div><span class="help">Change it for a partly used keg.</span></div></div>
+    <div class="field"><label>Reset the Kegtron counter</label><div class="in" style="justify-content:space-between">Pro B · port 0 starts at zero<span class="switch on"></span></div><span class="help">This changes the real device's counter.</span></div>
+    <div style="display:flex;gap:10px;margin-top:auto"><a class="btn p" href="#">Tap Harvest Märzen</a><a class="btn q" href="#">Cancel</a></div>`;
+</script>
+</body>
+</html>

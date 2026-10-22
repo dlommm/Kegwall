@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Live pour — full takeover</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#D38D52}a:hover{color:#E6A673}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; padding: 80px 112px; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; display: grid; grid-template-columns: minmax(0, 1fr) 620px; column-gap: 96px; align-items: center">
+  <section style="display: flex; flex-direction: column; gap: 20px; min-width: 0">
+    <p style="margin: 0; font-size: 32px; color: #E6A673; display: flex; align-items: center; gap: 14px"><span style="width: 16px; height: 16px; border-radius: 50%; background: #E6A673"></span>Now pouring on tap {{tap}}</p>
+    <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 168px; line-height: 0.9; text-transform: uppercase; letter-spacing: -0.01em">Citra Haze</h1>
+    <p style="margin: 0; font-size: 36px; color: #C4B5A0">Garage Brewing · Hazy IPA · 6.8% ABV · 45 IBU</p>
+    <div style="display: flex; align-items: baseline; gap: 18px; margin-top: 40px; font-variant-numeric: tabular-nums">
+      <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 320px; line-height: 0.8; color: #F4EBDD">{{oz}}</span>
+      <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 96px; color: #C4B5A0">oz</span>
+    </div>
+    <p style="margin: 8px 0 0; font-size: 26px; color: #A99A85">Measured live by the Kegtron on tap {{tap}} · {{ml}} mL so far</p>
+    <div style="display: flex; gap: 56px; margin-top: 48px; font-size: 28px; font-variant-numeric: tabular-nums">
+      <p style="margin: 0; display: flex; flex-direction: column; gap: 6px"><span style="color: #A99A85; font-size: 22px">Keg remaining</span><span>519 oz · ≈ 32 pints</span></p>
+      <p style="margin: 0; display: flex; flex-direction: column; gap: 6px"><span style="color: #A99A85; font-size: 22px">Poured by</span><span>Alex Rivera, from the tablet</span></p>
+    </div>
+  </section>
+  <figure style="margin: 0; display: flex; flex-direction: column; align-items: center; gap: 24px">
+    <svg viewBox="0 0 300 420" width="560" height="784" role="img" aria-label="Glass filled to {{oz}} of a 16 ounce serving">
+      <defs><clipPath id="pl-glass"><path d="M40 20 H260 L232 400 H68 Z"></path></clipPath></defs>
+      <rect x="146" y="0" width="8" height="{{streamH}}" fill="{{srm}}"></rect>
+      <path d="M40 20 H260 L232 400 H68 Z" fill="rgba(244,235,221,0.05)"></path>
+      <g clip-path="url(#pl-glass)">
+        <rect x="0" y="{{liqY}}" width="300" height="420" fill="{{srm}}"></rect>
+        <rect x="0" y="{{foamY}}" width="300" height="16" fill="#F2E7CF"></rect>
+      </g>
+      <path d="M40 20 H260 L232 400 H68 Z" fill="none" stroke="rgba(244,235,221,0.55)" stroke-width="4"></path>
+      <g font-family="Inter, sans-serif" font-size="15" fill="#A99A85">
+        <rect x="262" y="210" width="18" height="3" fill="#A99A85"></rect><text x="284" y="216">8</text>
+        <rect x="257" y="115" width="18" height="3" fill="#A99A85"></rect><text x="279" y="121">12</text>
+        <rect x="262" y="20" width="18" height="3" fill="#A99A85"></rect><text x="284" y="26">16</text>
+      </g>
+    </svg>
+    <figcaption style="font-size: 22px; color: #A99A85">Glass scaled to the 16 oz serving size set in Settings</figcaption>
+  </figure>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"servedOz":{"editor":"range","min":0,"max":20,"step":0.1,"default":8,"unit":"oz"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var oz = this.props.servedOz ?? 8;
+    var frac = Math.min(oz / 16, 1);
+    var liq = 400 - frac * 380;
+    return {
+      tap: 1, oz: oz.toFixed(1), ml: Math.round(oz * 29.5735), srm: '#F5CF4A',
+      liqY: liq, foamY: liq - 10, streamH: liq,
+    };
+  }
+}
+</script>
+</body>
+</html>

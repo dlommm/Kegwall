@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Kegs and suppliers</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px; margin-top: 26px; }
+  .sum div b { display: block; font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1; }
+  .sum div span { font-size: 14px; color: var(--ink-3); }
+  .owner { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-3); margin-top: 18px; }
+  .owner::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--info); }
+  .sup { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .sup li { background: var(--raise-2); border-radius: 10px; padding: 14px 16px; }
+  .sup li b { display: block; font-size: 17px; }
+  .hours { display: flex; gap: 4px; margin-top: 10px; }
+  .hours span { flex: 1; text-align: center; font-size: 12px; padding: 5px 0; border-radius: 5px; background: #2C2824; color: var(--ink-2); }
+  .hours span.open { background: #24382E; color: var(--good); }
+</style>
+</head>
+<body>
+<div class="wrap navwrap" id="n"></div>
+<div class="split"><div class="wrap" style="max-width:none" id="m"></div><aside class="drawer" id="d"></aside></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  document.getElementById('n').innerHTML = topNav('Taps & kegs');
+  const sup = ['Hillside Supply', 'Wild Cellar direct', 'Smokestack'];
+  const cost = (t) => (t.abv >= 9 ? 189 : t.abv >= 7 ? 165 : 139);
+  document.getElementById('m').innerHTML = `
+    ${pageHead({ title: 'Fifteen kegs this season. This month cost $1,268.', sub: 'Every pour is priced from its keg, so the Kegs and cost report can show what each beer earns.', actions: '<a class="btn p" href="#">Add a keg</a>' })}
+    ${subTabs(SUB['Taps & kegs'], 'Kegs')}
+    <span class="owner">Only owners see costs. Guests and staff never get them on any screen.</span>
+    <div class="sum num"><div><b>11</b><span>on tap</span></div><div><b>2</b><span>on deck in the cellar</span></div><div><b>$7.84</b><span>average cost per pint</span></div><div><b>63%</b><span>margin at tonight's prices</span></div></div>
+    <table class="t"><thead><tr><th>Keg</th><th>Status</th><th>Supplier</th><th class="r">Cost</th><th class="r">Per pint</th><th class="r">Deposit</th></tr></thead><tbody>
+    ${TAPS.slice(0, 9).map((t, i) => `<tr><td><div style="display:flex;gap:12px;align-items:center">${marker(t, 36)}<div><div class="nm">${esc(t.name.length > 28 ? t.name.slice(0, 27) + '…' : t.name)}</div><div class="sub">19 L Corny · tapped ${t.tapped}</div></div></div></td>
+      <td>${t.kicked ? '<span class="sub">Kicked</span>' : `On tap ${t.n}`}</td><td>${sup[i % 3]}</td><td class="r num">$${cost(t)}</td><td class="r num">$${(cost(t) / 40).toFixed(2)}</td><td class="r num">$30</td></tr>`).join('')}
+    </tbody></table>`;
+  document.getElementById('d').innerHTML = `
+    <h2>Suppliers</h2><p class="sub" style="margin:0">Who you buy from, when they're open, and what each beer costs from them.</p>
+    <ul class="sup">
+      <li><b>Hillside Supply</b><span class="sub">Distributor · 6 kegs this season · $816 YTD</span>
+        <div class="hours">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => `<span class="${i < 5 ? 'open' : ''}">${d}</span>`).join('')}</div><span class="sub" style="display:block;margin-top:6px">Open now until 5 PM</span></li>
+      <li><b>Wild Cellar direct</b><span class="sub">Brewery · 3 kegs · $567 YTD · Kriek Reserve only</span>
+        <div class="hours">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => `<span class="${i > 2 && i < 6 ? 'open' : ''}">${d}</span>`).join('')}</div></li>
+      <li><b>Smokestack</b><span class="sub">Brewery · 2 kegs · $278 YTD</span></li>
+    </ul>
+    <a class="btn s" href="#" style="align-self:flex-start">Add a supplier</a>
+    <h2 style="font-size:20px;margin-top:10px">Price book</h2>
+    <table class="t" style="margin-top:0"><tbody>
+      <tr><td>Citra Haze · Hillside</td><td class="r num">$165 · $4.13/pint</td></tr>
+      <tr><td>Kriek Reserve · Wild Cellar</td><td class="r num">$189 · $4.73/pint</td></tr>
+      <tr><td>Campfire Porter · Smokestack</td><td class="r num">$139 · $3.48/pint</td></tr></tbody></table>`;
+</script>
+</body>
+</html>

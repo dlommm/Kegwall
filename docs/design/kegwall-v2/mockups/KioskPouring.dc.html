@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kiosk — armed and pouring</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E6A673;text-decoration:none}a:hover{color:#F2BE91}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1024px; height: 768px; box-sizing: border-box; padding: 40px 48px; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; font-size: 17px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; column-gap: 48px; align-items: center">
+  <section style="display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: center; gap: 18px">
+      <span style="width: 88px; height: 88px; border-radius: 50%; background: #7FA2E0; display: grid; place-items: center; font-weight: 600; font-size: 30px; color: #15110D">AR</span>
+      <p style="margin: 0; font-size: 20px; color: #C4B5A0">Signed in as<br><strong style="color: #F4EBDD; font-size: 26px">Alex Rivera</strong></p>
+    </div>
+    <h1 style="margin: 8px 0 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 76px; line-height: 0.92; text-transform: uppercase">{{headline}}</h1>
+    <p style="margin: 0; font-size: 22px; line-height: 1.45; color: #C4B5A0; max-width: 520px">{{body}}</p>
+    <div style="display: flex; gap: 14px; margin-top: 16px">
+      <button type="button" style="height: 64px; padding: 0 28px; border-radius: 18px; border: 0; background: {{primaryBg}}; color: {{primaryInk}}; font-weight: 600; font-size: 20px">{{primary}}</button>
+    </div>
+  </section>
+  <figure style="margin: 0; display: flex; flex-direction: column; align-items: center; gap: 14px">
+    <svg viewBox="0 0 300 420" width="280" height="392" role="img" aria-label="{{glassLabel}}">
+      <defs><clipPath id="kp-g"><path d="M40 20 H260 L232 400 H68 Z"></path></clipPath></defs>
+      <path d="M40 20 H260 L232 400 H68 Z" fill="rgba(244,235,221,0.05)"></path>
+      <g clip-path="url(#kp-g)"><rect x="0" y="{{liqY}}" width="300" height="420" fill="#F5CF4A"></rect><rect x="0" y="{{foamY}}" width="300" height="{{foamH}}" fill="#F2E7CF"></rect></g>
+      <path d="M40 20 H260 L232 400 H68 Z" fill="none" stroke="rgba(244,235,221,0.5)" stroke-width="5" stroke-dasharray="{{dash}}"></path>
+    </svg>
+    <figcaption style="font-size: 20px; text-align: center; font-variant-numeric: tabular-nums"><strong style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 44px">{{oz}}</strong><br><span style="color: #C4B5A0">{{caption}}</span></figcaption>
+  </figure>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"stage":{"editor":"enum","options":["armed","pouring","done"],"default":"pouring"},"$preview":{"width":1024,"height":768}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var s = this.props.stage ?? 'pouring';
+    if (s === 'armed') return {
+      headline: 'Pour from any tap', body: 'The next pour on any tap is yours. Kegwall reads it from the Kegtron, so there is nothing else to press.',
+      primary: 'Sign out', primaryBg: '#2A221B', primaryInk: '#F4EBDD',
+      liqY: 400, foamY: 400, foamH: 0, dash: '14 10', oz: 'Waiting', caption: 'No tap flowing yet', glassLabel: 'Empty glass, waiting for a pour'
+    };
+    if (s === 'done') return {
+      headline: 'Cheers, Alex', body: 'Citra Haze, 13.9 oz, is on your passport. Signing out in 5 seconds.',
+      primary: 'Sign out now', primaryBg: '#D38D52', primaryInk: '#1A120B',
+      liqY: 30, foamY: 20, foamH: 16, dash: 'none', oz: '13.9 oz', caption: 'Recorded on tap 1', glassLabel: 'Full glass, 13.9 ounces recorded'
+    };
+    return {
+      headline: 'Citra Haze on tap 1', body: 'Keep pouring. This pour is being recorded to you.',
+      primary: 'Sign out', primaryBg: '#2A221B', primaryInk: '#F4EBDD',
+      liqY: 210, foamY: 200, foamH: 14, dash: 'none', oz: '8.0 oz', caption: 'Measured live on tap 1', glassLabel: 'Glass half full, 8 ounces so far'
+    };
+  }
+}
+</script>
+</body>
+</html>

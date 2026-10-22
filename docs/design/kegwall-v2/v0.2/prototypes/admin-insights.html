@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Insights</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px; margin-top: 26px; }
+  .kpi b { display: block; font-family: var(--display); font-weight: 800; font-size: 52px; line-height: 1; }
+  .kpi span { font-size: 15px; color: var(--ink-2); }
+  .kpi small { display: block; font-size: 14px; color: var(--ink-3); margin-top: 2px; }
+  .two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 48px; margin-top: 44px; }
+  .days { display: flex; align-items: flex-end; gap: 5px; height: 200px; margin-top: 18px; }
+  .days i { flex: 1; background: #4A4239; border-radius: 2px 2px 0 0; }
+  .days i.wk { background: #6B5F51; }
+  .days i.now { background: var(--ink); }
+  .axis { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-3); margin-top: 8px; }
+  .top li { display: grid; grid-template-columns: 30px minmax(0, 1fr) 70px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .top li .b { height: 8px; border-radius: 4px; margin-top: 6px; }
+  .heat { display: grid; grid-template-columns: 40px repeat(9, minmax(0, 1fr)); gap: 4px; margin-top: 16px; font-size: 13px; color: var(--ink-3); }
+  .heat i { height: 26px; border-radius: 3px; background: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  let s = 7; const r = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  const days = Array.from({ length: 30 }, (_, i) => { const d = (i + 2) % 7; return Math.round((d >= 4 ? 9 : 4) + r() * 4); });
+  const fast = [...TAPS].filter((t) => !t.kicked).sort((a, b) => a.pct - b.pct).slice(0, 6);
+  document.getElementById('app').innerHTML = `${topNav('Insights')}
+    ${pageHead({ title: 'September to October: 142 pours, about 15 gallons. Fridays are your busiest night.', sub: 'Kriek Reserve has poured fastest since it went on. Nothing in these numbers is estimated except kick dates.', actions: '<div class="tabs"><span>7 days</span><span class="on">30 days</span><span>90 days</span><span>Custom</span></div><a class="btn s" href="#">Export</a>' })}
+    ${subTabs(SUB.Insights, 'Overview')}
+    <div class="kpi num"><div><b>142</b><span>pours</span><small>118 the 30 days before</small></div><div><b>1,956 oz</b><span>poured</span><small>about 122 pints</small></div><div><b>63%</b><span>margin on pours</span><small>owners only</small></div><div><b>—</b><span>average pour quality</span><small>no Kegtron quality data yet</small></div></div>
+    <div class="two">
+      <section><h2 class="sec" style="font-size:28px">Pours per day</h2>
+        <div class="days" role="img" aria-label="Pours per day for 30 days, peaks on Fridays">${days.map((v, i) => `<i class="${i === 29 ? 'now' : (i + 2) % 7 >= 4 ? 'wk' : ''}" style="height:${v / 13 * 100}%"></i>`).join('')}</div>
+        <div class="axis"><span>Sep 23</span><span>Oct 7</span><span>Today</span></div>
+        <h2 class="sec" style="font-size:28px;margin-top:38px">When people pour</h2>
+        <div class="heat">${['', '4', '5', '6', '7', '8', '9', '10', '11', '12'].map((h) => `<span>${h}</span>`).join('')}${['Mon', 'Wed', 'Fri', 'Sat'].map((d, di) => `<span>${d}</span>${[0, 1, 2, 3, 4, 5, 6, 7, 8].map((h) => { const v = Math.max(0, Math.min(1, (h > 1 && h < 6 ? 0.5 : 0.12) + di * 0.12 - Math.abs(h - 4) * 0.08)); return `<i style="opacity:${(0.08 + v * 0.85).toFixed(2)}"></i>`; }).join('')}`).join('')}</div>
+      </section>
+      <section><h2 class="sec" style="font-size:28px">Going fastest</h2><ol class="top" style="list-style:none;margin:16px 0 0;padding:0">
+        ${fast.map((t, i) => `<li><span class="sub num">${i + 1}</span><div style="min-width:0"><div class="nm ell">${esc(t.name)}</div><div class="b" style="width:${100 - t.pct}%;background:${lum(t.srm) < 0.03 ? shade(t.srm, 2.4) : t.srm}"></div></div><span class="r num" style="text-align:right">${t.kickDays} d left</span></li>`).join('')}</ol>
+        <p class="sub" style="margin-top:14px">Bar length is how much of the keg is gone.</p></section>
+    </div>`;
+</script>
+</body>
+</html>

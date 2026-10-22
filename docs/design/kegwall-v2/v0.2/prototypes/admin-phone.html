@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · phone menu</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  body { height: 844px; overflow: hidden; position: relative; }
+  .bar { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+  .bar b { font-family: var(--display); font-weight: 800; font-size: 22px; text-transform: uppercase; }
+  .under { padding: 0 16px; opacity: 0.3; }
+  .under h1 { font-size: 32px; line-height: 1.1; margin: 10px 0; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 120px; background: #1B1816; border-radius: 22px 22px 0 0; padding: 10px 16px 24px; box-shadow: 0 -12px 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
+  .sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: #4A443C; align-self: center; margin-bottom: 14px; }
+  .sheet a { min-height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-radius: 12px; color: var(--ink); text-decoration: none; font-size: 19px; }
+  .sheet a.on { background: #2C2824; font-weight: 700; }
+  .sheet a small { font-size: 14px; color: var(--ink-3); font-weight: 400; }
+  .sheet hr { border: 0; height: 1px; background: #34302A; margin: 8px 0; width: 100%; }
+</style>
+</head>
+<body>
+<div class="bar"><b>Garage Brewing</b><a class="btn s" href="#" style="height:44px">Close</a></div>
+<div class="under"><h1>Eleven on tap. Two kegs need a swap.</h1></div>
+<nav class="sheet" aria-label="Admin">
+  <span class="grab"></span>
+  <a class="on" href="#">Tonight<small>2 to do</small></a>
+  <a href="#">Taps &amp; kegs<small style="color:var(--caution)">3 need a swap</small></a>
+  <a href="#">Beers<small>15</small></a>
+  <a href="#">People<small>2 pours to assign</small></a>
+  <a href="#">Screens<small>2 walls · 3 displays</small></a>
+  <a href="#">Insights</a>
+  <hr>
+  <a href="#">Settings<small style="color:var(--problem)">Kegtron cloud down</small></a>
+  <a href="#">Open the wall</a>
+  <a href="#">Sign out</a>
+</nav>
+</body>
+</html>

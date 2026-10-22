@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Every pour</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .filters { display: flex; gap: 12px; margin-top: 20px; align-items: center; }
+  .filters .field { width: 210px; }
+  .sel { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--raise-2); border-radius: 12px; padding: 12px 16px; }
+  input[type=checkbox] { width: 18px; height: 18px; accent-color: #F7F4EE; }
+  .who { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; background: var(--raise); }
+  .who.un { color: var(--caution); box-shadow: inset 0 0 0 1px #6A5320; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  const rows = [['1 min ago', 1, 13.9, null, 1], ['3 min ago', 2, 12.0, null, 1], ['11 min ago', 6, 11.4, 'Jordan'], ['26 min ago', 1, 15.8, 'Alex Rivera'], ['2 hr ago', 5, 17.1, 'Jordan'], ['2 hr ago', 9, 11.9, 'Dan'], ['5 hr ago', 8, 16.4, 'Jordan'], ['6 hr ago', 2, 13.8, 'Sam'], ['Oct 21, 9:56 PM', 11, 17.0, null], ['Oct 21, 6:52 PM', 10, 16.6, 'Jordan']];
+  document.getElementById('app').innerHTML = `${topNav('Insights')}
+    ${pageHead({ title: 'Two pours tonight have no name. Guests can still claim them for 8 minutes.', sub: 'After that, assign them here. Tick several rows to give them to one person at once.' })}
+    ${subTabs(SUB.Insights, 'Every pour')}
+    <div class="filters"><div class="tabs"><span>All</span><span class="on">No name · 3</span></div><div class="field"><div class="in">Any tap</div></div><div class="field"><div class="in">Last 7 days</div></div><a class="btn q" href="#">Export CSV</a></div>
+    <table class="t"><thead><tr><th style="width:36px"><input type="checkbox" aria-label="Select all"></th><th>When</th><th>Tap and beer</th><th class="r">Volume</th><th>Poured by</th></tr></thead><tbody>
+    ${rows.map(([w, n, oz, who, chk]) => { const t = TAPS[n - 1]; return `<tr><td><input type="checkbox" ${chk ? 'checked' : ''} aria-label="Select pour"></td><td class="num sub" style="font-size:15px">${w}</td>
+      <td><div style="display:flex;gap:12px;align-items:center">${marker(t, 32)}<span><span class="nm">${esc(t.name.length > 30 ? t.name.slice(0, 29) + '…' : t.name)}</span><span class="sub"> · tap ${n}</span></span></div></td>
+      <td class="r num">${oz.toFixed(1)} oz</td><td><span class="who ${who ? '' : 'un'}">${who ?? 'No name · assign'}</span></td></tr>`; }).join('')}
+    </tbody></table>
+    <div class="sel"><span><b>2 pours selected</b> <span class="sub">· 25.9 oz</span></span><span style="display:flex;gap:10px"><span class="who">Give to: Alex Rivera ▾</span><a class="btn p" href="#">Assign 2 pours</a></span></div>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design system foundations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E6A673}a:hover{color:#F2BE91}
+button{font:inherit}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1240px; box-sizing: border-box; padding: 48px 56px; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; font-size: 15px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 56px; align-content: start">
+  <section style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline">
+    <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 48px; line-height: 1">Kegwall V2 foundations</h1>
+    <p style="margin: 0; color: #C4B5A0">One token set, three surfaces: TV stage, admin, guest touch</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Color roles · Cellar (dark) and Workshop (light)</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+      <sc-for list="{{roles}}" as="r" hint-placeholder-count="12">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="height: 44px; border-radius: 10px; display: flex; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(244,235,221,0.12)"><span style="flex: 1; background: {{r.dark}}"></span><span style="flex: 1; background: {{r.light}}"></span></div>
+          <span style="font-size: 13px">{{r.name}}</span>
+          <span style="font-size: 12px; color: #C4B5A0; font-variant-numeric: tabular-nums">{{r.dark}} · {{r.light}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Beer color is data: SRM scale</h2>
+    <div style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px">
+      <sc-for list="{{srm}}" as="s" hint-placeholder-count="10">
+        <div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><span style="width: 100%; height: 56px; border-radius: 8px; background: {{s.c}}"></span><span style="font-size: 12px; color: #C4B5A0">{{s.v}}</span></div>
+      </sc-for>
+    </div>
+    <p style="margin: 0; color: #C4B5A0">The only saturated color on a wall. Missing SRM falls back to the style's typical value, then to a neutral amber marked "est."</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Type · Barlow Condensed for names and numbers, Inter for text</h2>
+    <div style="display: flex; flex-direction: column; gap: 8px; background: #1F1914; border-radius: 14px; padding: 18px 20px">
+      <span style="color: #C4B5A0; font-size: 13px">TV stage, sizes at 1080p (stage units scale them for 720p and 4K)</span>
+      <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 72px; line-height: 0.9; text-transform: uppercase">Citra Haze</span>
+      <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 42px; line-height: 1; text-transform: uppercase">Card name 42</span>
+      <span style="font-size: 26px">Body 26 · Garage Brewing · Hazy IPA</span>
+      <span style="font-size: 22px; color: #C4B5A0">Meta 22, the smallest size on a TV</span>
+    </div>
+    <div style="display: flex; gap: 24px; align-items: baseline; background: #1F1914; border-radius: 14px; padding: 14px 20px">
+      <span style="font-size: 24px; font-weight: 600">Admin 24</span><span style="font-size: 15px; font-weight: 600">Section 15</span><span style="font-size: 14px">Body 14</span><span style="font-size: 12px; color: #C4B5A0">Caption 12</span>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Glassware by style family: the keg gauge</h2>
+    <div style="display: flex; gap: 22px; align-items: flex-end; background: #1F1914; border-radius: 14px; padding: 18px 20px">
+      <sc-for list="{{glasses}}" as="g" hint-placeholder-count="5">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1">
+          <svg viewBox="0 0 60 100" width="62" height="96" aria-hidden="true">
+            <defs><clipPath id="ds{{g.id}}"><path d="{{g.path}}"></path></clipPath></defs>
+            <g clip-path="url(#ds{{g.id}})"><rect x="0" y="{{g.y}}" width="60" height="100" fill="{{g.c}}"></rect><rect x="0" y="{{g.fy}}" width="60" height="5" fill="#F2E7CF"></rect></g>
+            <path d="{{g.path}}" fill="none" stroke="rgba(244,235,221,0.5)" stroke-width="2"></path>
+          </svg>
+          <strong style="font-size: 14px">{{g.name}}</strong><span style="font-size: 12px; color: #C4B5A0; text-align: center">{{g.styles}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin: 0; color: #C4B5A0">Fill height = keg level on the wall; = measured ounces over serving size during a pour.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Controls</h2>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 0; background: #D38D52; color: #1A120B; font-weight: 600">Save to TVs</button>
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 0; background: #2A221B; color: #F4EBDD">Secondary</button>
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 0; background: none; color: #E6A673">Quiet</button>
+      <button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 0; background: #3A1D17; color: #F2A08F">Delete keg</button>
+      <button type="button" style="height: 56px; padding: 0 24px; border-radius: 14px; border: 0; background: #D38D52; color: #1A120B; font-weight: 600; font-size: 18px">Touch 56</button>
+    </div>
+    <label style="display: flex; flex-direction: column; gap: 6px; max-width: 420px"><span>Beer name</span><input value="Citra Haze" style="height: 40px; border-radius: 10px; border: 1px solid #3A3027; background: #1F1914; color: #F4EBDD; padding: 0 12px; font: inherit"><span style="font-size: 12px; color: #C4B5A0">Shown on every wall and the menu.</span></label>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Run states (automations, notifications, jobs)</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+      <sc-for list="{{states}}" as="s" hint-placeholder-count="6">
+        <div style="display: flex; align-items: center; gap: 10px; background: #1F1914; border-radius: 10px; padding: 10px 12px">
+          <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="{{s.icon}}" fill="{{s.fill}}" stroke="{{s.stroke}}" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="color: {{s.ink}}">{{s.name}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin: 0; color: #C4B5A0">Every state has its own shape as well as its color, so it reads without color vision.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Real hardware vs. UI only</h2>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; justify-content: space-between; background: #1F1914; border-radius: 10px; padding: 12px 14px"><span>Kegtron SHOT-PRO-A · port 0</span><span style="color: #8FC27E">Receiving · 2 s ago</span></div>
+      <div style="display: flex; justify-content: space-between; background: #1F1914; border-radius: 10px; padding: 12px 14px"><span>Living room TV</span><span style="color: #C4B5A0">Asleep · reported by display agent</span></div>
+      <div style="display: flex; justify-content: space-between; border: 2px dashed #6B5C4C; border-radius: 10px; padding: 10px 12px"><span>Simulated pour on tap 1</span><span style="color: #E9AE55">Preview only · nothing recorded</span></div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 18px; font-weight: 600">Motion</h2>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <sc-for list="{{motion}}" as="m" hint-placeholder-count="5">
+        <div style="display: grid; grid-template-columns: 170px 110px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid #2B231C"><span>{{m.name}}</span><span style="font-variant-numeric: tabular-nums">{{m.t}}</span><span style="color: #C4B5A0">{{m.use}}</span></div>
+      </sc-for>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+var GL = { pint: 'M8 4 H52 L46 96 H14 Z', stange: 'M17 4 H43 V96 H17 Z', tulip: 'M14 4 C8 26 16 44 26 54 V84 L16 96 H44 L34 84 V54 C44 44 52 26 46 4 Z', weizen: 'M16 4 C10 28 24 52 18 72 L22 96 H38 L42 72 C36 52 50 28 44 4 Z', snifter: 'M12 8 C2 40 16 62 30 62 C44 62 58 40 48 8 Z M27 62 H33 V90 H44 V96 H16 V90 H27 Z' };
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      roles: [
+        ['Ground', '#15110D', '#F5F1EA'], ['Surface', '#1F1914', '#FFFFFF'], ['Surface raised', '#2A221B', '#EDE7DC'], ['Line', '#2B231C', '#DDD5C7'],
+        ['Ink', '#F4EBDD', '#1F1A14'], ['Ink secondary', '#C4B5A0', '#5A5044'], ['Ink tertiary', '#8E806D', '#7A6E60'], ['Accent copper', '#D38D52', '#A85A2A'],
+        ['Good', '#8FC27E', '#2F7A3A'], ['Caution', '#E9AE55', '#9A6110'], ['Problem', '#E2705B', '#B2392A'], ['Info', '#8FA9C2', '#35618C']
+      ].map(function (r) { return { name: r[0], dark: r[1], light: r[2] }; }),
+      srm: [[2,'#FBE58A'],[3,'#F9E06B'],[4,'#F5CF4A'],[6,'#EDBE35'],[8,'#E3A428'],[11,'#C97A22'],[16,'#A85A1C'],[22,'#8E2A22'],[30,'#4A1E0E'],[40,'#1E0D06']].map(function (s) { return { v: 'SRM ' + s[0], c: s[1] }; }),
+      glasses: [['pint','Shaker pint','IPA, pale, porter','#F5CF4A',0.7],['stange','Stange','Lager, kölsch, cider','#F9E06B',0.85],['tulip','Tulip','Belgian, sour, DIPA','#E3A428',0.6],['weizen','Weizen','Wheat, hefeweizen','#EDBE35',0.9],['snifter','Snifter','Barleywine, imperial stout','#4A1E0E',0.5]].map(function (g) {
+        var y = 96 - g[4] * 90; return { id: g[0], name: g[1], styles: g[2], c: g[3], path: GL[g[0]], y: y, fy: y - 4 };
+      }),
+      states: [
+        ['Enabled', 'M10 3a7 7 0 1 0 0.01 0Z', '#8FC27E', '#8FC27E', '#F4EBDD'],
+        ['Disabled', 'M10 3a7 7 0 1 0 0.01 0Z', 'none', '#8E806D', '#C4B5A0'],
+        ['Pending', 'M10 3a7 7 0 1 0 0.01 0Z M10 6 V10 L13 12', 'none', '#8FA9C2', '#F4EBDD'],
+        ['Executing', 'M10 3 A7 7 0 1 1 3 10', 'none', '#E9AE55', '#F4EBDD'],
+        ['Completed', 'M4 10 L8.5 14 L16 5', 'none', '#8FC27E', '#F4EBDD'],
+        ['Failed', 'M5 5 L15 15 M15 5 L5 15', 'none', '#E2705B', '#F2A08F']
+      ].map(function (s) { return { name: s[0], icon: s[1], fill: s[2], stroke: s[3], ink: s[4] }; }),
+      motion: [
+        ['Press', '120 ms', 'scale 0.97, ease-out; every button and tile'],
+        ['Sheet / dialog', '240 ms', 'ease-drawer cubic-bezier(0.32, 0.72, 0, 1); exit 160 ms'],
+        ['Takeover in', '320 ms', 'opacity + translate; one-shot, then still'],
+        ['Liquid level', 'per WS frame', 'transform: scaleY on the liquid, no layout'],
+        ['Reduced motion', 'opacity only', 'no travel; counters still update']
+      ].map(function (m) { return { name: m[0], t: m[1], use: m[2] }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Beers</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 480px; }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 26px; }
+  .search { flex: 0 1 420px; }
+  .lib { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+  .bc { background: var(--raise); border-radius: 12px; padding: 16px; display: flex; gap: 14px; align-items: center; min-width: 0; }
+  .bc.sel { box-shadow: inset 0 0 0 2px var(--ink); }
+  .bc .nm { font-family: var(--display); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1.05; }
+  .bc .sub { font-size: 14px; color: var(--ink-3); }
+  .bc .where { font-size: 14px; margin-top: 4px; }
+  .ed { background: var(--raise); padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; box-shadow: -1px 0 0 var(--line); }
+  .ed h2 { margin: 0; font-size: 28px; font-weight: 700; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .srm { height: 16px; border-radius: 8px; background: linear-gradient(to right, #FBE58A, #F5CF4A, #E3A428, #C4701F, #8E2621, #4A1D0C, #1E0D06); position: relative; }
+  .srm i { position: absolute; top: -6px; left: 51%; width: 6px; height: 28px; border-radius: 3px; background: var(--ink); box-shadow: 0 0 0 2px var(--raise); }
+  .prev { display: flex; gap: 14px; align-items: center; background: var(--raise-2); border-radius: 10px; padding: 12px; }
+  .drop { border: 2px dashed #4A443C; border-radius: 10px; padding: 14px; color: var(--ink-3); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap" style="max-width:none;padding-bottom:0;box-shadow:0 1px 0 var(--line)" id="n"></div>
+<div class="page"><div class="wrap" style="max-width:none" id="m"></div><aside class="ed" id="e"></aside></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  document.getElementById('n').innerHTML = topNav('Beers');
+  const extra = [{ name: 'Harvest Märzen', brewery: 'Garage Brewing', style: 'Märzen', srm: '#B3661E', initials: 'HM', deck: true }, { name: 'Dark Matter', brewery: 'Garage Brewing', style: 'Schwarzbier', srm: '#1E0D06', initials: 'DM' }, { name: 'Pils of Steel', brewery: 'Garage Brewing', style: 'German Pils', srm: '#F9E06B', initials: 'PS' }];
+  const card = (t, sel) => `<div class="bc ${sel ? 'sel' : ''}">${marker(t, 56)}<div style="min-width:0"><div class="nm ell">${esc(t.name)}</div><div class="sub ell">${esc(t.style)} · ${esc(t.brewery)}</div>
+    <div class="where">${t.n ? (t.kicked ? '<span style="color:var(--ink-3)">Kicked on tap 12</span>' : `On tap ${t.n}`) : t.deck ? '<span style="color:var(--info)">On deck</span>' : '<span style="color:var(--ink-3)">In the library</span>'}</div></div></div>`;
+  document.getElementById('m').innerHTML = `
+    ${pageHead({ title: 'Fifteen beers. Eleven on tap, one waiting in the cellar.', sub: "Three beers have no color set yet, so their markers use the style's usual color." })}
+    <div class="bar"><div class="field search"><div class="in" style="color:var(--ink-3)">Search beers, breweries, styles</div></div>
+      <div style="display:flex;gap:10px"><div class="tabs"><span class="on">All</span><span>On tap</span><span>Library</span></div><a class="btn s" href="#">Import from catalog</a><a class="btn p" href="#">Add a beer</a></div></div>
+    <div class="lib">${TAPS.map((t) => card(t, t.n === 6)).join('')}${extra.map((t) => card(t)).join('')}</div>`;
+  const k = TAPS[5];
+  document.getElementById('e').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2>Kriek Reserve</h2><a class="btn q" href="#">Close</a></div>
+    <div class="prev">${marker(k, 64)}<div><b>How it shows on screens</b><div style="font-size:14px;color:var(--ink-3)">The marker is made from the color and name. Add label art to use that instead.</div></div></div>
+    <div class="field"><label>Name</label><div class="in">Kriek Reserve</div></div>
+    <div class="g2"><div class="field"><label>Brewery</label><div class="in">Wild Cellar</div></div><div class="field"><label>Style</label><div class="in">Fruited Sour</div></div></div>
+    <div class="g3"><div class="field"><label>ABV</label><div class="in num">6.0 %</div></div><div class="field"><label>IBU</label><div class="in num">10</div></div><div class="field"><label>Color (SRM)</label><div class="in num">22</div></div></div>
+    <div class="srm" aria-label="SRM 22"><i></i></div>
+    <div class="field"><label>Description</label><div class="in" style="height:76px;align-items:flex-start;padding-top:12px">Tart cherry, oak and a little funk.</div><span class="help">Shown on the phone menu and the Zen and Editorial looks.</span></div>
+    <div class="field"><label>Label art <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><div class="drop">Drop an image, or leave it empty and Kegwall uses the marker.</div></div>
+    <div class="field"><label>Price per pint</label><div class="in num">$7.25 <span style="color:var(--ink-3)">from Settings › Pricing</span></div></div>
+    <div style="display:flex;gap:10px;margin-top:4px"><a class="btn p" href="#">Save beer</a><a class="btn q" href="#">Archive</a></div>`;
+</script>
+</body>
+</html>

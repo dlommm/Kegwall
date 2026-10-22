@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · menus</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  body { height: 900px; overflow: hidden; }
+  .dim { opacity: 0.32; pointer-events: none; }
+  .ghost h1 { margin: 34px 0 0; font-size: 60px; line-height: 1.04; font-weight: 700; max-width: 780px; }
+  .ghost p { font-size: 20px; color: var(--ink-2); max-width: 700px; }
+  .palette { position: absolute; left: 50%; top: 300px; transform: translateX(-50%); width: 640px; padding: 0; overflow: hidden; }
+  .palette .q { height: 60px; display: flex; align-items: center; padding: 0 20px; font-size: 20px; box-shadow: 0 1px 0 #34302A; gap: 12px; }
+  .palette .q span { color: var(--ink-3); }
+  .palette .mi { margin: 0 8px; }
+  .palette .grp { padding: 10px 20px 4px; font-size: 13px; color: var(--ink-3); }
+  .palette .foot { display: flex; gap: 18px; padding: 10px 20px; font-size: 13px; color: var(--ink-3); box-shadow: 0 -1px 0 #34302A; margin-top: 6px; }
+  .lbl { position: absolute; font-size: 13px; font-weight: 700; color: #111; background: var(--caution); padding: 3px 8px; border-radius: 5px; z-index: 6; }
+</style>
+</head>
+<body>
+<div class="wrap" style="position:relative" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  const k = TAPS[5];
+  document.getElementById('app').innerHTML = `${topNav('Screens')}
+    <div class="dim ghost"><h1>Eleven on tap. Two kegs need a swap before the weekend.</h1><p>Midnight Oats on tap 4 has about a pint left and Old Thunder on tap 11 about three.</p></div>
+    <span class="lbl" style="left:460px;top:62px">Screens menu</span>
+    <div class="pop" style="left:480px;top:70px;width:330px">
+      <div class="hd">Walls</div>
+      <div class="mi on"><span>Main wall</span><small>Just Tapped · 2 TVs</small></div>
+      <div class="mi"><span>Patio wall</span><small>Tap Handles · asleep</small></div>
+      <div class="mi"><span style="color:var(--ink-2)">+ Add a wall</span></div><hr>
+      <div class="mi"><span>Displays and pairing</span><small>3 paired</small></div>
+      <div class="mi"><span>Presence and screen power</span><small>2 motion sensors</small></div>
+      <div class="mi"><span>Tablet kiosk</span><small>Bar tablet</small></div>
+      <div class="mi"><span>Games on the wall</span><small>100 games</small></div>
+    </div>
+    <span class="lbl" style="left:880px;top:62px">Notifications</span>
+    <div class="pop" style="right:268px;top:70px;width:340px">
+      <div class="hd">New</div>
+      <div class="mi on" style="align-items:flex-start;padding-block:10px"><span><b>Kegtron cloud stopped answering</b><br><small>6:12 PM · UDP still covers every tap</small></span></div>
+      <div class="mi" style="align-items:flex-start;padding-block:10px"><span><b>Old Thunder dropped below 15%</b><br><small>7:58 PM · about 3 pints left</small></span></div>
+      <div class="mi" style="align-items:flex-start;padding-block:10px"><span><b>A push to your phone failed</b><br><small>6:14 PM · reconnect it in Notifications</small></span></div><hr>
+      <div class="mi"><span>See all notifications</span><small>Mark all read</small></div>
+    </div>
+    <span class="lbl" style="left:1230px;top:62px">Account</span>
+    <div class="pop" style="right:44px;top:70px;width:220px">
+      <div class="mi"><span><b>Owner</b><br><small>Admin</small></span></div><hr>
+      <div class="mi"><span>Your profile and passport</span></div>
+      <div class="mi"><span>Sign out</span></div>
+    </div>
+    <span class="lbl" style="left:420px;top:280px">Ctrl K anywhere</span>
+    <div class="pop palette">
+      <div class="q">kri<span>— beers, taps, kegs, people, settings, actions</span></div>
+      <div class="grp">Beers and taps</div>
+      <div class="mi on"><span style="display:flex;gap:12px;align-items:center">${marker(k, 30)}Kriek Reserve</span><small>On tap 6 · 12 pints left</small></div>
+      <div class="grp">Actions</div>
+      <div class="mi"><span>Swap the keg on tap 6</span><small>Taps &amp; kegs</small></div>
+      <div class="mi"><span>Put Kriek Reserve in the spotlight</span><small>Main wall</small></div>
+      <div class="mi"><span>Edit Kriek Reserve</span><small>Beers</small></div>
+      <div class="foot"><span>↑↓ to move</span><span>Enter to open</span><span>Esc to close</span></div>
+    </div>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400..900&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+:root { --wall: #161412; --ink: #F5F1EA; --ink-2: #B7AFA3; --steel: #A3A8AD; --steel-d: #6E7378; --caution: #F4B740; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; }
+.d { font-family: 'Anybody', sans-serif; font-stretch: 62%; font-weight: 850; text-transform: uppercase; }
+.num { font-variant-numeric: tabular-nums; }
+.handle { display: flex; flex-direction: column; align-items: center; transform-origin: 50% 100%; }
+.handle .body { width: 100%; flex: 1; border-radius: 999px 999px 14px 14px; padding: 46px 16px 22px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; min-height: 0; }
+.handle .tapn { font-size: 26px; opacity: 0.75; }
+.handle h2 { margin: 0; line-height: 0.9; hyphens: auto; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.handle .abv { margin-top: auto; line-height: 0.9; }
+.handle .glass { flex: none; width: 50%; border-radius: 14px; background: #100E0C; border: 7px solid #100E0C; position: relative; overflow: hidden; box-shadow: 0 0 0 3px rgba(255,255,255,0.55); }
+.handle .glass i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px; background: var(--beer); box-shadow: 0 -6px 0 #F4ECD8; }
+.handle .ferrule { width: 54%; height: 26px; background: var(--steel); }
+.handle .shank { width: 22%; height: 34px; background: var(--steel-d); border-radius: 0 0 8px 8px; }
+.handle.pouring { transform: perspective(900px) rotateX(16deg); }
+.handle.pouring .body { box-shadow: 0 0 0 5px #F5F1EA; }
+.handle.kicked .body { background: #2A2723 !important; color: #8C857A !important; }

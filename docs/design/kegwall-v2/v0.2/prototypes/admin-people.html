@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · People</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+  .p { background: var(--raise); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .p .av { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 20px; color: #14110D; }
+  .p b { font-size: 19px; }
+  .p .row { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-3); }
+  .p .fav { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .acc { margin-top: 44px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  const P = [['Jordan', '#A994E6', 29, 3.2, 5, true], ['Mo', '#69C2B6', 22, 2.3, 6, false], ['Sam', '#8CC08C', 20, 2.2, 1, true], ['Dan', '#E0B266', 18, 1.9, 9, false], ['Priya', '#E08AA6', 17, 1.8, 3, true], ['Alex Rivera', '#7FA2E0', 15, 1.6, 1, false], ['Owner', '#C9B79C', 0, 0, null, false]];
+  document.getElementById('app').innerHTML = `${topNav('People')}
+    ${pageHead({ title: 'Seven pourers this month. Jordan leads with 3.2 gallons.', sub: 'Pourers sign in on the tablet or claim pours on their phone. No email or password needed.', actions: '<a class="btn s" href="#">Show the join QR</a><a class="btn p" href="#">Add a pourer</a>' })}
+    ${subTabs(SUB.People, 'Pourers')}
+    <div class="grid">${P.map(([n, c, pours, gal, fav, face]) => { const t = fav ? TAPS[fav - 1] : null; return `<div class="p">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="av" style="background:${c}">${n.split(' ').map((w) => w[0]).join('')}</span>${face ? '<span class="sub">Face sign-in on</span>' : ''}</div>
+      <b>${n}</b><div class="row num"><span>${pours} pours</span><span>${gal} gal this month</span></div>
+      ${t ? `<div class="fav">${marker(t, 24)}<span class="ell">Mostly ${esc(t.name)}</span></div>` : '<span class="sub">No pours yet</span>'}</div>`; }).join('')}</div>
+    <section class="acc"><h2 class="sec" style="font-size:28px">Accounts that can sign in to admin</h2>
+      <table class="t"><thead><tr><th>Name</th><th>Can</th><th>Last signed in</th><th></th></tr></thead><tbody>
+        <tr><td><b>Owner</b><div class="sub">owner</div></td><td>Everything, including costs</td><td class="num">Now</td><td class="r"><a class="btn q" href="#">Edit</a></td></tr>
+        <tr><td><b>Casey</b><div class="sub">casey · bartender</div></td><td>Run taps, beers and walls. No costs or settings</td><td class="num">Yesterday</td><td class="r"><a class="btn q" href="#">Edit</a></td></tr>
+      </tbody></table><a class="btn s" href="#" style="margin-top:14px">Invite someone</a></section>`;
+</script>
+</body>
+</html>

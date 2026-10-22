@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Sign in and first run</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  body { height: 900px; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; }
+  .side { padding: 72px 80px; display: flex; flex-direction: column; gap: 22px; }
+  .side + .side { background: var(--raise); }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 30px; text-transform: uppercase; }
+  h1 { margin: 40px 0 0; font-size: 48px; line-height: 1.05; font-weight: 700; }
+  form { display: flex; flex-direction: column; gap: 16px; max-width: 460px; }
+  .steps { display: flex; gap: 8px; }
+  .steps span { flex: 1; height: 6px; border-radius: 3px; background: #3A352F; }
+  .steps span.on { background: var(--ink); }
+  .found { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
+  .found div { display: flex; justify-content: space-between; align-items: center; background: var(--raise-2); border-radius: 10px; padding: 12px 14px; }
+</style>
+</head>
+<body>
+<section class="side"><span class="brand">Garage Brewing Co.</span><h1>Sign in to run the taproom.</h1>
+  <form onsubmit="return false"><div class="field"><label for="u">Username</label><div class="in" id="u">owner</div></div>
+    <div class="field"><label for="p">Password</label><div class="in" id="p">••••••••••</div></div>
+    <a class="btn p" href="#" style="justify-content:center;height:52px">Sign in</a>
+    <span class="sub">Pourers don't need an account. They use the tablet or the QR on the wall.</span></form></section>
+<section class="side"><span class="sub">First-run setup · step 2 of 4</span><div class="steps"><span class="on"></span><span class="on"></span><span></span><span></span></div>
+  <h1 style="margin-top:10px">Kegwall found four Kegtron monitors on your network.</h1>
+  <p class="sub" style="font-size:18px;margin:0">Give each port a tap number. You can change this later in Taps &amp; kegs › Monitors.</p>
+  <div class="found"><div><span>Pro A · port 0 → Tap 1</span><span style="color:var(--good);font-weight:700">● sending</span></div><div><span>Pro A · port 1 → Tap 2</span><span style="color:var(--good);font-weight:700">● sending</span></div><div><span>Pro A · port 2 → Tap 3</span><span style="color:var(--good);font-weight:700">● sending</span></div><div><span>Pro B · port 0 → Tap 4</span><span style="color:var(--good);font-weight:700">● sending</span></div><div><span class="sub">+ 8 more ports on Pro B, C and D</span></div></div>
+  <div style="display:flex;gap:10px"><a class="btn p" href="#">Next: add your beers</a><a class="btn q" href="#">Back</a></div></section>
+<script src="data.js"></script>
+</body>
+</html>

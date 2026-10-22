@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wall Editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#110D0A}
+a{color:#E6A673;text-decoration:none}a:hover{color:#F2BE91}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid #E6A673;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; background: #110D0A; color: #F1E8DA; font-family: Inter, system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; overflow: hidden">
+  <header style="height: 60px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 16px">
+    <a href="#" style="color: #D8CCBA">Walls</a><span style="color: #5F5345">/</span>
+    <strong style="font-size: 16px">Main wall</strong><span style="color: #A89A86">/wall/main</span>
+    <span style="flex: 1"></span>
+    <span style="display: flex; align-items: center; gap: 8px; color: #E9AE55"><span style="width: 8px; height: 8px; border-radius: 50%; background: #E9AE55"></span>{{dirtyLabel}}</span>
+    <button type="button" onClick="{{revert}}" style="height: 40px; padding: 0 14px; border-radius: 10px; border: 0; background: #221B15; color: #F1E8DA">Revert</button>
+    <button type="button" style="height: 40px; padding: 0 14px; border-radius: 10px; border: 0; background: #221B15; color: #F1E8DA">Simulate a pour</button>
+    <button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 0; background: #D38D52; color: #1A120B; font-weight: 600">Save to TVs</button>
+  </header>
+  <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 208px minmax(0, 1fr) 368px; gap: 8px; padding: 0 8px 8px">
+    <nav aria-label="Editor sections" style="display: flex; flex-direction: column; gap: 2px; padding-top: 6px">
+      <sc-for list="{{sections}}" as="s" hint-placeholder-count="8">
+        <button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="{{s.style}}"><span>{{s.label}}</span><span style="color: #E9AE55">{{s.mark}}</span></button>
+      </sc-for>
+    </nav>
+
+    <section aria-label="Live preview" style="background: #1A1511; border: 1px solid #2B231C; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <div role="group" aria-label="Preview size" style="display: flex; gap: 4px; background: #221B15; border-radius: 10px; padding: 3px">
+          <button type="button" style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: #3A2F25; color: #F1E8DA">Fit</button>
+          <button type="button" style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: #D8CCBA">100%</button>
+        </div>
+        <span style="color: #A89A86">1080p · 55 in · UI scale 1.0 · page 1 of 2</span>
+      </div>
+      <div style="flex: 1; display: grid; place-items: center; background: #0C0907; border-radius: 12px; min-height: 0">
+        <div style="width: 728px; height: 410px; background: {{th.bg}}; color: {{th.ink}}; border-radius: 6px; padding: 16px 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><strong style="font-family: 'Barlow Condensed', sans-serif; font-size: 22px">Garage Brewing Co.</strong><span style="font-size: 12px; opacity: 0.7">{{lookName}} · {{th.name}}</span></div>
+          <sc-if value="{{isGrid}}" hint-placeholder-val="{{true}}">
+            <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px">
+              <sc-for list="{{mini}}" as="m" hint-placeholder-count="8">
+                <div style="background: {{th.surface}}; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0">
+                  <div style="width: 22px; height: 34px; border-radius: 3px; background: {{th.track}}; position: relative; overflow: hidden"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{m.pct}}; background: {{m.srm}}"></div></div>
+                  <strong style="font-family: 'Barlow Condensed', sans-serif; font-size: 15px; line-height: 1; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{m.name}}</strong>
+                  <span style="font-size: 10px; opacity: 0.7">{{m.abv}} · {{m.pct}} left</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{isRows}}" hint-placeholder-val="{{false}}">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px">
+              <sc-for list="{{mini}}" as="m" hint-placeholder-count="8">
+                <div style="flex: 1; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid {{th.track}}">
+                  <span style="width: 14px; font-size: 12px; opacity: 0.6">{{m.n}}</span>
+                  <span style="width: 10px; height: 10px; border-radius: 50%; background: {{m.srm}}"></span>
+                  <strong style="flex: 1; font-family: {{lookFont}}; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{m.name}}</strong>
+                  <span style="font-size: 12px">{{m.abv}}</span><span style="width: 40px; text-align: right; font-size: 12px; opacity: 0.7">{{m.pct}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{isCols}}" hint-placeholder-val="{{false}}">
+            <div style="flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px">
+              <sc-for list="{{mini}}" as="m" hint-placeholder-count="8">
+                <div style="background: {{th.surface}}; border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; min-width: 0">
+                  <strong style="font-family: 'Barlow Condensed', sans-serif; font-size: 13px; line-height: 1; text-transform: uppercase; padding: 6px; height: 40px; overflow: hidden">{{m.name}}</strong>
+                  <div style="flex: 1; position: relative; margin: 0 4px 4px; background: {{th.track}}; border-radius: 4px; overflow: hidden"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{m.pct}}; background: {{m.srm}}"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      <p style="margin: 0; color: #A89A86">Live taps from this wall's monitors. TVs keep showing the saved version until you press Save to TVs.</p>
+    </section>
+
+    <aside aria-label="Inspector" style="background: #1A1511; border: 1px solid #2B231C; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow: auto">
+      <sc-if value="{{secLook}}" hint-placeholder-val="{{true}}">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 600">Look</h2>
+        <p style="margin: 0; color: #A89A86">The layout of the whole screen. Colors come from the theme.</p>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{looks}}" as="l" hint-placeholder-count="12">
+            <button type="button" onClick="{{l.pick}}" aria-pressed="{{l.on}}" style="{{l.style}}">
+              <span style="height: 58px; border-radius: 6px; background: #0C0907; display: grid; grid-template-columns: {{l.thumbCols}}; gap: 3px; padding: 6px; box-sizing: border-box">
+                <sc-for list="{{l.cells}}" as="c" hint-placeholder-count="8"><span style="background: {{c}}; border-radius: 2px"></span></sc-for>
+              </span>
+              <span style="text-align: left">{{l.name}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{secTheme}}" hint-placeholder-val="{{false}}">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 600">Theme and color</h2>
+        <p style="margin: 0; color: #A89A86">Ground, surfaces, ink and accent. Beer colors always come from each beer's SRM.</p>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <sc-for list="{{themes}}" as="t" hint-placeholder-count="11">
+            <button type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="{{t.style}}">
+              <span style="display: flex; gap: 3px"><span style="width: 22px; height: 22px; border-radius: 6px; background: {{t.bg}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15)"></span><span style="width: 22px; height: 22px; border-radius: 6px; background: {{t.surface}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15)"></span><span style="width: 22px; height: 22px; border-radius: 6px; background: {{t.accent}}"></span></span>
+              <span style="flex: 1; text-align: left">{{t.name}}</span><span style="color: #A89A86">{{t.tag}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <a href="#">Customize colors and fonts</a>
+      </sc-if>
+      <sc-if value="{{secPour}}" hint-placeholder-val="{{false}}">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 600">Pour takeover</h2>
+        <p style="margin: 0; color: #A89A86">What the TV does while a tap is pouring. Shows measured volume only.</p>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{takeovers}}" as="o" hint-placeholder-count="6">
+            <button type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="{{o.style}}"><strong style="font-weight: 600">{{o.name}}</strong><span style="color: #A89A86; font-size: 13px; text-align: left">{{o.desc}}</span></button>
+          </sc-for>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 8px">Start after <strong style="font-variant-numeric: tabular-nums">2.0 oz (60 mL)</strong><input type="range" min="0" max="300" value="60" style="accent-color: #D38D52"></label>
+      </sc-if>
+      <sc-if value="{{secOther}}" hint-placeholder-val="{{false}}">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 600">{{sectionLabel}}</h2>
+        <sc-for list="{{fields}}" as="f" hint-placeholder-count="4">
+          <div style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid #2B231C"><span>{{f.k}}</span><span style="color: #A89A86; text-align: right">{{f.v}}</span></div>
+        </sc-for>
+      </sc-if>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+var SECTIONS = [['look','Look'],['theme','Theme and color'],['content','Content'],['layout','Layout and pages'],['pour','Pour takeover'],['rotation','Rotation and screensaver'],['display','Display fit'],['css','Advanced CSS']];
+var FIELDS = {
+  content: [['Title','Garage Brewing Co.'],['Subtitle','Fresh pours nightly'],['Ticker','Trivia night Thursday · …'],['Card fields','Brewery, style, ABV, IBU, level'],['QR code','Shown, bottom right'],['Clock and temperature','Shown']],
+  layout: [['Taps on this wall','12 from 4 monitors'],['Pages','2 · 8 + 4 taps'],['Columns','Auto (4 at 8 taps)'],['Fill indicator','Glass by style'],['Card template','Standard']],
+  rotation: [['Rotate pages','Every 15 s, crossfade'],['Leaderboard view','10 s, on'],['Screensaver after','10 min idle'],['Screen off after','30 min idle'],['Live pour','Always interrupts']],
+  display: [['Resolution','1080p'],['Screen size','55 in'],['Recommended scale','1.0 (10 ft)'],['UI scale','1.0'],['Safe area','2% overscan inset']],
+  css: [['Custom CSS','Off · 0 rules'],['Applies to','This wall only'],['Validated','Parsed before saving; errors shown inline']]
+};
+var LOOKS = [['classic','Taproom cards','grid'],['ledger','Ledger','rows'],['gallery','Gallery','grid'],['columns','Columns','cols'],['chalkboard','Chalkboard','rows'],['editorial','Editorial','rows'],['neon','Neon','grid'],['terminal','Terminal','rows'],['poster','Poster','rows'],['departures','Departures','rows'],['zen','Zen','rows'],['flow','Flow (new)','cols']];
+var THEMES = [
+  ['cellar','Cellar','#15110D','#1F1914','#F4EBDD','#D38D52','#2B231C','New default'],
+  ['midnight-slate','Midnight Slate','#0F1216','#1A1F25','#E9EDF1','#D08C4C','#262C33',''],
+  ['cream','Cream','#F3EEE4','#FFFFFF','#2A241D','#B8693A','#E3DCCF','Light'],
+  ['cellar-teal','Cellar Teal','#0E1A1C','#15262A','#E6F0EF','#5FB3A6','#203337',''],
+  ['taproom-green','Taproom Green','#14201A','#1C2D24','#ECF1EA','#C9A44C','#263A2F',''],
+  ['amber-glow','Amber Glow','#1A120B','#271B11','#F6E9D6','#E09A3E','#33251A',''],
+  ['arcade','Arcade','#0B0820','#171236','#F2EEFF','#FF4FB6','#231C4A',''],
+  ['taproom','Taproom','#1A140F','#241C15','#F2E8DA','#C8963E','#30261D',''],
+  ['chalkboard','Chalkboard','#1F2622','#28302B','#F1F3EE','#E8D27A','#34403A',''],
+  ['bright','Bright','#FAFAF7','#FFFFFF','#16181B','#C4502F','#E6E6E0','Light'],
+  ['mono','Mono','#0B0B0B','#161616','#EDEDED','#EDEDED','#242424','']
+];
+var TAKEOVERS = [['off','Off','Pouring badge on the card only'],['full','Full','Whole screen: beer, live ounces, glass'],['spotlight','Spotlight','Pouring tap lifts, others dim'],['split','Split','Wall stays left, pour panel right'],['dock','Dock','Slim live bar along the bottom'],['fill','Fill','Screen fills in the beer color']];
+var MINI = [[1,'Citra Haze','6.8%',0.83,'#F5CF4A'],[2,'Vienna Nights','5.0%',0.5,'#C97A22'],[3,'Belgian Sun','9.1%',0.94,'#EDBE35'],[4,'Midnight Oats','5.6%',0.04,'#2A140B'],[5,'The Extraordinarily Long-Named Double Dry-Hopped IPA','8.4%',0.61,'#E3A428'],[6,'Kriek Reserve','6.0%',0.3,'#8E2A22'],[7,'Helles Yeah','4.8%',0.72,'#F9E06B'],[8,'Campfire Porter','6.2%',0.18,'#4A1E0E']];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { section: 'look', look: 'classic', theme: 'cellar', pour: 'full' }; }
+  renderVals() {
+    var self = this, s = this.state;
+    var changed = (s.look !== 'classic' ? 1 : 0) + (s.theme !== 'midnight-slate' ? 1 : 0) + (s.pour !== 'off' ? 1 : 0);
+    var btn = 'display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 0; text-align: left;';
+    var card = 'display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; color: #F1E8DA; min-height: 44px;';
+    var th = THEMES.filter(function (t) { return t[0] === s.theme; })[0];
+    var look = LOOKS.filter(function (l) { return l[0] === s.look; })[0];
+    var sec = SECTIONS.filter(function (x) { return x[0] === s.section; })[0];
+    var cellsFor = function (kind, on) {
+      var c = on ? '#D38D52' : '#4A3D31';
+      if (kind === 'grid') return { cols: 'repeat(4, minmax(0, 1fr))', cells: [c, c, c, c, c, c, c, c] };
+      if (kind === 'cols') return { cols: 'repeat(8, minmax(0, 1fr))', cells: [c, c, c, c, c, c, c, c] };
+      return { cols: '1fr', cells: [c, c, c, c, c] };
+    };
+    return {
+      dirtyLabel: changed ? changed + ' unsaved changes' : 'Saved',
+      revert: function () { self.setState({ look: 'classic', theme: 'midnight-slate', pour: 'off' }); },
+      sections: SECTIONS.map(function (x) {
+        var on = x[0] === s.section;
+        var mark = (x[0] === 'look' && s.look !== 'classic') || (x[0] === 'theme' && s.theme !== 'midnight-slate') || (x[0] === 'pour' && s.pour !== 'off') ? '•' : '';
+        return { label: x[1], mark: mark, on: on ? 'true' : 'false', pick: function () { self.setState({ section: x[0] }); },
+          style: btn + (on ? 'background: #2A221B; color: #F1E8DA; font-weight: 600;' : 'background: none; color: #D8CCBA;') };
+      }),
+      secLook: s.section === 'look', secTheme: s.section === 'theme', secPour: s.section === 'pour',
+      secOther: ['look', 'theme', 'pour'].indexOf(s.section) < 0,
+      sectionLabel: sec[1], fields: (FIELDS[s.section] || []).map(function (f) { return { k: f[0], v: f[1] }; }),
+      looks: LOOKS.map(function (l) {
+        var on = l[0] === s.look, t = cellsFor(l[2], on);
+        return { name: l[1], on: on ? 'true' : 'false', cells: t.cells, thumbCols: t.cols, pick: function () { self.setState({ look: l[0] }); },
+          style: card + 'border: 0; ' + (on ? 'background: #2E2219; box-shadow: inset 0 0 0 2px #D38D52;' : 'background: #221B15;') };
+      }),
+      themes: THEMES.map(function (t) {
+        var on = t[0] === s.theme;
+        return { name: t[1], bg: t[2], surface: t[3], accent: t[5], tag: t[7], on: on ? 'true' : 'false', pick: function () { self.setState({ theme: t[0] }); },
+          style: btn + 'gap: 12px; color: #F1E8DA; ' + (on ? 'background: #2E2219; box-shadow: inset 0 0 0 2px #D38D52;' : 'background: #221B15;') };
+      }),
+      takeovers: TAKEOVERS.map(function (o) {
+        var on = o[0] === s.pour;
+        return { name: o[1], desc: o[2], on: on ? 'true' : 'false', pick: function () { self.setState({ pour: o[0] }); },
+          style: card + 'border: 0; align-items: flex-start; padding: 12px; ' + (on ? 'background: #2E2219; box-shadow: inset 0 0 0 2px #D38D52;' : 'background: #221B15;') };
+      }),
+      th: { bg: th[2], surface: th[3], ink: th[4], track: th[6], name: th[1] },
+      lookName: look[1], isGrid: look[2] === 'grid', isRows: look[2] === 'rows', isCols: look[2] === 'cols',
+      lookFont: s.look === 'editorial' ? "'Playfair Display', serif" : (s.look === 'chalkboard' ? 'Caveat, cursive' : (s.look === 'terminal' || s.look === 'departures' ? "'IBM Plex Mono', monospace" : "'Barlow Condensed', sans-serif")),
+      mini: MINI.map(function (m) { return { n: m[0], name: m[1], abv: m[2], pct: Math.round(m[3] * 100) + '%', srm: m[4] }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

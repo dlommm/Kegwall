@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · Tap Handles — TV wall</title>
+<link rel="stylesheet" href="b.css">
+<style>
+  .stage { width: 1920px; height: 1080px; display: flex; flex-direction: column; padding: 40px 56px 0; overflow: hidden; }
+  header { display: flex; justify-content: space-between; align-items: baseline; }
+  header h1 { margin: 0; font-size: 58px; line-height: 1; }
+  header span { font-size: 28px; color: var(--ink-2); }
+  .row { flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 22px; padding: 44px 6px 0; min-height: 0; }
+  .handle h2 { font-size: 46px; }
+  .handle .st { font-size: 19px; opacity: 0.8; line-height: 1.25; }
+  .handle .abv { font-size: 76px; }
+  .handle .glass { height: 250px; }
+  .handle .br { font-size: 18px; opacity: 0.75; line-height: 1.25; }
+  .handle .left { font-size: 20px; font-weight: 700; }
+  .live { position: absolute; transform: translate(-30px, -64px); font-size: 40px; }
+  .tray { height: 92px; margin: 0 -56px; background: #2D3134; display: flex; align-items: center; justify-content: space-between; padding: 0 56px; }
+  .tray p { margin: 0; font-size: 26px; color: #D8DCDF; }
+  .dots { display: flex; gap: 10px; } .dots i { width: 14px; height: 14px; border-radius: 50%; background: #5B6166; } .dots i.on { background: #F5F1EA; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script src="data.js"></script>
+<script>
+  const shown = TAPS.slice(0, 8);
+  const handle = (t) => {
+    const pouring = t.n === 2;
+    const ink = inkOn(t.srm);
+    return `<div class="handle ${pouring ? 'pouring' : ''}" style="--beer:${t.srm}">
+      <div class="body" style="background:${t.srm};color:${ink}">
+        <span class="tapn d num">Tap ${t.n}</span>
+        <h2 class="d" style="font-size:${t.name.length > 22 ? 34 : 46}px">${esc(t.name)}</h2>
+        <span class="st">${esc(t.style)}</span>
+        <span class="br">${esc(t.brewery)}</span><span class="abv d num">${t.abv}%</span><span class="br num">${t.ibu ?? '—'} IBU</span>
+        <div class="glass"><i style="height:${t.pct}%"></i></div>
+        <span class="left num" style="color:${t.low ? (ink === '#14110D' ? '#7A2E00' : '#FFC35A') : ink}">${pouring ? 'Pouring · 6.2 oz' : t.low ? `Last ${t.pints === 1 ? 'pint' : t.pints + ' pints'}` : `${t.pints} pints left`}</span>
+      </div>
+      <div class="ferrule"></div><div class="shank"></div>
+    </div>`;
+  };
+  document.getElementById('stage').innerHTML = `
+    <header><h1 class="d">Garage Brewing Co.</h1><span class="num">8:42 PM · 38°F · taps 1–8 of 12</span></header>
+    <div class="row">${shown.map(handle).join('')}</div>
+    <div class="tray"><p>Vienna Nights is pouring on tap 2 · Kriek Reserve just tapped · Scan the QR for the menu</p><span class="dots"><i class="on"></i><i></i></span></div>`;
+</script>
+</body>
+</html>

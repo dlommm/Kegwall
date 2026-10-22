@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TV wall — 12 taps</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#D38D52}a:hover{color:#E6A673}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; padding: 48px 64px 40px; background: #15110D; color: #F4EBDD; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+  <header style="display: flex; justify-content: space-between; align-items: baseline">
+    <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 52px; line-height: 1">Garage Brewing Co. <span style="color: #C4B5A0; font-weight: 500">· 11 on tap</span></h1>
+    <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 48px; font-variant-numeric: tabular-nums">38°F · 2:22 PM</span>
+  </header>
+  <main style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); grid-auto-flow: column; column-gap: 32px; row-gap: 12px; min-height: 0">
+    <sc-for list="{{taps}}" as="t" hint-placeholder-count="12">
+      <article style="background: {{t.bg}}; border-radius: 16px; padding: 0 28px 0 20px; display: grid; grid-template-columns: 52px 56px minmax(0, 1fr) 120px 150px; column-gap: 20px; align-items: center; min-width: 0">
+        <svg viewBox="0 0 60 100" width="46" height="70" aria-hidden="true">
+          <defs><clipPath id="w12{{t.n}}"><path d="{{t.path}}"></path></clipPath></defs>
+          <path d="{{t.path}}" fill="rgba(244,235,221,0.05)"></path>
+          <g clip-path="url(#w12{{t.n}})"><rect x="0" y="{{t.liqY}}" width="60" height="100" fill="{{t.srm}}"></rect></g>
+          <path d="{{t.path}}" fill="none" stroke="rgba(244,235,221,0.42)" stroke-width="3"></path>
+        </svg>
+        <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 48px; color: #8E806D; font-variant-numeric: tabular-nums; text-align: right">{{t.n}}</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+          <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 40px; line-height: 1; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{t.nameInk}}">{{t.name}}</h2>
+          <p style="margin: 0; font-size: 21px; color: #C4B5A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.meta}}</p>
+        </div>
+        <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 40px; text-align: right; font-variant-numeric: tabular-nums">{{t.abv}}</span>
+        <span style="font-size: 22px; text-align: right; color: {{t.levelInk}}; font-variant-numeric: tabular-nums">{{t.level}}</span>
+      </article>
+    </sc-for>
+  </main>
+  <footer style="display: flex; justify-content: space-between; align-items: center">
+    <p style="margin: 0; font-size: 24px; color: #C4B5A0">Trivia night Thursday · Happy hour 4–6 pm</p>
+    <p style="margin: 0; font-size: 22px">Scan the QR for the full menu <span style="color: #D38D52">and claim your pour</span></p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+var GLASS = { pint: 'M8 4 H52 L46 96 H14 Z', tulip: 'M14 4 C8 26 16 44 26 54 V84 L16 96 H44 L34 84 V54 C44 44 52 26 46 4 Z', stange: 'M17 4 H43 V96 H17 Z', weizen: 'M16 4 C10 28 24 52 18 72 L22 96 H38 L42 72 C36 52 50 28 44 4 Z' };
+var TAPS = [
+  [1, 'Citra Haze', 'Garage Brewing · Hazy IPA', '6.8%', 0.83, '#F5CF4A', 'pint'],
+  [2, 'Vienna Nights', 'Garage Brewing · Vienna Lager', '5.0%', 0.50, '#C97A22', 'stange'],
+  [3, 'Belgian Sun', 'Abbey Road Ales · Belgian Tripel', '9.1%', 0.94, '#EDBE35', 'tulip'],
+  [4, 'Midnight Oats', 'Garage Brewing · Oatmeal Stout', '5.6%', 0.04, '#2A140B', 'pint'],
+  [5, 'The Extraordinarily Long-Named Double Dry-Hopped Imperial West Coast IPA', 'Bottle Logic Brewing & Fermentation Laboratory · Double IPA', '8.4%', 0.61, '#E3A428', 'tulip'],
+  [6, 'Kriek Reserve', 'Wild Cellar · Fruited Sour', '6.0%', 0.30, '#8E2A22', 'tulip'],
+  [7, 'Helles Yeah', 'Garage Brewing · Munich Helles', '4.8%', 0.72, '#F9E06B', 'stange'],
+  [8, 'Campfire Porter', 'Smokestack · Smoked Porter', '6.2%', 0.18, '#4A1E0E', 'pint'],
+  [9, 'Weiss Guy', 'Garage Brewing · Hefeweizen', '5.2%', 1.0, '#F5CF4A', 'weizen'],
+  [10, 'Orchard Dry', 'Hillside Cider · Cider', '6.5%', 0.40, '#EBC872', 'stange'],
+  [11, 'Old Thunder', 'Garage Brewing · English Barleywine', '11.5%', 0.09, '#9B4A1A', 'tulip'],
+  [12, 'Gourd Times', 'Garage Brewing · Pumpkin Ale', '5.5%', 0, '#B5651D', 'pint']
+];
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      taps: TAPS.map(function (r) {
+        var p = Math.round(r[4] * 100), kicked = r[4] === 0, low = !kicked && r[4] < 0.1;
+        return {
+          n: r[0], name: r[1], meta: r[2], abv: r[3], srm: r[5], path: GLASS[r[6]], liqY: 96 - r[4] * 90,
+          level: kicked ? 'Kicked' : (low ? p + '% · last call' : p + '% left'),
+          levelInk: kicked ? '#8E806D' : (low ? '#E9AE55' : '#F4EBDD'),
+          nameInk: kicked ? '#8E806D' : '#F4EBDD', bg: kicked ? '#19140F' : '#1F1914'
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

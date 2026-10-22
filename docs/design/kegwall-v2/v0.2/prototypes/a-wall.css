@@ -1,0 +1,38 @@
+.stage { width: 1920px; height: 1080px; display: grid; grid-template-columns: 1040px 1fr; overflow: hidden; }
+.hero { position: relative; overflow: hidden; }
+.hero .copy { position: absolute; left: 72px; right: 72px; bottom: 64px; z-index: 1; }
+.hero h1 { margin: 0; font-size: 196px; line-height: 0.82; }
+.hero p { margin: 28px 0 0; font-size: 34px; line-height: 1.35; max-width: 840px; }
+.hero p b { font-weight: 700; }
+.hero .live { display: flex; align-items: baseline; gap: 18px; margin-top: 40px; }
+.hero .live b { font-family: var(--display); font-weight: 900; font-size: 300px; line-height: 0.8; }
+.hero .live span { font-family: var(--display); font-weight: 800; font-size: 96px; color: var(--ink-2); }
+.list { background: var(--field); padding: 44px 52px 36px 48px; display: flex; flex-direction: column; min-width: 0; }
+.top { display: flex; justify-content: space-between; align-items: baseline; }
+.top .brand { font-family: var(--display); font-weight: 800; font-size: 46px; text-transform: uppercase; }
+.top .meta { font-size: 28px; color: var(--ink-2); }
+ol { list-style: none; margin: 26px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+li { display: grid; grid-template-columns: 44px 62px minmax(0, 1fr) 128px; column-gap: 18px; align-items: center; height: 70px; border-radius: 6px; }
+li .tap { font-size: 26px; color: var(--ink-3); text-align: right; }
+li img, li .art-fallback { width: 62px; height: 62px; object-fit: cover; border-radius: 4px; font-size: 26px; }
+li .nm { font-size: 38px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+li .st { font-size: 21px; color: var(--ink-2); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+li .left { text-align: right; line-height: 1; padding-right: 6px; }
+li .left b { font-family: var(--display); font-weight: 800; font-size: 44px; }
+li .left span { display: block; font-size: 19px; color: var(--ink-2); margin-top: 2px; }
+li.low .left b, li.low .left span { color: var(--caution); }
+li.feat .tap, li.feat .nm, li.feat .st, li.feat .left span, li.feat .left b { color: var(--ink-3); }
+li.pouring { background: var(--ink); color: var(--ground); margin: 0 -10px; padding: 0 10px; width: calc(100% + 20px); }
+li.pouring .tap, li.pouring .st, li.pouring .left span { color: #4A433A; }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 28px; margin-top: 14px; }
+.foot p { margin: 0; font-size: 24px; color: var(--ink-2); line-height: 1.35; }
+.qr { flex: none; display: flex; align-items: center; gap: 16px; font-size: 22px; }
+.qr i { width: 92px; height: 92px; background: var(--ink); border-radius: 6px; display: grid; place-items: center; color: #111; font-style: normal; font-weight: 700; font-size: 16px; }
+
+.hero .bignum { position: absolute; right: -40px; top: -150px; font-family: var(--display); font-weight: 900; font-size: 1100px; line-height: 1; letter-spacing: -0.04em; }
+.hero.pour .liquid { position: absolute; left: 0; right: 0; bottom: 0; box-shadow: 0 -14px 0 #F4ECD8; }
+.hero.pour .ticks span { position: absolute; right: 40px; transform: translateY(50%); font-size: 22px; color: #8F887D; padding-right: 46px; z-index: 1; font-weight: 700; }
+.hero.pour .ticks span::after { content: ''; position: absolute; right: 0; top: 50%; width: 34px; height: 3px; background: currentColor; }
+.hero.pour .top-copy { position: absolute; left: 72px; right: 72px; top: 64px; z-index: 1; }
+.hero.pour .tapno { font-size: 34px; color: var(--ink-2); }
+.hero.pour .top-copy h1 { margin-top: 12px; }

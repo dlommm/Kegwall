@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Settings</title>
+<link rel="stylesheet" href="admin.css">
+<style>
+  .lay { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 48px; margin-top: 30px; }
+  .side h1 { margin: 0 0 18px; font-family: var(--display); font-weight: 800; font-size: 44px; text-transform: uppercase; line-height: 1; }
+  .side a { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 9px; color: var(--ink-2); text-decoration: none; }
+  .side a small { font-size: 13px; color: var(--ink-3); }
+  .side a.on { background: var(--raise-2); color: var(--ink); }
+  .side a.on b { font-weight: 700; }
+  .side .grp { font-size: 13px; color: var(--ink-3); margin: 18px 12px 6px; }
+  form { display: flex; flex-direction: column; gap: 34px; max-width: 860px; }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+  legend { font-size: 22px; font-weight: 700; margin-bottom: 4px; padding: 0; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .src { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 18px; align-items: center; padding: 14px 16px; border-radius: 10px; background: var(--raise); }
+  .src b { display: block; } .src span.sub { font-size: 14px; color: var(--ink-3); }
+  .logo { display: flex; gap: 14px; align-items: center; }
+  .logo .mk { width: 64px; height: 64px; border-radius: 12px; background: #D9A441; color: #14110D; display: grid; place-items: center; font-family: var(--display); font-weight: 900; font-size: 30px; }
+  .save { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; background: var(--raise-2); border-radius: 12px; padding: 12px 16px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+<script>
+  const side = [['Taproom', 'Name, logo, units, serving size', 1], ['Pricing', 'Markup, tax, rounding'], ['Kegtron and sensors', '1 problem'], ['Home Assistant', 'MQTT discovery'], ['Notifications', 'Email, push, in-app'], ['Accounts', 'Owners and staff'], ['Backups and updates', 'Last backup 3:00 AM'], ['Logs and diagnostics', 'Connection doctor']];
+  document.getElementById('app').innerHTML = `${topNav('Settings')}
+    <div class="lay">
+      <div class="side"><h1>Settings</h1>${side.map(([t, s, on], i) => `${i === 2 ? '<div class="grp">Hardware and connections</div>' : i === 5 ? '<div class="grp">System</div>' : ''}<a class="${on ? 'on' : ''}" href="#"><b>${t}</b><small style="${s === '1 problem' ? 'color:var(--problem)' : ''}">${s}</small></a>`).join('')}</div>
+      <form onsubmit="return false">
+        <fieldset><legend>Taproom</legend>
+          <div class="g2"><div class="field"><label for="n">Taproom name</label><div class="in" id="n">Garage Brewing Co.</div><span class="help">Shown on every wall, the menu and the kiosk.</span></div>
+            <div class="field"><label>Logo</label><div class="logo"><span class="mk">GB</span><a class="btn s" href="#">Upload a logo</a></div><span class="help">Without one, walls use the name.</span></div></div>
+          <div class="g3"><div class="field"><label>Units</label><div class="in">US: oz, °F</div></div><div class="field"><label>Serving size</label><div class="in num">16 oz (473 mL)</div><span class="help">Sets "pints left" and the pour glass.</span></div><div class="field"><label>Time zone</label><div class="in">America/New_York</div></div></div>
+        </fieldset>
+        <fieldset><legend>Kegtron and sensors</legend>
+          <div class="src"><div><b>Kegtron UDP (local network)</b><span class="sub">4 Pro monitors, 12 ports. Fastest; pours arrive in about a second.</span></div>${stateTag('completed', 'Receiving · 2 s ago')}<span class="switch on"></span></div>
+          <div class="src"><div><b>Kegtron cloud</b><span class="sub">Stopped answering at 6:12 PM. Local UDP still covers every tap.</span></div>${stateTag('failed', 'Not answering')}<a class="btn s" href="#">Open the doctor</a></div>
+          <div class="src"><div><b>Kegtron Gen 1 over Bluetooth</b><span class="sub">No Gen 1 monitors found.</span></div>${stateTag('disabled', 'Not set up')}<span class="switch"></span></div>
+          <div class="src"><div><b>Govee temperature sensors</b><span class="sub">Shows kegerator temperature on walls.</span></div>${stateTag('disabled', 'Not set up')}<a class="btn q" href="#">Set up</a></div>
+        </fieldset>
+        <div class="save"><span style="color:var(--caution);font-weight:700">Serving size changed from 12 oz</span><span style="display:flex;gap:10px"><a class="btn q" href="#">Discard</a><a class="btn p" href="#">Save settings</a></span></div>
+      </form>
+    </div>`;
+</script>
+</body>
+</html>

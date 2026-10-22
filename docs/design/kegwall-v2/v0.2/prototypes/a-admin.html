@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A · Just Tapped — admin, Tonight</title>
+<link rel="stylesheet" href="a.css">
+<style>
+  body { font-size: 16px; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 48px 72px; }
+  nav { display: flex; align-items: center; gap: 30px; height: 76px; }
+  nav .brand { font-family: var(--display); font-weight: 800; font-size: 28px; text-transform: uppercase; margin-right: 18px; }
+  nav a { color: var(--ink-2); text-decoration: none; font-size: 17px; padding: 26px 0 24px; border-bottom: 2px solid transparent; }
+  nav a.on { color: var(--ink); border-color: var(--ink); }
+  nav .sp { flex: 1; }
+  nav .warn { color: var(--caution); }
+  nav .me { width: 36px; height: 36px; border-radius: 50%; background: #3A332C; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 64px; margin-top: 40px; align-items: end; }
+  h1 { margin: 0; font-size: 60px; line-height: 1.04; font-weight: 700; letter-spacing: -0.01em; max-width: 780px; }
+  .hero p { margin: 20px 0 0; font-size: 20px; line-height: 1.5; color: var(--ink-2); max-width: 700px; }
+  .hero p b { color: var(--ink); font-weight: 700; }
+  .btns { display: flex; gap: 12px; margin-top: 28px; }
+  .btn { height: 48px; padding: 0 20px; border-radius: 10px; display: inline-flex; align-items: center; font-weight: 700; text-decoration: none; }
+  .btn.p { background: var(--ink); color: #111; }
+  .btn.s { color: var(--ink); box-shadow: inset 0 0 0 1.5px #5A534A; }
+  .last { display: flex; flex-direction: column; gap: 10px; }
+  .last .field { position: relative; overflow: hidden; height: 300px; border-radius: 6px; display: flex; align-items: flex-end; padding: 22px 26px; }
+  .last .field .bn { position: absolute; right: -10px; top: -70px; font-family: var(--display); font-weight: 900; font-size: 420px; line-height: 1; opacity: 0.18; }
+  .last .field b { position: relative; font-family: var(--display); font-weight: 900; font-size: 150px; line-height: 0.8; }
+  .last .field small { font-size: 54px; margin-left: 8px; }
+  .last .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .last .row b { font-family: var(--display); font-weight: 800; font-size: 30px; text-transform: uppercase; }
+  .last .row span { color: var(--ink-2); }
+  .last .un { color: var(--caution); }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 64px; margin-top: 72px; }
+  h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 800; font-size: 44px; text-transform: uppercase; line-height: 1; display: flex; justify-content: space-between; align-items: baseline; }
+  h2 a { font-family: var(--text); font-size: 16px; font-weight: 700; color: var(--ink-2); text-transform: none; text-decoration: none; }
+  .kegs { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; }
+  .kegs li { display: grid; grid-template-columns: 30px 48px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #2A2622; }
+  .kegs .tap { color: var(--ink-3); text-align: right; }
+  .kegs img, .kegs .art-fallback { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; font-size: 18px; }
+  .kegs .nm { font-family: var(--display); font-weight: 800; font-size: 24px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.05; }
+  .kegs .bar { height: 6px; background: #2A2622; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .kegs .bar i { display: block; height: 6px; }
+  .kegs .meta { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-2); margin-top: 6px; }
+  .kegs li.low .meta { color: var(--caution); }
+  .kegs li.kicked .nm, .kegs li.kicked .meta { color: var(--ink-3); }
+  aside section + section { margin-top: 44px; }
+  aside h2 { font-size: 32px; }
+  .facts { list-style: none; margin: 14px 0 0; padding: 0; }
+  .facts li { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #2A2622; }
+  .facts li div span { display: block; font-size: 14px; color: var(--ink-2); margin-top: 2px; }
+  .facts li > span { white-space: nowrap; font-weight: 700; }
+  .ok { color: var(--good); } .bad { color: var(--problem); } .dim { color: var(--ink-2); }
+  .tonight { margin-top: 72px; }
+  .hours { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 10px; align-items: end; height: 150px; margin-top: 20px; }
+  .hours div { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 8px; }
+  .hours i { display: block; background: #4A4239; border-radius: 3px 3px 0 0; }
+  .hours i.now { background: var(--ink); }
+  .hours span { font-size: 14px; color: var(--ink-2); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script>
+  const last = TAPS[0];
+  const kegs = TAPS.map((t) => `<li class="${t.low ? 'low' : ''} ${t.kicked ? 'kicked' : ''}">
+      <span class="tap num">${t.n}</span>
+      ${marker(t, 48)}
+      <div style="min-width:0"><div class="nm">${esc(t.name)}</div>
+        <div class="bar"><i style="width:${t.pct}%;background:${t.srm}"></i></div>
+        <div class="meta num"><span>${t.kicked ? 'Kicked Monday' : `${t.pints} of ${t.fullPints} pints`}</span><span>${t.kicked ? 'Harvest Märzen next' : t.low ? 'swap soon' : `tapped ${t.tapped}`}</span></div></div></li>`).join('');
+  const hours = [['4', 1], ['5', 2], ['6', 3], ['7', 6], ['8', 9, true], ['9', 0], ['10', 0], ['11', 0], ['12', 0]];
+  document.getElementById('app').innerHTML = `
+    <nav><span class="brand">Garage Brewing Co.</span>
+      <a class="on" href="#">Tonight</a><a href="#">Taps &amp; kegs</a><a href="#">Beers</a><a href="#">People</a><a href="#">Screens</a><a href="#">Insights</a>
+      <span class="sp"></span><a class="warn" href="#">Kegtron cloud down</a><a href="#">Settings</a><span class="me">O</span></nav>
+    <section class="hero">
+      <div>
+        <h1>Eleven on tap. Two kegs need a swap before the weekend.</h1>
+        <p><b>Midnight Oats on tap 4 has about a pint left</b> and Old Thunder on tap 11 about three. The Kegtron cloud stopped answering at 6:12 PM; pours over local UDP are still coming in.</p>
+        <div class="btns"><a class="btn p" href="#">Plan the swaps</a><a class="btn s" href="#">Open the connection doctor</a></div>
+      </div>
+      <figure class="last" style="margin:0">
+        <div class="field" style="background:${last.srm};color:${inkOn(last.srm)}"><span class="bn num">${last.n}</span><b class="num">13.9<small>oz</small></b></div>
+        <div class="row"><b>${esc(last.name)}</b><span class="num">Tap 1 · 1 min ago</span></div>
+        <span><span class="un">No name on this pour yet.</span> <a href="#" style="color:var(--ink);font-weight:700">Assign it</a></span>
+      </figure>
+    </section>
+    <div class="cols">
+      <section><h2>The kegs <a href="#">All taps →</a></h2><ul class="kegs">${kegs}</ul></section>
+      <aside>
+        <section><h2>Screens</h2><ul class="facts">
+          <li><div>Living room TV<span>Main wall · Just Tapped look</span></div><span class="ok">On</span></li>
+          <li><div>Bar tablet<span>Kiosk · Alex Rivera signed in</span></div><span class="ok">In use</span></li>
+          <li><div>Patio TV<span>Display agent reports the screen asleep</span></div><span class="dim">Asleep 7:30 PM</span></li>
+        </ul></section>
+        <section><h2>Hardware</h2><ul class="facts">
+          <li><div>Kegtron UDP<span>4 Pro monitors, 12 ports</span></div><span class="ok">2 s ago</span></li>
+          <li><div>Kegtron cloud<span>Cloud-only taps may miss pours</span></div><span class="bad">Down 2 h</span></li>
+          <li><div>Kegerator<span>Highest of 4 probes</span></div><span class="num">38°F</span></li>
+        </ul></section>
+      </aside>
+    </div>
+    <section class="tonight"><h2>Tonight so far <a href="#">Every pour →</a></h2>
+      <p style="margin:6px 0 0;color:var(--ink-2);font-size:18px">21 pours, 2.1 gallons. Busiest hour so far is 8 PM.</p>
+      <div class="hours">${hours.map(([h, v, now]) => `<div><i class="${now ? 'now' : ''}" style="height:${v / 9 * 110}px"></i><span>${h} PM</span></div>`).join('').replace('12 PM', '12 AM')}</div>
+    </section>`;
+</script>
+</body>
+</html>

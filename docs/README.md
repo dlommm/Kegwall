@@ -44,6 +44,14 @@ and wiki are updated with every change).
 | [cleaning-and-pours.md](cleaning-and-pours.md) | Line-cleaning reminders, unclaimed pours, and claim windows |
 | [admin-dashboard.md](admin-dashboard.md) | Dashboard summaries and mobile admin navigation |
 
+## Design proposals
+
+| Doc | For |
+| --- | --- |
+| [design/kegwall-v2/UI_REDESIGN_BLUEPRINT.md](design/kegwall-v2/UI_REDESIGN_BLUEPRINT.md) | **Approved, in progress.** Kegwall V2 redesign: baseline audit, concepts, screen specs, roadmap |
+| [design/kegwall-v2/ADR-0001-frontend-architecture.md](design/kegwall-v2/ADR-0001-frontend-architecture.md) | Accepted frontend architecture decision for V2 |
+| [design/kegwall-v2/IMPLEMENTATION_PLAN.md](design/kegwall-v2/IMPLEMENTATION_PLAN.md) | **Approved, in progress.** V2 milestones, decisions, verification and release plan |
+
 ## Reference
 
 - [kegtron/pro-ble-format.md](kegtron/pro-ble-format.md) — the reverse-engineered Kegtron Pro BLE
