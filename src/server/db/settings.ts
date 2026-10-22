@@ -167,10 +167,12 @@ export const settingsSchema = z.object({
   }).nullable().default(null),
   // Hidden, test-injectable base URL — same pattern as catalogBeerBaseUrl.
   goveeBaseUrl: z.string().default('https://openapi.api.govee.com'),
-  // Hidden, test-injectable update-check source (routes/system.ts): the GitLab
-  // instance + project whose Releases feed defines "latest version".
-  updateCheckBaseUrl: z.string().default('https://github.com'),
-  updateCheckProjectPath: z.string().default('dlomm/kegwall'),
+  // Hidden, test-injectable update-check source (routes/system.ts): the GitHub API
+  // host + owner/repo whose Releases feed defines "latest version", and the web host
+  // the release-notes link points at.
+  updateCheckBaseUrl: z.string().default('https://api.github.com'),
+  updateCheckWebUrl: z.string().default('https://github.com'),
+  updateCheckProjectPath: z.string().default('dlommm/Kegwall'),
   // In-app update trigger (Settings → System). `watchtower` posts to a Watchtower
   // sidecar's HTTP API (Docker installs); `native` writes a trigger file that the Pi
   // installer's systemd path unit picks up (bare-metal installs). The token is a

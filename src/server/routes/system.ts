@@ -9,7 +9,7 @@ import { listHostStatsBucketed } from '../db/hostStatsRepo.js';
 
 /**
  * System routes: the running version, the update check (against the project's own
- * GitLab Releases feed), and the update trigger. Two update mechanisms exist —
+ * GitHub Releases feed), and the update trigger. Two update mechanisms exist —
  * chosen by the `updates` settings key (Settings → System):
  *
  *  - `watchtower` (Docker installs): POST to a Watchtower sidecar's HTTP API, which
@@ -85,18 +85,19 @@ export async function systemRoutes(
 
   app.post('/api/system/update-check', admin, async () => {
     const base = app.ctx.settings.get('updateCheckBaseUrl');
+    const web = app.ctx.settings.get('updateCheckWebUrl');
     const path = app.ctx.settings.get('updateCheckProjectPath');
     const current = app.ctx.version;
     try {
-      const res = await fetch(
-        `${base}/api/v4/projects/${encodeURIComponent(path)}/releases`,
-        { signal: AbortSignal.timeout(opts.updateTimeoutMs ?? 10_000) },
-      );
+      const res = await fetch(`${base}/repos/${path}/releases`, {
+        headers: { accept: 'application/vnd.github+json', 'user-agent': `kegwall/${current}` },
+        signal: AbortSignal.timeout(opts.updateTimeoutMs ?? 10_000),
+      });
       if (!res.ok) {
         return { ok: false, current, message: `Release feed answered ${res.status} — check the update source settings.` };
       }
-      const releases = await res.json() as { tag_name?: string }[];
-      const release = releases.find((r) => RELEASE_TAG_PATTERN.test(r.tag_name ?? ''));
+      const releases = await res.json() as { tag_name?: string; draft?: boolean }[];
+      const release = releases.find((r) => !r.draft && RELEASE_TAG_PATTERN.test(r.tag_name ?? ''));
       if (!release) {
         return { ok: false, current, message: 'No releases found in the feed.' };
       }
@@ -107,7 +108,7 @@ export async function systemRoutes(
         latest,
         updateAvailable: isNewerVersion(latest, current),
         // Constructed from our own settings, never trusted from the response body.
-        notesUrl: `${base}/${path}/-/releases/v${latest}`,
+        notesUrl: `${web}/${path}/releases/tag/v${latest}`,
       };
     } catch {
       return { ok: false, current, message: `Couldn't reach ${base} — check the network and update source settings.` };

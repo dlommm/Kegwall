@@ -32,7 +32,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { await app.close(); });
 
-/** A local stand-in for the GitLab releases API / the Watchtower HTTP API. */
+/** A local stand-in for the GitHub releases API / the Watchtower HTTP API. */
 async function fakeServer(setup: (f: FastifyInstance) => void): Promise<{ url: string; close: () => Promise<void> }> {
   const f = Fastify();
   setup(f);
@@ -63,13 +63,15 @@ describe('GET /api/system/version', () => {
 describe('POST /api/system/update-check', () => {
   it('reports a newer release with a constructed notes URL, skipping prerelease tags', async () => {
     const fake = await fakeServer((f) => {
-      f.get('/api/v4/projects/:id/releases', async () => [
+      f.get('/repos/:owner/:repo/releases', async () => [
         { tag_name: 'v2.0.0-rc.1' }, // prerelease — skipped
+        { tag_name: 'v1.4.0', draft: true }, // draft — skipped
         { tag_name: 'v1.3.0' },
         { tag_name: 'v1.2.3' },
       ]);
     });
     app.ctx.settings.set('updateCheckBaseUrl', fake.url);
+    app.ctx.settings.set('updateCheckWebUrl', 'https://example.test');
     app.ctx.settings.set('updateCheckProjectPath', 'me/proj');
 
     const res = await app.inject({
@@ -80,14 +82,14 @@ describe('POST /api/system/update-check', () => {
       current: '1.2.3',
       latest: '1.3.0',
       updateAvailable: true,
-      notesUrl: `${fake.url}/me/proj/-/releases/v1.3.0`,
+      notesUrl: 'https://example.test/me/proj/releases/tag/v1.3.0',
     });
     await fake.close();
   });
 
   it('reports up-to-date when the newest release matches the running version', async () => {
     const fake = await fakeServer((f) => {
-      f.get('/api/v4/projects/:id/releases', async () => [{ tag_name: 'v1.2.3' }]);
+      f.get('/repos/:owner/:repo/releases', async () => [{ tag_name: 'v1.2.3' }]);
     });
     app.ctx.settings.set('updateCheckBaseUrl', fake.url);
     const res = await app.inject({
@@ -99,7 +101,7 @@ describe('POST /api/system/update-check', () => {
 
   it('degrades gracefully on upstream errors, empty feeds, and timeouts', async () => {
     const erroring = await fakeServer((f) => {
-      f.get('/api/v4/projects/:id/releases', async (_req, reply) => reply.code(500).send({}));
+      f.get('/repos/:owner/:repo/releases', async (_req, reply) => reply.code(500).send({}));
     });
     app.ctx.settings.set('updateCheckBaseUrl', erroring.url);
     let res = await app.inject({ method: 'POST', url: '/api/system/update-check', cookies: adminCookies, payload: {} });
@@ -107,7 +109,7 @@ describe('POST /api/system/update-check', () => {
     await erroring.close();
 
     const empty = await fakeServer((f) => {
-      f.get('/api/v4/projects/:id/releases', async () => []);
+      f.get('/repos/:owner/:repo/releases', async () => []);
     });
     app.ctx.settings.set('updateCheckBaseUrl', empty.url);
     res = await app.inject({ method: 'POST', url: '/api/system/update-check', cookies: adminCookies, payload: {} });
@@ -115,7 +117,7 @@ describe('POST /api/system/update-check', () => {
     await empty.close();
 
     const sleeping = await fakeServer((f) => {
-      f.get('/api/v4/projects/:id/releases', async () => new Promise(() => {})); // never answers
+      f.get('/repos/:owner/:repo/releases', async () => new Promise(() => {})); // never answers
     });
     app.ctx.settings.set('updateCheckBaseUrl', sleeping.url);
     res = await app.inject({ method: 'POST', url: '/api/system/update-check', cookies: adminCookies, payload: {} });
