@@ -8,9 +8,8 @@ import {
 } from '../../lib/adminApi';
 import { BeerPicker } from './BeerPicker';
 import { Button, Drawer } from './ui';
-import { srmToColor } from '../../lib/srm';
-import { pickInk } from '../../lib/contrast';
-import { markerLettersFor } from '../../wall/wallModel';
+import { beerMarkerModel } from '../../wall/wallModel';
+import { TapMarker } from '../../wall/TapMarker';
 import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
 const ML_PER_PINT = 473.176;
@@ -553,16 +552,7 @@ export function SwapWizard({
   );
 }
 
-/** A beer's color square with its initials, for the swap choices (no tap number yet). */
+/** A beer's marker for the swap choices (no tap number: it isn't on one yet). */
 function BeerSwatch({ beer }: { beer: Beer }) {
-  const color = srmToColor(beer.srm).liquid;
-  return (
-    <span
-      className="swap-wizard__swatch"
-      style={{ background: color, color: pickInk(color) }}
-      aria-hidden="true"
-    >
-      {markerLettersFor(beer.name)}
-    </span>
-  );
+  return <TapMarker model={beerMarkerModel(beer)} size={52} showNumber={false} />;
 }

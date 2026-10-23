@@ -500,19 +500,6 @@
   color: #e0793d;
 }
 
-.beers-table__thumb {
-  display: block;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.35rem;
-  object-fit: cover;
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.beers-table__thumb--empty {
-  border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
-}
-
 /* Header lead (title + count summary), search, LOOKUP chips, "add art" chip, STATUS pills (3f). */
 .admin-page-header__lead {
   display: flex;
@@ -524,92 +511,6 @@
 .beers-summary {
   color: var(--text-dim);
   font-size: 0.85rem;
-}
-
-.beers-header__controls {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.beers-search {
-  padding: 0.45rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.85rem;
-  min-width: 12rem;
-}
-
-.beers-lookup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.beers-chip {
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  color: var(--text-dim);
-  font-size: 0.78rem;
-  text-decoration: none;
-}
-
-.beers-chip--dashed {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  color: var(--accent);
-}
-
-.beers-chip--on {
-  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
-  color: var(--ok);
-}
-
-.beers-table__thumb--add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
-  color: var(--accent);
-  font-size: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-
-.beers-status {
-  display: inline-block;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.beers-status--on-tap {
-  background: color-mix(in srgb, var(--ok) 18%, transparent);
-  color: var(--ok);
-}
-
-.beers-status--low {
-  background: color-mix(in srgb, var(--warn) 20%, transparent);
-  color: var(--warn);
-}
-
-.beers-status--on-deck {
-  border: 1px dashed color-mix(in srgb, var(--text) 28%, transparent);
-  color: var(--text-dim);
-}
-
-.beers-status--none {
-  color: var(--text-faint, var(--text-dim));
-  font-weight: 400;
 }
 
 /* Logs "show similar" chip (4b). */
@@ -973,49 +874,7 @@
   border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
 }
 
-.beers-table__actions {
-  display: flex;
-  gap: 0.5rem;
-  white-space: nowrap;
-}
-
-.beers-table__actions button {
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.beers-table__actions button:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
 /* The beer create/edit form. */
-.beer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  margin-bottom: 1.5rem;
-  padding: 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.beer-form__title {
-  font-size: 1.1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.beer-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.85rem;
-}
 
 .admin-field {
   position: relative;
@@ -1053,20 +912,6 @@
 .admin-field textarea {
   min-height: 4.5rem;
   resize: vertical;
-}
-
-.beer-form__srm {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.beer-form__srm-swatch {
-  flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 .admin-field__label-text {
@@ -1112,31 +957,9 @@ h2.admin-field__label-text {
   text-align: center;
 }
 
-.beer-form__upload-button,
-.beer-form__label-clear,
-.beer-form__catalogbeer-button {
-  padding: 0.4rem 0.75rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.beer-form__upload-button:hover,
-.beer-form__label-clear:hover,
-.beer-form__catalogbeer-button:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
 /* "Search catalog.beer" (Wave N, replaces the removed "Search Untappd" button) gets the
    accent color — same "this is the beer-lookup shortcut" visual weight the removed
    button had — while sharing every other button-shell property above. */
-.beer-form__catalogbeer-button {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
-}
 
 .beer-form__notice {
   border-radius: 0.4rem;
@@ -1312,9 +1135,6 @@ h2.admin-field__label-text {
 .brewery-autocomplete__option:focus-visible,
 .style-autocomplete input:focus-visible,
 .style-autocomplete__option:focus-visible,
-.beer-form__upload-button:focus-within,
-.beer-form__label-clear:focus-visible,
-.beer-form__catalogbeer-button:focus-visible,
 .beer-form__submit:focus-visible,
 .beer-form__cancel:focus-visible,
 .admin-confirm__actions button:focus-visible {
@@ -1430,93 +1250,10 @@ h2.admin-field__label-text {
    removed Untappd search sheet. Same centered-modal shell language as .swap-wizard/
    .admin-confirm above (an admin-surface component, unlike the mobile-first .claim-sheet
    bottom sheet the public menu page uses). */
-.beer-search-sheet__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.beer-search-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 26rem;
-  max-height: 85vh;
-  flex-direction: column;
-  gap: 0.85rem;
-  overflow-y: auto;
-  padding: 1.5rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-  color: var(--text);
-}
-
-.beer-search-sheet__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.beer-search-sheet__title {
-  font-size: 1.2rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.beer-search-sheet__dismiss {
-  min-width: 44px;
-  min-height: 44px;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-}
 
 .beer-search-sheet__form {
   display: flex;
   gap: 0.6rem;
-}
-
-.beer-search-sheet__search {
-  flex: 1;
-  padding: 0.5rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--text);
-  font-size: 0.9rem;
-  font-family: inherit;
-}
-
-.beer-search-sheet__submit {
-  padding: 0.5rem 1rem;
-  border-radius: 0.4rem;
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.beer-search-sheet__status {
-  color: var(--text-dim);
-  font-size: 0.9rem;
-}
-
-.beer-search-sheet__notice {
-  border-radius: 0.4rem;
-  padding: 0.55rem 0.75rem;
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-  font-size: 0.85rem;
 }
 
 .beer-search-sheet__results {
@@ -1548,19 +1285,6 @@ h2.admin-field__label-text {
   font-weight: 600;
 }
 
-.beer-search-sheet__result-meta {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.beer-search-sheet__result-stats {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.beer-search-sheet__dismiss:focus-visible,
-.beer-search-sheet__submit:focus-visible,
-.beer-search-sheet__search:focus-visible,
 .beer-search-sheet__result:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

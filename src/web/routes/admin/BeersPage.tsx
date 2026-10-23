@@ -5,16 +5,23 @@ import {
   listBeers, deleteBeer, listKegs, getLookupConfig, type LookupConfig,
 } from '../../lib/adminApi';
 import { getMenu } from '../../lib/api';
-import { srmToColor } from '../../lib/srm';
-import { statusForBeer, beerCatalogSummary } from '../../lib/beerCatalog';
+import { statusForBeer, beerCatalogSummary, type BeerStatus } from '../../lib/beerCatalog';
+import { capitalize, countWord } from '../../lib/tonightAttention';
+import { beerColorFor, beerMarkerModel } from '../../wall/wallModel';
+import { TapMarker } from '../../wall/TapMarker';
 import { BeerForm } from './BeerForm';
 import { useAdminContext } from './useAdminContext';
+import { PageTemplate } from './PageTemplate';
+import {
+  Button, Chips, ConfirmDialog, Drawer, EmptyState, ErrorState, Skeleton,
+} from './ui';
 
 /** External reference chips in the LOOKUP row that are always available (no config gate). */
 const OPEN_BREWERY_DB_URL = 'https://www.openbrewerydb.org';
 const BJCP_STYLES_URL = 'https://www.bjcp.org/style/2021/beer/';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
+type BeerFilter = 'all' | 'on_tap' | 'library';
 type FormState = { mode: 'create' } | { mode: 'edit'; beer: Beer } | null;
 interface DeleteState { beer: Beer; error: string | null }
 
@@ -26,7 +33,23 @@ function formatAbv(abv: number | null): string {
 }
 
 function formatIbu(ibu: number | null): string {
-  return ibu == null ? '—' : String(Math.round(ibu));
+  return ibu == null ? '—' : `${Math.round(ibu)} IBU`;
+}
+
+/** Where a beer is: "On tap 2 · 72%", "On deck", "In the library". */
+function statusText(st: BeerStatus): string {
+  if (st.kind === 'on_tap') return `On tap ${st.tapNumber} · ${st.levelPct}%`;
+  if (st.kind === 'on_deck') return 'On deck';
+  return 'In the library';
+}
+
+/** "Fifteen beers. Eleven on tap, one waiting in the cellar." */
+export function beersHeadline(total: number, onTap: number, onDeck: number): string {
+  if (total === 0) return 'No beers yet.';
+  const first = total === 1 ? 'One beer.' : `${capitalize(countWord(total))} beers.`;
+  const tapPart = onTap === 0 ? 'None on tap' : `${capitalize(countWord(onTap))} on tap`;
+  const deckPart = onDeck === 0 ? '' : `, ${countWord(onDeck)} waiting in the cellar`;
+  return `${first} ${tapPart}${deckPart}.`;
 }
 
 /**
@@ -47,6 +70,7 @@ export function BeersPage() {
   const [onDeckBeerIds, setOnDeckBeerIds] = useState<Set<number>>(new Set());
   const [lookupConfig, setLookupConfig] = useState<LookupConfig | null>(null);
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<BeerFilter>('all');
 
   const loadBeers = useCallback(() => {
     setStatus('loading');
@@ -84,12 +108,21 @@ export function BeersPage() {
   const canEdit = me.role === 'editor' || me.role === 'admin';
 
   const summary = useMemo(() => beerCatalogSummary(beers, taps), [beers, taps]);
+  const statusById = useMemo(
+    () => new Map(beers.map((b) => [b.id, statusForBeer(b.id, taps, onDeckBeerIds)])),
+    [beers, taps, onDeckBeerIds],
+  );
   const filteredBeers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return beers;
-    return beers.filter((b) => [b.name, b.brewery, b.style]
-      .some((field) => field?.toLowerCase().includes(q)));
-  }, [beers, query]);
+    return beers.filter((b) => {
+      const st = statusById.get(b.id)!;
+      if (filter === 'on_tap' && st.kind !== 'on_tap') return false;
+      if (filter === 'library' && st.kind === 'on_tap') return false;
+      return !q || [b.name, b.brewery, b.style].some((field) => field?.toLowerCase().includes(q));
+    });
+  }, [beers, query, filter, statusById]);
+  const onDeckCount = beers.filter((b) => statusById.get(b.id)?.kind === 'on_deck').length;
+  const noColor = beers.filter((b) => b.srm == null).length;
 
   function handleSaved() {
     setFormState(null);
@@ -116,231 +149,187 @@ export function BeersPage() {
     setDeleteState({ ...deleteState, error: 'Something went wrong. Try again.' });
   }
 
+  const editing = formState?.mode === 'edit' ? formState.beer : null;
+
   return (
-    <section data-testid="admin-beers-page">
-      <header className="admin-page-header">
-        <div className="admin-page-header__lead">
-          <h1 className="admin-page-header__title font-display">Beers</h1>
-          {status === 'loaded' && beers.length > 0 && (
-            <span className="beers-summary font-tabular" data-testid="beers-summary">
-              {`${summary.total} total · ${summary.onTap} on tap · ${summary.missingArt} missing label art`}
-            </span>
-          )}
-        </div>
-        <div className="beers-header__controls">
-          {beers.length > 0 && (
-            <input
-              type="search"
-              className="beers-search"
-              data-testid="beers-search"
-              placeholder="Search beers…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search beers"
-            />
-          )}
-          {canEdit && !formState && (
-            <button
-              type="button"
-              className="admin-page-header__action"
-              data-testid="beers-add-button"
-              onClick={() => setFormState({ mode: 'create' })}
+    <PageTemplate
+      testId="admin-beers-page"
+      title={status === 'loaded' ? beersHeadline(summary.total, summary.onTap, onDeckCount) : 'Beers'}
+      sub={status === 'loaded' && beers.length > 0 ? (
+        <>
+          <span data-testid="beers-summary">
+            {summary.missingArt === 0
+              ? 'Every beer has label art.'
+              : `${summary.missingArt} of ${summary.total} have no label art, so their markers use the beer’s color and initials.`}
+          </span>
+          {noColor > 0 && ` ${noColor === 1 ? 'One has' : `${capitalize(countWord(noColor))} have`} no color set yet.`}
+        </>
+      ) : undefined}
+      actions={canEdit && (
+        <Button variant="primary" data-testid="beers-add-button" onClick={() => setFormState({ mode: 'create' })}>
+          Add a beer
+        </Button>
+      )}
+      drawer={(
+        <>
+          {formState && canEdit && (
+            <Drawer
+              open
+              onOpenChange={(open) => { if (!open) setFormState(null); }}
+              size="wide"
+              title={editing ? editing.name : 'Add a beer'}
+              description={editing ? statusText(statusById.get(editing.id) ?? { kind: 'none' }) : undefined}
+              footer={editing ? (
+                <Button variant="danger" data-testid="beers-row-delete" onClick={() => setDeleteState({ beer: editing, error: null })}>
+                  Delete beer
+                </Button>
+              ) : undefined}
             >
-              Add beer
-            </button>
+              <BeerForm
+                key={editing ? editing.id : 'create'}
+                mode={formState.mode}
+                beer={editing}
+                onSaved={handleSaved}
+                onCancel={() => setFormState(null)}
+              />
+            </Drawer>
           )}
-        </div>
-      </header>
-
+          <ConfirmDialog
+            open={deleteState !== null}
+            onOpenChange={(open) => { if (!open) setDeleteState(null); }}
+            title={deleteState ? `Delete ${deleteState.beer.name}?` : ''}
+            confirmLabel="Delete beer"
+            busyLabel="Deleting…"
+            busy={deleting}
+            error={deleteState?.error}
+            onConfirm={handleConfirmDelete}
+            testId="beers-delete-confirm"
+            confirmTestId="beers-delete-confirm-button"
+            cancelTestId="beers-delete-cancel-button"
+            errorTestId="beers-delete-error"
+          >
+            {deleteState && (
+              <p>
+                This will permanently delete &ldquo;{deleteState.beer.name}&rdquo; from the catalog.
+                This can&rsquo;t be undone.
+              </p>
+            )}
+          </ConfirmDialog>
+        </>
+      )}
+    >
       {status === 'loaded' && beers.length > 0 && (
-        <div className="beers-lookup" data-testid="beers-lookup-row">
-          <a className="beers-chip" href={OPEN_BREWERY_DB_URL} target="_blank" rel="noreferrer">
-            Open Brewery DB
-          </a>
-          <a className="beers-chip" href={BJCP_STYLES_URL} target="_blank" rel="noreferrer">
-            BJCP styles
-          </a>
-          <span
-            className={`beers-chip${lookupConfig?.catalogBeerConfigured ? '' : ' beers-chip--dashed'}`}
-            data-testid="beers-chip-catalog"
-          >
-            {lookupConfig?.catalogBeerConfigured ? 'catalog.beer ✓' : 'catalog.beer — add API key'}
-          </span>
-          <span
-            className={`beers-chip${lookupConfig?.autoImportBeers ? ' beers-chip--on' : ''}`}
-            data-testid="beers-chip-autoimport"
-          >
-            {`Auto-import from Kegtron: ${lookupConfig?.autoImportBeers ? 'on' : 'off'}`}
-          </span>
+        <div className="adm-toolbar">
+          <input
+            type="search"
+            className="adm-input beers-v2__search"
+            data-testid="beers-search"
+            placeholder="Search beers, breweries, styles"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search beers"
+          />
+          <Chips<BeerFilter>
+            label="Show beers"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'on_tap', label: 'On tap' },
+              { value: 'library', label: 'Library' },
+            ]}
+          />
         </div>
       )}
 
-      {formState && canEdit && (
-        <BeerForm
-          key={formState.mode === 'edit' ? formState.beer.id : 'create'}
-          mode={formState.mode}
-          beer={formState.mode === 'edit' ? formState.beer : null}
-          onSaved={handleSaved}
-          onCancel={() => setFormState(null)}
-        />
-      )}
-
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="beers-loading">Loading…</p>}
+      {status === 'loading' && <div data-testid="beers-loading"><Skeleton height={120} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="beers-error">
-          Couldn&rsquo;t load beers. Reload to try again.
-        </p>
+        <div data-testid="beers-error">
+          <ErrorState title="Couldn’t load beers." onRetry={loadBeers}>Reload to try again.</ErrorState>
+        </div>
       )}
       {status === 'loaded' && beers.length === 0 && (
-        <p className="admin-page-quiet" data-testid="beers-empty">No beers yet.</p>
+        <div data-testid="beers-empty">
+          <EmptyState title="No beers yet.">Add a beer, or tap a keg and add one there.</EmptyState>
+        </div>
       )}
 
       {status === 'loaded' && beers.length > 0 && filteredBeers.length === 0 && (
-        <p className="admin-page-quiet" data-testid="beers-no-matches">
-          {`No beers match “${query.trim()}”.`}
+        <p className="adm-note" data-testid="beers-no-matches">
+          {query.trim() ? `No beers match “${query.trim()}”.` : 'No beers here.'}
         </p>
       )}
 
       {status === 'loaded' && filteredBeers.length > 0 && (
-        <table className="admin-table" data-testid="beers-table">
-          <thead>
-            <tr>
-              <th scope="col" aria-label="Label" />
-              <th scope="col">Name</th>
-              <th scope="col">Brewery</th>
-              <th scope="col">Style</th>
-              <th scope="col">ABV</th>
-              <th scope="col">IBU</th>
-              <th scope="col">SRM</th>
-              <th scope="col">Status</th>
-              {canEdit && <th scope="col" aria-label="Actions" />}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredBeers.map((beer) => {
-              const beerStatus = statusForBeer(beer.id, taps, onDeckBeerIds);
-              return (
-                <tr key={beer.id} data-testid="beers-row">
-                  <td>
-                    {beer.labelImage ? (
-                      <img
-                        src={beer.labelImage}
-                        alt=""
-                        className="beers-table__thumb"
-                        data-testid="beers-row-thumb"
-                      />
-                    ) : canEdit ? (
-                      // Dashed "add art" chip — jumps to the edit form where the label upload
-                      // lives (feeds the Phase 1 label-art feature).
-                      <button
-                        type="button"
-                        className="beers-table__thumb beers-table__thumb--add"
-                        data-testid="beers-row-add-art"
-                        title="Add label art"
-                        onClick={() => setFormState({ mode: 'edit', beer })}
-                      >
-                        + art
-                      </button>
-                    ) : (
-                      <span className="beers-table__thumb beers-table__thumb--empty" aria-hidden="true" />
-                    )}
-                  </td>
-                  <td className="font-body">{beer.name}</td>
-                  <td>{beer.brewery ?? '—'}</td>
-                  <td>{beer.style ?? '—'}</td>
-                  <td className="font-tabular">{formatAbv(beer.abv)}</td>
-                  <td className="font-tabular">{formatIbu(beer.ibu)}</td>
-                  <td>
+        <ul className="beers-v2" data-testid="beers-table">
+          {filteredBeers.map((beer) => {
+            const st = statusById.get(beer.id)!;
+            return (
+              <li key={beer.id} className="beers-v2__card" data-testid="beers-row">
+                {beer.labelImage
+                  ? <img src={beer.labelImage} alt="" className="beers-v2__art" data-testid="beers-row-thumb" />
+                  : <TapMarker model={beerMarkerModel(beer)} size={56} showNumber={false} />}
+                <div className="beers-v2__text">
+                  <div className="adm-name adm-ell">{beer.name}</div>
+                  <div className="adm-sub adm-ell">
                     <span
-                      className="beers-table__srm-chip"
+                      className="beers-v2__dot"
                       data-testid="beers-row-srm-chip"
-                      style={{ backgroundColor: srmToColor(beer.srm).liquid }}
+                      style={{ backgroundColor: beerColorFor(beer.srm) }}
                       title={beer.srm != null ? `SRM ${beer.srm}` : 'SRM unknown'}
                     />
-                  </td>
-                  <td>
-                    {beerStatus.kind === 'on_tap' ? (
-                      <span
-                        className={`beers-status beers-status--${beerStatus.low ? 'low' : 'on-tap'}`}
-                        data-testid="beers-row-status"
-                      >
-                        {`TAP ${beerStatus.tapNumber} · ${beerStatus.levelPct}%`}
-                      </span>
-                    ) : beerStatus.kind === 'on_deck' ? (
-                      <span className="beers-status beers-status--on-deck" data-testid="beers-row-status">
-                        ON DECK
-                      </span>
-                    ) : (
-                      <span className="beers-status beers-status--none" data-testid="beers-row-status">—</span>
-                    )}
-                  </td>
-                  {canEdit && (
-                    <td className="beers-table__actions">
-                      <button
-                        type="button"
-                        data-testid="beers-row-edit"
+                    {[beer.style, beer.brewery].filter(Boolean).join(' · ') || '—'}
+                  </div>
+                  <div className="adm-sub adm-num-cell">{`${formatAbv(beer.abv)} · ${formatIbu(beer.ibu)}`}</div>
+                  <div
+                    className={st.kind === 'on_tap' ? (st.low ? 'beers-v2__where adm-warn-text' : 'beers-v2__where')
+                      : st.kind === 'on_deck' ? 'beers-v2__where beers-v2__where--deck' : 'beers-v2__where adm-sub'}
+                    data-testid="beers-row-status"
+                  >
+                    {statusText(st)}
+                  </div>
+                </div>
+                {canEdit && (
+                  <div className="beers-v2__actions">
+                    <Button variant="quiet" data-testid="beers-row-edit" onClick={() => setFormState({ mode: 'edit', beer })}>
+                      Edit
+                    </Button>
+                    {!beer.labelImage && (
+                      <Button
+                        variant="quiet"
+                        data-testid="beers-row-add-art"
                         onClick={() => setFormState({ mode: 'edit', beer })}
                       >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="beers-row-delete"
-                        onClick={() => setDeleteState({ beer, error: null })}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        Add art
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {deleteState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="beers-delete-confirm"
-          onClick={() => !deleting && setDeleteState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="beers-delete-title"
-            onClick={(e) => e.stopPropagation()}
+      {status === 'loaded' && beers.length > 0 && (
+        <p className="beers-v2__lookup adm-sub" data-testid="beers-lookup-row">
+          {'Look things up: '}
+          <a href={OPEN_BREWERY_DB_URL} target="_blank" rel="noreferrer">Open Brewery DB</a>
+          {' · '}
+          <a href={BJCP_STYLES_URL} target="_blank" rel="noreferrer">BJCP styles</a>
+          {' · '}
+          <span
+            className={lookupConfig?.catalogBeerConfigured ? undefined : 'beers-v2__dashed'}
+            data-testid="beers-chip-catalog"
           >
-            <h3 id="beers-delete-title" className="font-display">Delete beer</h3>
-            <p>
-              This will permanently delete &ldquo;{deleteState.beer.name}&rdquo; from the catalog.
-              This can&rsquo;t be undone.
-            </p>
-            {deleteState.error && (
-              <p role="alert" data-testid="beers-delete-error">{deleteState.error}</p>
-            )}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="beers-delete-confirm-button"
-                disabled={deleting}
-                onClick={handleConfirmDelete}
-              >
-                {deleting ? 'Deleting…' : 'Delete beer'}
-              </button>
-              <button
-                type="button"
-                data-testid="beers-delete-cancel-button"
-                disabled={deleting}
-                onClick={() => setDeleteState(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+            {lookupConfig?.catalogBeerConfigured ? 'catalog.beer ✓' : 'catalog.beer — add API key in Settings'}
+          </span>
+          {' · '}
+          <span data-testid="beers-chip-autoimport">
+            {`Auto-import from Kegtron: ${lookupConfig?.autoImportBeers ? 'on' : 'off'}`}
+          </span>
+        </p>
       )}
-    </section>
+    </PageTemplate>
   );
 }

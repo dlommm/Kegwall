@@ -116,12 +116,12 @@ describe('BeerSearchSheet', () => {
     expect(document.querySelectorAll('img')).toHaveLength(0);
   });
 
-  it('closes on Escape and on a backdrop click', () => {
+  it('closes on Escape and with its Close button', () => {
     const onClose = vi.fn();
     render(<BeerSearchSheet onImported={vi.fn()} onClose={onClose} />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByTestId('beer-search-sheet-backdrop'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });

@@ -23,9 +23,9 @@ Generated at the start of M8 from the admin routes (`AdminApp.tsx`), the Setting
 
 ## Beers
 
-- [ ] `/admin/beers` — `BeersPage`: listBeers, listKegs, getMenu, deleteBeer, getLookupConfig
-  - [ ] `BeerForm`: createBeer, updateBeer, uploadLabel, lookupBeers
-  - [ ] `BeerSearchSheet`: lookupBeers; `BreweryAutocomplete`: lookupBreweries; `StyleAutocomplete`
+- [x] `/admin/beers` — `BeersPage`: listBeers, listKegs, getMenu, deleteBeer, getLookupConfig
+  - [x] `BeerForm`: createBeer, updateBeer, uploadLabel, lookupBeers
+  - [x] `BeerSearchSheet`: lookupBeers; `BreweryAutocomplete`: lookupBreweries; `StyleAutocomplete`
 
 ## People
 

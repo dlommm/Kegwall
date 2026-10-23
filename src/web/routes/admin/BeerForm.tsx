@@ -5,6 +5,9 @@ import { srmToColor } from '../../lib/srm';
 import { BreweryAutocomplete } from './BreweryAutocomplete';
 import { StyleAutocomplete } from './StyleAutocomplete';
 import { BeerSearchSheet, type BeerImportedFields } from './BeerSearchSheet';
+import { Button } from './ui';
+import { beerMarkerModel } from '../../wall/wallModel';
+import { TapMarker } from '../../wall/TapMarker';
 
 interface BeerFormProps {
   mode: 'create' | 'edit';
@@ -141,29 +144,39 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
     setCatalogBeerSheetOpen(false);
   }
 
+  const preview = beerMarkerModel({ name: name.trim() || null, srm: Number.isFinite(srmNumber) ? srmNumber : null, labelImage });
+
   return (
     <form
-      className="beer-form"
+      className="beer-form adm-form"
       onSubmit={handleSubmit}
       data-testid="beer-form"
       aria-label={mode === 'edit' ? 'Edit beer' : 'Add beer'}
     >
-      <h2 className="beer-form__title font-display">
-        {mode === 'edit' ? `Edit ${beer?.name}` : 'Add beer'}
-      </h2>
+      <div className="beer-form__preview" data-testid="beer-form-preview">
+        {preview.name
+          ? <TapMarker model={preview} size={64} showNumber={false} />
+          : <span className="beer-form__preview-empty" aria-hidden="true" />}
+        <div>
+          <b>How it shows on screens</b>
+          <p className="adm-sub">
+            The marker is made from the beer&rsquo;s color and name. Add label art to use that instead.
+          </p>
+        </div>
+      </div>
 
-      <div className="beer-form__grid">
-        <label className="admin-field">
-          <span>Name</span>
-          <input
-            type="text"
-            data-testid="beer-form-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </label>
+      <label className="admin-field">
+        <span>Name</span>
+        <input
+          type="text"
+          data-testid="beer-form-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+      </label>
 
+      <div className="adm-grid-2">
         <label className="admin-field">
           <span>Brewery</span>
           <BreweryAutocomplete value={brewery} onChange={setBrewery} />
@@ -173,7 +186,9 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
           <span>Style</span>
           <StyleAutocomplete value={style} onChange={setStyle} />
         </label>
+      </div>
 
+      <div className="adm-grid-3">
         <label className="admin-field">
           <span>ABV %</span>
           <input
@@ -197,7 +212,7 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
         </label>
 
         <label className="admin-field">
-          <span>SRM</span>
+          <span>Color (SRM)</span>
           <div className="beer-form__srm">
             <input
               type="text"
@@ -216,13 +231,14 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
         </label>
       </div>
 
-      <label className="admin-field admin-field--full">
+      <label className="admin-field">
         <span>Description</span>
         <textarea
           data-testid="beer-form-description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+        <span className="admin-field__unit-hint">Shown on the phone menu and on looks that print notes.</span>
       </label>
 
       <label className="admin-field">
@@ -237,10 +253,13 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
         />
         {/* DESIGN NOTE (4k): only affects the public price when pricing is enabled in Settings;
             owner cost is never shown here. Blank = fall back to the global markup. */}
+        <span className="admin-field__unit-hint">Only used when prices are turned on in Settings.</span>
       </label>
 
       <div className="beer-form__label">
-        <span className="admin-field__label-text">Label</span>
+        <span className="admin-field__label-text">
+          Label art <span className="adm-sub">(optional)</span>
+        </span>
         <div className="beer-form__label-row">
           {labelImage ? (
             <img
@@ -255,8 +274,8 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
             </span>
           )}
 
-          <label className="beer-form__upload-button">
-            {labelBusy ? 'Uploading…' : 'Upload label'}
+          <label className="adm-btn adm-btn--secondary beer-form__upload-button">
+            {labelBusy ? 'Uploading…' : 'Upload label art'}
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
@@ -267,53 +286,51 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
             />
           </label>
 
-          {catalogBeerAvailable && (
-            <button
-              type="button"
-              className="beer-form__catalogbeer-button"
-              data-testid="beer-form-catalogbeer-button"
-              onClick={() => setCatalogBeerSheetOpen(true)}
-            >
-              Search catalog.beer
-            </button>
-          )}
-
           {labelImage && (
-            <button
-              type="button"
-              className="beer-form__label-clear"
+            <Button
+              variant="quiet"
               data-testid="beer-form-label-clear"
               onClick={() => setLabelImage(null)}
             >
               Remove label
-            </button>
+            </Button>
           )}
         </div>
         {labelError && (
-          <p className="beer-form__notice" role="alert" data-testid="beer-form-label-error">
+          <p className="adm-danger-text" role="alert" data-testid="beer-form-label-error">
             {labelError}
           </p>
         )}
       </div>
 
+      {catalogBeerAvailable && (
+        <Button
+          className="beer-form__catalogbeer-button"
+          data-testid="beer-form-catalogbeer-button"
+          onClick={() => setCatalogBeerSheetOpen(true)}
+        >
+          Fill in from catalog.beer
+        </Button>
+      )}
+
       {validationError && (
-        <p className="beer-form__notice" role="alert" data-testid="beer-form-validation-error">
+        <p className="adm-danger-text" role="alert" data-testid="beer-form-validation-error">
           {validationError}
         </p>
       )}
       {serverError && (
-        <p className="beer-form__notice" role="alert" data-testid="beer-form-server-error">
+        <p className="adm-danger-text" role="alert" data-testid="beer-form-server-error">
           {serverError}
         </p>
       )}
 
-      <div className="beer-form__actions">
-        <button type="submit" className="beer-form__submit" disabled={submitting} data-testid="beer-form-submit">
-          {submitting ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Add beer'}
-        </button>
-        <button type="button" className="beer-form__cancel" onClick={onCancel} data-testid="beer-form-cancel">
+      <div className="adm-form__actions">
+        <Button type="submit" variant="primary" disabled={submitting} data-testid="beer-form-submit">
+          {submitting ? 'Saving…' : mode === 'edit' ? 'Save beer' : 'Add beer'}
+        </Button>
+        <Button variant="quiet" onClick={onCancel} data-testid="beer-form-cancel">
           Cancel
-        </button>
+        </Button>
       </div>
 
       {catalogBeerSheetOpen && (

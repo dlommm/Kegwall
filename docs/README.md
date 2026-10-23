@@ -39,6 +39,7 @@ and wiki are updated with every change).
 | Guide | For |
 | --- | --- |
 | [customization.md](customization.md) | Wall layout, themes, custom-CSS trust model, screensaver, pairing screens by code |
+| [beers.md](beers.md) | The beer library, the beer editor and its marker preview, catalog.beer |
 | [taps-and-kegs.md](taps-and-kegs.md) | Taps (levels, the tap drawer, swapping a keg), Kegs and costs, and Monitors |
 | [suppliers.md](suppliers.md) | Supplier directory, weekly opening hours, derived price book, who sees keg costs |
 | [recovery.md](recovery.md) | Backup, restore, and manual crash-loop recovery |

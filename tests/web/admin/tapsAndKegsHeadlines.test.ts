@@ -49,3 +49,12 @@ describe('the Monitors sentence', () => {
       .toBe('Two monitors on two ports. Main kegerator hasn’t reported in the last 10 minutes.');
   });
 });
+
+describe('the Beers sentence', () => {
+  it('counts the library, what is on and what is waiting', async () => {
+    const { beersHeadline } = await import('../../../src/web/routes/admin/BeersPage');
+    expect(beersHeadline(15, 11, 1)).toBe('15 beers. Eleven on tap, one waiting in the cellar.');
+    expect(beersHeadline(2, 0, 0)).toBe('Two beers. None on tap.');
+    expect(beersHeadline(0, 0, 0)).toBe('No beers yet.');
+  });
+});

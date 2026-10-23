@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 // From core/lookupTypes.ts, NOT routes/lookup.ts — see that core module's doc comment.
 import type { BeerLookupResult } from '../../../server/core/lookupTypes.js';
 import { lookupBeers } from '../../lib/adminApi';
+import { Button, Modal } from './ui';
 
 /** The fields the beers form pre-fills from a picked catalog.beer result — every field the
  * search response carries. Unlike the removed `UntappdImportedFields`, there is no
@@ -37,16 +38,10 @@ export function BeerSearchSheet({ onImported, onClose }: BeerSearchSheetProps) {
   const [status, setStatus] = useState<Status>('idle');
   const [results, setResults] = useState<BeerLookupResult[]>([]);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    // The sheet renders inside BeerForm's React tree; its submit must not reach that form.
+    e.stopPropagation();
     const q = query.trim();
     if (!q) {
       setResults([]);
@@ -69,84 +64,66 @@ export function BeerSearchSheet({ onImported, onClose }: BeerSearchSheetProps) {
   }
 
   return (
-    <div
-      className="beer-search-sheet__backdrop"
-      data-testid="beer-search-sheet-backdrop"
-      onClick={onClose}
+    <Modal
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      title="Search catalog.beer"
+      description="Pick a match to fill in the name, brewery, style, ABV, IBU and description."
+      testId="beer-search-sheet"
+      footer={<Button variant="quiet" onClick={onClose}>Close</Button>}
     >
-      <div
-        className="beer-search-sheet"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="beer-search-sheet-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="beer-search-sheet__header">
-          <h3 id="beer-search-sheet-title" className="beer-search-sheet__title font-display">
-            Search catalog.beer
-          </h3>
-          <button
-            type="button"
-            className="beer-search-sheet__dismiss"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+      <form className="beer-search-sheet__form" data-testid="beer-search-form" onSubmit={handleSubmit}>
+        <input
+          type="text"
+          className="adm-input"
+          aria-label="Beer name"
+          data-testid="beer-search-input"
+          placeholder="Search by beer name"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+        />
+        <Button type="submit" variant="primary" data-testid="beer-search-submit">
+          Search
+        </Button>
+      </form>
 
-        <form className="beer-search-sheet__form" data-testid="beer-search-form" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            className="beer-search-sheet__search"
-            data-testid="beer-search-input"
-            placeholder="Search by beer name"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-          />
-          <button type="submit" className="beer-search-sheet__submit" data-testid="beer-search-submit">
-            Search
-          </button>
-        </form>
-
-        {status === 'loading' && (
-          <p className="beer-search-sheet__status" data-testid="beer-search-sheet-loading">Searching…</p>
-        )}
-        {status === 'error' && (
-          <p className="beer-search-sheet__notice" role="alert" data-testid="beer-search-sheet-error">
-            Couldn&rsquo;t reach catalog.beer. Try again, or fill in the beer by hand.
-          </p>
-        )}
-        {status === 'loaded' && results.length === 0 && (
-          <p className="beer-search-sheet__status" data-testid="beer-search-sheet-empty">No matches.</p>
-        )}
-        {status === 'loaded' && results.length > 0 && (
-          <ul className="beer-search-sheet__results" data-testid="beer-search-sheet-results">
-            {results.map((r, i) => (
-              // eslint-disable-next-line react/no-array-index-key -- catalog.beer results have no stable client-side id
-              <li key={`${r.name}-${i}`}>
-                <button
-                  type="button"
-                  className="beer-search-sheet__result"
-                  data-testid="beer-search-sheet-result"
-                  onClick={() => handlePick(r)}
-                >
-                  <span className="beer-search-sheet__result-name font-body">{r.name}</span>
-                  <span className="beer-search-sheet__result-meta">
-                    {[r.brewery, r.style].filter(Boolean).join(' · ') || '—'}
-                  </span>
-                  <span className="beer-search-sheet__result-stats font-tabular">
-                    {r.abv != null ? `${r.abv}% ABV` : ''}
-                    {r.abv != null && r.ibu != null ? ' · ' : ''}
-                    {r.ibu != null ? `${r.ibu} IBU` : ''}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+      {status === 'loading' && (
+        <p className="adm-sub" data-testid="beer-search-sheet-loading">Searching…</p>
+      )}
+      {status === 'error' && (
+        <p className="adm-modal__error" role="alert" data-testid="beer-search-sheet-error">
+          Couldn&rsquo;t reach catalog.beer. Try again, or fill in the beer by hand.
+        </p>
+      )}
+      {status === 'loaded' && results.length === 0 && (
+        <p className="adm-sub" data-testid="beer-search-sheet-empty">No matches.</p>
+      )}
+      {status === 'loaded' && results.length > 0 && (
+        <ul className="beer-search-sheet__results" data-testid="beer-search-sheet-results">
+          {results.map((r, i) => (
+            // eslint-disable-next-line react/no-array-index-key -- catalog.beer results have no stable client-side id
+            <li key={`${r.name}-${i}`}>
+              <button
+                type="button"
+                className="beer-search-sheet__result"
+                data-testid="beer-search-sheet-result"
+                onClick={() => handlePick(r)}
+              >
+                <span className="beer-search-sheet__result-name">{r.name}</span>
+                <span className="adm-sub">
+                  {[r.brewery, r.style].filter(Boolean).join(' · ') || '—'}
+                </span>
+                <span className="adm-sub adm-num-cell">
+                  {r.abv != null ? `${r.abv}% ABV` : ''}
+                  {r.abv != null && r.ibu != null ? ' · ' : ''}
+                  {r.ibu != null ? `${r.ibu} IBU` : ''}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }

@@ -376,18 +376,6 @@
   font-weight: 700;
 }
 
-.swap-wizard__swatch {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 900;
-}
-
 .swap-wizard__actions {
   display: flex;
   flex-wrap: wrap;
@@ -647,6 +635,152 @@
   height: auto;
   margin-top: 4px;
   color: var(--text);
+}
+
+/* --- Beers ---------------------------------------------------------------------- */
+
+.beers-v2__search {
+  flex: 1;
+  max-width: 420px;
+}
+
+.beers-v2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beers-v2__card {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 6px 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.beers-v2__art {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.beers-v2__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.beers-v2__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+  vertical-align: baseline;
+}
+
+.beers-v2__where {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.beers-v2__where--deck {
+  color: var(--info);
+}
+
+.beers-v2__actions {
+  display: flex;
+  grid-column: 2;
+  gap: 2px;
+  margin-left: -10px;
+}
+
+.beers-v2__lookup {
+  margin-top: 28px;
+}
+
+.beers-v2__lookup a {
+  color: var(--text-dim);
+}
+
+.beers-v2__dashed {
+  color: var(--warn);
+}
+
+/* The beer editor's live marker preview. */
+.beer-form__preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.beer-form__preview p {
+  margin: 2px 0 0;
+}
+
+.beer-form__preview-empty {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  border: 1.5px dashed var(--border-strong);
+}
+
+.beer-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.beer-form__label .admin-field__label-text {
+  font-weight: 700;
+}
+
+.beer-form__srm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.beer-form__srm input {
+  min-width: 0;
+  flex: 1;
+}
+
+.beer-form__srm-swatch {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+}
+
+.admin-shell .admin-field .brewery-autocomplete,
+.admin-shell .admin-field .style-autocomplete,
+.admin-shell .admin-field .brewery-autocomplete input,
+.admin-shell .admin-field .style-autocomplete input {
+  width: 100%;
+}
+
+.beer-search-sheet__form {
+  display: flex;
+  gap: 8px;
+}
+
+.beer-search-sheet__form .adm-input {
+  min-width: 0;
+  flex: 1;
 }
 
 /* --- Bridge: older page classes, skinned with the admin look ---------------------- */

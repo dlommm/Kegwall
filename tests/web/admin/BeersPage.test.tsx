@@ -85,7 +85,7 @@ describe('BeersPage', () => {
     expect(await screen.findByTestId('beers-empty')).toHaveTextContent('No beers yet.');
   });
 
-  it('shows a count summary of total / on tap / missing label art', async () => {
+  it('says how many beers are missing label art', async () => {
     (listBeers as Mock).mockResolvedValue({
       ok: true,
       data: [makeBeer({ id: 1 }), makeBeer({ id: 2, labelImage: null }), makeBeer({ id: 3, labelImage: null })],
@@ -106,7 +106,7 @@ describe('BeersPage', () => {
       },
     });
     renderAdminPage(<BeersPage />);
-    expect(await screen.findByTestId('beers-summary')).toHaveTextContent('3 total · 1 on tap · 2 missing label art');
+    expect(await screen.findByTestId('beers-summary')).toHaveTextContent('2 of 3 have no label art');
   });
 
   it('renders the LOOKUP chip row — catalog.beer dashed until keyed, auto-import on', async () => {
@@ -118,7 +118,7 @@ describe('BeersPage', () => {
     expect(screen.getByTestId('beers-chip-autoimport')).toHaveTextContent('Auto-import from Kegtron: on');
   });
 
-  it('shows a STATUS pill per beer: TAP+level on tap, ON DECK when queued, — otherwise', async () => {
+  it('says where each beer is: on a tap with its level, on deck, or in the library', async () => {
     (listBeers as Mock).mockResolvedValue({
       ok: true, data: [makeBeer({ id: 1 }), makeBeer({ id: 2 }), makeBeer({ id: 3 })],
     });
@@ -141,9 +141,9 @@ describe('BeersPage', () => {
     });
     renderAdminPage(<BeersPage />);
     const rows = await screen.findAllByTestId('beers-row');
-    expect(rows[0]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('TAP 2 · 72%');
-    expect(rows[1]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('ON DECK');
-    expect(rows[2]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('—');
+    expect(rows[0]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('On tap 2 · 72%');
+    expect(rows[1]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('On deck');
+    expect(rows[2]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('In the library');
   });
 
   it('filters the table by the search box', async () => {
@@ -216,6 +216,7 @@ describe('BeersPage', () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer({ name: 'Stout' })] });
     renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
+    fireEvent.click(screen.getByTestId('beers-row-edit'));
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     const confirm = screen.getByTestId('beers-delete-confirm');
     expect(confirm).toHaveTextContent('This will permanently delete');
@@ -229,6 +230,7 @@ describe('BeersPage', () => {
     (deleteBeer as Mock).mockResolvedValue({ ok: true, data: null });
     renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
+    fireEvent.click(screen.getByTestId('beers-row-edit'));
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-confirm-button'));
     await flush();
@@ -242,6 +244,7 @@ describe('BeersPage', () => {
     (deleteBeer as Mock).mockResolvedValue({ ok: false, status: 409, message: 'beer 1 is referenced by 1 keg(s)' });
     renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
+    fireEvent.click(screen.getByTestId('beers-row-edit'));
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-confirm-button'));
     await flush();
@@ -254,6 +257,7 @@ describe('BeersPage', () => {
     (deleteBeer as Mock).mockResolvedValue({ ok: false, status: 500, message: 'Something went wrong' });
     renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
+    fireEvent.click(screen.getByTestId('beers-row-edit'));
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-confirm-button'));
     await flush();
@@ -264,6 +268,7 @@ describe('BeersPage', () => {
     (listBeers as Mock).mockResolvedValue({ ok: true, data: [makeBeer()] });
     renderAdminPage(<BeersPage />);
     await screen.findAllByTestId('beers-row');
+    fireEvent.click(screen.getByTestId('beers-row-edit'));
     fireEvent.click(screen.getByTestId('beers-row-delete'));
     fireEvent.click(screen.getByTestId('beers-delete-cancel-button'));
     expect(screen.queryByTestId('beers-delete-confirm')).not.toBeInTheDocument();

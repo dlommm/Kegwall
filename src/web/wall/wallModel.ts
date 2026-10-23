@@ -68,13 +68,35 @@ export function servingsLabelFor(
   return `≈ ${n.toLocaleString('en-US')} ${noun}${n === 1 ? '' : 's'} left`;
 }
 
+/** A beer's color from its SRM. The SRM table's palest steps (1-5) are highlighter yellows
+ * that read as UI color, not beer, when they fill half a TV; a little warmth brings them
+ * back to straw. */
+export function beerColorFor(srm: number | null): string {
+  const liquid = srmToColor(srm).liquid;
+  return srm != null && srm < 6 ? mixHex(liquid, '#C8962E', 0.28) : liquid;
+}
+
+/** The tap marker for a beer that isn't on a tap (the beer library, swap choices, the beer
+ * editor's preview): its color, initials and label art. */
+export function beerMarkerModel(
+  beer: { name: string | null; srm: number | null; labelImage?: string | null },
+  tapNumber = 0,
+): Pick<WallTapModel, 'beerColor' | 'markerInk' | 'markerLetters' | 'tapNumber' | 'labelImage' | 'name'> {
+  const beerColor = beerColorFor(beer.srm);
+  return {
+    beerColor,
+    markerInk: pickInk(beerColor),
+    markerLetters: markerLettersFor(beer.name),
+    tapNumber,
+    labelImage: beer.labelImage ?? null,
+    name: beer.name,
+  };
+}
+
 export function wallTapModel(tap: TapState, opts: WallModelOptions): WallTapModel {
   const now = opts.now ?? new Date();
   const base = tapLookModel(tap, opts.units, now);
-  // The SRM table's palest steps (1-5) are highlighter yellows that read as UI color, not
-  // beer, when they fill half a TV; a little warmth brings them back to straw.
-  const srm = srmToColor(base.srm).liquid;
-  const beerColor = base.srm != null && base.srm < 6 ? mixHex(srm, '#C8962E', 0.28) : srm;
+  const beerColor = beerColorFor(base.srm);
   const remainingMl = tap.keg && !base.isKicked ? tap.keg.remainingMl : 0;
   const servings = tap.keg ? remainingMl / opts.servingSizeMl : null;
   const servingNoun = servingNounFor(opts.servingSizeMl);

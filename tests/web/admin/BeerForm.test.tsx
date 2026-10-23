@@ -223,7 +223,7 @@ describe('BeerForm', () => {
 
       const button = screen.getByTestId('beer-form-catalogbeer-button');
       fireEvent.click(button);
-      expect(screen.getByTestId('beer-search-sheet-backdrop')).toBeInTheDocument();
+      expect(screen.getByTestId('beer-search-sheet')).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId('beer-search-input'), { target: { value: 'Sculpin' } });
       fireEvent.submit(screen.getByTestId('beer-search-form'));
@@ -239,7 +239,7 @@ describe('BeerForm', () => {
       // The label field is never touched by a catalog.beer import — there is no label art.
       expect(screen.getByTestId('beer-form-label-placeholder')).toBeInTheDocument();
       // Sheet closes after a pick.
-      expect(screen.queryByTestId('beer-search-sheet-backdrop')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('beer-search-sheet')).not.toBeInTheDocument();
     });
 
     it('closing the sheet without picking anything leaves the form untouched', async () => {
@@ -249,7 +249,7 @@ describe('BeerForm', () => {
 
       fireEvent.click(screen.getByTestId('beer-form-catalogbeer-button'));
       fireEvent.keyDown(document, { key: 'Escape' });
-      expect(screen.queryByTestId('beer-search-sheet-backdrop')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('beer-search-sheet')).not.toBeInTheDocument();
       expect(screen.getByTestId('beer-form-name')).toHaveValue('');
     });
   });

@@ -19,6 +19,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   the tap's next-up keg and another keg of the same beer first. Kegs shows costs as numbers over
   one table with editing in a drawer; Suppliers lists each supplier's week at a glance beside its
   price book; Monitors says whether each device is receiving and maps each port to its tap.
+- **Changed:** **Beers** is a library of cards with each beer's marker and where it is (on tap
+  with its level, on deck, or in the library), with search and filters. The editor opens in a
+  drawer with a live preview of the beer's marker.
 
 - **Changed:** pour takeovers are rebuilt. Full shows a glass filling from a stream of beer,
   Split slides a panel in the beer's color, Dock lifts the wall for a filling bar, Fill floods
