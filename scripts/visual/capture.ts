@@ -224,6 +224,10 @@ await shot('admin-beers-editor', '/admin/beers', VP.desktop, {
   ctx: admin, wait: 1500, before: async (p) => { await p.getByTestId('beers-row-edit').nth(5).click(); await p.waitForTimeout(500); },
 });
 await shot('admin-beers-mobile', '/admin/beers', VP.mobile, { ctx: admin, wait: 1500, full: true });
+await shot('admin-people-accounts', '/admin/people', VP.desktop, {
+  ctx: admin, wait: 1500, full: true, before: async (p) => { await p.getByTestId('people-tab-accounts').click(); await p.waitForTimeout(300); },
+});
+await shot('admin-people-mobile', '/admin/people', VP.mobile, { ctx: admin, wait: 1500, full: true });
 await shot('admin-taps-mobile', '/admin/taps', VP.mobile, { ctx: admin, wait: 1500, full: true });
 const light = await adminCtx('light');
 for (const [n, u] of [['dashboard', '/admin'], ['taps', '/admin/taps'], ['stats', '/admin/stats']] as const) {

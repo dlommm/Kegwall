@@ -2088,11 +2088,6 @@ h2.admin-field__label-text {
   border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
 }
 
-.users-row__username {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
 .users-role-badge {
   display: inline-block;
   padding: 0.15rem 0.55rem;
@@ -2104,72 +2099,10 @@ h2.admin-field__label-text {
   color: var(--text);
 }
 
-.users-role-badge--admin {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.users-role-badge--none {
-  color: var(--text-dim);
-  border-style: dashed;
-}
-
-.users-drinker-pill {
-  display: inline-block;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  color: var(--text);
-}
-
-.users-table__actions {
-  display: flex;
-  gap: 0.5rem;
-  white-space: nowrap;
-}
-
-.users-table__actions button {
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.users-table__actions button:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
 /* Face-data management (Task 9, Plan B): the "N face samples" + "Delete face data" row
  * that appears under a drinker's role pill once they have at least one enrolled sample. */
-.users-row__face-data {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.35rem;
-  font-size: 0.8rem;
-}
-
-.users-row__face-data button {
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.users-row__face-data button:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
 
 .user-form button:focus-visible,
-.users-table__actions button:focus-visible,
-.users-row__face-data button:focus-visible,
 .user-form input:focus-visible,
 .user-form select:focus-visible {
   outline: 2px solid var(--accent);
@@ -3273,60 +3206,6 @@ h2.admin-field__label-text {
 }
 
 /* --- Pourers (11c, first cut) --------------------------------------------- */
-.pourers-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-}
-
-.pourer-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-}
-
-.pourer-card__avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  color: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 19px;
-  font-weight: 600;
-}
-
-.pourer-card__name {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.pourer-card__stats {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.pourer-card__qr {
-  width: 52px;
-  height: 52px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 3px;
-  box-sizing: border-box;
-}
-
-.pourer-card__qr svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 
 .displays-section {
   margin-top: 18px;

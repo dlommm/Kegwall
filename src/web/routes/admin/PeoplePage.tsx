@@ -1,27 +1,48 @@
 import { useEffect, useState } from 'react';
 import { listUsers, getFaceCounts } from '../../lib/adminApi';
-import { getPourers } from '../../lib/api';
+import { getLeaderboard, getPourers, type LeaderboardEntryPublic } from '../../lib/api';
+import { formatBoardVolume } from '../../components/LeaderboardBoard';
+import { capitalize, countWord } from '../../lib/tonightAttention';
+import type { VolumeUnits } from '../../lib/units';
 import { useAdminContext } from './useAdminContext';
 import { UsersPage } from './UsersPage';
 import { PourersPage } from './PourersPage';
+import { PageTemplate } from './PageTemplate';
+import { Tabs, tabId } from './ui';
+
+type PeopleTab = 'pourers' | 'accounts';
+
+/** "Seven pourers. Jordan leads this month with 3.2 gal." */
+export function peopleHeadline(
+  pourers: number | null, leader: LeaderboardEntryPublic | null, units: VolumeUnits,
+): string {
+  if (pourers === null) return 'People';
+  if (pourers === 0) return 'No pourers yet.';
+  const first = pourers === 1 ? 'One pourer.' : `${capitalize(countWord(pourers))} pourers.`;
+  if (!leader) return `${first} Nobody has poured yet this month.`;
+  return `${first} ${leader.displayName} leads this month with ${formatBoardVolume(leader.volumeMl, units)}.`;
+}
 
 /**
- * `/admin/people` (redesign 4h): the merged People page. One nav entry, a shared header
- * count, and two tabs — Pourers (passwordless drinkers, all roles) and Accounts (login users
- * + face data, admin only). The two existing pages render embedded (header suppressed) under
- * the tabs, so their full management UIs are preserved without a risky rewrite.
+ * `/admin/people` (Kegwall V2 M8, prototypes/admin-people.html): pourers and the accounts that
+ * can sign in, under one sentence header with two tabs — Pourers (passwordless drinkers, all
+ * roles) and Accounts (login users + face data, admin only).
  */
 export function PeoplePage() {
-  const { me } = useAdminContext();
+  const { me, units } = useAdminContext();
   const isAdmin = me.role === 'admin';
-  const [tab, setTab] = useState<'pourers' | 'accounts'>('pourers');
+  const [tab, setTab] = useState<PeopleTab>('pourers');
   const [accounts, setAccounts] = useState<number | null>(null);
   const [pourers, setPourers] = useState<number | null>(null);
   const [faces, setFaces] = useState<number | null>(null);
+  const [leader, setLeader] = useState<LeaderboardEntryPublic | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getPourers().then((r) => { if (!cancelled && r.ok) setPourers(r.data.length); });
+    getLeaderboard('month').then((r) => {
+      if (!cancelled && r.ok) setLeader(r.data.entries.find((e) => e.volumeMl > 0) ?? null);
+    });
     if (isAdmin) {
       listUsers().then((r) => { if (!cancelled && r.ok) setAccounts(r.data.filter((u) => u.username != null).length); });
       getFaceCounts().then((r) => {
@@ -31,54 +52,46 @@ export function PeoplePage() {
     return () => { cancelled = true; };
   }, [isAdmin]);
 
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const summary = [
-    isAdmin && accounts != null ? `${accounts} accounts` : null,
-    pourers != null ? `${pourers} pourers` : null,
-    isAdmin && faces != null ? `${faces} faces enrolled` : null,
+    isAdmin && accounts != null ? plural(accounts, 'account') : null,
+    pourers != null ? plural(pourers, 'pourer') : null,
+    isAdmin && faces != null ? `${faces} with face sign-in` : null,
   ].filter(Boolean).join(' · ');
 
   return (
-    <section data-testid="admin-people-page">
-      <header className="admin-page-header">
-        <div className="admin-page-header__lead">
-          <h1 className="admin-page-header__title font-display">People</h1>
-          {summary && <span className="beers-summary font-tabular" data-testid="people-summary">{summary}</span>}
-        </div>
-      </header>
+    <PageTemplate
+      testId="admin-people-page"
+      title={peopleHeadline(pourers, leader, units)}
+      sub={(
+        <>
+          Pourers sign in on the tablet or claim pours on their phone. No email or password needed.
+          {summary && <span className="people-v2__summary" data-testid="people-summary">{summary}</span>}
+        </>
+      )}
+    >
+      <Tabs<PeopleTab>
+        label="People sections"
+        idBase="people"
+        testId="people-tabs"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'pourers', label: 'Pourers', count: pourers ?? undefined, testId: 'people-tab-pourers' },
+          ...(isAdmin
+            ? [{ value: 'accounts' as const, label: 'Accounts', count: accounts ?? undefined, testId: 'people-tab-accounts' }]
+            : []),
+        ]}
+      />
 
-      <div className="analytics-tabs" role="tablist" aria-label="People sections" data-testid="people-tabs">
-        <button
-          type="button"
-          role="tab"
-          className="analytics-tab"
-          data-testid="people-tab-pourers"
-          aria-selected={tab === 'pourers'}
-          onClick={() => setTab('pourers')}
-        >
-          Pourers
-        </button>
-        {isAdmin && (
-          <button
-            type="button"
-            role="tab"
-            className="analytics-tab"
-            data-testid="people-tab-accounts"
-            aria-selected={tab === 'accounts'}
-            onClick={() => setTab('accounts')}
-          >
-            Accounts
-          </button>
-        )}
-      </div>
-
-      <div hidden={tab !== 'pourers'} data-testid="people-panel-pourers">
+      <div role="tabpanel" aria-labelledby={tabId('people', 'pourers')} hidden={tab !== 'pourers'} data-testid="people-panel-pourers">
         <PourersPage embedded />
       </div>
       {isAdmin && (
-        <div hidden={tab !== 'accounts'} data-testid="people-panel-accounts">
+        <div role="tabpanel" aria-labelledby={tabId('people', 'accounts')} hidden={tab !== 'accounts'} data-testid="people-panel-accounts">
           <UsersPage embedded />
         </div>
       )}
-    </section>
+    </PageTemplate>
   );
 }

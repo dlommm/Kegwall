@@ -708,6 +708,46 @@
   margin-top: 4px;
 }
 
+/* A page's own tabs: the same underline language as the shell's sub-tabs. */
+.adm-tabs {
+  display: flex;
+  gap: 26px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.adm-tabs__tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.adm-tabs__tab:hover {
+  color: var(--text);
+}
+
+.adm-tabs__tab[aria-selected='true'] {
+  border-color: var(--text);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.adm-tabs__tab small {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 400;
+}
+
 /* Filter chips over a list. */
 .adm-chips {
   display: flex;

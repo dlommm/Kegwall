@@ -16,3 +16,4 @@ export { StatusDot, type RunState } from './StatusDot';
 export { EmptyState, ErrorState, Skeleton } from './states';
 export { Switch } from './Switch';
 export { Table } from './Table';
+export { Tabs, tabId, type TabItem } from './Tabs';

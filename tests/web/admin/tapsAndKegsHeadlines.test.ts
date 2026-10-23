@@ -58,3 +58,13 @@ describe('the Beers sentence', () => {
     expect(beersHeadline(0, 0, 0)).toBe('No beers yet.');
   });
 });
+
+describe('the People sentence', () => {
+  it('names this month’s leader by volume', async () => {
+    const { peopleHeadline } = await import('../../../src/web/routes/admin/PeoplePage');
+    const leader = { drinkerId: 1, displayName: 'Jordan', avatarColor: null, pourCount: 29, volumeMl: 12113, avgQuality: null, qualityCount: 0 };
+    expect(peopleHeadline(7, leader, 'us')).toMatch(/^Seven pourers\. Jordan leads this month with .+\.$/);
+    expect(peopleHeadline(2, null, 'us')).toBe('Two pourers. Nobody has poured yet this month.');
+    expect(peopleHeadline(0, null, 'us')).toBe('No pourers yet.');
+  });
+});

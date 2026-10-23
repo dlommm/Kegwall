@@ -194,6 +194,7 @@ for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 | [docs/customization.md](docs/customization.md) | The 14 wall looks, themes, pour takeovers and wall moments, custom CSS trust model, screensaver |
 | [docs/admin-dashboard.md](docs/admin-dashboard.md) | Tonight, the admin top bar, Search and phone navigation |
 | [docs/taps-and-kegs.md](docs/taps-and-kegs.md) | Taps, swapping a keg, keg costs, monitors |
+| [docs/people.md](docs/people.md) | Pourers, accounts and roles |
 | [docs/beers.md](docs/beers.md) | The beer library and editor |
 | [docs/suppliers.md](docs/suppliers.md) | Suppliers, opening hours and the price book |
 | [docs/cleaning-and-pours.md](docs/cleaning-and-pours.md) | Line-cleaning reminders and unclaimed pours |

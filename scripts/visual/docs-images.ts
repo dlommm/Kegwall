@@ -2,8 +2,9 @@
 // docs/ embed, so they're regenerated from the real app instead of going stale.
 //
 //   npm run build && npm run visual:capture -- .visual/docs
-//   npm run docs:images -- .visual/docs
+//   npm run docs:images -- .visual/docs [only]
 //
+// `only` limits the run to docs images whose name contains it (e.g. `admin-people`).
 // Each image is re-encoded as JPEG at a docs-friendly width; the looks and takeovers are laid
 // out as labelled contact sheets. Output goes to docs/images/.
 import { existsSync, readFileSync } from 'node:fs';
@@ -12,6 +13,7 @@ import { chromium, type Page } from '@playwright/test';
 
 const SRC = resolve(process.argv[2] ?? '.visual/docs');
 const OUT = resolve('docs/images');
+const ONLY = process.argv[3] ?? '';
 
 /** [harness shot, docs file, width in CSS px] */
 const SINGLES: [string, string, number][] = [
@@ -27,6 +29,7 @@ const SINGLES: [string, string, number][] = [
   ['admin-monitors', 'admin-monitors', 1440],
   ['admin-beers', 'admin-beers', 1440],
   ['admin-beers-editor', 'admin-beers-editor', 1440],
+  ['admin-people', 'admin-people', 1440],
   ['admin-palette', 'admin-search', 1440],
   ['admin-menu-mobile', 'admin-menu-phone', 390],
 ];
@@ -51,9 +54,10 @@ function dataUrl(name: string): string {
   return `data:image/png;base64,${readFileSync(file).toString('base64')}`;
 }
 
-async function render(page: Page, html: string, width: number, out: string): Promise<void> {
+async function render(page: Page, html: () => string, width: number, out: string): Promise<void> {
+  if (ONLY && !out.includes(ONLY)) return;
   await page.setViewportSize({ width, height: 400 });
-  await page.setContent(`<!doctype html><html><body style="margin:0;background:#0d0c0b">${html}</body></html>`);
+  await page.setContent(`<!doctype html><html><body style="margin:0;background:#0d0c0b">${html()}</body></html>`);
   await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete));
   await page.screenshot({ path: join(OUT, `${out}.jpg`), type: 'jpeg', quality: 82, fullPage: true });
   console.log(`docs/images/${out}.jpg`);
@@ -69,8 +73,8 @@ function sheet(items: [string, string][], columns: number): string {
 const browser = await chromium.launch(process.env.KEGWALL_CHROMIUM ? { executablePath: process.env.KEGWALL_CHROMIUM } : {});
 const page = await browser.newPage({ deviceScaleFactor: 1 });
 for (const [shot, out, width] of SINGLES) {
-  await render(page, `<img src="${dataUrl(shot)}" style="display:block;width:${width}px">`, width, out);
+  await render(page, () => `<img src="${dataUrl(shot)}" style="display:block;width:${width}px">`, width, out);
 }
-await render(page, sheet(LOOKS.map(([id, label]) => [`wall-look-${id}-1080`, label]), 4), 1600, 'wall-looks');
-await render(page, sheet(TAKEOVERS, 4), 1600, 'pour-takeovers');
+await render(page, () => sheet(LOOKS.map(([id, label]) => [`wall-look-${id}-1080`, label]), 4), 1600, 'wall-looks');
+await render(page, () => sheet(TAKEOVERS, 4), 1600, 'pour-takeovers');
 await browser.close();

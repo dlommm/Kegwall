@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import {
-  Chips, ConfirmDialog, Field, StatusDot, Switch, barColor, type RunState,
+  Chips, ConfirmDialog, Field, Tabs, StatusDot, Switch, barColor, type RunState,
 } from '../../../src/web/routes/admin/ui';
 import { filterEntries, paletteEntries } from '../../../src/web/routes/admin/CommandPalette';
 import { visibleDestinations } from '../../../src/web/routes/admin/adminNav';
@@ -31,6 +31,26 @@ describe('admin primitives (Kegwall V2)', () => {
     expect(screen.getByRole('button', { name: 'All 12' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Needs a swap 3' }));
     expect(onChange).toHaveBeenCalledWith('swap');
+  });
+
+  it('moves between tabs with the arrow keys and selects the focused one', () => {
+    const onChange = vi.fn();
+    render(
+      <Tabs
+        label="People sections"
+        idBase="t"
+        value="a"
+        onChange={onChange}
+        items={[{ value: 'a', label: 'Pourers' }, { value: 'b', label: 'Accounts' }]}
+      />,
+    );
+    const first = screen.getByRole('tab', { name: 'Pourers' });
+    expect(first).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Accounts' })).toHaveAttribute('tabindex', '-1');
+    fireEvent.keyDown(first, { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenCalledWith('b');
+    fireEvent.keyDown(first, { key: 'ArrowLeft' });
+    expect(onChange).toHaveBeenLastCalledWith('b');
   });
 
   it("won't close a confirm while its action is running", () => {

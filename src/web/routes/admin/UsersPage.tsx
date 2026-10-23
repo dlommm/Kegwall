@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import type { Role, User } from '../../../server/db/users.js';
-import {
-  listUsers, createLoginUser, createDrinkerProfile, updateUser, deleteUser, getFaceCounts,
-} from '../../lib/adminApi';
-// Task 9 (Plan B): "Delete face data" reuses the public DELETE (works while face sign-in
+import { useCallback, useEffect, useState } from 'react';
+import type { User } from '../../../server/db/users.js';
+import { listUsers, deleteUser, getFaceCounts } from '../../lib/adminApi';
 // Admin-initiated face-data deletion goes through the admin-gated DELETE /api/faces/
 // drinker/:id — the public self-service delete is bound to the currently-armed kiosk
 // pourer, which an admin at their desk isn't.
 import { deleteFacesAdmin } from '../../lib/api';
+import { initials } from '../../lib/initials';
+import {
+  DrinkerProfileForm, EditUserForm, LoginUserForm, ROLE_CAN, ROLE_LABELS, DEFAULT_AVATAR_COLOR,
+} from './people/UserForms';
+import {
+  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Skeleton, Table,
+} from './ui';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 
@@ -19,356 +23,37 @@ type FormState =
 
 interface DeleteState { user: User; error: string | null }
 
-const ROLE_OPTIONS: readonly Role[] = ['admin', 'editor', 'viewer'];
-const DEFAULT_AVATAR_COLOR = '#c9a227'; // matches the taproom theme's brass accent
-
-const ROLE_LABELS: Record<Role, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
-
-function userLabel(user: User): string {
-  return user.displayName;
-}
-
-/** Create-login-user form (Task 8). */
-function LoginUserForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>('viewer');
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setServerError(null);
-    if (!username.trim() || !displayName.trim()) {
-      setValidationError('Username and display name are required.');
-      return;
-    }
-    if (password.length < 8) {
-      setValidationError('Password must be at least 8 characters.');
-      return;
-    }
-    setValidationError(null);
-    setSubmitting(true);
-    const result = await createLoginUser({
-      username: username.trim(), displayName: displayName.trim(), password, role,
-    });
-    setSubmitting(false);
-    if (!result.ok) {
-      setServerError(result.message);
-      return;
-    }
-    onSaved();
-  }
-
-  return (
-    <form
-      className="user-form"
-      data-testid="users-login-form"
-      aria-label="Add login user"
-      onSubmit={handleSubmit}
-    >
-      <h2 className="user-form__title font-display">Add login user</h2>
-      <p className="admin-page-quiet">Has a username and password, and can sign in to this admin area.</p>
-      <div className="user-form__grid">
-        <label className="admin-field">
-          <span>Username</span>
-          <input
-            type="text"
-            data-testid="users-login-username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="admin-field">
-          <span>Display name</span>
-          <input
-            type="text"
-            data-testid="users-login-displayname"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </label>
-        <label className="admin-field">
-          <span>Password</span>
-          <input
-            type="password"
-            data-testid="users-login-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 8 characters"
-          />
-        </label>
-        <label className="admin-field">
-          <span>Role</span>
-          <select
-            data-testid="users-login-role"
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-          >
-            {ROLE_OPTIONS.map((r) => (
-              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {validationError && (
-        <p className="beer-form__notice" role="alert" data-testid="users-login-validation-error">
-          {validationError}
-        </p>
-      )}
-      {serverError && (
-        <p className="beer-form__notice" role="alert" data-testid="users-login-server-error">
-          {serverError}
-        </p>
-      )}
-      <div className="beer-form__actions">
-        <button type="submit" className="beer-form__submit" disabled={submitting} data-testid="users-login-submit">
-          {submitting ? 'Adding…' : 'Add login user'}
-        </button>
-        <button type="button" className="beer-form__cancel" disabled={submitting} onClick={onCancel} data-testid="users-login-cancel">
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/** Create-drinker-only-profile form (Task 8): no username/password — a leaderboard/
- * claim-a-pour identity with no admin access. */
-function DrinkerProfileForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
-  const [displayName, setDisplayName] = useState('');
-  const [avatarColor, setAvatarColor] = useState(DEFAULT_AVATAR_COLOR);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setServerError(null);
-    if (!displayName.trim()) {
-      setValidationError('Display name is required.');
-      return;
-    }
-    setValidationError(null);
-    setSubmitting(true);
-    const result = await createDrinkerProfile({ displayName: displayName.trim(), avatarColor });
-    setSubmitting(false);
-    if (!result.ok) {
-      setServerError(result.message);
-      return;
-    }
-    onSaved();
-  }
-
-  return (
-    <form
-      className="user-form"
-      data-testid="users-drinker-form"
-      aria-label="Add drinker profile"
-      onSubmit={handleSubmit}
-    >
-      <h2 className="user-form__title font-display">Add drinker profile</h2>
-      <p className="admin-page-quiet">No login — just a name for claiming pours and the leaderboard.</p>
-      <div className="user-form__grid">
-        <label className="admin-field">
-          <span>Display name</span>
-          <input
-            type="text"
-            data-testid="users-drinker-displayname"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="admin-field">
-          <span>Avatar color</span>
-          <input
-            type="color"
-            data-testid="users-drinker-avatarcolor"
-            value={avatarColor}
-            onChange={(e) => setAvatarColor(e.target.value)}
-          />
-        </label>
-      </div>
-      {validationError && (
-        <p className="beer-form__notice" role="alert" data-testid="users-drinker-validation-error">
-          {validationError}
-        </p>
-      )}
-      {serverError && (
-        <p className="beer-form__notice" role="alert" data-testid="users-drinker-server-error">
-          {serverError}
-        </p>
-      )}
-      <div className="beer-form__actions">
-        <button type="submit" className="beer-form__submit" disabled={submitting} data-testid="users-drinker-submit">
-          {submitting ? 'Adding…' : 'Add drinker profile'}
-        </button>
-        <button type="button" className="beer-form__cancel" disabled={submitting} onClick={onCancel} data-testid="users-drinker-cancel">
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/** Edit form (Task 8): display name + avatar color for every user; role + optional
- * password only for a login user (a drinker-only profile has neither — see UsersPage's
- * doc comment). Matches the plan's exact edit-field list. */
-function EditUserForm({ user, onSaved, onCancel }: {
-  user: User; onSaved: () => void; onCancel: () => void;
-}) {
-  const isLogin = user.username != null;
-  const [displayName, setDisplayName] = useState(user.displayName);
-  const [role, setRole] = useState<Role>(user.role ?? 'viewer');
-  const [password, setPassword] = useState('');
-  const [avatarColor, setAvatarColor] = useState(user.avatarColor ?? DEFAULT_AVATAR_COLOR);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setServerError(null);
-    if (!displayName.trim()) {
-      setValidationError('Display name is required.');
-      return;
-    }
-    if (isLogin && password && password.length < 8) {
-      setValidationError('Password must be at least 8 characters, or left blank to keep the current one.');
-      return;
-    }
-    setValidationError(null);
-    setSubmitting(true);
-    const result = await updateUser(user.id, {
-      displayName: displayName.trim(),
-      avatarColor,
-      ...(isLogin ? { role } : {}),
-      ...(isLogin && password ? { password } : {}),
-    });
-    setSubmitting(false);
-    if (!result.ok) {
-      setServerError(result.message);
-      return;
-    }
-    onSaved();
-  }
-
-  return (
-    <form
-      className="user-form"
-      data-testid="users-edit-form"
-      aria-label={`Edit ${userLabel(user)}`}
-      onSubmit={handleSubmit}
-    >
-      <h2 className="user-form__title font-display">Edit {userLabel(user)}</h2>
-      <div className="user-form__grid">
-        <label className="admin-field">
-          <span>Display name</span>
-          <input
-            type="text"
-            data-testid="users-edit-displayname"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoFocus
-          />
-        </label>
-        {isLogin && (
-          <label className="admin-field">
-            <span>Role</span>
-            <select
-              data-testid="users-edit-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
-            >
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        {isLogin && (
-          <label className="admin-field">
-            <span>New password</span>
-            <input
-              type="password"
-              data-testid="users-edit-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Leave blank to keep the current password"
-            />
-          </label>
-        )}
-        <label className="admin-field">
-          <span>Avatar color</span>
-          <input
-            type="color"
-            data-testid="users-edit-avatarcolor"
-            value={avatarColor}
-            onChange={(e) => setAvatarColor(e.target.value)}
-          />
-        </label>
-      </div>
-      {validationError && (
-        <p className="beer-form__notice" role="alert" data-testid="users-edit-validation-error">
-          {validationError}
-        </p>
-      )}
-      {serverError && (
-        <p className="beer-form__notice" role="alert" data-testid="users-edit-server-error">
-          {serverError}
-        </p>
-      )}
-      <div className="beer-form__actions">
-        <button type="submit" className="beer-form__submit" disabled={submitting} data-testid="users-edit-submit">
-          {submitting ? 'Saving…' : 'Save changes'}
-        </button>
-        <button type="button" className="beer-form__cancel" disabled={submitting} onClick={onCancel} data-testid="users-edit-cancel">
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
+const FORM_TITLES: Record<Exclude<FormState['mode'], 'edit'>, string> = {
+  choose: 'Add someone',
+  'create-login': 'Add an account',
+  'create-drinker': 'Add a pourer',
+};
 
 /**
- * `/admin/users` (Task 8, admin-only route — `AdminLayout` already bounces any non-admin
- * before this ever renders, so unlike most other Task 4-7 pages there's no `canEdit`/
- * viewer-read-only branching here).
+ * The People page's Accounts tab, also served at `/admin/users` (admin-only route —
+ * `AdminLayout` bounces any non-admin before this renders, so there's no viewer branch).
  *
  * A user row is either a login account (`username` set, has a `role`, can sign in here)
  * or a drinker-only profile (`username: null`, `role: null` — a leaderboard/claim-a-pour
- * identity with no admin access). "Add user" opens a small chooser between the two —
+ * identity with no admin access). "Add someone" opens a chooser between the two in a drawer —
  * they're different enough shapes (password + role vs. just a name + color) that a single
- * merged form would be confusing about which fields apply.
+ * merged form would be confusing about which fields apply. Editing opens the same drawer.
  *
- * Task 9 (Plan B) adds per-drinker face-data management: any drinker row with at least
- * one enrolled face sample shows the count plus a "Delete face data" button, wiping that
- * drinker's enrolled samples via the same public DELETE the tablet's own armed-screen
- * removal action uses (works even while face sign-in is globally disabled — see
- * routes/public.ts's doc comment on the route).
+ * Any drinker with enrolled face samples shows the count and "Delete face data", which wipes
+ * that drinker's samples through the admin DELETE (works even while face sign-in is off).
  */
-/** `embedded` (redesign 4h) hides this page's own header/h1 so it can sit under the merged
- *  People page's shared header + tabs; the "Add user" control moves into the section. */
+/** `embedded` hides the standalone title so this sits under the People page's header + tabs. */
 export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [users, setUsers] = useState<User[]>([]);
   const [status, setStatus] = useState<ListStatus>('loading');
   const [formState, setFormState] = useState<FormState | null>(null);
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [deleting, setDeleting] = useState(false);
-  // Task 9 (Plan B): per-drinker enrolled face-sample count (GET /api/faces/counts,
-  // admin role) — a drinker absent from this map has zero samples (see
-  // countFaceEmbeddingsByDrinker's doc comment, db/faceEmbeddings.ts). Loaded
-  // independently of `users` (its own fetch, own refresh) since deleting face data never
-  // changes the user list itself.
+  // Per-drinker enrolled face-sample count (GET /api/faces/counts, admin role) — a drinker
+  // absent from this map has zero samples. Loaded independently of `users` since deleting
+  // face data never changes the user list itself.
   const [faceCounts, setFaceCounts] = useState<Map<number, number>>(new Map());
   const [deletingFacesId, setDeletingFacesId] = useState<number | null>(null);
-  // Keyed by drinkerId (like `deletingFacesId`, only one delete in flight at a time) —
-  // mirrors `handleConfirmDelete`'s `result.ok` check below, just surfaced inline on the
-  // row instead of in a modal.
   const [faceDeleteError, setFaceDeleteError] = useState<{ drinkerId: number; message: string } | null>(null);
 
   const load = useCallback(() => {
@@ -400,14 +85,9 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
     const result = await deleteFacesAdmin(drinkerId);
     setDeletingFacesId(null);
     if (!result.ok) {
-      // deleteFaces has no documented specific-status case (unlike deleteUser's 409
-      // last-admin conflict) to branch a sharper message off of — a plain, actionable
-      // sentence beats the raw server string here, same "clear phrasing over a log
-      // fragment" call handleConfirmDelete makes for its own non-409 fallback.
       setFaceDeleteError({ drinkerId, message: "Couldn't delete face data. Try again." });
     }
-    // Refetch either way — server truth. A failed delete just re-shows whatever count is
-    // actually stored rather than risking a stale/incorrect optimistic UI.
+    // Refetch either way — server truth, never a stale optimistic count.
     loadFaceCounts();
   }
 
@@ -426,9 +106,6 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
       load();
       return;
     }
-    // db/users.ts's ConflictError message ("cannot delete the last admin") is a fine log
-    // fragment but not a stand-alone sentence a bar owner should have to parse — surface
-    // the plan's exact clear phrasing instead, with a concrete next step.
     setDeleteState({
       ...deleteState,
       error: result.status === 409
@@ -437,221 +114,169 @@ export function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
     });
   }
 
+  const accounts = users.filter((u) => u.username != null);
+
   return (
     <section data-testid="admin-users-page">
-      <header className="admin-page-header">
-        {!embedded && <h1 className="admin-page-header__title font-display">Users</h1>}
-        {!formState && (
-          <button
-            type="button"
-            className="admin-page-header__action"
-            data-testid="users-add-button"
-            onClick={() => setFormState({ mode: 'choose' })}
-          >
-            Add user
-          </button>
-        )}
-      </header>
+      <div className="adm-toolbar">
+        {embedded
+          ? <h2 className="adm-h2 people-v2__h2">Everyone, and who can sign in</h2>
+          : <h1 className="adm-page__title">{`${accounts.length} account${accounts.length === 1 ? '' : 's'} can sign in.`}</h1>}
+        <Button variant="primary" data-testid="users-add-button" onClick={() => setFormState({ mode: 'choose' })}>
+          Add someone
+        </Button>
+      </div>
 
-      {formState?.mode === 'choose' && (
-        <div
-          className="user-form"
-          data-testid="users-choose"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="users-choose-title"
+      {formState && (
+        <Drawer
+          open
+          onOpenChange={(open) => { if (!open) setFormState(null); }}
+          title={formState.mode === 'edit' ? `Edit ${formState.user.displayName}` : FORM_TITLES[formState.mode]}
         >
-          <h2 id="users-choose-title" className="user-form__title font-display">Add user</h2>
-          <p className="admin-page-quiet">
-            Choose a login account (can sign in here) or a drinker-only profile (leaderboard
-            identity only, no admin access).
-          </p>
-          <div className="beer-form__actions">
-            <button
-              type="button"
-              className="beer-form__submit"
-              data-testid="users-choose-login"
-              onClick={() => setFormState({ mode: 'create-login' })}
-            >
-              Login user
-            </button>
-            <button
-              type="button"
-              className="beer-form__submit"
-              data-testid="users-choose-drinker"
-              onClick={() => setFormState({ mode: 'create-drinker' })}
-            >
-              Drinker profile
-            </button>
-            <button
-              type="button"
-              className="beer-form__cancel"
-              data-testid="users-choose-cancel"
-              onClick={() => setFormState(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+          {formState.mode === 'choose' && (
+            <div className="adm-form" data-testid="users-choose" role="group" aria-label="Who are you adding?">
+              <button type="button" className="adm-option" data-testid="users-choose-login" onClick={() => setFormState({ mode: 'create-login' })}>
+                <span aria-hidden="true" />
+                <span>
+                  <b>An account</b>
+                  <span className="adm-sub" style={{ display: 'block' }}>
+                    A username and password that can sign in to this admin, as admin, editor or viewer.
+                  </span>
+                </span>
+                <span />
+              </button>
+              <button type="button" className="adm-option" data-testid="users-choose-drinker" onClick={() => setFormState({ mode: 'create-drinker' })}>
+                <span aria-hidden="true" />
+                <span>
+                  <b>A pourer</b>
+                  <span className="adm-sub" style={{ display: 'block' }}>
+                    Just a name and color for claiming pours and the leaderboard. No sign-in.
+                  </span>
+                </span>
+                <span />
+              </button>
+              <Button variant="quiet" data-testid="users-choose-cancel" onClick={() => setFormState(null)} style={{ alignSelf: 'flex-start' }}>
+                Cancel
+              </Button>
+            </div>
+          )}
+          {formState.mode === 'create-login' && (
+            <LoginUserForm onSaved={handleSaved} onCancel={() => setFormState(null)} />
+          )}
+          {formState.mode === 'create-drinker' && (
+            <DrinkerProfileForm onSaved={handleSaved} onCancel={() => setFormState(null)} />
+          )}
+          {formState.mode === 'edit' && (
+            <EditUserForm key={formState.user.id} user={formState.user} onSaved={handleSaved} onCancel={() => setFormState(null)} />
+          )}
+        </Drawer>
       )}
 
-      {formState?.mode === 'create-login' && (
-        <LoginUserForm onSaved={handleSaved} onCancel={() => setFormState(null)} />
-      )}
-      {formState?.mode === 'create-drinker' && (
-        <DrinkerProfileForm onSaved={handleSaved} onCancel={() => setFormState(null)} />
-      )}
-      {formState?.mode === 'edit' && (
-        <EditUserForm key={formState.user.id} user={formState.user} onSaved={handleSaved} onCancel={() => setFormState(null)} />
-      )}
-
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="users-loading">Loading…</p>}
+      {status === 'loading' && <div data-testid="users-loading"><Skeleton height={44} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="users-error">
-          Couldn&rsquo;t load users. Reload to try again.
-        </p>
+        <div data-testid="users-error"><ErrorState title="Couldn’t load accounts." onRetry={load}>Reload to try again.</ErrorState></div>
       )}
       {status === 'loaded' && users.length === 0 && (
-        <p className="admin-page-quiet" data-testid="users-empty">No users yet.</p>
+        <div data-testid="users-empty"><EmptyState title="No one yet." /></div>
       )}
 
       {status === 'loaded' && users.length > 0 && (
-        <table className="admin-table users-table" data-testid="users-list">
+        <Table data-testid="users-list">
           <thead>
             <tr>
-              <th scope="col" aria-label="Avatar" />
               <th scope="col">Name</th>
-              <th scope="col">Login</th>
-              <th scope="col">Drinker</th>
-              <th scope="col" aria-label="Actions" />
+              <th scope="col">Can</th>
+              <th scope="col">Profile</th>
+              <th scope="col"><span className="adm-sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.id} data-testid="users-row">
-                <td>
-                  <span
-                    className="users-avatar-dot"
-                    data-testid="users-row-avatar"
-                    style={{ backgroundColor: user.avatarColor ?? 'var(--text-dim)' }}
-                    aria-hidden="true"
-                  />
-                </td>
-                <td className="font-body">
-                  {user.displayName}
-                  {user.username && (
-                    <span className="users-row__username" data-testid="users-row-username">
-                      {' '}
-                      @{user.username}
-                    </span>
-                  )}
-                </td>
-                <td>
-                  {user.role ? (
-                    <span
-                      className={`users-role-badge users-role-badge--${user.role}`}
-                      data-testid="users-row-role"
-                    >
-                      {ROLE_LABELS[user.role]}
-                    </span>
-                  ) : (
-                    <span className="users-role-badge users-role-badge--none" data-testid="users-row-role">
-                      No login
-                    </span>
-                  )}
-                </td>
-                <td>
-                  {user.isDrinker ? (
-                    <span className="users-drinker-pill" data-testid="users-row-drinker">Drinker</span>
-                  ) : (
-                    <span className="admin-page-quiet" data-testid="users-row-drinker-none">—</span>
-                  )}
-                  {user.isDrinker && (faceCounts.get(user.id) ?? 0) > 0 && (
-                    <div className="users-row__face-data">
-                      <span className="admin-page-quiet" data-testid="users-row-face-count">
-                        {faceCounts.get(user.id)} face samples
-                      </span>
-                      <button
-                        type="button"
-                        data-testid="face-data-delete"
-                        disabled={deletingFacesId === user.id}
-                        onClick={() => handleDeleteFaces(user.id)}
+            {users.map((user) => {
+              const faces = faceCounts.get(user.id) ?? 0;
+              return (
+                <tr key={user.id} data-testid="users-row">
+                  <td>
+                    <div className="adm-who">
+                      <span
+                        className="people-v2__avatar"
+                        data-testid="users-row-avatar"
+                        style={{ backgroundColor: user.avatarColor ?? DEFAULT_AVATAR_COLOR }}
+                        aria-hidden="true"
                       >
-                        {deletingFacesId === user.id ? 'Deleting…' : 'Delete face data'}
-                      </button>
-                      {faceDeleteError?.drinkerId === user.id && (
-                        <p role="alert" data-testid="face-data-delete-error">{faceDeleteError.message}</p>
-                      )}
+                        {initials(user.displayName)}
+                      </span>
+                      <div>
+                        <b>{user.displayName}</b>
+                        {user.username && (
+                          <div className="adm-sub" data-testid="users-row-username">@{user.username}</div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </td>
-                <td className="users-table__actions">
-                  <button
-                    type="button"
-                    data-testid="users-row-edit"
-                    onClick={() => setFormState({ mode: 'edit', user })}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="users-row-delete"
-                    onClick={() => setDeleteState({ user, error: null })}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    <span data-testid="users-row-role"><b>{user.role ? ROLE_LABELS[user.role] : 'No login'}</b></span>
+                    <div className="adm-sub">{user.role ? ROLE_CAN[user.role] : 'Claims pours and appears on the leaderboard'}</div>
+                  </td>
+                  <td>
+                    {user.isDrinker
+                      ? <span data-testid="users-row-drinker">Drinker</span>
+                      : <span className="adm-sub" data-testid="users-row-drinker-none">—</span>}
+                    {user.isDrinker && faces > 0 && (
+                      <div className="people-v2__faces">
+                        <span className="adm-sub" data-testid="users-row-face-count">{faces} face samples</span>
+                        <Button
+                          variant="quiet"
+                          data-testid="face-data-delete"
+                          disabled={deletingFacesId === user.id}
+                          onClick={() => handleDeleteFaces(user.id)}
+                        >
+                          {deletingFacesId === user.id ? 'Deleting…' : 'Delete face data'}
+                        </Button>
+                        {faceDeleteError?.drinkerId === user.id && (
+                          <p className="adm-danger-text" role="alert" data-testid="face-data-delete-error">{faceDeleteError.message}</p>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="adm-actions">
+                    <Button variant="quiet" data-testid="users-row-edit" onClick={() => setFormState({ mode: 'edit', user })}>
+                      Edit
+                    </Button>
+                    <Button variant="quiet" data-testid="users-row-delete" onClick={() => setDeleteState({ user, error: null })}>
+                      Delete
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
-        </table>
+        </Table>
       )}
 
-      {deleteState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="users-delete-confirm"
-          onClick={() => !deleting && setDeleteState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="users-delete-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="users-delete-title" className="font-display">Delete user</h3>
-            <p>
-              This will permanently delete {userLabel(deleteState.user)}
-              {deleteState.user.username ? ` (@${deleteState.user.username})` : ''}.
-              {deleteState.user.isDrinker
-                ? ' Their past pours stay on record but are unlinked from this profile.'
-                : ''} This can&rsquo;t be undone.
-            </p>
-            {deleteState.error && (
-              <p role="alert" data-testid="users-delete-error">{deleteState.error}</p>
-            )}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="users-delete-confirm-button"
-                disabled={deleting}
-                onClick={handleConfirmDelete}
-              >
-                {deleting ? 'Deleting…' : 'Delete user'}
-              </button>
-              <button
-                type="button"
-                data-testid="users-delete-cancel-button"
-                disabled={deleting}
-                onClick={() => setDeleteState(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteState !== null}
+        onOpenChange={(open) => { if (!open) setDeleteState(null); }}
+        title={deleteState ? `Delete ${deleteState.user.displayName}?` : ''}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        busy={deleting}
+        error={deleteState?.error}
+        onConfirm={handleConfirmDelete}
+        testId="users-delete-confirm"
+        confirmTestId="users-delete-confirm-button"
+        cancelTestId="users-delete-cancel-button"
+        errorTestId="users-delete-error"
+      >
+        {deleteState && (
+          <p>
+            This will permanently delete {deleteState.user.displayName}
+            {deleteState.user.username ? ` (@${deleteState.user.username})` : ''}.
+            {deleteState.user.isDrinker
+              ? ' Their past pours stay on record but are unlinked from this profile.'
+              : ''} This can&rsquo;t be undone.
+          </p>
+        )}
+      </ConfirmDialog>
     </section>
   );
 }

@@ -29,10 +29,10 @@ Generated at the start of M8 from the admin routes (`AdminApp.tsx`), the Setting
 
 ## People
 
-- [ ] `/admin/people` — `PeoplePage`: getPourers, listUsers, getFaceCounts
-- [ ] `/admin/pourers` — `PourersPage`: getPourers, getLeaderboard
-- [ ] `/admin/users` — `UsersPage`: listUsers, createLoginUser, createDrinkerProfile,
-  updateUser, deleteUser, getFaceCounts, deleteFacesAdmin
+- [x] `/admin/people` — `PeoplePage`: getPourers, listUsers, getFaceCounts
+- [x] `/admin/pourers` — `PourersPage`: getPourers, getLeaderboard
+- [x] `/admin/users` — `UsersPage`: listUsers, createLoginUser, createDrinkerProfile,
+  updateUser, deleteUser, getFaceCounts, deleteFacesAdmin (forms split into `people/UserForms.tsx`)
 
 ## Insights
 

@@ -47,7 +47,7 @@ describe('PeoplePage (redesign 4h)', () => {
     renderAdminPage(<PeoplePage />);
     await flush();
     // 1 login account, 1 pourer, 1 drinker with faces enrolled.
-    expect(screen.getByTestId('people-summary')).toHaveTextContent('1 accounts · 1 pourers · 1 faces enrolled');
+    expect(screen.getByTestId('people-summary')).toHaveTextContent('1 account · 1 pourer · 1 with face sign-in');
     expect(screen.getByTestId('people-tab-pourers')).toBeInTheDocument();
     expect(screen.getByTestId('people-tab-accounts')).toBeInTheDocument();
     // Pourers panel visible by default; accounts hidden.
@@ -63,7 +63,7 @@ describe('PeoplePage (redesign 4h)', () => {
     expect(screen.queryByTestId('people-tab-accounts')).not.toBeInTheDocument();
     expect(screen.queryByTestId('people-panel-accounts')).not.toBeInTheDocument();
     expect(listUsers).not.toHaveBeenCalled();
-    expect(screen.getByTestId('people-summary')).toHaveTextContent('1 pourers');
-    expect(screen.getByTestId('people-summary')).not.toHaveTextContent('accounts');
+    expect(screen.getByTestId('people-summary')).toHaveTextContent('1 pourer');
+    expect(screen.getByTestId('people-summary')).not.toHaveTextContent('account');
   });
 });
