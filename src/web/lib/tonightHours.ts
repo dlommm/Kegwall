@@ -1,6 +1,8 @@
 import { serviceDayStart } from '../../server/core/serviceDay.js';
 
 export interface HourBar {
+  /** Hours since the service day began (unique, even when a DST night repeats a clock hour). */
+  offset: number;
   /** Local hour 0-23. */
   hour: number;
   /** "4 PM", "12 AM". */
@@ -26,21 +28,30 @@ export function hourLabel(hour: number): string {
  */
 export function tonightHours(pourTimes: string[], now: Date = new Date()): HourBar[] {
   const start = serviceDayStart(now);
+  // Buckets are real elapsed hours from the start, so a daylight-saving night has 23 or 25
+  // of them, and each is labelled by the local clock hour it actually began at.
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const hours = Math.round((end.getTime() - start.getTime()) / 3_600_000);
   const offsetOf = (d: Date) => Math.floor((d.getTime() - start.getTime()) / 3_600_000);
-  const counts = new Array<number>(24).fill(0);
+  const hourAt = (off: number) => new Date(start.getTime() + off * 3_600_000).getHours();
+  const counts = new Array<number>(hours).fill(0);
   for (const ts of pourTimes) {
     const off = offsetOf(new Date(ts));
-    if (off >= 0 && off < 24) counts[off]! += 1;
+    if (off >= 0 && off < hours) counts[off]! += 1;
   }
-  const nowOff = Math.min(23, Math.max(0, offsetOf(now)));
+  const last = hours - 1;
+  const nowOff = Math.min(last, Math.max(0, offsetOf(now)));
   const firstPour = counts.findIndex((c) => c > 0);
   const evening = EVENING_START_HOUR - start.getHours();
   const from = Math.min(evening, firstPour === -1 ? evening : firstPour, nowOff);
-  const to = Math.min(23, Math.max(nowOff, from + MIN_BARS - 1));
+  const to = Math.min(last, Math.max(nowOff, from + MIN_BARS - 1));
   const bars: HourBar[] = [];
   for (let off = from; off <= to; off += 1) {
-    const hour = (start.getHours() + off) % 24;
-    bars.push({ hour, label: hourLabel(hour), pours: counts[off]!, isNow: off === nowOff });
+    const hour = hourAt(off);
+    bars.push({
+      offset: off, hour, label: hourLabel(hour), pours: counts[off]!, isNow: off === nowOff,
+    });
   }
   return bars;
 }

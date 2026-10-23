@@ -11,7 +11,7 @@ import { ThemeProvider } from '../../themes/ThemeProvider';
 import { initials } from '../../lib/initials';
 import '../../design/fonts';
 import {
-  ADMIN_NAV_ITEMS, destinationFor, pageTitleFor, visibleDestinations,
+  ADMIN_DESTINATIONS, ADMIN_NAV_ITEMS, destinationFor, pageTitleFor, visibleDestinations,
 } from './adminNav';
 import { useAdminLook } from './adminLook';
 import { CommandPalette, paletteEntries, type PaletteEntry } from './CommandPalette';
@@ -26,14 +26,19 @@ import {
  * Accounts tab, redesign 4h). Kept reachable for deep links, but still admin-gated. */
 const EXTRA_ADMIN_ONLY_PATHS = ['/admin/users'];
 
-/** True when `pathname` is (or is nested under) one of `ADMIN_NAV_ITEMS`' admin-only
- * sections (Suppliers, Settings, …) or one of the nav-less admin-only routes above — the
- * route-guarding half of the role matrix: nav hiding (`visibleDestinations`) keeps a
- * non-admin from clicking there, this catches them typing the URL directly. */
+/** Every admin-only path: the destinations' admin-only tabs (what the bar hides), the
+ * page list's admin-only items, and the nav-less routes above. */
+const ADMIN_ONLY_PATHS = [
+  ...ADMIN_DESTINATIONS.flatMap((d) => d.tabs.filter((t) => t.adminOnly).map((t) => t.path)),
+  ...ADMIN_NAV_ITEMS.filter((item) => item.adminOnly).map((item) => item.path),
+  ...EXTRA_ADMIN_ONLY_PATHS,
+];
+
+/** True when `pathname` is (or is nested under) an admin-only page — the route-guarding
+ * half of the role matrix: nav hiding (`visibleDestinations`) keeps a non-admin from
+ * clicking there, this catches them typing the URL directly. */
 function isAdminOnlyPath(pathname: string): boolean {
-  return ADMIN_NAV_ITEMS.some(
-    (item) => item.adminOnly && (pathname === item.path || pathname.startsWith(`${item.path}/`)),
-  ) || EXTRA_ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 type Status = 'loading' | 'ready' | 'error';
@@ -181,6 +186,8 @@ export function AdminLayout() {
   const destLink = (d: (typeof destinations)[number], className: string) => (
     <Link
       to={d.path}
+      // Close the phone sheet even when the link is the page already open (no navigation).
+      onClick={() => setMobileNavOpen(false)}
       className={d.label === current.label ? `${className} is-on` : className}
       aria-current={d.label === current.label ? 'page' : undefined}
     >

@@ -73,7 +73,7 @@ function splitVolume(label: string): [string, string] {
  * latest activity.
  */
 export function TonightPage() {
-  const { units } = useAdminContext();
+  const { me, units } = useAdminContext();
   const [initialTaps, setInitialTaps] = useState<TapState[]>([]);
   const [servingSizeMl, setServingSizeMl] = useState(DEFAULT_SERVING_ML);
   const [sources, setSources] = useState<SourceStatus[]>([]);
@@ -87,6 +87,7 @@ export function TonightPage() {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [rebootConfirming, setRebootConfirming] = useState(false);
   const [rebooting, setRebooting] = useState(false);
+  const [rebootError, setRebootError] = useState<string | null>(null);
 
   // One-shot reads: the taps snapshot (live updates then ride /ws), the serving size (an
   // admin-only read; editors and viewers count US pints), and whether pourers exist.
@@ -132,6 +133,7 @@ export function TonightPage() {
       ? { now: stats.throttle.undervoltedNow, sinceBoot: stats.throttle.undervoltedSinceBoot }
       : null,
     reboot: stats ? { required: stats.rebootRequired, osManaged: stats.osManaged } : null,
+    canReboot: me.role === 'admin',
     cleaningDueTapIds: cleanings.filter((c) => c.due).map((c) => c.tapId),
     tonightPours: pours,
     hasPourers,
@@ -139,7 +141,10 @@ export function TonightPage() {
   });
 
   const onTap = models.filter((m) => m.hasBeer && m.tap.keg && !m.isKicked);
-  const tonightMl = pours.reduce((sum, p) => sum + p.volumeMl, 0);
+  // The header counts with the server's own "tonight" (its clock and 04:00 rollover, the same
+  // figures the wall shows); the pour list below is only for the chart and the last pour.
+  const tonightCount = taps.reduce((sum, t) => sum + (t.tonight?.pours ?? 0), 0);
+  const tonightMl = taps.reduce((sum, t) => sum + (t.tonight?.volumeMl ?? 0), 0);
   const others = attention.length > 1
     ? `${capitalize(countWord(attention.length - 1))} more thing${attention.length === 2 ? '' : 's'} below.`
     : 'Everything else is running.';
@@ -148,9 +153,9 @@ export function TonightPage() {
   const warmestProbe = kegtronProbes.reduce<(typeof kegtronProbes)[number] | null>(
     (hi, c) => (hi && hi.tempC! >= c.tempC! ? hi : c), null,
   );
-  const sub = pours.length === 0
+  const sub = tonightCount === 0
     ? `No pours yet tonight. ${attention.length === 0 ? 'Everything is running.' : others}`
-    : `${pours.length} pour${pours.length === 1 ? '' : 's'} so far tonight, ${formatVolumeMl(tonightMl, units)}. ${attention.length === 0 ? 'Everything is running.' : others}`;
+    : `${tonightCount} pour${tonightCount === 1 ? '' : 's'} so far tonight, ${formatVolumeMl(tonightMl, units)}. ${attention.length === 0 ? 'Everything is running.' : others}`;
 
   const tapNumberById = new Map(taps.map((t) => [t.tapId, t.tapNumber]));
   const ignoredCleaningTaps = cleanings
@@ -159,8 +164,14 @@ export function TonightPage() {
 
   async function handleReboot() {
     setRebooting(true);
-    await triggerReboot();
-    // No recovery polling: the server is about to drop the connection.
+    setRebootError(null);
+    const result = await triggerReboot();
+    // On success, no recovery polling: the server is about to drop the connection.
+    if (!result.ok) {
+      setRebooting(false);
+      setRebootConfirming(false);
+      setRebootError('The reboot didn’t start. Try again, or reboot the Pi from its own menu.');
+    }
   }
 
   return (
@@ -176,12 +187,23 @@ export function TonightPage() {
           ) : (
             <ul className="tonight__todo" aria-label="Needs attention" data-testid="tonight-attention">
               {attention.map((item) => (
-                <li key={item.kind} className="tonight__item" data-testid="tonight-attention-row" data-kind={item.kind} data-level={item.level}>
+                <li
+                  key={item.kind}
+                  className="tonight__item"
+                  data-testid="tonight-attention-row"
+                  data-kind={item.kind}
+                  data-level={item.level}
+                  // Problems are announced the moment they appear, as the old banners were.
+                  role={item.level === 'problem' ? 'alert' : undefined}
+                >
                   <span className="tonight__dot" style={{ background: LEVEL_COLOR[item.level] }} aria-hidden="true" />
                   <span className="adm-sr-only">{item.level === 'problem' ? 'Problem: ' : item.level === 'caution' ? 'Caution: ' : ''}</span>
                   <div className="tonight__item-text">
                     <b>{item.title}</b>
                     <span>{item.detail}</span>
+                    {item.kind === 'reboot' && rebootError && (
+                      <span className="tonight__error" data-testid="tonight-reboot-error">{rebootError}</span>
+                    )}
                   </div>
                   {item.action && ('to' in item.action ? (
                     <ButtonLink to={item.action.to} data-testid="tonight-attention-action">{item.action.label}</ButtonLink>
@@ -376,7 +398,7 @@ function TonightChart({ pours }: { pours: Pour[] }) {
       <h2 className="adm-h2" id="tonight-hours">Tonight so far</h2>
       <ol className="tonight__hours" data-testid="tonight-hours">
         {bars.map((b) => (
-          <li key={b.hour} aria-label={`${b.label}: ${b.pours} pour${b.pours === 1 ? '' : 's'}`}>
+          <li key={b.offset} aria-label={`${b.label}: ${b.pours} pour${b.pours === 1 ? '' : 's'}`}>
             <i className={b.isNow ? 'is-now' : undefined} style={{ height: `${(b.pours / max) * 100}%` }} aria-hidden="true" />
             <span aria-hidden="true">{b.label}</span>
           </li>

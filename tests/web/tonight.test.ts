@@ -25,6 +25,21 @@ describe('tonightHours', () => {
     expect(bars.find((b) => b.label === '12 AM')!.pours).toBe(1);
   });
 
+  it('labels a daylight-saving night by the real clock and keeps its 25th hour', () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      // Fall back, 1 Nov 2026: 2 AM EDT becomes 1 AM EST, so tonight runs 25 hours.
+      const pours = ['2026-11-01T05:30:00Z', '2026-11-01T06:30:00Z', '2026-11-01T08:30:00Z'];
+      const bars = tonightHours(pours, new Date('2026-11-01T08:45:00Z'));
+      expect(bars.filter((b) => b.label === '1 AM').map((b) => b.pours)).toEqual([1, 1]);
+      expect(bars[bars.length - 1]).toMatchObject({ label: '3 AM', pours: 1, isNow: true });
+      expect(new Set(bars.map((b) => b.offset)).size).toBe(bars.length);
+    } finally {
+      if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+    }
+  });
+
   it('ignores pours from before tonight began', () => {
     const bars = tonightHours([at(3, 59).toISOString()], at(18));
     expect(bars.every((b) => b.pours === 0)).toBe(true);
@@ -34,7 +49,7 @@ describe('tonightHours', () => {
 describe('attention wording', () => {
   const base: AttentionInput = {
     taps: [], units: 'us', servingSizeMl: 473, downSources: [], undervolted: null, reboot: null,
-    cleaningDueTapIds: [], tonightPours: [], hasPourers: false, hasWall: true,
+    cleaningDueTapIds: [], tonightPours: [], hasPourers: false, hasWall: true, canReboot: true,
   };
 
   it('spells small counts and joins lists like a sentence', () => {
@@ -51,9 +66,24 @@ describe('attention wording', () => {
     expect(items[0]!.detail).toContain('Kegtron cloud and Govee gateway');
   });
 
-  it('offers no reboot button when the OS isn’t managed by Kegwall', () => {
-    const items = buildAttention({ ...base, reboot: { required: true, osManaged: false } });
-    expect(items[0]!.action).toBeUndefined();
+  it('offers no reboot button when the OS isn’t managed by Kegwall, or to a non-admin', () => {
+    expect(buildAttention({ ...base, reboot: { required: true, osManaged: false } })[0]!.action).toBeUndefined();
+    expect(buildAttention({ ...base, reboot: { required: true, osManaged: true }, canReboot: false })[0]!.action)
+      .toBeUndefined();
+    expect(buildAttention({ ...base, reboot: { required: true, osManaged: true } })[0]!.action)
+      .toEqual({ label: 'Reboot now', reboot: true });
+  });
+
+  it('counts what is left in the taproom’s own serving, and leads the headline with the keg count', () => {
+    const keg = (id: number, remainingMl: number) => ({
+      tapId: id, tapNumber: id, beer: { name: `Beer ${id}` }, nextUpBeerName: null,
+      keg: { id, status: 'on_tap', levelPct: 5, remainingMl },
+    }) as unknown as AttentionInput['taps'][number];
+    const items = buildAttention({ ...base, servingSizeMl: 400, taps: [keg(1, 2000), keg(2, 900), keg(3, 300)] });
+    expect(items[0]).toMatchObject({ kind: 'low-kegs', count: 3, title: 'Swap three kegs soon' });
+    expect(items[0]!.detail).toContain('Beer 3 on tap 3 (under a pour)');
+    expect(items[0]!.detail).toContain('Beer 1 on tap 1 (about five pours)');
+    expect(tonightHeadline(3, items)).toBe('Three on tap. Three kegs need a swap soon.');
   });
 
   it('ranks problem, then caution, then info', () => {

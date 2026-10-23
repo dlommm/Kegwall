@@ -182,6 +182,26 @@ describe('TonightPage', () => {
     expect(triggerReboot).toHaveBeenCalledOnce();
   });
 
+  it('says so and lets you retry when the reboot does not start', async () => {
+    (getSystemStats as Mock).mockResolvedValue({ ok: true, data: makeStats({ rebootRequired: true, osManaged: true }) });
+    (triggerReboot as Mock).mockResolvedValue({ ok: false, status: 500, error: 'x', message: 'x' });
+    renderAdminPage(<TonightPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('tonight-reboot'));
+    fireEvent.click(screen.getByTestId('tonight-reboot-confirm'));
+    await flush();
+    expect(screen.getByTestId('tonight-reboot-error')).toBeInTheDocument();
+    expect(screen.getByTestId('tonight-reboot')).toBeEnabled();
+  });
+
+  it('shows an editor the pending reboot without a button they can’t use', async () => {
+    (getSystemStats as Mock).mockResolvedValue({ ok: true, data: makeStats({ rebootRequired: true, osManaged: true }) });
+    renderAdminPage(<TonightPage />, adminContext('editor'));
+    await flush();
+    expect(screen.getByTestId('tonight-attention-row')).toHaveTextContent('An OS update is waiting for a reboot');
+    expect(screen.queryByTestId('tonight-reboot')).not.toBeInTheDocument();
+  });
+
   it('flags low power as a problem', async () => {
     (getSystemStats as Mock).mockResolvedValue({
       ok: true,
@@ -196,6 +216,7 @@ describe('TonightPage', () => {
     await flush();
     const row = screen.getByTestId('tonight-attention-row');
     expect(row.dataset.level).toBe('problem');
+    expect(row).toHaveAttribute('role', 'alert');
     expect(row).toHaveTextContent('This Pi isn’t getting enough power');
   });
 
@@ -207,7 +228,7 @@ describe('TonightPage', () => {
   });
 
   it('counts tonight\'s pours and shows the last one, with Assign when pourers exist', async () => {
-    setTaps([makeTap(1, { beer: beer(1, 'Citra Haze'), keg: keg(1, 80) })]);
+    setTaps([makeTap(1, { beer: beer(1, 'Citra Haze'), keg: keg(1, 80), tonight: { pours: 2, volumeMl: 766 } })]);
     (getDrinkers as Mock).mockResolvedValue({ ok: true, data: [{ id: 1, displayName: 'Alex', avatarColor: null }] });
     (getPoursSince as Mock).mockResolvedValue({
       ok: true,

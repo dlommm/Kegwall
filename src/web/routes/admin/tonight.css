@@ -43,6 +43,12 @@
   font-size: 14px;
 }
 
+.tonight__item-text .tonight__error {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger);
+}
+
 .tonight__clear {
   margin: 0;
   padding: 18px 20px;

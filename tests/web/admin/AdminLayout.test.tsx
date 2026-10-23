@@ -158,6 +158,16 @@ describe('AdminLayout', () => {
     await waitFor(() => expect(screen.queryByTestId('admin-phone-menu')).not.toBeInTheDocument());
   });
 
+  it('closes the phone menu when you tap the page you are already on', async () => {
+    mockFetchOnce(200, user());
+    renderLayout();
+    await screen.findByTestId('dashboard-placeholder');
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    const sheet = await screen.findByTestId('admin-phone-menu');
+    fireEvent.click(within(sheet).getByRole('link', { name: 'Tonight' }));
+    await waitFor(() => expect(screen.queryByTestId('admin-phone-menu')).not.toBeInTheDocument());
+  });
+
   it('opens the Ctrl K palette from anywhere and goes to the chosen page', async () => {
     mockFetchOnce(200, user());
     renderLayout();

@@ -1,6 +1,7 @@
 import type { TapState } from '../../server/core/state.js';
 import type { Pour } from '../../server/db/kegs.js';
 import { formatVolumeMl, type VolumeUnits } from './units';
+import { servingNounFor } from '../wall/wallModel';
 
 // Tonight's "needs attention" list (Kegwall V2, blueprint §E.4; fixes issue 11). The old
 // dashboard printed one row per signal, so eleven taps due for cleaning drowned out a source
@@ -19,6 +20,8 @@ export interface AttentionItem {
   title: string;
   /** One line of detail under it. */
   detail: string;
+  /** How many things the row folds together (kegs, sources, taps, pours). */
+  count: number;
   /** The single action that resolves it: a link, or `reboot` (the page confirms first). */
   action?: { label: string; to: string } | { label: string; reboot: true };
 }
@@ -44,11 +47,13 @@ export function listJoin(parts: string[]): string {
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
+/** "about two pints" / "about five pours", with the same noun the tap rail uses. */
 function servingsPhrase(remainingMl: number, servingSizeMl: number): string {
+  const noun = servingNounFor(servingSizeMl);
   const n = remainingMl / servingSizeMl;
-  if (n < 1) return 'under a pint';
+  if (n < 1) return `under a ${noun}`;
   const r = Math.round(n);
-  return r === 1 ? 'about a pint' : `about ${countWord(r)} pints`;
+  return r === 1 ? `about a ${noun}` : `about ${countWord(r)} ${noun}s`;
 }
 
 export interface AttentionInput {
@@ -59,6 +64,8 @@ export interface AttentionInput {
   downSources: string[];
   undervolted: { now: boolean; sinceBoot: boolean } | null;
   reboot: { required: boolean; osManaged: boolean } | null;
+  /** Only admins may reboot; others see the row without the button. */
+  canReboot: boolean;
   cleaningDueTapIds: number[];
   /** Tonight's pours; only consulted when the taproom has pourers to assign them to. */
   tonightPours: Pour[];
@@ -77,6 +84,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'power',
       level: 'problem',
+      count: 1,
       title: input.undervolted.now
         ? 'This Pi isn’t getting enough power'
         : 'This Pi ran short of power since it started',
@@ -88,6 +96,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'sources',
       level: 'problem',
+      count: 1,
       title: `${input.downSources[0]} stopped answering`,
       detail: 'Pours it reports may be missing until it’s back.',
       action: { label: 'Open the doctor', to: '/admin/doctor' },
@@ -96,6 +105,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'sources',
       level: 'problem',
+      count: input.downSources.length,
       title: `${capitalize(countWord(input.downSources.length))} sources stopped answering`,
       detail: `${listJoin(input.downSources)}. Pours they report may be missing.`,
       action: { label: 'Open the doctor', to: '/admin/doctor' },
@@ -113,6 +123,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
       items.push({
         kind: 'low-kegs',
         level: 'caution',
+        count: 1,
         title: `Swap ${t.beer?.name ?? `the keg on tap ${t.tapNumber}`} soon`,
         detail: `${named(t)} has ${left(t)} left.${t.nextUpBeerName ? ` Next up: ${t.nextUpBeerName}.` : ''}`,
         action: { label: 'Plan the swap', to: `/admin/taps?tap=${t.tapId}` },
@@ -121,6 +132,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
       items.push({
         kind: 'low-kegs',
         level: 'caution',
+        count: low.length,
         title: `Swap ${countWord(low.length)} kegs soon`,
         detail: `${listJoin(low.slice(0, 3).map((t) => `${named(t)} (${left(t)})`))}${low.length > 3 ? ` and ${low.length - 3} more` : ''}.`,
         action: { label: 'Plan the swaps', to: '/admin/taps' },
@@ -132,9 +144,10 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'reboot',
       level: 'caution',
+      count: 1,
       title: 'An OS update is waiting for a reboot',
       detail: 'The wall goes dark for a minute or two. Pours during the reboot are lost unless they sync back from the Kegtron cloud.',
-      action: input.reboot.osManaged ? { label: 'Reboot now', reboot: true } : undefined,
+      action: input.reboot.osManaged && input.canReboot ? { label: 'Reboot now', reboot: true } : undefined,
     });
   }
 
@@ -149,6 +162,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
       items.push({
         kind: 'unassigned',
         level: 'info',
+        count: unassigned.length,
         title: unassigned.length === 1
           ? 'One pour tonight has no name'
           : `${capitalize(countWord(unassigned.length))} pours tonight have no name`,
@@ -165,6 +179,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'cleaning',
       level: 'info',
+      count: 1,
       title: `Tap ${t.tapNumber} is due for a line cleaning`,
       detail: 'Log the cleaning when it’s done, or turn the reminder off for this tap.',
       action: { label: 'Log a cleaning', to: `/admin/taps?tap=${t.tapId}` },
@@ -174,6 +189,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'cleaning',
       level: 'info',
+      count: due.length,
       title: `${capitalize(countWord(due.length))} taps are due for a line cleaning`,
       detail: `Taps ${listJoin(numbers.map(String))}.`,
       action: { label: 'Log cleanings', to: '/admin/taps' },
@@ -184,6 +200,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     items.push({
       kind: 'setup',
       level: 'info',
+      count: 1,
       title: 'There’s no tap wall yet',
       detail: 'Finish the guided setup to put your taps on a screen.',
       action: { label: 'Finish setting up', to: '/admin/welcome' },
@@ -200,8 +217,7 @@ export function tonightHeadline(onTapCount: number, items: AttentionItem[]): str
   const top = items[0];
   if (!top) return `${first} Everything is running.`;
   if (top.kind === 'low-kegs') {
-    const n = items.find((i) => i.kind === 'low-kegs')!.title.match(/^Swap (\w+) kegs/)?.[1];
-    return `${first} ${n ? `${capitalize(n)} kegs need` : 'One keg needs'} a swap soon.`;
+    return `${first} ${top.count === 1 ? 'One keg needs' : `${capitalize(countWord(top.count))} kegs need`} a swap soon.`;
   }
   return `${first} ${top.title}.`;
 }
