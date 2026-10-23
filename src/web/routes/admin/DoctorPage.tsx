@@ -4,6 +4,9 @@ import {
   doctorCloud, doctorEnv, doctorGovee, doctorListen, doctorUdpHistory, doctorUdpRaw,
   getSources, type UdpDeviceHistory,
 } from '../../lib/adminApi';
+import { PageTemplate } from './PageTemplate';
+import { Button, StatusDot } from './ui';
+import './tonight.css';
 
 type CheckState =
   | { state: 'idle' }
@@ -132,42 +135,43 @@ export function DoctorPage() {
   }
 
   return (
-    <div data-testid="doctor-page">
-      <header className="admin-page-header">
-        <div className="admin-page-header__lead">
-          <h1 className="admin-page-header__title font-display">Connection doctor</h1>
-          <p className="admin-page-quiet">Every result is also written to Logs.</p>
-        </div>
-        <button type="button" className="admin-page-header__action" data-testid="doctor-run-all" onClick={runAll}>
-          Run all checks
-        </button>
-      </header>
-
-      <div
-        className={`doctor-verdict doctor-verdict--${verdict.ok ? 'ok' : 'warn'}`}
-        role="status"
-        data-testid="doctor-verdict"
-      >
-        {verdict.text}
-      </div>
-
-      <section className="displays-section">
-        <h2 className="dashboard-card__title font-display">SOURCES RIGHT NOW</h2>
-        <ul className="dashboard-source-list">
+    <PageTemplate
+      testId="doctor-page"
+      crumb="Settings · Diagnostics"
+      title={(
+        <span
+          className={`doctor-verdict doctor-verdict--${verdict.ok ? 'ok' : 'warn'}`}
+          role="status"
+          data-testid="doctor-verdict"
+        >
+          {verdict.text}
+        </span>
+      )}
+      sub="Each check talks to the real device or service. Every result is also written to Logs."
+      actions={(
+        <Button variant="primary" data-testid="doctor-run-all" onClick={runAll}>Run all checks</Button>
+      )}
+    >
+      <section className="adm-section doctor-v2__section">
+        <h2 className="adm-h2">Sources right now</h2>
+        <ul className="tonight__facts">
           {sources.map((source) => (
-            <li key={source.name} className="dashboard-source-row" data-testid="doctor-source-row">
-              <span className="dashboard-source-row__name">{source.name}</span>
-              <span className={`dashboard-source-badge dashboard-source-badge--${!source.registered ? 'unconfigured' : source.healthy ? 'healthy' : 'unhealthy'}`}>
-                {!source.registered ? '○ Not set up' : source.healthy ? '● OK' : '● Down'}
-                {source.detail ? ` · ${source.detail}` : ''}
-              </span>
+            <li key={source.name} data-testid="doctor-source-row">
+              <div>
+                {source.name}
+                {source.detail && <span>{source.detail}</span>}
+              </div>
+              <StatusDot
+                state={!source.registered ? 'disabled' : source.healthy ? 'completed' : 'failed'}
+                label={!source.registered ? 'Not set up' : source.healthy ? 'OK' : 'Down'}
+              />
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="displays-section">
-        <h2 className="dashboard-card__title font-display">CHECKS</h2>
+      <section className="adm-section doctor-v2__section">
+        <h2 className="adm-h2">Checks</h2>
         <CheckRow
           title="Kegtron cloud API"
           hint="Auth + device count + latency against mdash.net"
@@ -263,6 +267,6 @@ export function DoctorPage() {
           </div>
         )}
       </section>
-    </div>
+    </PageTemplate>
   );
 }

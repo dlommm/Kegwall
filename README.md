@@ -107,7 +107,7 @@ and the hardware.
 ## Current limitations (read before you rely on this)
 
 - **catalog.beer beer search is optional and limited.** It's a bring-your-own-API-key
-  integration (Settings → Integrations) — nothing is searchable until you set one.
+  integration (Settings → Integrations and alerts) — nothing is searchable until you set one.
   catalog.beer's own coverage is roughly 60,000 beers (far short of Untappd's catalog),
   it has no label-art field at all (search results never include an image — add a label
   separately after picking a result), and its free tier caps out at 1,000 requests/month,
@@ -194,6 +194,7 @@ for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 | [docs/customization.md](docs/customization.md) | The 14 wall looks, themes, pour takeovers and wall moments, custom CSS trust model, screensaver |
 | [docs/admin-dashboard.md](docs/admin-dashboard.md) | Tonight, the admin top bar, Search and phone navigation |
 | [docs/taps-and-kegs.md](docs/taps-and-kegs.md) | Taps, swapping a keg, keg costs, monitors |
+| [docs/settings.md](docs/settings.md) | Settings, automations, diagnostics |
 | [docs/insights.md](docs/insights.md) | Analytics, every pour, logs |
 | [docs/people.md](docs/people.md) | Pourers, accounts and roles |
 | [docs/beers.md](docs/beers.md) | The beer library and editor |

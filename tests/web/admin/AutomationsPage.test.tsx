@@ -100,9 +100,9 @@ describe('AutomationsPage', () => {
     const rows = await screen.findAllByTestId('automations-row');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent('Keg low');
-    // Sentence-card framing (redesign 4g): WHEN <trigger> → <actions>.
-    expect(rows[0]).toHaveTextContent('WHEN keg level drops below 15%');
-    expect(rows[0]).toHaveTextContent('→');
+    // The rule reads as one sentence (blueprint §E.9), with its run state beside it.
+    expect(screen.getByTestId('automations-row-summary')).toHaveTextContent(/^When keg level drops below 15%, .+\.$/);
+    expect(rows[0]).toHaveTextContent('On');
     expect(rows[0]).toHaveTextContent('Never');
     expect(screen.getByTestId('automations-row-alert-badge')).toBeInTheDocument();
   });

@@ -8,6 +8,11 @@ import { triggerSummary, actionSummary, SEVERITY_LABELS } from '../../lib/automa
 import { useRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
 import { AutomationBuilder } from './AutomationBuilder';
+import { PageTemplate } from './PageTemplate';
+import { capitalize, countWord } from '../../lib/tonightAttention';
+import {
+  Button, ConfirmDialog, EmptyState, ErrorState, Skeleton, StatusDot, Switch, type RunState,
+} from './ui';
 
 type ViewState =
   | { mode: 'list' }
@@ -47,6 +52,24 @@ function AlertBadge({ severity }: { severity: 'info' | 'warning' | 'critical' })
   );
 }
 
+/** A rule's run state, from what the server records: on or off, and done when it fired in the
+ * last few minutes. (Waiting, running and failed need a run history the API doesn't keep.) */
+function runState(automation: AutomationRule, now: Date = new Date()): { state: RunState; label: string } {
+  if (!automation.enabled) return { state: 'disabled', label: 'Off' };
+  const fired = automation.lastFiredAt ? new Date(automation.lastFiredAt).getTime() : null;
+  if (fired !== null && now.getTime() - fired < RECENT_RUN_MS) return { state: 'completed', label: 'Just ran' };
+  return { state: 'enabled', label: 'On' };
+}
+
+const RECENT_RUN_MS = 5 * 60_000;
+
+/** "When a keg drops below 15%, notify in the app." */
+function ruleSentence(automation: AutomationRule): string {
+  const when = triggerSummary(automation.trigger).replace(/^When /, '');
+  const then = actionSummary(automation.actions);
+  return `When ${when}, ${then.charAt(0).toLowerCase()}${then.slice(1)}${/[.!?]$/.test(then) ? '' : '.'}`;
+}
+
 function AutomationRow({
   automation, canEdit, onToggleEnabled, onEdit, onDelete,
 }: {
@@ -57,59 +80,49 @@ function AutomationRow({
   onDelete: (automation: AutomationRule) => void;
 }) {
   const lastFired = useRelativeTime(automation.lastFiredAt);
+  const run = runState(automation);
 
   return (
     <li
-      className={automation.enabled ? 'automations-row' : 'automations-row automations-row--paused'}
+      className={automation.enabled ? 'rule-v2' : 'rule-v2 is-off'}
       data-testid="automations-row"
       data-enabled={automation.enabled}
     >
-      <div className="automations-row__main">
-        {canEdit ? (
-          <label className="wall-editor__checkbox automations-row__enabled-toggle">
-            <input
-              type="checkbox"
-              data-testid="automations-row-enabled"
-              checked={automation.enabled}
-              onChange={() => onToggleEnabled(automation)}
-            />
-          </label>
-        ) : (
-          <span className="automations-row__enabled-dot" data-enabled={automation.enabled} aria-hidden="true" />
-        )}
-        <div className="automations-row__body">
-          <div className="automations-row__title-line">
-            <span className="automations-row__name">{automation.name}</span>
-            {automation.isAlert && automation.alertConfig && (
-              <AlertBadge severity={automation.alertConfig.severity} />
-            )}
-          </div>
-          {/* Sentence card (redesign 4g): WHEN <trigger> → <actions>, operands emphasized. */}
-          <span className="automations-row__summary" data-testid="automations-row-summary">
-            <span className="automations-row__when">WHEN</span>
-            {` ${triggerSummary(automation.trigger).replace(/^When /, '')} `}
-            <span className="automations-row__arrow" aria-hidden="true">→</span>
-            <span className="automations-row__then">{` ${actionSummary(automation.actions)}`}</span>
-          </span>
-        </div>
-        <span className="automations-row__last-fired" data-testid="automations-row-last-fired">
-          {lastFired ?? 'Never'}
-        </span>
-        <span className="automations-row__actions">
-          <button
-            type="button"
-            data-testid={canEdit ? 'automations-row-edit' : 'automations-row-view'}
-            onClick={() => onEdit(automation)}
-          >
-            {canEdit ? 'Edit' : 'View'}
-          </button>
-          {canEdit && (
-            <button type="button" data-testid="automations-row-delete" onClick={() => onDelete(automation)}>
-              Delete
-            </button>
+      <span className="rule-v2__state"><StatusDot state={run.state} label={run.label} /></span>
+      <div className="rule-v2__body">
+        <p className="rule-v2__name">
+          <b>{automation.name}</b>
+          {automation.isAlert && automation.alertConfig && (
+            <AlertBadge severity={automation.alertConfig.severity} />
           )}
-        </span>
+        </p>
+        <p className="rule-v2__sentence" data-testid="automations-row-summary">{ruleSentence(automation)}</p>
+        <small className="adm-sub" data-testid="automations-row-last-fired">
+          {lastFired ? `Last ran ${lastFired}` : 'Never ran'}
+        </small>
       </div>
+      <span className="rule-v2__actions">
+        <Button
+          variant="quiet"
+          data-testid={canEdit ? 'automations-row-edit' : 'automations-row-view'}
+          onClick={() => onEdit(automation)}
+        >
+          {canEdit ? 'Edit' : 'View'}
+        </Button>
+        {canEdit && (
+          <Button variant="quiet" data-testid="automations-row-delete" onClick={() => onDelete(automation)}>
+            Delete
+          </Button>
+        )}
+        {canEdit && (
+          <Switch
+            checked={automation.enabled}
+            onCheckedChange={() => onToggleEnabled(automation)}
+            aria-label={automation.enabled ? `Turn off ${automation.name}` : `Turn on ${automation.name}`}
+            data-testid="automations-row-enabled"
+          />
+        )}
+      </span>
     </li>
   );
 }
@@ -228,28 +241,30 @@ export function AutomationsPage() {
 
   if (view.mode === 'builder') {
     return (
-      <section data-testid="admin-automations-page">
-        <header className="admin-page-header">
-          <h1 className="admin-page-header__title font-display">
-            {view.automation ? `Edit ${view.automation.name}` : 'New automation'}
-          </h1>
-        </header>
+      <PageTemplate
+        testId="admin-automations-page"
+        crumb="Settings · Automations"
+        title={view.automation ? view.automation.name : 'New rule'}
+        sub="Say when it runs, then what it does. Rules run on this server; nothing leaves it unless an action sends it."
+      >
         <AutomationBuilder
           automation={view.automation}
           canEdit={canEdit}
           onSaved={handleBuilderSaved}
           onCancel={handleBuilderCancel}
         />
-      </section>
+      </PageTemplate>
     );
   }
 
   if (view.mode === 'picker') {
     return (
-      <section data-testid="admin-automations-page">
-        <header className="admin-page-header">
-          <h1 className="admin-page-header__title font-display">New automation</h1>
-        </header>
+      <PageTemplate
+        testId="admin-automations-page"
+        crumb="Settings · Automations"
+        title="New rule"
+        sub="Start from a template and fill in the blanks, or build one from scratch."
+      >
         <div className="automations-template-picker" data-testid="automations-template-picker">
           <p className="admin-field__label-text">Start from:</p>
           <div className="automations-template-picker__grid">
@@ -318,39 +333,37 @@ export function AutomationsPage() {
             Cancel
           </button>
         </div>
-      </section>
+      </PageTemplate>
     );
   }
 
-  return (
-    <section data-testid="admin-automations-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Automations</h1>
-        {canEdit && (
-          <button
-            type="button"
-            className="admin-page-header__action"
-            data-testid="automations-add-button"
-            onClick={openPicker}
-          >
-            New automation
-          </button>
-        )}
-      </header>
+  const on = rules.filter((r) => r.enabled).length;
+  const title = status !== 'loaded' ? 'Automations'
+    : rules.length === 0 ? 'No rules yet.'
+      : `${rules.length === 1 ? 'One rule' : `${capitalize(countWord(rules.length))} rules`}, ${on === rules.length ? 'all on' : `${countWord(on)} on`}.`;
 
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="automations-loading">Loading…</p>}
+  return (
+    <PageTemplate
+      testId="admin-automations-page"
+      title={title}
+      sub="Each rule says when it runs and what it does: alerts, banners on the walls, Home Assistant and more."
+      actions={canEdit && (
+        <Button variant="primary" data-testid="automations-add-button" onClick={openPicker}>New rule</Button>
+      )}
+    >
+      {status === 'loading' && <div data-testid="automations-loading"><Skeleton height={80} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="automations-error">
-          Couldn&rsquo;t load automations. Reload to try again.
-        </p>
+        <div data-testid="automations-error">
+          <ErrorState title="Couldn’t load automations." onRetry={load}>Reload to try again.</ErrorState>
+        </div>
       )}
       {status === 'loaded' && rules.length === 0 && (
-        <p className="admin-page-quiet" data-testid="automations-empty">
-          No automations yet — create one from a template or start blank.
-        </p>
+        <div data-testid="automations-empty">
+          <EmptyState title="No automations yet.">Create one from a template, or start blank.</EmptyState>
+        </div>
       )}
       {status === 'loaded' && rules.length > 0 && (
-        <ul className="automations-list" data-testid="automations-list">
+        <ul className="rule-v2__list" data-testid="automations-list">
           {rules.map((rule) => (
             <AutomationRow
               key={rule.id}
@@ -364,48 +377,27 @@ export function AutomationsPage() {
         </ul>
       )}
 
-      {deleteState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="automations-delete-confirm"
-          onClick={() => !deleting && setDeleteState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="automations-delete-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="automations-delete-title" className="font-display">Delete automation</h3>
-            <p>
-              This will permanently delete the automation &ldquo;{deleteState.automation.name}&rdquo;. It will stop
-              running immediately and won&rsquo;t fire again. This can&rsquo;t be undone.
-            </p>
-            {deleteState.error && (
-              <p role="alert" data-testid="automations-delete-error">{deleteState.error}</p>
-            )}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="automations-delete-confirm-button"
-                disabled={deleting}
-                onClick={handleConfirmDelete}
-              >
-                {deleting ? 'Deleting…' : 'Delete automation'}
-              </button>
-              <button
-                type="button"
-                data-testid="automations-delete-cancel-button"
-                disabled={deleting}
-                onClick={() => setDeleteState(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+      <ConfirmDialog
+        open={deleteState !== null}
+        onOpenChange={(open) => { if (!open) setDeleteState(null); }}
+        title={deleteState ? `Delete ${deleteState.automation.name}?` : ''}
+        confirmLabel="Delete automation"
+        busyLabel="Deleting…"
+        busy={deleting}
+        error={deleteState?.error}
+        onConfirm={handleConfirmDelete}
+        testId="automations-delete-confirm"
+        confirmTestId="automations-delete-confirm-button"
+        cancelTestId="automations-delete-cancel-button"
+        errorTestId="automations-delete-error"
+      >
+        {deleteState && (
+          <p>
+            This will permanently delete the automation &ldquo;{deleteState.automation.name}&rdquo;. It will stop
+            running immediately and won&rsquo;t fire again. This can&rsquo;t be undone.
+          </p>
+        )}
+      </ConfirmDialog>
+    </PageTemplate>
   );
 }

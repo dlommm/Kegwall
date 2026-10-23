@@ -10,7 +10,7 @@ on/off, Pi touchscreen backlight sysfs, or any shell command you provide.
 The server's `/api/presence/stream` endpoint emits SSE events for each wall:
 `data: {"state":"active|screensaver|off"}`. The agent subscribes with a wall slug and
 token (from the **Displays & Presence** hub's Webhook & agent panel, `/admin/presence`
-— **Settings → Integrations** has a pointer card there if you land on it out of habit),
+— **Settings → Integrations and alerts** has a pointer card there if you land on it out of habit),
 reconnects on network hiccup
 (screens stay ON as a safe default while unreachable), and runs your command recipes
 when the wall's presence state changes — motion wakes the display, idle triggers the

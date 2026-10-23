@@ -244,32 +244,6 @@
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
 }
 
-.notifications-page__load-more {
-  align-self: center;
-  margin-top: 1rem;
-  padding: 0.5rem 1.1rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.notifications-page__load-more:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.notifications-page__load-more:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.notifications-page__load-more:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .notification-bell__button:focus-visible,
 .notification-bell__panel-header button:focus-visible,
 .notification-bell__view-all:focus-visible,
@@ -384,24 +358,6 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-dim);
-}
-
-.dashboard-source-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.dashboard-source-row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.15rem 0.6rem;
-  font-size: 0.8rem;
-}
-
-.dashboard-source-row__name {
-  font-weight: 600;
-  color: var(--text);
 }
 
 .dashboard-source-badge {
@@ -527,25 +483,6 @@
 }
 
 /* Automations sentence cards (4g). */
-.automations-row--paused {
-  opacity: 0.55;
-}
-
-.automations-row__when {
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  font-size: 0.75rem;
-}
-
-.automations-row__arrow {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.automations-row__then {
-  font-weight: 600;
-}
 
 /* Accent inline "Bind tap →" chip on an unbound monitor port (4d). */
 
@@ -961,44 +898,50 @@ h2.admin-field__label-text {
    accent color — same "this is the beer-lookup shortcut" visual weight the removed
    button had — while sharing every other button-shell property above. */
 
+/* Shared form classes still used by Settings, Automations and Home Assistant forms: the
+   same look as the V2 Button primitive (primary / quiet) and an inline warning line. */
 .beer-form__notice {
-  border-radius: 0.4rem;
-  padding: 0.55rem 0.75rem;
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-  font-size: 0.85rem;
+  margin: 0;
+  color: var(--warn);
 }
 
 .beer-form__actions {
   display: flex;
-  gap: 0.6rem;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.beer-form__submit {
-  padding: 0.55rem 1.1rem;
-  border-radius: 0.4rem;
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 600;
+.beer-form__submit,
+.beer-form__cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
 }
 
+.beer-form__submit {
+  background: var(--text);
+  color: var(--bg);
+}
+
 .beer-form__submit:disabled {
-  /* NOT opacity-only: dark label on a dimmed accent turns illegible (found on the
-   * Settings → System save button). Muted fill + dim-but-readable label instead. */
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
-  color: color-mix(in srgb, var(--text) 55%, transparent);
+  /* Not opacity-only: a dimmed fill with a readable label. */
+  background: var(--surface-2);
+  color: var(--text-faint);
   cursor: default;
 }
 
 .beer-form__cancel {
-  padding: 0.55rem 1.1rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  cursor: pointer;
+  background: transparent;
+  color: var(--text-dim);
 }
 
 /* Brewery autocomplete dropdown. */
@@ -2139,71 +2082,63 @@ h2.admin-field__label-text {
 }
 
 /* Settings tab bar — the page outgrew one long scroll (see SettingsPage.tsx). */
-.settings-tabs {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
-  overflow-x: auto;
-}
-
-.settings-tabs__tab {
-  padding: 0.5rem 0.9rem;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: color-mix(in srgb, var(--text) 60%, transparent);
-  font: inherit;
-  font-size: 0.95rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.settings-tabs__tab:hover,
-.settings-tabs__tab:focus-visible {
-  color: var(--text);
-}
-
-.settings-tabs__tab--active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
-}
-
 .settings-groups {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 16px;
 }
 
+/* One settings group: a titled block of fields, like a fieldset in the prototype. */
 .settings-group {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  gap: 16px;
+  margin: 0;
+  padding: 24px 0 8px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+}
+
+.settings-group > h2,
+.settings-group > legend {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .settings-group__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
 }
 
 .settings-toggle {
   display: flex;
+  align-self: flex-start;
+  justify-content: flex-start;
   align-items: center;
-  gap: 0.55rem;
-  font-size: 0.9rem;
+  gap: 12px;
+  min-height: 44px;
   color: var(--text);
   cursor: pointer;
 }
 
+.settings-toggle input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--text);
+}
+
 .settings-toggle__note {
-  margin: -0.4rem 0 0 1.7rem;
-  font-size: 0.8rem;
+  margin: -8px 0 0 34px;
+  color: var(--text-faint);
+  font-size: 14px;
 }
 
 .masked-secret__row {
@@ -2214,13 +2149,14 @@ h2.admin-field__label-text {
 
 .masked-secret__row input[type='password'] {
   flex: 1;
-  padding: 0.5rem 0.6rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
-  font-size: 0.9rem;
-  font-family: inherit;
+  font: inherit;
 }
 
 .masked-secret__value {
@@ -2230,26 +2166,17 @@ h2.admin-field__label-text {
 }
 
 .masked-secret__row button {
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
   color: var(--text);
-  font-size: 0.8rem;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
-}
-
-.settings-notice {
-  margin-bottom: 1rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: 0.4rem;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--text);
-  font-size: 0.85rem;
-}
-
-.settings-notice--restart {
-  background: color-mix(in srgb, #e0793d 18%, transparent);
 }
 
 /* Backup panel — its own quiet card, download + restore side by side as two internal
@@ -2596,96 +2523,6 @@ h2.admin-field__label-text {
  * builder reuse `.beer-form`/`.admin-field`/`.wall-editor__section` throughout rather than
  * inventing new field chrome, per the existing pages' "one form language" convention.
  */
-.automations-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.automations-row {
-  padding: 0.75rem 1rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.automations-row__main {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-}
-
-.automations-row__enabled-toggle {
-  flex: none;
-}
-
-.automations-row__enabled-dot {
-  display: block;
-  flex: none;
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 25%, transparent);
-}
-
-.automations-row__enabled-dot[data-enabled='true'] {
-  background: var(--accent);
-}
-
-.automations-row__body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.automations-row__title-line {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.automations-row__name {
-  color: var(--text);
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-.automations-row__summary {
-  color: var(--text-dim);
-  font-size: 0.82rem;
-}
-
-.automations-row__last-fired {
-  flex: none;
-  color: var(--text-dim);
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.automations-row__actions {
-  display: flex;
-  flex: none;
-  gap: 0.5rem;
-}
-
-.automations-row__actions button {
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.automations-row__actions button:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
 
 /* Alert badge — same small-pill language as `.users-role-badge`, tinted per severity. */
 .automations-alert-badge {
@@ -2883,7 +2720,6 @@ h2.admin-field__label-text {
   color: #e0793d;
 }
 
-.automations-row__actions button:focus-visible,
 .automations-template-card:focus-visible,
 .automation-builder__item-actions button:focus-visible,
 .automation-builder__hint-chip:focus-visible,
@@ -2908,24 +2744,25 @@ h2.admin-field__label-text {
 }
 
 .settings-actions button {
-  padding: 0.45rem 0.9rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
   color: var(--text);
-  background: none;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.settings-actions button:hover:not(:disabled),
-.settings-actions button:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent);
+.settings-actions button:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--text-dim);
 }
 
 .settings-actions button:disabled {
-  color: color-mix(in srgb, var(--text) 35%, transparent);
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -2949,24 +2786,6 @@ h2.admin-field__label-text {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.1em;
-}
-
-.dashboard-source-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.dashboard-source-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.dashboard-source-row__name {
-  color: var(--text-dim);
 }
 
 .dashboard-source-badge {
@@ -3531,8 +3350,6 @@ h2.admin-field__label-text {
   .admin-content table:not(.adm-table) { display: block; max-width: 100%; overflow-x: auto; }
 
   .admin-content :not(.adm-table) > * > tr > :is(th, td) { white-space: nowrap; }
-
-  .dashboard-source-row { flex-wrap: wrap; gap: 8px; }
 
   .dashboard-source-badge { white-space: normal; overflow-wrap: anywhere; }
 

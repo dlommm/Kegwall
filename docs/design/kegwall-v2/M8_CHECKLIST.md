@@ -46,18 +46,18 @@ Generated at the start of M8 from the admin routes (`AdminApp.tsx`), the Setting
 
 ## Settings
 
-- [ ] `/admin/settings` — `SettingsPage`: getSettings, and its groups: Site (uploadLabel),
+- [x] `/admin/settings` — `SettingsPage`: getSettings, and its groups: Site (uploadLabel),
   Pricing, Kegtron, Sources, Integrations, Channels (testChannel), System (checkForUpdates,
   getSystemVersion, pollSystemVersion, pollUpdateStatus, triggerUpdate, triggerOsUpdate,
   triggerKioskRestart, testPour), `BackupPanel` (uploadRestore)
-- [ ] `/admin/automations` — `AutomationsPage`: listAutomations, listAutomationTemplates,
+- [x] `/admin/automations` — `AutomationsPage`: listAutomations, listAutomationTemplates,
   createFromTemplate, updateAutomation, deleteAutomation
-  - [ ] `AutomationBuilder`: createAutomation, updateAutomation, runAutomation,
+  - [x] `AutomationBuilder` (field groups split into `automations/BuilderFields.tsx`): createAutomation, updateAutomation, runAutomation,
     listAutomationChannels, listBeers, listTaps
-- [ ] `/admin/home-assistant` — `HomeAssistantPage`: getSettings (+ `HaSetupWizard`)
-- [ ] `/admin/doctor` — `DoctorPage`: getSources, doctorCloud, doctorEnv, doctorGovee,
+- [x] `/admin/home-assistant` — `HomeAssistantPage`: getSettings (+ `HaSetupWizard`)
+- [x] `/admin/doctor` — `DoctorPage`: getSources, doctorCloud, doctorEnv, doctorGovee,
   doctorListen, doctorUdpHistory, doctorUdpRaw
-- [ ] `/admin/notifications` — `NotificationsPage`: listNotifications, ackNotification,
+- [x] `/admin/notifications` — `NotificationsPage`: listNotifications, ackNotification,
   ackAllNotifications
 
 ## Already V2 (M7)

@@ -186,7 +186,7 @@ grid.
 ## Bluetooth fallback (Kegtron Gen 1 + Pro)
 
 The installer's BLE question (or `--with-ble`) installs BlueZ and grants the raw-
-socket capability. Two independent toggles then exist in **Settings → Sources**:
+socket capability. Two independent toggles then exist in **Settings → Kegtron and sources**:
 
 - **Gen 1 (KT-100/KT-200)** — the **verified** path: the decoder in
   `src/server/ingest/gen1/bleSource.ts` is a byte-exact port of the real

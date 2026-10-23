@@ -22,6 +22,12 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 - **Changed:** **Beers** is a library of cards with each beer's marker and where it is (on tap
   with its level, on deck, or in the library), with search and filters. The editor opens in a
   drawer with a live preview of the beer's marker.
+- **Changed:** **Settings** lists its sections down the side (Taproom, Kegtron and sources,
+  Integrations and alerts, System) with a line on what each holds; "Saved." appears as a short
+  confirmation in the corner. Automations reads each rule as one sentence ("When a keg drops
+  below 15%, notify in the app.") with an On, Off or Just ran state beside it and a switch to
+  turn it off. Diagnostics leads with the connection doctor's verdict, and Notifications says
+  how many are unread.
 - **Changed:** **Insights** opens Analytics with a sentence about the range and KPIs set as
   large numbers; the range switch and tabs sit under it. Every pour says how many of tonight's
   pours have no name, and Logs counts the problems in the range.

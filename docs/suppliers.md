@@ -58,7 +58,7 @@ private by default:
 - **Editor and admin accounts** always see costs — editors record them, admins analyze them.
 - **Viewer accounts** don't see costs by default: keg lists, the on-deck queue, and the
   money KPIs on Analytics (cost per pint, value on tap) come back with cost fields blank.
-  If you want read-only accounts to see them, opt in at **Settings → Pricing → "Show keg
+  If you want read-only accounts to see them, opt in at **Settings → Taproom → Pricing → "Show keg
   costs to viewer accounts"**.
 
 ## See also

@@ -197,8 +197,8 @@ machine (the presence engine), independent per wall:
 "Activity" resets the idle clock and wakes an already-dimmed/off display back to
 `active`: a tap or pour on any wall, a touch/tap on the tablet or the screensaver/off
 overlay itself, camera motion (when enabled), or an external motion sensor wired up via
-MQTT or the presence webhook (**Settings → Sources → MQTT motion topics** /
-**Settings → Integrations → Presence**).
+MQTT or the presence webhook (**Settings → Kegtron and sources → MQTT motion topics** /
+**Settings → Integrations and alerts → Presence**).
 
 This is a display-**content**-level idle mode — the browser tab keeps rendering, it just
 shows a dim clock or a black overlay — separate from your OS/browser's own

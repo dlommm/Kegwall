@@ -211,6 +211,7 @@
 
 .admin-shell .admin-field--checkbox {
   flex-direction: row;
+  align-self: flex-start;
   align-items: center;
   gap: 12px;
   min-height: 44px;
@@ -870,6 +871,155 @@
 
 #admin-main [data-testid='people-panel-accounts'] {
   margin-top: 8px;
+}
+
+/* --- Settings --------------------------------------------------------------------- */
+
+.settings-v2 {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+
+.settings-v2 > .adm-tabs--rail {
+  position: sticky;
+  top: 16px;
+}
+
+.settings-v2__panels {
+  min-width: 0;
+}
+
+.settings-v2__panels .beer-form__submit,
+.settings-v2__panels .beer-form__cancel,
+.settings-v2__panels .settings-group > button {
+  align-self: flex-start;
+}
+
+.adm-tabs--rail .adm-tabs__tab {
+  white-space: normal;
+}
+
+.settings-v2__panels .settings-groups > :first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+@media (max-width: 900px) {
+  .settings-v2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .settings-v2 > .adm-tabs--rail {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .adm-tabs--rail .adm-tabs__hint {
+    display: none;
+  }
+}
+
+/* --- Automations ----------------------------------------------------------------- */
+
+.rule-v2__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule-v2 {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+
+.rule-v2.is-off .rule-v2__body {
+  opacity: 0.6;
+}
+
+.rule-v2__body p {
+  margin: 0;
+}
+
+.rule-v2__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.rule-v2__sentence {
+  margin-top: 4px !important;
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.rule-v2__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.automation-builder .wall-editor__section,
+.automations-template-picker {
+  margin: 0 0 16px;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.automation-builder .wall-editor__section legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.automations-template-card {
+  min-height: 88px;
+  padding: 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.automations-template-card:hover {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+@media (max-width: 700px) {
+  .rule-v2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+/* The connection doctor's verdict is the page's sentence, not a boxed banner. */
+.adm-page__title .doctor-verdict {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
 }
 
 /* --- Bridge: older page classes, skinned with the admin look ---------------------- */

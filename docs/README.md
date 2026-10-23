@@ -39,6 +39,7 @@ and wiki are updated with every change).
 | Guide | For |
 | --- | --- |
 | [customization.md](customization.md) | Wall layout, themes, custom-CSS trust model, screensaver, pairing screens by code |
+| [settings.md](settings.md) | Settings sections, automations, Home Assistant, diagnostics, notifications |
 | [insights.md](insights.md) | Analytics (KPIs, charts, exports), every pour, logs |
 | [people.md](people.md) | Pourers, accounts and roles, face data |
 | [beers.md](beers.md) | The beer library, the beer editor and its marker preview, catalog.beer |

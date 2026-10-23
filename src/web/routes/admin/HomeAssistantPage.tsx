@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import type { Settings } from '../../../server/db/settings.js';
 import { getSettings } from '../../lib/adminApi';
 import { HaSetupWizard } from '../../components/HaSetupWizard';
+import { PageTemplate } from './PageTemplate';
 
 /**
  * `/admin/home-assistant`: the standalone Home Assistant setup wizard, reachable from
@@ -21,20 +22,24 @@ export function HomeAssistantPage() {
 
   if (!settings) {
     return (
-      <main className="admin-page" data-testid="ha-page-loading">
-        <p className="admin-page-quiet" role={error ? 'alert' : 'status'}>{error ?? 'Loading…'}</p>
-      </main>
+      <div data-testid="ha-page-loading">
+        <p className="adm-sub" role={error ? 'alert' : 'status'}>{error ?? 'Loading…'}</p>
+      </div>
     );
   }
 
   return (
-    <main className="admin-page" data-testid="ha-page">
-      <h1 className="admin-page-header__title font-display">Home Assistant</h1>
+    <PageTemplate
+      testId="ha-page"
+      crumb="Settings · Home Assistant"
+      title="Connect Home Assistant."
+      sub="Kegwall publishes every tap and monitor to Home Assistant over MQTT, so they appear there without any YAML."
+    >
       <HaSetupWizard
         settings={settings}
         onSaved={() => navigate('/admin/settings')}
         onCancel={() => navigate('/admin/settings')}
       />
-    </main>
+    </PageTemplate>
   );
 }

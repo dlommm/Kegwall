@@ -76,7 +76,7 @@ This publishes a small JSON payload of its own (rather than relying on ESPHome's
 plain `ON`/`OFF` entity state) so the matching Kegwall source can use the same
 field-match pattern as the zigbee2mqtt section below:
 
-- **Settings → Sources**: set the **MQTT broker URL** to the same broker (if you haven't
+- **Settings → Kegtron and sources**: set the **MQTT broker URL** to the same broker (if you haven't
   already for another integration).
 - **Displays & Presence → Motion sources → Add source**:
   - **Type**: MQTT
@@ -165,7 +165,7 @@ decodes directly (no gateway, no MQTT bridge needed).
      have more than one BTHome device nearby, so they don't cross-trigger each other's
      source rows).
 
-No toggle in **Settings → Sources** needs enabling for this — adding a `ble`-type motion
+No toggle in **Settings → Kegtron and sources** needs enabling for this — adding a `ble`-type motion
 source is enough on its own to start the shared Bluetooth scanner. The host running
 Kegwall does need a working Bluetooth adapter and the same `@abandonware/noble` /
 `setcap cap_net_raw+eip` setup Gen 1 direct-BLE uses — see raspberry-pi.md's Bluetooth

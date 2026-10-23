@@ -35,7 +35,7 @@ embedding.
 
 ## Enable it
 
-**Settings → Integrations → Face sign-in**:
+**Settings → Integrations and alerts → Face sign-in**:
 
 - **Enable face sign-in** — off by default; nothing runs on any tablet until this is
   checked.

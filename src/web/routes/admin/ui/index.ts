@@ -17,3 +17,4 @@ export { EmptyState, ErrorState, Skeleton } from './states';
 export { Switch } from './Switch';
 export { Table } from './Table';
 export { Tabs, tabId, type TabItem } from './Tabs';
+export { Toast } from './Toast';

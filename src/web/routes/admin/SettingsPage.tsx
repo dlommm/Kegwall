@@ -10,6 +10,10 @@ import { SourcesGroup } from './settings/SourcesGroup';
 import { SystemGroup } from './settings/SystemGroup';
 import { IntegrationsGroup } from './settings/IntegrationsGroup';
 import { ChannelsGroup } from './settings/ChannelsGroup';
+import { PageTemplate } from './PageTemplate';
+import {
+  ErrorState, Skeleton, Tabs, Toast, tabId,
+} from './ui';
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
@@ -49,11 +53,11 @@ type SettingsTabId = 'general' | 'sources' | 'integrations' | 'system';
 /** How long the transient saved/restarted notice stays visible before auto-clearing. */
 const NOTICE_CLEAR_MS = 4_000;
 
-const SETTINGS_TABS: { id: SettingsTabId; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'sources', label: 'Sources' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'system', label: 'System' },
+const SETTINGS_TABS: { id: SettingsTabId; label: string; hint: string }[] = [
+  { id: 'general', label: 'Taproom', hint: 'Name, logo, units, serving size, pricing' },
+  { id: 'sources', label: 'Kegtron and sources', hint: 'Cloud, UDP, Bluetooth, MQTT' },
+  { id: 'integrations', label: 'Integrations and alerts', hint: 'Home Assistant, catalog.beer, Govee, notifications' },
+  { id: 'system', label: 'System', hint: 'Updates, kiosk, backups' },
 ];
 
 /** Initial tab from ?tab=<id> — plain URLSearchParams (not useSearchParams) on
@@ -139,58 +143,46 @@ export function SettingsPage() {
   }
 
   if (status === 'loading') {
-    return <p className="admin-page-quiet" data-testid="settings-loading">Loading…</p>;
+    return <div data-testid="settings-loading"><Skeleton height={240} /></div>;
   }
   if (status === 'error' || !settings) {
     return (
-      <p className="admin-page-quiet" role="alert" data-testid="settings-error">
-        Couldn&rsquo;t load settings. Reload to try again.
-      </p>
+      <div data-testid="settings-error">
+        <ErrorState title="Couldn’t load settings.">Reload to try again.</ErrorState>
+      </div>
     );
   }
 
   return (
-    <section data-testid="admin-settings-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Settings</h1>
-        <a className="admin-page-quiet" href="/admin/doctor" data-testid="settings-doctor-link">
-          Connection doctor →
+    <PageTemplate
+      testId="admin-settings-page"
+      title="Settings"
+      sub="Changes save per section. Saving a source restarts it so the change takes effect."
+      actions={(
+        <a className="adm-btn adm-btn--secondary" href="/admin/doctor" data-testid="settings-doctor-link">
+          Open the connection doctor
         </a>
-      </header>
-
+      )}
+    >
       {notice?.kind === 'restarted' && (
-        <p className="settings-notice settings-notice--restart" role="status" data-testid="settings-restart-notice">
-          Sources restarted to apply changes.
-        </p>
+        <Toast tone="warn" testId="settings-restart-notice">Sources restarted to apply changes.</Toast>
       )}
-      {notice?.kind === 'saved' && (
-        <p className="settings-notice" role="status" data-testid="settings-saved-notice">
-          Saved.
-        </p>
-      )}
+      {notice?.kind === 'saved' && <Toast testId="settings-saved-notice">Saved.</Toast>}
 
-      {/* Tab bar — the page outgrew one long scroll. Every panel stays MOUNTED
-          (inactive ones get the `hidden` attribute) so unsaved drafts survive tab
-          switches and the version-counter remount keys keep their exact semantics;
-          only visibility changes. ?tab=<id> deep-links (docs say "Settings →
-          System" in a dozen places) without coupling this page to the router. */}
-      <nav className="settings-tabs" role="tablist" aria-label="Settings sections" data-testid="settings-tabs">
-        {SETTINGS_TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            className={`settings-tabs__tab${tab === id ? ' settings-tabs__tab--active' : ''}`}
-            data-testid={`settings-tab-${id}`}
-            onClick={() => selectTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="settings-groups" hidden={tab !== 'general'} data-testid="settings-panel-general">
+      <div className="settings-v2">
+        <Tabs<SettingsTabId>
+          label="Settings sections"
+          idBase="settings"
+          orientation="vertical"
+          testId="settings-tabs"
+          value={tab}
+          onChange={selectTab}
+          items={SETTINGS_TABS.map(({ id, label, hint }) => ({
+            value: id, label: <b>{label}</b>, hint, testId: `settings-tab-${id}`,
+          }))}
+        />
+        <div className="settings-v2__panels">
+      <div className="settings-groups" role="tabpanel" aria-labelledby={tabId('settings', 'general')} hidden={tab !== 'general'} data-testid="settings-panel-general">
         <SiteGroup
           key={`site-${siteVersion}`}
           settings={settings}
@@ -202,7 +194,7 @@ export function SettingsPage() {
           onSaved={(updated, patch) => handleGroupSaved('pricing', updated, patch)}
         />
       </div>
-      <div className="settings-groups" hidden={tab !== 'sources'} data-testid="settings-panel-sources">
+      <div className="settings-groups" role="tabpanel" aria-labelledby={tabId('settings', 'sources')} hidden={tab !== 'sources'} data-testid="settings-panel-sources">
         <KegtronGroup
           key={`kegtron-${kegtronVersion}`}
           settings={settings}
@@ -214,7 +206,7 @@ export function SettingsPage() {
           onSaved={(updated, patch) => handleGroupSaved('mqtt', updated, patch)}
         />
       </div>
-      <div className="settings-groups" hidden={tab !== 'integrations'} data-testid="settings-panel-integrations">
+      <div className="settings-groups" role="tabpanel" aria-labelledby={tabId('settings', 'integrations')} hidden={tab !== 'integrations'} data-testid="settings-panel-integrations">
         <IntegrationsGroup
           settings={settings}
           mqttVersion={mqttVersion}
@@ -231,7 +223,7 @@ export function SettingsPage() {
           onSaved={(updated, patch) => handleGroupSaved('channels', updated, patch)}
         />
       </div>
-      <div className="settings-groups" hidden={tab !== 'system'} data-testid="settings-panel-system">
+      <div className="settings-groups" role="tabpanel" aria-labelledby={tabId('settings', 'system')} hidden={tab !== 'system'} data-testid="settings-panel-system">
         <SystemGroup
           key={`system-${updatesVersion}`}
           settings={settings}
@@ -239,6 +231,8 @@ export function SettingsPage() {
         />
         <BackupPanel />
       </div>
-    </section>
+        </div>
+      </div>
+    </PageTemplate>
   );
 }

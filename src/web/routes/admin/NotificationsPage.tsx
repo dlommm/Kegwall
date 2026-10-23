@@ -4,6 +4,11 @@ import {
   listNotifications, ackNotification, ackAllNotifications,
 } from '../../lib/adminApi';
 import { NotificationRow } from './NotificationRow';
+import { PageTemplate } from './PageTemplate';
+import { capitalize, countWord } from '../../lib/tonightAttention';
+import {
+  Button, EmptyState, ErrorState, Skeleton,
+} from './ui';
 
 const PAGE_SIZE = 25;
 
@@ -77,31 +82,33 @@ export function NotificationsPage() {
 
   const anyUnacked = items.some((n) => !n.acked);
 
+  const unread = items.filter((n) => !n.acked).length;
+
   return (
-    <section data-testid="admin-notifications-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Notifications</h1>
-        <button
-          type="button"
-          className="admin-page-header__action"
+    <PageTemplate
+      testId="admin-notifications-page"
+      title={status !== 'loaded' ? 'Notifications'
+        : unread === 0 ? 'You’re all caught up.'
+          : `${unread === 1 ? 'One notification' : `${capitalize(countWord(unread))} notifications`} to read.`}
+      sub="Alerts from your automations and from Kegwall itself, newest first. The bell in the top bar shows the latest."
+      actions={(
+        <Button
           data-testid="notifications-page-mark-all-read"
           disabled={markingAll || !anyUnacked}
           onClick={handleMarkAllRead}
         >
           Mark all read
-        </button>
-      </header>
-
-      {status === 'loading' && (
-        <p className="admin-page-quiet" data-testid="notifications-page-loading">Loading…</p>
+        </Button>
       )}
+    >
+      {status === 'loading' && <div data-testid="notifications-page-loading"><Skeleton height={80} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="notifications-page-error">
-          Couldn&rsquo;t load notifications. Reload to try again.
-        </p>
+        <div data-testid="notifications-page-error">
+          <ErrorState title="Couldn’t load notifications.">Reload to try again.</ErrorState>
+        </div>
       )}
       {status === 'loaded' && items.length === 0 && (
-        <p className="admin-page-quiet" data-testid="notifications-page-empty">No notifications yet.</p>
+        <div data-testid="notifications-page-empty"><EmptyState title="No notifications yet." /></div>
       )}
 
       {status === 'loaded' && items.length > 0 && (
@@ -113,18 +120,16 @@ export function NotificationsPage() {
           </ul>
 
           {hasMore && (
-            <button
-              type="button"
-              className="notifications-page__load-more"
+            <Button
               data-testid="notifications-page-load-more"
               disabled={loadingMore}
               onClick={handleLoadMore}
             >
               {loadingMore ? 'Loading…' : 'Load more'}
-            </button>
+            </Button>
           )}
         </>
       )}
-    </section>
+    </PageTemplate>
   );
 }
