@@ -106,7 +106,11 @@ export function NotificationBell() {
         aria-haspopup="true"
         onClick={togglePanel}
       >
-        <span>Notifications</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9" />
+          <path d="M10 20a2.2 2.2 0 0 0 4 0" />
+        </svg>
+        <span className="adm-sr-only">Notifications</span>
         {unackedCount > 0 && (
           <span className="notification-bell__badge" data-testid="notification-bell-badge">
             {unackedCount > 99 ? '99+' : unackedCount}

@@ -14,7 +14,7 @@ export interface AdminNavItem {
 }
 
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
-  { label: 'Dashboard', path: '/admin' },
+  { label: 'Tonight', path: '/admin' },
   { label: 'Beers', path: '/admin/beers' },
   { label: 'Taps & kegs', path: '/admin/taps' },
   // Every keg (on tap + past) with editable owner cost/supplier — admin (shows cost).
@@ -74,4 +74,87 @@ export function pageTitleFor(pathname: string): string {
     if (matches && (!best || item.path.length > best.path.length)) best = item;
   }
   return best?.label ?? 'Admin';
+}
+
+/**
+ * Kegwall V2 admin: six destinations in the top bar, each with sub-tabs that link the
+ * existing admin URLs (every old route and deep link keeps working). Settings sits at the
+ * right of the bar. `match` lists extra paths that belong to a destination without a tab.
+ */
+export interface AdminDestination {
+  label: string;
+  path: string;
+  tabs: readonly AdminNavItem[];
+  match?: readonly string[];
+  adminOnly?: boolean;
+  /** Sits at the right of the bar, apart from the six destinations (Settings). */
+  utility?: boolean;
+}
+
+export const ADMIN_DESTINATIONS: readonly AdminDestination[] = [
+  { label: 'Tonight', path: '/admin', tabs: [], match: ['/admin/notifications', '/admin/welcome'] },
+  {
+    label: 'Taps & kegs',
+    path: '/admin/taps',
+    tabs: [
+      { label: 'Taps', path: '/admin/taps' },
+      { label: 'Kegs', path: '/admin/kegs', adminOnly: true },
+      { label: 'Suppliers', path: '/admin/suppliers', adminOnly: true },
+      { label: 'Monitors', path: '/admin/monitors' },
+    ],
+  },
+  { label: 'Beers', path: '/admin/beers', tabs: [] },
+  { label: 'People', path: '/admin/people', tabs: [], match: ['/admin/users', '/admin/pourers'] },
+  {
+    label: 'Screens',
+    path: '/admin/walls',
+    tabs: [
+      { label: 'Walls', path: '/admin/walls' },
+      { label: 'Displays', path: '/admin/displays' },
+      { label: 'Presence', path: '/admin/presence', adminOnly: true },
+      { label: 'Games', path: '/admin/games' },
+    ],
+  },
+  {
+    label: 'Insights',
+    path: '/admin/stats',
+    tabs: [
+      { label: 'Analytics', path: '/admin/stats' },
+      { label: 'Every pour', path: '/admin/pours' },
+      { label: 'Logs', path: '/admin/logs' },
+    ],
+  },
+  {
+    label: 'Settings',
+    path: '/admin/settings',
+    adminOnly: true,
+    utility: true,
+    tabs: [
+      { label: 'Settings', path: '/admin/settings', adminOnly: true },
+      { label: 'Automations', path: '/admin/automations' },
+      { label: 'Home Assistant', path: '/admin/home-assistant' },
+      { label: 'Diagnostics', path: '/admin/doctor' },
+    ],
+  },
+];
+
+function under(pathname: string, path: string): boolean {
+  return path === '/admin' ? pathname === '/admin' : pathname === path || pathname.startsWith(`${path}/`);
+}
+
+/** The destination a pathname belongs to (Tonight when nothing else matches). */
+export function destinationFor(pathname: string): AdminDestination {
+  return ADMIN_DESTINATIONS.find((d) => under(pathname, d.path)
+    || d.tabs.some((t) => under(pathname, t.path))
+    || (d.match ?? []).some((m) => under(pathname, m))) ?? ADMIN_DESTINATIONS[0]!;
+}
+
+/** Destinations and their tabs, filtered for a role. Non-admins still reach Automations etc.
+ * through Settings' tabs when Settings itself is admin-only. */
+export function visibleDestinations(role: Role | null): AdminDestination[] {
+  const ok = (item: { adminOnly?: boolean }) => !item.adminOnly || role === 'admin';
+  return ADMIN_DESTINATIONS
+    .map((d) => ({ ...d, tabs: d.tabs.filter(ok) }))
+    .filter((d) => ok(d) || d.tabs.length > 0)
+    .map((d) => (ok(d) ? d : { ...d, path: d.tabs[0]!.path }));
 }

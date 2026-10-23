@@ -452,24 +452,10 @@
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  background: #19140f;
-  color: #a79883;
+  background: #0d0c0b;
+  color: #bdb6aa;
   padding: 1rem;
   text-align: center;
-}
-
-.admin-topbar__signout {
-  padding: 0.4rem 0.9rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.admin-topbar__signout:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .admin-placeholder {
@@ -491,8 +477,6 @@
 
 /* Visible keyboard focus everywhere, per the design direction — the admin shell has
    no browser-default outline visible against these dark surfaces otherwise. */
-.admin-nav__link:focus-visible,
-.admin-topbar__signout:focus-visible,
 .admin-auth__submit:focus-visible,
 .admin-auth__field input:focus-visible {
   outline: 2px solid var(--accent);

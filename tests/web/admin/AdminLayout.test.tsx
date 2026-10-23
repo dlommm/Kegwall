@@ -3,7 +3,7 @@ import {
 } from 'vitest';
 import type { Mock } from 'vitest';
 import {
-  fireEvent, render, screen, waitFor,
+  cleanup, fireEvent, render, screen, waitFor, within,
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AdminLayout } from '../../../src/web/routes/admin/AdminLayout';
@@ -47,6 +47,7 @@ function renderLayout(initialEntry = '/admin') {
           <Route index element={<div data-testid="dashboard-placeholder" />} />
           <Route path="beers" element={<div data-testid="beers-placeholder" />} />
           <Route path="users" element={<div data-testid="users-placeholder" />} />
+          <Route path="monitors" element={<div data-testid="monitors-placeholder" />} />
           <Route path="probe" element={<ContextProbe />} />
         </Route>
       </Routes>
@@ -96,73 +97,90 @@ describe('AdminLayout', () => {
     expect(screen.queryByTestId('admin-layout')).not.toBeInTheDocument();
   });
 
-  it('renders the sidebar and nested route for an authenticated admin', async () => {
+  it('renders the top bar and nested route for an authenticated admin', async () => {
     mockFetchOnce(200, user({ role: 'admin' }));
     renderLayout();
     expect(await screen.findByTestId('dashboard-placeholder')).toBeInTheDocument();
-    expect(screen.getByText('People')).toBeInTheDocument();
-    expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.getByText('Beers')).toBeInTheDocument();
+    const bar = screen.getByRole('navigation', { name: 'Admin' });
+    for (const label of ['Tonight', 'Taps & kegs', 'Beers', 'People', 'Screens', 'Insights', 'Settings']) {
+      expect(within(bar).getByRole('link', { name: label })).toBeInTheDocument();
+    }
+    expect(within(bar).getByRole('link', { name: 'Tonight' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('shows the running version in the sidebar footer', async () => {
+  it('shows the running version and the signed-in user in the account menu', async () => {
+    mockFetchOnce(200, user({ role: 'admin', displayName: 'Dan Lomm' }));
+    renderLayout();
+    await screen.findByTestId('dashboard-placeholder');
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/system/version'), expect.anything()));
+    fireEvent.keyDown(screen.getByTestId('admin-account'), { key: 'Enter' });
+    expect(await screen.findByTestId('admin-nav-version')).toHaveTextContent('Kegwall v9.9.9');
+    expect(screen.getByTestId('admin-user-chip')).toHaveTextContent('Dan Lomm');
+  });
+
+  it('shows the current destination\'s sub-tabs, linking the existing admin URLs', async () => {
     mockFetchOnce(200, user({ role: 'admin' }));
-    renderLayout();
-    expect(await screen.findByTestId('admin-nav-version')).toHaveTextContent('v9.9.9');
+    renderLayout('/admin/beers');
+    await screen.findByTestId('beers-placeholder');
+    expect(screen.queryByTestId('admin-subtabs')).not.toBeInTheDocument();
+    cleanup();
+    mockFetchOnce(200, user({ role: 'admin' }));
+    renderLayout('/admin/users');
+    await screen.findByTestId('users-placeholder');
+    // People has no sub-tabs of its own (its page carries Pourers / Accounts), but the
+    // legacy /admin/users deep link still lights People in the bar.
+    expect(within(screen.getByRole('navigation', { name: 'Admin' })).getByRole('link', { name: 'People' }))
+      .toHaveAttribute('aria-current', 'page');
   });
 
-  it('hides Users and Settings for an editor', async () => {
+  it('hides admin-only sub-tabs from an editor and points Settings at what they can open', async () => {
     mockFetchOnce(200, user({ role: 'editor' }));
-    renderLayout();
-    await screen.findByTestId('dashboard-placeholder');
-    expect(screen.queryByText('Users')).not.toBeInTheDocument();
-    expect(screen.queryByText('Settings')).not.toBeInTheDocument();
-    expect(screen.getByText('Beers')).toBeInTheDocument();
+    renderLayout('/admin/monitors');
+    const tabs = await screen.findByTestId('admin-subtabs');
+    expect(within(tabs).getByRole('link', { name: 'Taps' })).toBeInTheDocument();
+    expect(within(tabs).getByRole('link', { name: 'Monitors' })).toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { name: 'Kegs' })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { name: 'Suppliers' })).not.toBeInTheDocument();
+    const bar = screen.getByRole('navigation', { name: 'Admin' });
+    expect(within(bar).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/admin/automations');
   });
 
-  it('hides Users and Settings for a viewer, but still shows the rest of the nav', async () => {
-    mockFetchOnce(200, user({ role: 'viewer' }));
-    renderLayout();
-    await screen.findByTestId('dashboard-placeholder');
-    expect(screen.queryByText('Users')).not.toBeInTheDocument();
-    expect(screen.queryByText('Settings')).not.toBeInTheDocument();
-    expect(screen.getByText('Monitors')).toBeInTheDocument();
-    expect(screen.getByText('Logs')).toBeInTheDocument();
-  });
-
-  it('shows the signed-in user\'s display name in a user chip', async () => {
-    mockFetchOnce(200, user({ displayName: 'Dan Lomm' }));
-    renderLayout();
-    expect(await screen.findByTestId('admin-user-chip')).toHaveTextContent('Dan Lomm');
-  });
-
-  it('opens a compact mobile navigation menu and closes it after choosing a page', async () => {
+  it('opens the phone menu and closes it after choosing a page', async () => {
     mockFetchOnce(200, user());
     renderLayout();
     await screen.findByTestId('dashboard-placeholder');
 
     const menu = screen.getByRole('button', { name: 'Menu' });
     fireEvent.click(menu);
-    expect(menu).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(screen.getByRole('link', { name: 'Beers' }));
-    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
+    const sheet = await screen.findByTestId('admin-phone-menu');
+    fireEvent.click(within(sheet).getByRole('link', { name: 'Beers' }));
+    expect(await screen.findByTestId('beers-placeholder')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId('admin-phone-menu')).not.toBeInTheDocument());
   });
 
-  it('closes the mobile menu on Escape and on navigation from outside the sidebar', async () => {
+  it('opens the Ctrl K palette from anywhere and goes to the chosen page', async () => {
     mockFetchOnce(200, user());
     renderLayout();
     await screen.findByTestId('dashboard-placeholder');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
-    const search = screen.getByTestId('admin-topbar-search');
-    fireEvent.change(search, { target: { value: 'beers' } });
-    fireEvent.keyDown(search, { key: 'Enter' });
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    const input = await screen.findByTestId('admin-palette-input');
+    fireEvent.change(input, { target: { value: 'beer' } });
+    expect(screen.getAllByTestId('admin-palette-item')[0]).toHaveTextContent('Beers');
+    fireEvent.keyDown(input, { key: 'Enter' });
     expect(await screen.findByTestId('beers-placeholder')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
+    await waitFor(() => expect(screen.queryByTestId('admin-palette')).not.toBeInTheDocument());
+  });
+
+  it('never offers an editor an admin-only page in the palette', async () => {
+    mockFetchOnce(200, user({ role: 'editor' }));
+    renderLayout();
+    await screen.findByTestId('dashboard-placeholder');
+    fireEvent.click(screen.getByTestId('admin-search'));
+    const items = (await screen.findAllByTestId('admin-palette-item')).map((el) => el.textContent);
+    expect(items.some((t) => t?.startsWith('Kegs'))).toBe(false);
+    expect(items.some((t) => t?.startsWith('Suppliers'))).toBe(false);
+    expect(items.some((t) => t?.startsWith('Automations'))).toBe(true);
   });
 
   it('names the browser tab after the current section', async () => {
@@ -204,7 +222,8 @@ describe('AdminLayout', () => {
     await screen.findByTestId('dashboard-placeholder');
 
     mockFetchOnce(200, { ok: true });
-    fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
+    fireEvent.keyDown(screen.getByTestId('admin-account'), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /sign out/i }));
 
     expect(await screen.findByTestId('login-route')).toBeInTheDocument();
   });

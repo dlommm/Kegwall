@@ -5,6 +5,12 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Changed
 
+- **Changed:** the admin has a top bar instead of a sidebar: six destinations (Tonight, Taps &
+  kegs, Beers, People, Screens, Insights), Search, the notification bell, Settings and an account
+  menu. A destination's pages show as tabs under the bar; every existing admin address still
+  works. On phones the destinations open from **Menu** as a sheet.
+- **Changed:** one admin design, dark by default and light when the device prefers it.
+
 - **Changed:** pour takeovers are rebuilt. Full shows a glass filling from a stream of beer,
   Split slides a panel in the beer's color, Dock lifts the wall for a filling bar, Fill floods
   the screen, Spotlight lifts the pouring card, and Off keeps the wall still with a live
@@ -35,6 +41,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Added
 
+- **Added:** **Ctrl K** / **⌘K** opens Search from anywhere in the admin: type part of a page's
+  name, arrow to it and press Enter. Editors and viewers never see admin-only pages there.
+
 - **Added:** three pour takeover styles: **Tap Pull** (a handle swings, the glass fills and
   slides off), **Keg Drain** (the keg empties live, pints left count down) and **Game On**
   (the pour moves the pourer up a running game).
@@ -58,6 +67,11 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 - **Added:** every tap in the live wall feed now carries tonight's pours and volume (since
   4 am), pours in the last hour and a projected kick date, and the wall payload carries the
   taproom's serving size. None of it reveals keg cost.
+
+## Removed
+
+- **Removed:** the admin **Appearance** setting (Midnight Slate, Workshop, Console). A saved
+  choice is ignored.
 
 ## Fixed
 

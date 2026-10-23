@@ -26,6 +26,8 @@ import { PresencePage } from './PresencePage';
 import { HomeAssistantPage } from './HomeAssistantPage';
 // Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
 import './admin.css';
+// Kegwall V2 shell and primitives, after admin.css so the new frame wins over old page rules.
+import './shell.css';
 
 /**
  * The entire `/admin/*` route subtree, as its own module — Phase 5 Task 0 (Phase 4 final

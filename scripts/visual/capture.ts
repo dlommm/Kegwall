@@ -154,9 +154,9 @@ await shot('tablet-kiosk-armed', '/tablet/main', VP.tabletL, {
 
 // ---- admin ----
 await shot('admin-01-login', '/admin/login', VP.desktop);
-async function adminCtx(look: string): Promise<BrowserContext> {
-  const ctx = await browser.newContext({ viewport: VP.desktop, colorScheme: look === 'workshop' ? 'light' : 'dark' });
-  await ctx.addInitScript((l: string) => { try { localStorage.setItem('kegtron.adminTheme', l); } catch { /* storage blocked */ } }, look);
+// One admin look (Kegwall V2), dark or light by the device's color scheme.
+async function adminCtx(scheme: 'dark' | 'light'): Promise<BrowserContext> {
+  const ctx = await browser.newContext({ viewport: VP.desktop, colorScheme: scheme });
   const r = await ctx.request.post(`${base}/api/auth/login`, { data: ADMIN_LOGIN });
   if (!r.ok()) log.push(`LOGIN FAIL ${r.status()}`);
   return ctx;
@@ -169,7 +169,7 @@ const ADMIN_PAGES: [string, string][] = [
   ['logs', '/admin/logs'], ['settings', '/admin/settings'], ['notifications', '/admin/notifications'],
   ['doctor', '/admin/doctor'], ['home-assistant', '/admin/home-assistant'],
 ];
-const admin = await adminCtx('midnight');
+const admin = await adminCtx('dark');
 for (const [n, u] of ADMIN_PAGES) await shot(`admin-${n}`, u, VP.desktop, { ctx: admin, full: true, wait: 1500 });
 const openEditor = async (p: Page) => { await p.getByRole('button', { name: /^edit/i }).first().click(); await p.waitForTimeout(1500); };
 await shot('admin-wall-editor', '/admin/walls', VP.desktop, { ctx: admin, full: true, wait: 1200, before: openEditor });
@@ -178,13 +178,20 @@ await shot('admin-dashboard-laptop', '/admin', VP.laptop, { ctx: admin, wait: 15
 await shot('admin-dashboard-tablet', '/admin', VP.tabletL, { ctx: admin, wait: 1500 });
 await shot('admin-dashboard-mobile', '/admin', VP.mobile, { ctx: admin, wait: 1500 });
 await shot('admin-stats-mobile', '/admin/stats', VP.mobile, { ctx: admin, wait: 1500, full: true });
-for (const look of ['workshop', 'console']) {
-  const c = await adminCtx(look);
-  for (const [n, u] of [['dashboard', '/admin'], ['taps', '/admin/taps'], ['stats', '/admin/stats']] as const) {
-    await shot(`admin-${look}-${n}`, u, VP.desktop, { ctx: c, wait: 1500 });
-  }
-  await c.close();
+await shot('admin-menu-mobile', '/admin', VP.mobile, {
+  ctx: admin, wait: 1500, before: async (p) => { await p.getByRole('button', { name: 'Menu' }).click(); await p.waitForTimeout(400); },
+});
+await shot('admin-palette', '/admin', VP.desktop, {
+  ctx: admin, wait: 1500, before: async (p) => { await p.keyboard.press('Control+k'); await p.keyboard.type('ke'); await p.waitForTimeout(300); },
+});
+await shot('admin-account-menu', '/admin/taps', VP.desktop, {
+  ctx: admin, wait: 1500, before: async (p) => { await p.getByTestId('admin-account').click(); await p.waitForTimeout(300); },
+});
+const light = await adminCtx('light');
+for (const [n, u] of [['dashboard', '/admin'], ['taps', '/admin/taps'], ['stats', '/admin/stats']] as const) {
+  await shot(`admin-light-${n}`, u, VP.desktop, { ctx: light, wait: 1500 });
 }
+await light.close();
 await admin.close();
 
 writeFileSync(join(OUT, '_log.txt'), log.join('\n'));

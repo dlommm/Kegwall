@@ -42,7 +42,7 @@ and wiki are updated with every change).
 | [suppliers.md](suppliers.md) | Supplier directory, weekly opening hours, derived price book, who sees keg costs |
 | [recovery.md](recovery.md) | Backup, restore, and manual crash-loop recovery |
 | [cleaning-and-pours.md](cleaning-and-pours.md) | Line-cleaning reminders, unclaimed pours, and claim windows |
-| [admin-dashboard.md](admin-dashboard.md) | Dashboard summaries and mobile admin navigation |
+| [admin-dashboard.md](admin-dashboard.md) | Dashboard summaries, the admin top bar, Search and phone navigation |
 
 ## Design proposals
 

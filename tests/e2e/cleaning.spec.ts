@@ -66,9 +66,9 @@ test('empty taps stay quiet and cleaning reminders can be ignored and resumed', 
 
     // The mobile menu closes on Escape.
     await page.getByRole('button', { name: 'Menu' }).click();
-    await expect(page.getByRole('link', { name: 'Logs' })).toBeVisible();
+    await expect(page.getByTestId('admin-phone-menu').getByRole('link', { name: 'Insights' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('link', { name: 'Logs' })).toBeHidden();
+    await expect(page.getByTestId('admin-phone-menu')).toBeHidden();
 
   } finally {
     await app.close();

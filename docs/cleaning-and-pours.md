@@ -19,7 +19,7 @@ scrolled into view.
 
 ## The Pours page
 
-**Pours** (in the admin sidebar) lists every recorded pour, newest first, and refreshes every 15
+**Every pour** (under **Insights** in the admin) lists every recorded pour, newest first, and refreshes every 15
 seconds. Use **Refresh** to check immediately.
 
 - **Filters** — **Unclaimed only**, a **Drinker** filter, and a **From**/**To** date range (local

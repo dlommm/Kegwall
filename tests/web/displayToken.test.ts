@@ -4,7 +4,7 @@ import {
 } from '../../src/web/lib/displayToken';
 
 // This environment's jsdom exposes a non-functional window.localStorage (Node's own shim
-// collides with it) — install a real Map-backed stub, same as adminTheme.test.ts.
+// collides with it) — install a real Map-backed stub.
 beforeEach(() => {
   const store = new Map<string, string>();
   Object.defineProperty(window, 'localStorage', {
