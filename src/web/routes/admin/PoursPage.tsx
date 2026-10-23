@@ -11,6 +11,14 @@ import { getDrinkers, type PublicDrinker } from '../../lib/api';
 import { formatVolumeMl } from '../../lib/units';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
+import { serviceDayStart } from '../../../server/core/serviceDay.js';
+import { capitalize, countWord } from '../../lib/tonightAttention';
+import { beerMarkerModel } from '../../wall/wallModel';
+import { TapMarker } from '../../wall/TapMarker';
+import { PageTemplate } from './PageTemplate';
+import {
+  Button, EmptyState, ErrorState, Skeleton, Table,
+} from './ui';
 
 type PageStatus = 'loading' | 'loaded' | 'error';
 
@@ -57,6 +65,16 @@ export function formatPourTime(ts: string, now: Date = new Date()): string {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
   });
+}
+
+/** "Two pours tonight have no name." from the loaded rows (tonight is 4 am to 4 am). */
+export function poursHeadline(pours: Pour[], now: Date = new Date()): string {
+  const start = serviceDayStart(now).getTime();
+  const tonight = pours.filter((p) => new Date(p.ts).getTime() >= start);
+  const unnamed = tonight.filter((p) => p.drinkerId === null).length;
+  if (tonight.length === 0) return 'No pours yet tonight.';
+  if (unnamed === 0) return tonight.length === 1 ? 'Tonight’s pour has a name.' : `All ${countWord(tonight.length)} pours tonight have a name.`;
+  return unnamed === 1 ? 'One pour tonight has no name.' : `${capitalize(countWord(unnamed))} pours tonight have no name.`;
 }
 
 /** True when a pour still belongs in the list after its drinker changed. */
@@ -237,15 +255,11 @@ export function PoursPage() {
   const now = new Date();
 
   return (
-    <section data-testid="admin-pours-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Pours</h1>
-      </header>
-      <p className="admin-page-quiet">
-        Every recorded pour, newest first. Guests can only claim a pour for a few minutes, so older
-        ones are assigned here. {canEdit && 'Change a drinker on a row, or tick several rows to assign them together.'}
-      </p>
-
+    <PageTemplate
+      testId="admin-pours-page"
+      title={status === 'loaded' && !filtered ? poursHeadline(pours, now) : 'Every pour'}
+      sub={`Every recorded pour, newest first. Guests can only claim a pour for a few minutes, so older ones are assigned here.${canEdit ? ' Change the name on a row, or tick several rows to give them to one person at once.' : ''}`}
+    >
       <div className="pours-toolbar" data-testid="pours-filters">
         <label className="pours-toolbar__check">
           <input
@@ -259,6 +273,7 @@ export function PoursPage() {
         <label className="pours-toolbar__field">
           <span>Drinker</span>
           <select
+            className="adm-select"
             data-testid="pours-filter-drinker"
             value={filters.unclaimedOnly ? '' : filters.drinkerId}
             disabled={busy || filters.unclaimedOnly}
@@ -291,11 +306,11 @@ export function PoursPage() {
           />
         </label>
         {filtered && (
-          <button type="button" data-testid="pours-filter-clear" disabled={busy} onClick={() => updateFilters(NO_FILTERS)}>
+          <Button variant="quiet" data-testid="pours-filter-clear" disabled={busy} onClick={() => updateFilters(NO_FILTERS)}>
             Clear filters
-          </button>
+          </Button>
         )}
-        <button type="button" disabled={busy} onClick={() => load()}>Refresh</button>
+        <Button variant="quiet" disabled={busy} onClick={() => load()}>Refresh</Button>
       </div>
 
       {canEdit && selected.size > 0 && (
@@ -306,6 +321,7 @@ export function PoursPage() {
           <label className="pours-toolbar__field">
             <span>Assign to</span>
             <select
+              className="adm-select"
               data-testid="pours-bulk-target"
               value={bulkTarget}
               disabled={bulkSaving}
@@ -316,16 +332,15 @@ export function PoursPage() {
               {drinkers.map((d) => <option key={d.id} value={d.id}>{d.displayName}</option>)}
             </select>
           </label>
-          <button
-            type="button"
-            className="pours-bulk__apply"
+          <Button
+            variant="primary"
             data-testid="pours-bulk-apply"
             disabled={bulkSaving || bulkTarget === ''}
             onClick={handleBulkApply}
           >
-            {bulkSaving ? 'Saving…' : 'Apply'}
-          </button>
-          <button type="button" disabled={bulkSaving} onClick={() => setSelected(new Set())}>Clear selection</button>
+            {bulkSaving ? 'Saving…' : `Assign ${selected.size} pour${selected.size === 1 ? '' : 's'}`}
+          </Button>
+          <Button variant="quiet" disabled={bulkSaving} onClick={() => setSelected(new Set())}>Clear selection</Button>
         </div>
       )}
       {bulkMessage && (
@@ -338,22 +353,21 @@ export function PoursPage() {
         </p>
       )}
 
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="pours-loading">Loading…</p>}
+      {status === 'loading' && <div data-testid="pours-loading"><Skeleton height={44} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="pours-error">
-          Couldn&rsquo;t load pours. Use Refresh to try again.
-        </p>
+        <div data-testid="pours-error">
+          <ErrorState title="Couldn’t load pours." onRetry={() => load()}>Use Refresh to try again.</ErrorState>
+        </div>
       )}
       {status === 'loaded' && pours.length === 0 && (
-        <p className="admin-page-quiet" data-testid="pours-empty">
-          {filtered ? 'No pours match these filters.' : 'No pours recorded yet.'}
-        </p>
+        <div data-testid="pours-empty">
+          <EmptyState title={filtered ? 'No pours match these filters.' : 'No pours recorded yet.'} />
+        </div>
       )}
 
       {status !== 'loading' && pours.length > 0 && (
         <>
-          <div className="pours-table-wrap">
-            <table className="admin-table" data-testid="pours-table">
+          <Table className="pours-v2" data-testid="pours-table">
               <thead>
                 <tr>
                   {canEdit && (
@@ -373,7 +387,7 @@ export function PoursPage() {
                   <th scope="col" className="pours-col--secondary">Time</th>
                   <th scope="col" className="pours-col--secondary">Tap</th>
                   <th scope="col">Beer</th>
-                  <th scope="col" className="pours-col--secondary">Volume</th>
+                  <th scope="col" className="adm-num pours-col--secondary">Volume</th>
                   <th scope="col">Drinker</th>
                 </tr>
               </thead>
@@ -408,16 +422,22 @@ export function PoursPage() {
                       </td>
                       <td className="pours-col--secondary">{tapLabel(tap)}</td>
                       <td className="pours-col--beer">
-                        {beer?.name ?? 'Unknown'}
-                        <span className="pours-row__mobile-meta font-tabular">
-                          {formatPourTime(pour.ts, now)} · {formatVolumeMl(pour.volumeMl, units)}
+                        <span className="adm-who">
+                          {beer && <TapMarker model={beerMarkerModel(beer, tap?.number ?? 0)} size={32} showNumber={false} />}
+                          <span>
+                            <b>{beer?.name ?? 'Unknown'}</b>
+                            <span className="pours-row__mobile-meta font-tabular">
+                              {formatPourTime(pour.ts, now)} · {formatVolumeMl(pour.volumeMl, units)}
+                            </span>
+                          </span>
                         </span>
                       </td>
-                      <td className="font-tabular pours-col--secondary">{formatVolumeMl(pour.volumeMl, units)}</td>
+                      <td className="adm-num pours-col--secondary">{formatVolumeMl(pour.volumeMl, units)}</td>
                       <td>
                         {canEdit ? (
                           <>
                             <select
+                              className="adm-select"
                               data-testid="pours-row-drinker-select"
                               aria-label="Drinker"
                               value={pour.drinkerId != null ? String(pour.drinkerId) : ''}
@@ -445,20 +465,19 @@ export function PoursPage() {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+          </Table>
           <div className="pours-footer">
-            <span className="admin-page-quiet font-tabular" data-testid="pours-count">
+            <span className="adm-sub adm-num-cell" data-testid="pours-count">
               Showing {pours.length} pour{pours.length === 1 ? '' : 's'}
             </span>
             {hasMore && (
-              <button type="button" data-testid="pours-load-more" disabled={busy} onClick={loadMore}>
+              <Button data-testid="pours-load-more" disabled={busy} onClick={loadMore}>
                 {loadingMore ? 'Loading…' : 'Load older pours'}
-              </button>
+              </Button>
             )}
           </div>
         </>
       )}
-    </section>
+    </PageTemplate>
   );
 }

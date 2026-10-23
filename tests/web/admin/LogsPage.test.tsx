@@ -66,7 +66,7 @@ describe('LogsPage (design 5d)', () => {
   it('renders the stream with level badges, source, and the footer counts', async () => {
     renderAdminPage(<LogsPage />);
     await flush();
-    expect(screen.getByRole('heading', { level: 1, name: 'Logs' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'One problem in the last 24 hours.' })).toBeInTheDocument();
     const rows = screen.getAllByTestId('logs-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('INFO');

@@ -2396,20 +2396,23 @@ h2.admin-field__label-text {
 .stats-section {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 1rem;
-  border-radius: var(--card-radius, 0.75rem);
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: 12px;
   background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   break-inside: avoid;
 }
 
 .stats-chart__title {
-  font-size: 0.8rem;
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
 }
 
 .stats-chart__header {
@@ -2423,9 +2426,9 @@ h2.admin-field__label-text {
    why this isn't Recharts' own <Legend>. */
 .stats-chart__legend {
   display: flex;
-  gap: 0.75rem;
-  font-size: 0.75rem;
+  gap: 12px;
   color: var(--text-dim);
+  font-size: 14px;
 }
 
 .stats-chart__legend-item {
@@ -2443,10 +2446,12 @@ h2.admin-field__label-text {
 
 /* Leaderboard's link to the pours admin page (reassign/unclaim). */
 .stats-chart__manage-link {
-  display: inline-block;
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 /* The date-range switcher (pours + beers) and the leaderboard's week/month/all switcher
@@ -2454,34 +2459,37 @@ h2.admin-field__label-text {
    to assistive tech rather than color alone. */
 .stats-switcher {
   display: flex;
-  gap: 0.3rem;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .stats-switcher__option {
-  padding: 0.3rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--surface-2);
   color: var(--text-dim);
-  font-size: 0.8rem;
+  font: inherit;
+  font-size: 15px;
   cursor: pointer;
 }
 
 .stats-switcher__option[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
 }
 
 /* Custom Recharts tooltip content — exact value + unit, per the binding style, styled to
    match the rest of the admin shell's quiet surfaces rather than Recharts' default
    white box. */
 .stats-tooltip {
-  padding: 0.45rem 0.65rem;
-  border-radius: 0.4rem;
-  background: var(--bg);
-  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
-  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 0 0 1px var(--border);
+  font-size: 14px;
 }
 
 .stats-tooltip__label {
@@ -2504,10 +2512,9 @@ h2.admin-field__label-text {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
 }
 
 .keg-depletion-card__header {
@@ -2922,34 +2929,6 @@ h2.admin-field__label-text {
   cursor: default;
 }
 
-.dashboard-stat {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.dashboard-stat__label {
-  font-size: 11.5px;
-  letter-spacing: 0.12em;
-  color: var(--text-faint, var(--text-dim));
-  font-weight: 600;
-}
-
-.dashboard-stat__value {
-  font-size: 34px;
-  line-height: 1.1;
-  font-weight: 600;
-}
-
-.dashboard-stat__note {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
 .dashboard-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3006,180 +2985,136 @@ h2.admin-field__label-text {
 
 /* Days-to-kick timeline (redesign 3d): green→amber→red gradient with an elapsed marker. */
 
-/* --- Logs (5d) ------------------------------------------------------------ */
+/* --- Logs (Kegwall V2 M8: prototypes/admin-diagnostics.html's live log) ------------ */
 .logs-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
-  flex-wrap: wrap;
 }
 
 .logs-toolbar__search {
-  width: 260px;
-  padding: 7px 14px;
-  border-radius: 9px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.logs-toolbar__range {
-  padding: 7px 10px;
-  border-radius: 9px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 12.5px;
+  width: min(320px, 100%);
 }
 
 .logs-toolbar__tail {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 14px;
-  border-radius: 9px;
-  border: 1px solid var(--border-strong);
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
   color: var(--text-dim);
-  font-size: 12.5px;
-  font-weight: 600;
-  background: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.logs-toolbar__tail--on {
-  background: color-mix(in srgb, var(--ok) 10%, transparent);
-  border-color: var(--ok);
-  color: color-mix(in srgb, var(--ok) 55%, var(--text));
+.logs-toolbar__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-faint);
 }
 
-.logs-toolbar__export {
-  padding: 7px 14px;
-  border-radius: 9px;
-  border: 1px solid var(--border-strong);
-  color: var(--text-dim);
-  font-size: 12.5px;
-  text-decoration: none;
+.logs-toolbar__tail--on {
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1.5px var(--ok);
+}
+
+.logs-toolbar__tail--on .logs-toolbar__dot {
+  background: var(--ok);
 }
 
 .logs-filters {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
-  padding-bottom: 12px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
 }
 
 .logs-filters__label {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--text-faint, var(--text-dim));
-  font-weight: 600;
+  margin-right: 4px;
+  color: var(--text-faint);
+  font-size: 14px;
 }
 
 .logs-filters__divider {
   width: 1px;
-  height: 20px;
+  height: 24px;
+  margin: 0 8px;
   background: var(--border-strong);
-  margin: 0 6px;
 }
 
-.logs-chip {
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  color: var(--text-dim);
-  font-size: 12px;
-  background: none;
-  cursor: pointer;
-}
+.logs-chip--warn:not([aria-pressed='true']) { color: var(--warn); }
 
-.logs-chip--warn { color: var(--warn); }
-
-.logs-chip--error { color: color-mix(in srgb, var(--danger) 60%, var(--text)); }
-
-.logs-chip--active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border: 1.5px solid var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
+.logs-chip--error:not([aria-pressed='true']) { color: var(--danger); }
 
 .logs-stream {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 12.5px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  font-size: 13.5px;
 }
 
 .logs-row {
   display: flex;
-  gap: 14px;
   align-items: baseline;
-  padding: 7px 12px;
-  border-radius: 8px;
-}
-
-.logs-row:nth-child(odd) {
-  background: color-mix(in srgb, var(--text) 2%, transparent);
-}
-
-.logs-row--error {
-  background: color-mix(in srgb, var(--danger) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  gap: 14px;
+  padding: 6px 12px;
 }
 
 .logs-row__ts {
-  color: var(--text-faint, var(--text-dim));
-  width: 150px;
   flex: none;
+  width: 150px;
+  color: var(--text-faint);
 }
 
 .logs-row__level {
-  width: 52px;
   flex: none;
-  text-align: center;
-  padding: 1px 0;
-  border-radius: 5px;
-  font-size: 10.5px;
+  width: 52px;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.logs-row__level--info {
-  background: color-mix(in srgb, var(--ok) 12%, transparent);
-  color: color-mix(in srgb, var(--ok) 55%, var(--text));
-}
+.logs-row__level--info { color: var(--text-faint); }
 
-.logs-row__level--warn {
-  background: color-mix(in srgb, var(--warn) 12%, transparent);
-  color: var(--warn);
-}
+.logs-row__level--warn { color: var(--warn); }
 
-.logs-row__level--error {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: color-mix(in srgb, var(--danger) 60%, var(--text));
-}
+.logs-row__level--error { color: var(--danger); }
+
+.logs-row--warn .logs-row__message { color: var(--warn); }
+
+.logs-row--error .logs-row__message { color: var(--danger); }
 
 .logs-row__source {
-  width: 92px;
   flex: none;
-  color: var(--accent-2, #5FD9BC);
+  width: 92px;
+  color: var(--text-dim);
 }
 
 .logs-row__message {
-  color: var(--text);
   min-width: 0;
+  color: var(--text);
 }
 
 .logs-row__expand {
+  min-height: 32px;
   margin-left: 10px;
-  color: var(--text-dim);
-  background: none;
   border: 0;
+  background: none;
+  color: var(--text-dim);
   font: inherit;
   cursor: pointer;
 }
@@ -3189,20 +3124,19 @@ h2.admin-field__label-text {
   margin-top: 6px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
+  background: var(--surface-2);
   color: var(--text-dim);
   white-space: pre-wrap;
 }
 
 .logs-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 8px 18px;
   margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-faint, var(--text-dim));
+  color: var(--text-faint);
+  font-size: 14px;
 }
 
 /* --- Pourers (11c, first cut) --------------------------------------------- */
@@ -3272,44 +3206,6 @@ h2.admin-field__label-text {
 
 /* --- Analytics (10a; 9-tab hub 4e/4j) -------------------------------------- */
 /* Grafana-style tab strip; horizontally scrolls on narrow screens rather than wrapping. */
-.analytics-tabs {
-  display: flex;
-  gap: 0.25rem;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1rem;
-  scrollbar-width: none;
-}
-
-.analytics-tabs::-webkit-scrollbar { display: none; }
-
-.analytics-tab {
-  flex: none;
-  padding: 0.55rem 0.9rem;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--text-dim);
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.analytics-tab:hover { color: var(--text); }
-
-.analytics-tab[aria-selected='true'] {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
-.analytics-kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
-}
 
 /* History tables scroll horizontally inside their own container (never the page body). */
 .analytics-table-scroll {
@@ -3326,10 +3222,8 @@ h2.admin-field__label-text {
 }
 
 .analytics-highlights li {
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  font-size: 0.9rem;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
 }
 
 .raw-export-chips {
@@ -3340,13 +3234,16 @@ h2.admin-field__label-text {
 }
 
 .raw-export-chip {
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
   color: var(--text);
-  font-size: 0.82rem;
-  font-weight: 600;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -3363,8 +3260,8 @@ h2.admin-field__label-text {
 }
 
 .heatmap__day {
-  font-size: 11px;
-  color: var(--text-dim);
+  color: var(--text-faint);
+  font-size: 13px;
 }
 
 .heatmap__cell {
@@ -3539,10 +3436,6 @@ h2.admin-field__label-text {
 
 /* Keep maintenance controls readable in both the card grid and narrow layouts. */
 
-.dashboard-stat { min-width: 0; }
-
-.dashboard-stat__label { overflow-wrap: anywhere; }
-
 /* Padding grows the tap target to 44px; the negative margin keeps the line height normal. */
 
 .pours-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin: 16px 0; }
@@ -3551,47 +3444,35 @@ h2.admin-field__label-text {
 
 .pours-toolbar__check { min-height: 44px; }
 
-.pours-toolbar label.pours-toolbar__field { flex-direction: column; align-items: stretch; gap: 4px; font-size: 12px; color: var(--text-dim); }
+.pours-toolbar label.pours-toolbar__field { flex-direction: column; align-items: stretch; gap: 6px; font-size: 14px; color: var(--text-dim); }
 
-.pours-toolbar__field select,
 .pours-toolbar__field input {
-  min-height: 40px; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 8px;
-  background: var(--surface); color: var(--text); font: inherit; font-size: 14px;
+  min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--border);
+  background: var(--surface); color: var(--text); font: inherit;
 }
 
 .pours-toolbar__field :disabled { opacity: .55; }
 
 .pours-bulk {
-  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin: 0 0 12px; padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface, transparent));
+  position: sticky; bottom: 16px; z-index: 5;
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin: 0 0 12px; padding: 14px 16px;
+  border: 0; border-radius: 12px; background: var(--surface-2); box-shadow: 0 12px 32px rgb(0 0 0 / 0.4), 0 0 0 1px var(--border);
 }
 
-.pours-bulk label.pours-toolbar__field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); }
+.pours-bulk label.pours-toolbar__field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-dim); }
 
 .pours-bulk__count { align-self: center; font-weight: 600; }
-
-.pours-bulk__apply {
-  min-width: 88px; padding: 6px 16px; border: 1px solid var(--accent); border-radius: 8px;
-  background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer;
-}
-
-.pours-bulk__apply:disabled { opacity: .45; cursor: default; }
-
-.pours-bulk__apply:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .pours-bulk__message { margin: 0 0 12px; font-size: 13px; color: var(--ok, var(--text)); }
 
 .pours-bulk__message--error { color: var(--warn, #e0793d); }
-
-.pours-table-wrap { max-width: 100%; overflow-x: auto; }
 
 .pours-table__select { width: 44px; padding: 0 !important; }
 
 /* The whole cell is the checkbox's hit area (≥44px). */
 .pours-select-hit { display: flex; width: 44px; min-height: 44px; align-items: center; justify-content: center; cursor: pointer; }
 
-.pours-select-hit input { width: 18px; height: 18px; margin: 0; cursor: pointer; }
+.pours-select-hit input { width: 20px; height: 20px; margin: 0; accent-color: var(--text); cursor: pointer; }
 
 .admin-table tr[data-selected] td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
@@ -3609,19 +3490,13 @@ h2.admin-field__label-text {
 
   .pours-col--secondary { display: none; }
 
-  .admin-content .pours-table-wrap td.pours-col--beer { white-space: normal; min-width: 5rem; }
+  .pours-v2 td.pours-col--beer { white-space: normal; min-width: 5rem; }
 
-  .pours-table-wrap .admin-table select { max-width: 8.5rem; }
+  .pours-v2 select { max-width: 8.5rem; }
 
   .pours-bulk { gap: 10px; }
 
   .admin-content { padding: 16px; }
-
-  
-
-  .dashboard-stat { padding: 14px; }
-
-  .dashboard-stat__value { font-size: 28px; }
 
   
 

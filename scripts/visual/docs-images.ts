@@ -30,6 +30,7 @@ const SINGLES: [string, string, number][] = [
   ['admin-beers', 'admin-beers', 1440],
   ['admin-beers-editor', 'admin-beers-editor', 1440],
   ['admin-people', 'admin-people', 1440],
+  ['admin-stats', 'admin-stats', 1440],
   ['admin-palette', 'admin-search', 1440],
   ['admin-menu-mobile', 'admin-menu-phone', 390],
 ];

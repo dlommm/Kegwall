@@ -22,6 +22,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 - **Changed:** **Beers** is a library of cards with each beer's marker and where it is (on tap
   with its level, on deck, or in the library), with search and filters. The editor opens in a
   drawer with a live preview of the beer's marker.
+- **Changed:** **Insights** opens Analytics with a sentence about the range and KPIs set as
+  large numbers; the range switch and tabs sit under it. Every pour says how many of tonight's
+  pours have no name, and Logs counts the problems in the range.
 - **Changed:** **People** names this month's leader, shows each pourer as a card with their pours
   and volume, and lists accounts with what each role can do. Adding and editing someone happens
   in a drawer that first asks whether it's an account or a pourer.
@@ -92,6 +95,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   choice is ignored.
 
 ## Fixed
+
+- **Fixed:** Analytics showed an average pour quality of **0** when no pour had a quality
+  score; it now shows **—** and says there's no Kegtron quality data yet.
 
 - **Fixed:** **Needs attention** listed one row per tap for the same problem (eleven "Tap N is
   due for a line cleaning" rows buried a source that was down). Each kind is now one row with one

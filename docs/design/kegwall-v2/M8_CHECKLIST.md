@@ -36,13 +36,13 @@ Generated at the start of M8 from the admin routes (`AdminApp.tsx`), the Setting
 
 ## Insights
 
-- [ ] `/admin/stats` — `StatsPage`: getAnalyticsKpis, getPoursByDay, getPourHistory,
+- [x] `/admin/stats` — `StatsPage`: getAnalyticsKpis, getPoursByDay, getPourHistory,
   getBeerHistory, getBeersByVolume, getHourHistogram, getHourHeatmap, getActiveKegStats,
   getKegCosts, getMonthlySpend, getLeaderboard, getPourerHistory, getStatsTemps, getSensors,
-  getHostStatsHistory, getSources, listMonitors, doctorUdpHistory (issue 16: "—", never 0)
-- [ ] `/admin/pours` — `PoursPage`: listRecentPours, getDrinkers, listBeers, listKegs,
+  getHostStatsHistory, getSources, listMonitors, doctorUdpHistory (issue 16: "—", never 0; split into `insights/`)
+- [x] `/admin/pours` — `PoursPage`: listRecentPours, getDrinkers, listBeers, listKegs,
   listTaps, setPourDrinker, setPoursDrinker
-- [ ] `/admin/logs` — `LogsPage`: getLogs
+- [x] `/admin/logs` — `LogsPage`: getLogs
 
 ## Settings
 

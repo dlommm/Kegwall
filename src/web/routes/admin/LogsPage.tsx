@@ -7,14 +7,16 @@ import {
 import { LOG_SOURCES, LOG_LEVELS, type LogLevel, type LogSource } from '../../../server/db/logs.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue';
 import { usePolledFetch } from '../../lib/usePolledFetch';
+import { PageTemplate } from './PageTemplate';
+import { capitalize, countWord } from '../../lib/tonightAttention';
 
 const LIVE_TAIL_INTERVAL_MS = 2000;
 
 const RANGES: { hours: number; label: string }[] = [
   { hours: 1, label: 'Last hour' },
-  { hours: 24, label: 'Last 24h' },
-  { hours: 168, label: 'Last 7d' },
-  { hours: 720, label: 'Last 30d' },
+  { hours: 24, label: 'Last 24 hours' },
+  { hours: 168, label: 'Last 7 days' },
+  { hours: 720, label: 'Last 30 days' },
 ];
 
 const SOURCE_LABELS: Record<LogSource, string> = {
@@ -114,15 +116,31 @@ export function LogsPage() {
 
   const exportHref = (format: 'json' | 'csv') => `/api/logs?${logsQueryString({ ...filters(), limit: 2000 })}&format=${format}`;
 
+  const rangeLabel = `the ${RANGES.find((r) => r.hours === hours)?.label.toLowerCase() ?? `last ${hours} hours`}`;
+  const problems = data ? data.counts.error + data.counts.warn : null;
+
   return (
-    <div data-testid="logs-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Logs</h1>
-      </header>
+    <PageTemplate
+      testId="logs-page"
+      title={problems === null ? 'Logs'
+        : problems === 0 ? `Nothing went wrong in ${rangeLabel}.`
+          : `${problems === 1 ? 'One problem' : `${capitalize(countWord(problems))} problems`} in ${rangeLabel}.`}
+      sub="Everything Kegwall did: pours, sources, walls, the kiosk and your changes. Errors also create a notification."
+      actions={(
+        <>
+          <a className="adm-btn adm-btn--secondary" data-testid="logs-export-json" href={exportHref('json')} download>
+            Export JSON
+          </a>
+          <a className="adm-btn adm-btn--secondary" data-testid="logs-export-csv" href={exportHref('csv')} download>
+            Export CSV
+          </a>
+        </>
+      )}
+    >
       <div className="logs-toolbar">
         <input
           type="search"
-          className="logs-toolbar__search"
+          className="adm-input logs-toolbar__search"
           data-testid="logs-search"
           placeholder="Search logs…"
           value={searchInput}
@@ -130,7 +148,7 @@ export function LogsPage() {
         />
         <select
           data-testid="logs-range"
-          className="logs-toolbar__range"
+          className="adm-select logs-toolbar__range"
           value={hours}
           onChange={(e) => setHours(Number(e.target.value))}
         >
@@ -145,22 +163,17 @@ export function LogsPage() {
           aria-pressed={liveTail}
           onClick={() => setLiveTail((v) => !v)}
         >
-          <span className="look-pour-dot" />
-          Live tail
+          <span className="logs-toolbar__dot" aria-hidden="true" />
+          {liveTail ? 'Following' : 'Follow live'}
         </button>
-        <a className="logs-toolbar__export" data-testid="logs-export-json" href={exportHref('json')} download>
-          JSON ↓
-        </a>
-        <a className="logs-toolbar__export" data-testid="logs-export-csv" href={exportHref('csv')} download>
-          CSV ↓
-        </a>
       </div>
 
       <div className="logs-filters" data-testid="logs-filters">
-        <span className="logs-filters__label">SOURCE</span>
+        <span className="logs-filters__label">Source</span>
         <button
           type="button"
-          className={source === 'all' ? 'logs-chip logs-chip--active' : 'logs-chip'}
+          className="adm-chip"
+          aria-pressed={source === 'all'}
           onClick={() => setSource('all')}
         >
           All
@@ -170,17 +183,19 @@ export function LogsPage() {
             key={s}
             type="button"
             data-testid={`logs-source-${s}`}
-            className={source === s ? 'logs-chip logs-chip--active' : 'logs-chip'}
+            className="adm-chip"
+            aria-pressed={source === s}
             onClick={() => setSource(s)}
           >
             {SOURCE_LABELS[s]}
           </button>
         ))}
         <span className="logs-filters__divider" />
-        <span className="logs-filters__label">LEVEL</span>
+        <span className="logs-filters__label">Level</span>
         <button
           type="button"
-          className={level === 'all' ? 'logs-chip logs-chip--active' : 'logs-chip'}
+          className="adm-chip"
+          aria-pressed={level === 'all'}
           onClick={() => setLevel('all')}
         >
           All
@@ -190,7 +205,8 @@ export function LogsPage() {
             key={l}
             type="button"
             data-testid={`logs-level-${l}`}
-            className={`logs-chip logs-chip--${l}${level === l ? ' logs-chip--active' : ''}`}
+            className={`adm-chip logs-chip--${l}`}
+            aria-pressed={level === l}
             onClick={() => setLevel(l)}
           >
             {LEVEL_LABELS[l]}
@@ -199,11 +215,11 @@ export function LogsPage() {
         ))}
       </div>
 
-      {error && <p className="admin-page-quiet" role="alert" data-testid="logs-error">{error}</p>}
+      {error && <p className="adm-danger-text" role="alert" data-testid="logs-error">{error}</p>}
 
       <div className="logs-stream" data-testid="logs-stream">
         {data && data.entries.length === 0 && (
-          <p className="admin-page-quiet" data-testid="logs-empty">Nothing logged in this window.</p>
+          <p className="adm-sub" data-testid="logs-empty">Nothing logged in this window.</p>
         )}
         {data?.entries.map((entry: LogEntry) => (
           <div
@@ -254,6 +270,6 @@ export function LogsPage() {
           <span>Errors auto-create a notification</span>
         </footer>
       )}
-    </div>
+    </PageTemplate>
   );
 }
