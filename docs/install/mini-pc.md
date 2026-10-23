@@ -21,7 +21,7 @@ Everything works the same except the Pi-only hardware sensors:
 | Kiosk mode (cage + chromium) | ✅ | ✅ |
 | Native wall client (cog / WPE, `--native-wall`) | ✅ | ✅ — lighter than chromium |
 
-The dashboard **SERVER HEALTH** card and the analytics **Server** tab both degrade
+Tonight's **This server** row and the analytics **Server** tab both degrade
 gracefully: CPU/RAM/disk/temp/watts show real numbers; the undervoltage panel just says
 it's unavailable on x86.
 
@@ -50,7 +50,7 @@ Then open `http://<mini-pc-ip>:<port>` and run the first-run wizard.
 - **Debian 13 (trixie):** NodeSource `setup_24.x` supports trixie; the install toolchain
   (`python3 make g++`) builds `better-sqlite3` if a prebuilt binary isn't available for your
   glibc.
-- **RAPL watts** need two samples to compute a rate, so the SERVER card's watts figure
+- **RAPL watts** need two samples to compute a rate, so the watts figure on Tonight
   appears from the second stats poll onward (a few seconds after boot).
 - **BLE:** pass `--with-ble` if you're using Gen 1 / Pro BLE transports; it installs `bluez`,
   powers the adapter on (and sets BlueZ `AutoEnable=true` so it survives reboots — some NUCs ship

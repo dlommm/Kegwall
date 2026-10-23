@@ -8,6 +8,8 @@ this doc explains what each option actually does, sourced from the wall config s
 
 ## Looks
 
+![All fourteen wall looks](images/wall-looks.jpg)
+
 A wall's **look** is its whole layout. Kegwall 2.0 redraws the looks so a wall reads like a
 taproom board rather than a dashboard. Every redrawn look:
 
@@ -52,6 +54,8 @@ night. The kick forecast divides what's left by the keg's pour rate over the las
 (or since it was tapped, if that's sooner).
 
 ## Pour takeovers
+
+![The pour takeover styles, and two taps pouring at once](images/pour-takeovers.jpg)
 
 When a tap pours past the wall's trigger (**Pour takeover → trigger**, 60 mL / about 2 oz by
 default, so foam blips never flash the screen), the wall reacts in the chosen style:

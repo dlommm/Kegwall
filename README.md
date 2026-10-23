@@ -17,13 +17,30 @@ this app pulls full metadata — beer name, brewery, style, ABV, IBU, temperatur
 history — and layers on live pour animation (from Kegtron's local UDP stream), alerts,
 automations, and deep wall customization.
 
-![Tap wall on a TV display, showing four taps with beer name, brewery, style, ABV, and IBU](docs/images/wall.png)
+![The Just Tapped wall look on a TV: the newest keg fills the left half in its own color, with every tap's pints left beside it](docs/images/wall.jpg)
 
 ## Screenshots
 
-| Admin stats | Mobile QR menu |
+**Fourteen wall looks**, each in ten color themes, and every one shows what's left in each keg as
+a picture and in pints:
+
+![All fourteen wall looks: Just Tapped, Classic, Ledger, Gallery, Tap Columns, Tap Handles, Tally, Chalkboard, Editorial, Neon, Terminal, Poster, Departures and Zen](docs/images/wall-looks.jpg)
+
+**Pour takeovers** react live while someone pours, counting the volume as Kegtron measures it,
+with a lane per tap when several pour at once:
+
+![The pour takeover styles: Full, Spotlight, Split, Dock, Fill, Tap Pull, Keg Drain, and two taps pouring at once](docs/images/pour-takeovers.jpg)
+
+**The admin** opens on Tonight: what needs doing, the last pour, every tap's level, pours by hour
+and the hardware.
+
+![The admin's Tonight page: a sentence about the night, what needs attention, the last pour, the taps as glasses and pours by hour](docs/images/admin-tonight.jpg)
+
+| Taps, with the keg swap drawer | The beer library and editor |
 |---|---|
-| ![Admin stats page with pours-per-day chart, keg depletion, volume by beer, and leaderboard](docs/images/admin-stats.png) | ![Mobile menu page with tap list and a claim-your-pour prompt](docs/images/menu.png) |
+| ![The Taps page with the swap drawer open, offering the tap's next keg and another keg of the same beer](docs/images/admin-taps-swap.jpg) | ![The beer editor drawer with a live preview of the beer's marker](docs/images/admin-beers-editor.jpg) |
+| **Tonight on a phone** | **Phone QR menu** |
+| ![Tonight on a phone](docs/images/admin-tonight-phone.jpg) | ![Mobile menu page with tap list and a claim-your-pour prompt](docs/images/menu.png) |
 
 ## What it does
 
@@ -32,15 +49,18 @@ automations, and deep wall customization.
   Bluetooth LE, or via an MQTT bridge for devices out of range). Optional
   [Govee](https://govee.com) cloud sensors add named ambient-temperature chips to the wall
   header, with a cross-sensor spread warning.
-- **The wall — a full look library × 10 themes.** Every wall picks a *look* (Classic grid, Ledger,
-  Gallery, Tap columns, Chalkboard, Editorial, Neon Arcade, Terminal, Poster, Departures,
-  Zen) and a color *theme*, with dynamic SVG data glyphs (style-matched SRM glassware,
-  IBU hop cone, ABV strength glasses, keg-type level silhouettes — or a photorealistic keg
-  cutaway fill), NEW ON TAP / ALMOST GONE / POURING badges, an announcement line, footer
-  ticker, in-chrome menu QR, and a raw custom-CSS escape hatch.
-- **Pour takeover** — when someone pours, the wall reacts live: Full screen, Spotlight row,
-  Split panel, Bottom dock, or Screen fill modes with a real-time counter fed by Kegtron's
-  UDP stream, a configurable trigger volume, and a pour-complete splash.
+- **The wall — 14 looks × 10 themes.** Every wall picks a *look* (Just Tapped, Classic, Ledger,
+  Gallery, Tap Columns, Tap Handles, Tally, Chalkboard, Editorial, Neon, Terminal, Poster,
+  Departures, Zen) and a color *theme*. Every look shows what's left twice: a picture readable
+  across the room and **pints left** in your serving size. Each beer gets a tap marker in its own
+  color (or its label art), and walls carry sentence headlines from live data, tonight's pours,
+  the kick forecast, the public price when pricing is on, an announcement line, a menu QR, and a
+  raw custom-CSS escape hatch. Looks render on a fixed 1920 × 1080 layout, so 720p, 1080p and 4K
+  TVs show the same composition.
+- **Pour takeover** — when someone pours, the wall reacts live: Full, Spotlight, Split, Dock,
+  Fill, Tap Pull, Keg Drain, Game On or Badge, with a real-time counter fed by Kegtron's UDP
+  stream, a lane per tap when several pour at once, an optional **Cheers** finish, and opt-in
+  wall moments (just kicked, just tapped, pour milestones).
 - **View rotation + paired displays** — a per-wall playlist (wall / leaderboard) cycles on
   the TV with a position bar, big tap lists auto-chunk into pages, and a live pour always
   interrupts back to the wall. Physical screens pair once with a short code at `/display`
@@ -58,13 +78,15 @@ automations, and deep wall customization.
   the tablet recognizes a returning face entirely on-device and offers a one-tap
   "You pouring, NAME?" confirm before arming their pour. Off by default, opt-in per
   drinker, and deletable any time — see [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md).
-- **Admin UI** — a sidebar shell with three admin looks (Midnight Slate, Workshop,
-  Console), ⌘K quick-nav, a live dashboard with grouped sensor readings and recent activity,
-  real-SRM tap rows, keg depletion forecasts, and line-cleaning reminders that skip empty taps
-  and can be ignored or resumed per tap. Beer discovery, guided keg swaps, multi-user roles,
-  filterable live logs, analytics exports, and a connection doctor round out the admin tools.
-  On mobile, the section menu stays compact until opened; see
-  [docs/admin-dashboard.md](docs/admin-dashboard.md).
+- **Admin UI** — one design, dark or light with your device, with a top bar of six
+  destinations (Tonight, Taps & kegs, Beers, People, Screens, Insights), Ctrl K / ⌘K search and
+  a phone menu. It opens on **Tonight**: what needs doing, grouped one row per kind, the last
+  pour, every tap's level, pours by hour, hardware state and the next kegs to kick. Taps show
+  servings left and kick forecasts, keg swaps run in a guided drawer, and line-cleaning
+  reminders skip empty taps and can be ignored per tap. Beer library, keg costs and suppliers,
+  multi-user roles, filterable live logs, analytics exports and a connection doctor round it
+  out; see [docs/admin-dashboard.md](docs/admin-dashboard.md),
+  [docs/taps-and-kegs.md](docs/taps-and-kegs.md) and [docs/beers.md](docs/beers.md).
 - **Alerts + automations** — a rule engine (keg-low, kicked, temperature, offline source,
   scheduled...) with delivery over in-app notifications, ntfy/Pushover, email (SMTP),
   Discord/Slack webhooks, and MQTT — plus a notification center and one-click templates.
@@ -169,7 +191,12 @@ for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 | [docs/setup/motion-sensors.md](docs/setup/motion-sensors.md) | Motion sensor buying/wiring guide — mmWave, PIR/GPIO, BLE (Shelly BLU Motion), Zigbee via zigbee2mqtt, HA webhook |
 | [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md) | On-device browser face matching for tablet sign-in, privacy model, enable/enroll/delete flow |
 | [docs/recovery.md](docs/recovery.md) | Backup, restore, and manual crash-loop recovery |
-| [docs/customization.md](docs/customization.md) | Wall layout, themes, custom CSS trust model, screensaver |
+| [docs/customization.md](docs/customization.md) | The 14 wall looks, themes, pour takeovers and wall moments, custom CSS trust model, screensaver |
+| [docs/admin-dashboard.md](docs/admin-dashboard.md) | Tonight, the admin top bar, Search and phone navigation |
+| [docs/taps-and-kegs.md](docs/taps-and-kegs.md) | Taps, swapping a keg, keg costs, monitors |
+| [docs/beers.md](docs/beers.md) | The beer library and editor |
+| [docs/suppliers.md](docs/suppliers.md) | Suppliers, opening hours and the price book |
+| [docs/cleaning-and-pours.md](docs/cleaning-and-pours.md) | Line-cleaning reminders and unclaimed pours |
 
 ## Tech stack
 

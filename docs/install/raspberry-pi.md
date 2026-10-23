@@ -4,7 +4,7 @@ A Pi at the kegerator is the sweet spot for Kegwall: perfect reception for Kegtr
 UDP pour multicast (same network segment, no VLAN questions), onboard Bluetooth for
 the Kegtron BLE fallback (Gen 1 **and** Pro), and enough CPU for the whole stack.
 Recommended hardware: **Pi 5 (4GB+)** — the only model whose PMIC can report power
-draw in the admin dashboard; a Pi 4 (4GB) works fine minus the watts readout; a
+draw on the admin's Tonight page; a Pi 4 (4GB) works fine minus the watts readout; a
 Pi 3B is only suitable as a tablet-mode display.
 
 **Not a Pi?** The same native installer runs on an amd64 mini PC / Intel NUC on
@@ -45,7 +45,7 @@ Open `http://<pi-ip>:8080`, create the admin account, and follow the guided setu
 it picks the Watchtower update mode for you and ends with every URL for the box.
 Paste the token in **Settings → System** afterwards. (The compose file's comments
 explain the host-network / loopback-sidecar topology; general Docker reference lives
-in [docker.md](docker.md).) In Docker the dashboard's SERVER card shows CPU/RAM/disk
+in [docker.md](docker.md).) In Docker Tonight's **This server** row shows CPU/RAM/disk
 but no SoC temperature or watts, and the OS-update controls stay hidden — those are
 native-install features.
 
@@ -71,7 +71,7 @@ the app checked out at its **latest release tag**, and these systemd units:
 | `kegwall.service` | the server (`KEGWALL_INSTALL=native` tells the app it can offer OS controls) |
 | `kegwall-update.{service,path}` | app self-update — Settings → System → Update now |
 | `kegwall-os-update.{service,path}` | OS apt update — Settings → System → Update OS now |
-| `kegwall-reboot.{service,path}` | reboot from the dashboard's banner |
+| `kegwall-reboot.{service,path}` | reboot from Tonight's **Reboot now** button |
 | `kegwall-kiosk.service` | kiosk mode only — cage + chromium on tty1 |
 
 The admin UI writes a trigger file into the data directory; the matching path unit
@@ -102,7 +102,8 @@ a minute on Docker, a few minutes for a native rebuild).
 
 - **Manual** — an "Update OS now" button runs `apt full-upgrade` in the background
   (output in `journalctl -u kegwall-os-update`). If the update needs a reboot, the
-  dashboard shows an amber banner with a Reboot-now button — with an explicit
+  admin's **Tonight** page lists "An OS update is waiting for a reboot" under **Needs
+  attention**, with a **Reboot now** button (admins only, asks first) and an explicit
   warning, because the wall goes dark for a minute or two and pours during the
   window are lost unless they sync back from Kegtron cloud.
 - **Automatic** — unattended-upgrades (provisioned by the installer's OS-updates
@@ -115,11 +116,12 @@ Manual fallbacks:
 
 ## Pi health in the admin
 
-The dashboard's SERVER card polls `GET /api/system/stats`: CPU load, RAM, disk,
+The **Hardware** list on the admin's Tonight page polls `GET /api/system/stats` for its **This
+server** row: CPU load, RAM, disk,
 uptime, SoC temperature, and — **Pi 5 only** — live power draw in watts (older Pis
 have no power-measurement hardware). Undervoltage is checked on every poll,
-including the sticky "happened at some point since boot" firmware flag: a red banner
-appears and a warning is logged, because chronic undervoltage corrupts SD cards. Use
+including the sticky "happened at some point since boot" firmware flag: a **Power** problem
+row appears at the top of **Needs attention** and a warning is logged, because chronic undervoltage corrupts SD cards. Use
 the official PSU (27 W / 5 A on a Pi 5).
 
 ## Kiosk mode (tap wall on the server Pi's screen)
@@ -205,7 +207,7 @@ sudo setcap cap_net_raw+eip $(eval readlink -f "$(which node)")
 
 (Re-run the `setcap` after any Node upgrade — the capability binds to the binary
 inode.) BLE uses `@abandonware/noble`, an `optionalDependency` — if its native build
-failed at install time, the Sources dashboard shows the import error.
+failed at install time, the connection doctor (**Settings → Diagnostics**) shows the import error.
 
 Running the MQTT-bridge path ([esp32-gen1.md](esp32-gen1.md)) at the same time is
 fine: BLE wins for any Gen 1 device it's actively hearing (a live sighting within

@@ -19,7 +19,8 @@
     "test:e2e": "playwright test",
     "visual:capture": "tsx scripts/visual/capture.ts",
     "visual:diff": "tsx scripts/visual/diff.ts",
-    "visual:contrast": "tsx scripts/visual/contrast.ts"
+    "visual:contrast": "tsx scripts/visual/contrast.ts",
+    "docs:images": "tsx scripts/visual/docs-images.ts"
   },
   "keywords": [
     "kegtron",

@@ -97,7 +97,7 @@ Every discovered device — Kegtron Pro, Kegtron Gen 1, and Govee sensor alike �
 on **Monitors** (editor role or higher) with two device-level controls:
 
 - **Rename** gives the device a friendly name ("Keezer", "Cellar sensor"). The name is what
-  the sensor charts on Analytics and the dashboard sensor cards use; unnamed devices fall
+  the sensor charts on Analytics and Tonight's **Hardware** list use; unnamed devices fall
   back to their identifier.
 - **Disable** is for hardware that reports in but isn't part of *this* wall — a keezer at
   another location, say. A disabled device keeps its card (greyed, with a `DISABLED` badge)

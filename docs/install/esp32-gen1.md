@@ -95,7 +95,7 @@ Example payload the parser accepts:
    - **MQTT username** / password — if your broker requires auth.
    - **Gen 1 topic prefix** — must match your bridge's publish topic prefix (default
      `home/TheengsGateway`).
-4. Save. Check the admin dashboard's source health panel — it reports `subscribed to
+4. Save. Check the connection doctor (**Settings → Diagnostics**) — it reports `subscribed to
    {prefix}/#` once connected, or a specific error (auth failure, connection refused,
    etc.) if not.
 

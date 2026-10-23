@@ -115,7 +115,7 @@ or, in either compose file's `services.kegwall` block:
 ```
 
 Without this, `gpiomon` inside the container can't see the host's GPIO chip at all, and
-the Sources dashboard reports `motion_gpio` unhealthy with an actionable "install
+the connection doctor (**Settings → Diagnostics**) reports `motion_gpio` unhealthy with an actionable "install
 libgpiod and map /dev/gpiochip0 into the container" detail rather than silently doing
 nothing.
 
@@ -183,7 +183,7 @@ upgrades. Database schema migrations run automatically on server startup
 
 ## Host monitoring in Docker
 
-The admin dashboard's SERVER card works in a container too, with caveats: CPU/RAM
+Tonight's **This server** row works in a container too, with caveats: CPU/RAM
 figures come from `/proc` and describe the **host** (not the container's cgroup
 limits), disk describes the volume holding `/data`, and SoC temperature / throttle
 flags / watts read as unavailable (`vcgencmd` doesn't exist in the image). The

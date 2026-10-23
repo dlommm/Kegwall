@@ -271,6 +271,9 @@ existing tests kept green:
 - Full matrix: contrast (14 looks × 10 themes), screenshot per look and per takeover style,
   reduced motion, keyboard, 24 h Pi soak, perf against every row of blueprint §I.
 - Before/after set for the release notes; custom-CSS selector changes listed.
+- Regenerate the README and docs screenshots (`npm run visual:capture -- .visual/docs` then
+  `npm run docs:images -- .visual/docs`), including the phone menu, kiosk and Screens pages
+  redrawn in M9–M10.
 - Docs: every affected page under `docs/` (walls, looks, takeovers, admin, menu, kiosk, config
   reference), the hand-written 2.0.0 CHANGELOG entry from `CHANGELOG-v2.md`, wiki mirrored after
   merge.

@@ -80,6 +80,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   4 am), pours in the last hour and a projected kick date, and the wall and menu payloads
   carry the taproom's serving size. None of it reveals keg cost.
 
+- **Added:** current screenshots in the README and docs (every wall look, the pour takeovers,
+  Tonight, Taps & kegs, Beers), generated from the app by `npm run docs:images`.
+
 ## Removed
 
 - **Removed:** the admin **Appearance** setting (Midnight Slate, Workshop, Console). A saved

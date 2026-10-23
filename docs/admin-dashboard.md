@@ -4,6 +4,8 @@ The admin opens on **Tonight**: a sentence about the night ("Eleven on tap. Two 
 soon.") and a line with tonight's pours and volume. Tonight is the service day, from 4 am to 4 am,
 so a pour at 1 am still counts as tonight.
 
+![Tonight: the sentence about the night, what needs attention, the last pour, the taps and pours by hour](images/admin-tonight.jpg)
+
 **Needs attention** lists what needs doing, one row per kind of problem, each with one action.
 Problems come first (red diamond), then cautions (amber), then information (blue):
 
@@ -40,6 +42,8 @@ Tonight never shows keg cost.
 
 ## Getting around
 
+![Search (Ctrl K) open over Tonight, filtering pages as you type](images/admin-search.jpg)
+
 The admin has one top bar and no sidebar. From the left:
 
 - your taproom's name, which takes you back to Tonight;
@@ -75,10 +79,17 @@ example "Pours · Kegwall"), so several open admin tabs stay easy to tell apart.
 ## One look, light or dark
 
 The admin has a single design. It is dark by default and switches to its light counterpart when
-your device is set to a light appearance. The old **Appearance** choice (Midnight Slate, Workshop,
+your device is set to a light appearance.
+
+![Tonight in the light appearance](images/admin-tonight-light.jpg)
+ The old **Appearance** choice (Midnight Slate, Workshop,
 Console) has been removed; a choice saved in a browser is ignored.
 
 ## Phones and tablets
+
+| Tonight on a phone | The phone menu |
+|---|---|
+| ![Tonight on a phone](images/admin-tonight-phone.jpg) | ![The admin menu open as a sheet on a phone](images/admin-menu-phone.jpg) |
 
 On narrow screens the destinations move into **Menu** at the top right, which opens them as a
 sheet along with Settings, **Open the wall** and **Sign out**. The sheet closes when you choose a

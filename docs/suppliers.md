@@ -12,6 +12,8 @@ address, delivery day/notes) and the weekly opening hours on the left, the deriv
 the right. **Add a supplier** and **Edit** open the form in a drawer. Deleting a supplier asks
 first, and keeps the purchase history on its kegs — only the link to the supplier clears.
 
+![The Suppliers page: each supplier's contact, week and price book](images/admin-suppliers.jpg)
+
 ## Opening hours
 
 Hours are entered as a **weekly grid**, one row per day, because most suppliers don't keep

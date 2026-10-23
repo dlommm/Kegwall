@@ -10,6 +10,8 @@ Each beer is a card with its marker (label art when it has some, otherwise the b
 initials), the style and brewery with a dot in the beer's color, ABV and IBU, and where it is:
 **On tap 3 · 94 %** (amber when the keg is low), **On deck**, or **In the library**.
 
+![The beer library](images/admin-beers.jpg)
+
 ## Adding and editing
 
 **Add a beer**, **Edit** or **Add art** opens the editor in a drawer (editors and admins). At the
@@ -20,6 +22,8 @@ top, **How it shows on screens** previews the marker as you type the name and co
 - description, shown on the phone menu and on looks that print notes;
 - price markup override, used only when prices are on in Settings;
 - label art (PNG, JPEG or WebP), which replaces the initials on every screen.
+
+![The beer editor with its marker preview](images/admin-beers-editor.jpg)
 
 When a catalog.beer API key is set, **Fill in from catalog.beer** searches it and fills in the
 name, brewery, style, ABV, IBU and description. **Delete beer** is at the bottom of the drawer; a

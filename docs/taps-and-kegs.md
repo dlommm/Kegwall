@@ -10,6 +10,8 @@ The page opens with a sentence about your taps ("Twelve taps. Tap 12 is empty an
 are nearly done.") and which keg to swap first. Under it, chips filter the list: **All**,
 **Needs a swap** (empty, kicked, or at 15 % or less) and **Due for cleaning**.
 
+![The Taps page: a sentence about the taps, filter chips and the table](images/admin-taps.jpg)
+
 Each row shows:
 
 | Column | What it shows |
@@ -27,6 +29,8 @@ Levels update live, the same way the wall does. **Swap keg** appears on rows tha
 
 Select **Details** (or follow a tap from Tonight) to open the tap's drawer on the right:
 
+![A tap's drawer with its level, kick forecast, line cleaning and on-deck queue](images/admin-taps-drawer.jpg)
+
 - what's left, in servings and volume, the kick forecast and the bound monitor, with a timeline
   from the day it was tapped to the projected kick;
 - **Line cleaning**: days and gallons since the last cleaning, a meter toward the next one,
@@ -42,6 +46,8 @@ Addresses such as `/admin/taps?tap=4` open that tap's drawer directly.
 ### Swapping a keg
 
 **Swap keg** opens the swap in a drawer, with its steps listed at the top:
+
+![The swap drawer offering the tap's next-up keg, another keg of the same beer, or a different beer](images/admin-taps-swap.jpg)
 
 1. **Kick the old keg** (when one is on). The kicked keg and its pours stay in history.
 2. **Choose the beer.** The first choices are the tap's **next up** keg from the on-deck queue
@@ -67,6 +73,8 @@ this month's keg costs; under it, the number on tap and on deck and the average 
 The table lists each keg's size and dates, its status, supplier, cost, cost per pint and deposit.
 **Edit** opens a drawer to set the cost, deposit, supplier and purchase date after the fact.
 
+![The Kegs page with costs as numbers over the keg table](images/admin-kegs.jpg)
+
 ## Suppliers
 
 See [Suppliers](suppliers.md).
@@ -88,5 +96,7 @@ and **Reset volume** (Kegtron Pro) resets that port's on-device counter after a 
 humidity. **Rename** gives the device a friendly name. **Disable** is for hardware at another
 location: the device stays listed but stops feeding pours, levels and readings until you
 **Enable** it again.
+
+![The Monitors page: each device's state and its port-to-tap table](images/admin-monitors.jpg)
 
 Viewers see all of this without the controls.
