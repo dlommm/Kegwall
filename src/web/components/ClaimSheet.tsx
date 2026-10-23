@@ -9,6 +9,7 @@ import { formatRelativeTime } from '../lib/useRelativeTime';
 import { getRememberedPourer, rememberPourer, type RememberedPourer } from '../lib/pourerIdentity';
 import { initials } from '../lib/initials';
 import { usePolledFetch } from '../lib/usePolledFetch';
+import { useFocusTrap } from '../lib/useFocusTrap';
 import { CLAIM_WINDOW_MINUTES } from '../../server/db/pours.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -86,7 +87,7 @@ function RateAfterClaim({ pourId, drinkerId }: { pourId: number; drinkerId: numb
   );
 }
 
-interface DrinkerPickerSheetProps {
+export interface DrinkerPickerSheetProps {
   pour: RecentPour;
   drinkers: PublicDrinker[];
   drinkersStatus: DrinkersStatus;
@@ -109,16 +110,13 @@ interface DrinkerPickerSheetProps {
  * place of the drinker list — success, "already claimed" (409, no point retrying), or a
  * plain retry notice (429/other, list stays visible so a fresh tap just retries).
  */
-function DrinkerPickerSheet({
+export function DrinkerPickerSheet({
   pour, drinkers, drinkersStatus, status, errorKind, claimedDrinker, remembered,
   onSelectDrinker, onSignupAndClaim, onRetryDrinkers, onClose,
 }: DrinkerPickerSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [signupName, setSignupName] = useState('');
-
-  useEffect(() => {
-    sheetRef.current?.focus();
-  }, []);
+  useFocusTrap(sheetRef, true, onClose);
 
   const showList = status !== 'success' && errorKind !== 'conflict';
 
@@ -270,14 +268,15 @@ function DrinkerPickerSheet({
 }
 
 /**
- * "Claim your pour": the menu's recent-unclaimed-pours list plus the drinker-picker claim
- * flow (Task 6 plan). Pours refresh every 30s (auto-refresh, cleaned up on unmount);
+ * "Claim your pour" state: the recent unclaimed pours plus the drinker-picker claim flow
+ * (Task 6 plan). One instance per page, so the claim section, the claim bar and the beer
+ * sheet's "Was one of these yours?" rows all share one poll and one open picker. Pours refresh every 30s (auto-refresh, cleaned up on unmount);
  * tapping one opens `DrinkerPickerSheet`. A claim resolves into one of: success, a 409
  * "already claimed" notice (pointless to retry — someone else got there first), a gentle
  * 429 "slow down" notice, or a plain retry message for anything else — see
  * `DrinkerPickerSheet` for how each renders.
  */
-export function ClaimSheet() {
+export function useClaimFlow() {
   const [poursStatus, setPoursStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [poursRetry, setPoursRetry] = useState(0);
   const [pours, setPours] = useState<RecentPour[]>([]);
@@ -352,15 +351,6 @@ export function ClaimSheet() {
     setErrorKind(null);
     setClaimedDrinker(null);
   }, []);
-
-  useEffect(() => {
-    if (!selectedPour) return undefined;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeSheet();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [selectedPour, closeSheet]);
 
   async function handleSelectDrinker(drinker: PublicDrinker) {
     if (!selectedPour) return;
@@ -441,6 +431,50 @@ export function ClaimSheet() {
     });
   }
 
+  return {
+    pours, poursStatus, remembered, drinkers, drinkersStatus, selectedPour, status, errorKind, claimedDrinker,
+    openPour: setSelectedPour,
+    refresh: () => { setPoursStatus('loading'); setPoursRetry((value) => value + 1); },
+    retryDrinkers, closeSheet, handleSelectDrinker, handleSignupAndClaim,
+  };
+}
+
+export type ClaimFlow = ReturnType<typeof useClaimFlow>;
+
+/** The picker sheet for whichever pour the flow has open (nothing when none is). */
+export function ClaimPicker({ flow }: { flow: ClaimFlow }) {
+  if (!flow.selectedPour) return null;
+  return (
+    <DrinkerPickerSheet
+      pour={flow.selectedPour}
+      drinkers={flow.drinkers}
+      drinkersStatus={flow.drinkersStatus}
+      status={flow.status}
+      errorKind={flow.errorKind}
+      claimedDrinker={flow.claimedDrinker}
+      remembered={flow.remembered}
+      onSelectDrinker={flow.handleSelectDrinker}
+      onSignupAndClaim={flow.handleSignupAndClaim}
+      onRetryDrinkers={flow.retryDrinkers}
+      onClose={flow.closeSheet}
+    />
+  );
+}
+
+/** The claim section on its own (tests, and any page that doesn't share the flow). */
+export function ClaimSheet() {
+  const flow = useClaimFlow();
+  return <ClaimSection flow={flow} />;
+}
+
+/**
+ * The menu's "Claim your pour" list, the sticky claim bar, and the picker. Pass `picker={false}`
+ * when the page renders `ClaimPicker` itself (so a beer sheet can open it too).
+ */
+export function ClaimSection({ flow, picker = true }: { flow: ClaimFlow; picker?: boolean }) {
+  const {
+    pours, poursStatus, selectedPour,
+  } = flow;
   return (
     <section className="claim-sheet" data-testid="claim-sheet" aria-labelledby="claim-sheet-section-heading">
       <h2 id="claim-sheet-section-heading" className="claim-sheet__heading font-display">Claim your pour</h2>
@@ -454,7 +488,7 @@ export function ClaimSheet() {
           className="claim-sheet__refresh"
           data-testid="claim-sheet-refresh"
           disabled={poursStatus === 'loading'}
-          onClick={() => { setPoursStatus('loading'); setPoursRetry((value) => value + 1); }}
+          onClick={flow.refresh}
         >
           {poursStatus === 'loading' ? 'Refreshing…' : 'Refresh pours'}
         </button>
@@ -475,7 +509,7 @@ export function ClaimSheet() {
                 type="button"
                 className="claim-sheet__pour-button"
                 data-testid="claim-sheet-pour"
-                onClick={() => setSelectedPour(pour)}
+                onClick={() => flow.openPour(pour)}
               >
                 <span className="claim-sheet__pour-info">
                   <span className="claim-sheet__pour-beer font-body">{pour.beerName}</span>
@@ -498,27 +532,13 @@ export function ClaimSheet() {
           type="button"
           className="claim-sheet__sticky"
           data-testid="claim-sheet-sticky"
-          onClick={() => setSelectedPour(pours[0]!)}
+          onClick={() => flow.openPour(pours[0]!)}
         >
           {`${pours.length} pour${pours.length === 1 ? '' : 's'} waiting to be claimed →`}
         </button>
       )}
 
-      {selectedPour && (
-        <DrinkerPickerSheet
-          pour={selectedPour}
-          drinkers={drinkers}
-          drinkersStatus={drinkersStatus}
-          status={status}
-          errorKind={errorKind}
-          claimedDrinker={claimedDrinker}
-          remembered={remembered}
-          onSelectDrinker={handleSelectDrinker}
-          onSignupAndClaim={handleSignupAndClaim}
-          onRetryDrinkers={retryDrinkers}
-          onClose={closeSheet}
-        />
-      )}
+      {picker && <ClaimPicker flow={flow} />}
     </section>
   );
 }

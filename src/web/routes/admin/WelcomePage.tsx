@@ -5,7 +5,7 @@ import {
   setWallDevices, type SystemUrls, type Wall,
 } from '../../lib/adminApi';
 import { groupMonitors } from '../../lib/monitorDevices';
-import { ThemeProvider } from '../../themes/ThemeProvider';
+import { AuthFrame } from './AuthFrame';
 import { HaSetupWizard } from '../../components/HaSetupWizard';
 import type { Settings } from '../../../server/db/settings.js';
 import { NEW_WALL_LOOK } from '../../../server/core/wallConfig.js';
@@ -28,6 +28,9 @@ import { NEW_WALL_LOOK } from '../../../server/core/wallConfig.js';
 type WizardStep = 'site' | 'kegtron' | 'home-assistant' | 'wall' | 'updates' | 'done';
 
 const STEP_ORDER: WizardStep[] = ['site', 'kegtron', 'home-assistant', 'wall', 'updates', 'done'];
+
+/** Steps after the owner account (SetupPage is step 1 of the whole first run). */
+export const WELCOME_STEP_COUNT = STEP_ORDER.length;
 
 /** The site pages worth advertising on the final screen, composed client-side from
  * GET /api/system/urls (the endpoint stays dumb — addresses + port only). */
@@ -163,12 +166,9 @@ export function WelcomePage() {
   const stepNumber = STEP_ORDER.indexOf(step) + 1;
 
   return (
-    <ThemeProvider className="admin-auth">
-      <main className="admin-auth__page" data-testid="welcome-page">
+    // Step 1 of the first run is the owner account (SetupPage); the wizard is steps 2 onward.
+    <AuthFrame testId="welcome-page" step={{ current: stepNumber + 1, total: STEP_ORDER.length + 1 }}>
         <div className="admin-auth__form welcome-wizard" data-testid={`welcome-step-${step}`}>
-          <p className="admin-page-quiet welcome-wizard__progress">
-            Step {stepNumber} of {STEP_ORDER.length}
-          </p>
 
           {step === 'site' && (
             <form onSubmit={submitSite}>
@@ -357,7 +357,6 @@ export function WelcomePage() {
             <p className="admin-auth__notice admin-auth__notice--error" role="alert">{error}</p>
           )}
         </div>
-      </main>
-    </ThemeProvider>
+    </AuthFrame>
   );
 }

@@ -33,6 +33,11 @@ const SINGLES: [string, string, number][] = [
   ['admin-stats', 'admin-stats', 1440],
   ['admin-settings', 'admin-settings', 1440],
   ['admin-wall-editor-fold', 'admin-wall-editor', 1440],
+  ['menu-mobile-fold', 'menu-phone', 390],
+  ['menu-beer-sheet', 'menu-beer-sheet', 390],
+  ['tablet-kiosk-avatars', 'kiosk', 1024],
+  ['tablet-kiosk-armed', 'kiosk-armed', 1024],
+  ['admin-01-login', 'admin-signin', 1440],
   ['admin-palette', 'admin-search', 1440],
   ['admin-menu-mobile', 'admin-menu-phone', 390],
 ];

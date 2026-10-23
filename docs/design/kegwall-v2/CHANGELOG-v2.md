@@ -65,6 +65,14 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Added
 
+- **Added:** the redrawn **phone menu**: the newest keg leads in its own color, search, style
+  family chips (Light, Hoppy, Dark, Sour), one row per beer with the name on its own line, and a
+  **beer sheet** with the description, rating, kick forecast and that tap's unclaimed pours.
+- **Added:** the redrawn **kiosk**: bigger avatars and tiles for wet hands, and armed / pouring /
+  done as one screen with a glass that fills by the measured volume.
+- **Added:** sign-in and first-run setup in the admin look, with one progress bar across setup
+  and the welcome wizard.
+
 - **Added:** the **Wall Editor studio**: a rail of eight sections with a dot on each changed
   one, a live 16:9 stage of the wall's own taps (Wall / Live pour / Screensaver, Fit / 100%,
   page picker), a 14-look gallery with pictures, theme swatches, per-section Undo, Discard
@@ -111,6 +119,11 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Fixed
 
+- **Fixed:** the phone menu's claim sheet was see-through on the default theme; every sheet is
+  now opaque.
+- **Fixed:** phone menu names squeezed into two-word lines beside the style and ABV columns.
+- **Fixed:** the kiosk didn't say when it couldn't get the taps ready for a pourer.
+
 - **Fixed:** a screen's look override accepted only 4 of the 14 looks and 6 of the 9 pour
   styles; choosing any other was rejected.
 - **Fixed:** unpairing a screen happened on one click; it now asks first. Pairing codes are no
@@ -129,6 +142,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 - **Fixed:** the Dock and Fill takeovers had no finish; Split's light panel broke dark themes.
 
 ## Developer
+
+- **Added:** `tests/e2e/touch.spec.ts` fails when any control on the phone menu, the beer sheet
+  or the kiosk is smaller than 44 × 44 px.
 
 - **Added:** `npm run lint:css` lists stylesheet rules for classes nothing renders (`--fix`
   deletes them); a test runs the same check, so CI fails on a dead selector.

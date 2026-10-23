@@ -6,8 +6,6 @@ import { useWallData } from '../lib/useWallData';
 import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import { useLookClock } from '../components/looks/lookShared';
-import { formatVolumeMl } from '../lib/units';
-import { formatRelativeTime } from '../lib/useRelativeTime';
 import { ScreenCare } from '../components/ScreenCare';
 import { useDisplayPower } from '../lib/displayPower';
 import { startCameraMotion } from '../lib/cameraMotion';
@@ -22,6 +20,9 @@ import { initials } from '../lib/initials';
 import { usePolledFetch } from '../lib/usePolledFetch';
 import { FaceEnrollPanel } from '../components/FaceEnrollPanel';
 import { TabletSession, TabletSessionRecap } from '../components/TabletSession';
+import { useFocusTrap } from '../lib/useFocusTrap';
+import { KioskWho } from './tablet/KioskWho';
+import { KioskArmed, KioskDone } from './tablet/KioskPour';
 // Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
 import './tablet.css';
 
@@ -116,6 +117,7 @@ export function TabletPage() {
   const [signupColor, setSignupColor] = useState(POURER_COLORS[0]!);
   const [signupError, setSignupError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(DONE_SIGNOUT_SECONDS);
   // Session mode (design 6c): the active group tab, polled while on screen.
   const [session, setSession] = useState<SessionSnapshotResponse | null>(null);
@@ -166,7 +168,7 @@ export function TabletPage() {
   }, [onWsMessage, loadFaces]);
 
   const {
-    wall, taps, units, stale, connected, loading, notFound,
+    wall, taps, units, servingSizeMl, stale, connected, loading, notFound,
   } = useWallData(slug, { onMessage: handleWsMessage });
 
   // F3 fix: same dead-server fallback as WallPage -- see that file's comment. A dead
@@ -188,7 +190,9 @@ export function TabletPage() {
     screenRef, screenKind: screen.kind, faces, pourers,
   });
 
-  const avatarsRef = useRef<HTMLDivElement | null>(null);
+  const faceSheetRef = useRef<HTMLDivElement | null>(null);
+  const closeFaceConfirm = useCallback(() => setFaceConfirm(null), [setFaceConfirm]);
+  useFocusTrap(faceSheetRef, faceConfirm !== null, closeFaceConfirm);
 
   // Only meaningful while armed -- the enrollment UI only ever renders there -- but
   // read from a plain `const` (not a ref) since, unlike the pipeline's event-handler
@@ -317,7 +321,13 @@ export function TabletPage() {
     }
     const result = await armTablet(pourer.id);
     setBusy(false);
-    if (result.ok) setScreen({ kind: 'armed', pourer });
+    if (result.ok) {
+      setPickError(null);
+      setScreen({ kind: 'armed', pourer });
+    } else {
+      // Arming failed: say so, or the pourer thinks the next pour is theirs.
+      setPickError(`Couldn’t get the taps ready for ${pourer.name}. Try again.`);
+    }
   }
 
   /** "Yes, that's me" on the face-confirm sheet (Task 7): close the sheet and run the
@@ -339,9 +349,15 @@ export function TabletPage() {
     if (result.ok) {
       setSession(null);
       setRecap(result.data);
-      setTimeout(() => setRecap(null), 12_000);
     }
   }
+
+  // The session recap shows for 12 s, and its timer dies with the page.
+  useEffect(() => {
+    if (!recap) return undefined;
+    const id = setTimeout(() => setRecap(null), 12_000);
+    return () => clearTimeout(id);
+  }, [recap]);
 
   async function submitSignup() {
     const name = signupName.trim();
@@ -371,7 +387,7 @@ export function TabletPage() {
     }
   }
 
-  async function signOut() {
+  function signOut() {
     disarmTablet();
     setScreen({ kind: 'grid' });
   }
@@ -431,140 +447,27 @@ export function TabletPage() {
       >
         <ScreenCare stage={effectiveStage} taps={[]} title={wall.name || ''} onWake={() => wake()}>
           {screen.kind === 'grid' && (
-            <div className="tablet-screen" data-testid="tablet-grid">
-              <header className="tablet-screen__header">
-                <span className="tablet-screen__title font-display">Who’s pouring?</span>
-                <span className="tablet-screen__header-right">
-                  {faces.enabled && (
-                    <span className="tablet-face-chip" data-testid="tablet-face-chip">FACE SIGN-IN ON</span>
-                  )}
-                  <span className="tablet-screen__clock font-tabular">{clock}</span>
-                </span>
-              </header>
-              {pourersStatus === 'error' && (
-                <p className="tablet-screen__quiet" role="alert">
-                  Couldn’t load pourers.
-                  {' '}
-                  <button type="button" className="tablet-screen__link" onClick={loadPourers}>Try again</button>
-                </p>
-              )}
-              {pourers.length > 8 && (
-                <input
-                  type="search"
-                  className="tablet-pourer-search"
-                  data-testid="tablet-pourer-search"
-                  placeholder={`Find your name — ${pourers.length} pourers`}
-                  aria-label="Find your name"
-                  value={pourerQuery}
-                  onChange={(e) => setPourerQuery(e.target.value)}
-                />
-              )}
-              {/* RECENT jumbo tiles (redesign 2d): the two most-recently-active pourers, big
-                  one-tap targets — hidden while searching. */}
-              {!pourerQuery.trim() && (() => {
-                const recent = [...pourers]
-                  .filter((p) => p.lastPourAt)
-                  .sort((a, b) => (b.lastPourAt! > a.lastPourAt! ? 1 : -1))
-                  .slice(0, 2);
-                return recent.length > 0 ? (
-                  <div className="tablet-recent" data-testid="tablet-recent">
-                    {recent.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className="tablet-recent__tile"
-                        data-testid="tablet-recent-tile"
-                        disabled={busy}
-                        onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
-                      >
-                        <span className="tablet-recent__avatar font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
-                          {initials(p.displayName)}
-                        </span>
-                        <span className="tablet-recent__name">{p.displayName}</span>
-                        <span className="tablet-recent__when font-tabular">{`poured ${formatRelativeTime(p.lastPourAt!)}`}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
-
-              <div className="tablet-grid__body">
-                <div className="tablet-grid__avatars" data-testid="tablet-avatars" ref={avatarsRef}>
-                  {(pourerQuery.trim()
-                    ? pourers.filter((p) => p.displayName.toLowerCase().includes(pourerQuery.trim().toLowerCase()))
-                    : pourers
-                  ).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className="tablet-avatar"
-                      data-testid="tablet-avatar"
-                      data-initial={(p.displayName.trim()[0] ?? '#').toUpperCase()}
-                      disabled={busy}
-                      onClick={() => selectPourer({ id: p.id, name: p.displayName, color: p.avatarColor })}
-                    >
-                      <span className="tablet-avatar__circle font-display" style={{ backgroundColor: p.avatarColor ?? '#7A6C58' }}>
-                        {initials(p.displayName)}
-                      </span>
-                      <span className="tablet-avatar__name">{p.displayName}</span>
-                      <span className="tablet-avatar__pours font-tabular">{`${p.pourCount} pours`}</span>
+            <KioskWho
+              pourers={pourers}
+              pourersStatus={pourersStatus}
+              busy={busy}
+              clock={clock}
+              faceSignIn={faces.enabled}
+              error={pickError}
+              onRetry={loadPourers}
+              onPick={(p) => { void selectPourer(p); }}
+              onNew={() => setScreen({ kind: 'signup' })}
+              session={(
+                <>
+                  {session && <TabletSession session={session} units={units} onEndSession={handleEndSession} />}
+                  {!session && (
+                    <button type="button" className="tablet-secondary" data-testid="tablet-session-start" onClick={handleStartSession}>
+                      Start a group tab
                     </button>
-                  ))}
-                </div>
-                {/* A–Z rail (redesign 2g): thumb-jump to the first name under a letter.
-                    A11y (WCAG 4.1.2): the rail stays aria-hidden -- it's a redundant
-                    visual affordance (every pourer it jumps to is already reachable as a
-                    real button in the grid), same as the page's other decorative chrome
-                    -- so its buttons must ALSO leave the keyboard focus order via
-                    tabIndex={-1}. Without that, screen-reader/switch users could tab
-                    onto focusable content the accessibility tree says doesn't exist.
-                    Letters remain pointer-tappable (44px targets, index.css). */}
-                {!pourerQuery.trim() && pourers.length > 12 && (
-                  <div className="tablet-az-rail" data-testid="tablet-az-rail" aria-hidden="true">
-                    {[...new Set(pourers.map((p) => (p.displayName.trim()[0] ?? '#').toUpperCase()))]
-                      .sort()
-                      .map((letter) => (
-                        <button
-                          key={letter}
-                          type="button"
-                          tabIndex={-1}
-                          className="tablet-az-rail__letter"
-                          data-testid="tablet-az-letter"
-                          onClick={() => avatarsRef.current
-                            ?.querySelector(`[data-initial="${letter}"]`)
-                            ?.scrollIntoView({ block: 'nearest' })}
-                        >
-                          {letter}
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-              {session && (
-                <TabletSession session={session} units={units} onEndSession={handleEndSession} />
+                  )}
+                </>
               )}
-              <div className="tablet-grid__footer">
-                <button
-                  type="button"
-                  className="tablet-cta"
-                  data-testid="tablet-signup-button"
-                  onClick={() => setScreen({ kind: 'signup' })}
-                >
-                  I’M NEW — SIGN ME UP
-                </button>
-                {!session && (
-                  <button
-                    type="button"
-                    className="tablet-secondary"
-                    data-testid="tablet-session-start"
-                    onClick={handleStartSession}
-                  >
-                    Start session
-                  </button>
-                )}
-                <span className="tablet-grid__hint">or scan the QR on the wall with your phone</span>
-              </div>
-            </div>
+            />
           )}
 
           {screen.kind === 'signup' && (
@@ -607,64 +510,28 @@ export function TabletPage() {
           )}
 
           {screen.kind === 'armed' && (
-            <div className="tablet-screen tablet-screen--center" data-testid="tablet-armed">
-              <div className="tablet-armed__who">
-                <span className="tablet-avatar__circle tablet-avatar__circle--small font-display" style={{ backgroundColor: screen.pourer.color ?? '#7A6C58' }}>
-                  {initials(screen.pourer.name)}
-                </span>
-                <span className="tablet-armed__hint">
-                  {'You’re up, '}
-                  <b>{screen.pourer.name}</b>
-                  {' — pour from any tap'}
-                </span>
-              </div>
-              {pouringTap ? (
-                <>
-                  <span className="tablet-armed__detected font-display" data-testid="tablet-detected">
-                    <span className={reducedMotion ? 'look-pour-dot' : 'look-pour-dot look-pour-dot--pulse'} />
-                    {`DETECTED · TAP ${pouringTap.tapNumber}${pouringTap.beer ? ` · ${pouringTap.beer.name.toUpperCase()}` : ''}`}
-                  </span>
-                  <div className="tablet-armed__counter" data-testid="tablet-counter">
-                    <span className="tablet-armed__counter-value font-display font-tabular">
-                      {formatVolumeMl(pouringTap.curServMl ?? 0, units).split(' ')[0]}
-                    </span>
-                    <span className="tablet-armed__counter-unit font-display">
-                      {units === 'metric' ? 'ML' : 'OZ'}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <span className="tablet-armed__waiting" data-testid="tablet-waiting">
-                  No beer selection needed — Kegtron knows which tap is flowing
-                </span>
-              )}
+            <KioskArmed
+              pourer={screen.pourer}
+              units={units}
+              servingSizeMl={servingSizeMl}
+              reducedMotion={reducedMotion}
+              pouringTap={pouringTap}
+              onSignOut={signOut}
+            >
               <FaceEnrollPanel enabled={faces.enabled} enrollment={faceEnrollment} />
-              <button type="button" className="tablet-secondary tablet-armed__signout" data-testid="tablet-signout" onClick={signOut}>
-                Sign out
-              </button>
-            </div>
+            </KioskArmed>
           )}
 
           {screen.kind === 'done' && (
-            <button
-              type="button"
-              className="tablet-screen tablet-screen--center tablet-done"
-              data-testid="tablet-done"
-              onClick={() => stayAfterDone(screen.pourer)}
-            >
-              <span className="tablet-done__check">✓</span>
-              <span className="tablet-done__title font-display">{`Cheers, ${screen.pourer.name}`}</span>
-              <span className="tablet-done__detail">
-                <b>
-                  {formatVolumeMl(screen.pour.volumeMl, units)}
-                  {screen.pour.beerName ? ` of ${screen.pour.beerName}` : ''}
-                </b>
-                {` logged to you · pour #${screen.pour.pourCount}`}
-              </span>
-              <span className="tablet-done__countdown font-tabular" data-testid="tablet-countdown">
-                {`Signing out in ${countdown}s — tap to stay`}
-              </span>
-            </button>
+            <KioskDone
+              pourer={screen.pourer}
+              units={units}
+              servingSizeMl={servingSizeMl}
+              reducedMotion={reducedMotion}
+              pour={screen.pour}
+              countdown={countdown}
+              onStay={() => { void stayAfterDone(screen.pourer); }}
+            />
           )}
           {recap && (
             <TabletSessionRecap recap={recap} units={units} onDismiss={() => setRecap(null)} />
@@ -672,13 +539,15 @@ export function TabletPage() {
           {faceConfirm && (
             <div className="claim-sheet__backdrop" data-testid="face-confirm-sheet">
               <div
+                ref={faceSheetRef}
                 className="face-confirm__sheet"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="face-confirm-heading"
+                tabIndex={-1}
               >
                 <span
-                  className="tablet-avatar__circle font-display"
+                  className="kiosk-avatar kiosk-avatar--big"
                   style={{ backgroundColor: faceConfirm.color ?? '#7A6C58' }}
                 >
                   {initials(faceConfirm.name)}

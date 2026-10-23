@@ -39,7 +39,9 @@ export function plainStylesheets(): string[] {
 
 function sourceText(): { text: string; prefixes: string[] } {
   const files = walk(WEB).filter((f) => /\.(tsx?|html)$/.test(f));
-  const text = files.map((f) => readFileSync(f, 'utf8')).join('\n');
+  // Test ids aren't class names: `data-testid="tablet-avatar"` doesn't keep `.tablet-avatar`.
+  const text = files.map((f) => readFileSync(f, 'utf8')).join('\n')
+    .replace(/(?:data-testid|testId|TestId)=\{?\s*(["'`])[^"'`]*\1\s*\}?/g, '');
   // `foo--${x}` / `foo__${x}` / "foo-" + x: class names assembled at runtime.
   const prefixes = new Set<string>();
   for (const m of text.matchAll(/([A-Za-z][\w-]*(?:-|__))\$\{/g)) prefixes.add(m[1]!);

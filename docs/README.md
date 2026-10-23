@@ -42,6 +42,7 @@ and wiki are updated with every change).
 | [settings.md](settings.md) | Settings sections, automations, Home Assistant, diagnostics, notifications |
 | [insights.md](insights.md) | Analytics (KPIs, charts, exports), every pour, logs |
 | [people.md](people.md) | Pourers, accounts and roles, face data |
+| [menu-and-kiosk.md](menu-and-kiosk.md) | The phone menu and beer sheet, the kegerator kiosk, sign-in and first-run setup |
 | [beers.md](beers.md) | The beer library, the beer editor and its marker preview, catalog.beer |
 | [taps-and-kegs.md](taps-and-kegs.md) | Taps (levels, the tap drawer, swapping a keg), Kegs and costs, and Monitors |
 | [suppliers.md](suppliers.md) | Supplier directory, weekly opening hours, derived price book, who sees keg costs |

@@ -12,9 +12,6 @@
 }
 
 /* First-run wizard (/admin/welcome) — rides the admin-auth styling family. */
-.welcome-wizard__progress {
-  margin-bottom: 0.5rem;
-}
 
 .welcome-wizard__actions {
   display: flex;
@@ -258,91 +255,6 @@
   padding: 1.5rem;
 }
 
-/* LoginPage / SetupPage — same quiet admin surface, no sidebar (there's no session
-   yet), centered single-column form. */
-.admin-auth__page {
-  display: flex;
-  min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg);
-  color: var(--text);
-  padding: 1.5rem;
-}
-
-.admin-auth__form {
-  display: flex;
-  width: 100%;
-  max-width: 22rem;
-  flex-direction: column;
-  gap: 0.9rem;
-  padding: 2rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.admin-auth__title {
-  font-size: 1.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.admin-auth__intro {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  margin-top: -0.4rem;
-}
-
-.admin-auth__field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.admin-auth__field input {
-  padding: 0.55rem 0.65rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--text);
-  font-size: 0.95rem;
-}
-
-.admin-auth__submit {
-  margin-top: 0.4rem;
-  padding: 0.6rem 1rem;
-  border-radius: 0.4rem;
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.admin-auth__submit:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.admin-auth__notice {
-  border-radius: 0.4rem;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.85rem;
-}
-
-.admin-auth__notice--error {
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-}
-
-.admin-auth__notice--warning {
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-}
-
 /*
  * Beers page (Phase 4 Task 4) — the catalog table, the create/edit form (BeerForm), and
  * its brewery + style autocompletes. Reuses the admin shell's quiet working-tool
@@ -399,13 +311,6 @@
   color: #e0793d;
 }
 
-/* Header lead (title + count summary), search, LOOKUP chips, "add art" chip, STATUS pills (3f). */
-
-.beers-summary {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
 /* Logs "show similar" chip (4b). */
 .logs-row__similar {
   margin-left: 0.5rem;
@@ -438,37 +343,6 @@
   border-color: color-mix(in srgb, var(--warn) 50%, transparent);
   background: color-mix(in srgb, var(--warn) 14%, transparent);
   color: var(--warn);
-}
-
-/* --- Games (5a) ------------------------------------------------------------- */
-.games-active-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.7rem 1rem;
-  margin-bottom: 1rem;
-  border-radius: 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  font-weight: 600;
-}
-
-.games-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 1.25rem;
-}
-
-.game-card {
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  padding: 0.9rem;
-  background: var(--surface);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 
 /* Weekly opening hours — grid editor on the form, compressed runs on the card. */
@@ -1024,27 +898,6 @@ h2.admin-field__label-text {
   grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
   gap: 1.5rem;
   align-items: start;
-}
-
-/* Live-preview size presets (per-user, persisted in localStorage — an editing preference, not
-   wall config). 'm' is the original narrow column; 'l'/'xl' widen the preview toward dominant
-   (the frame auto-scales to whatever width its pane gets, so a wider track = a bigger preview);
-   'stacked' drops to one column with the preview on top, full-width — the largest the frame gets.
-   The <64rem breakpoint below still force-collapses every preset to one column on small screens. */
-.wall-editor--preview-m {
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
-}
-
-.wall-editor--preview-l {
-  grid-template-columns: minmax(0, 1fr) minmax(26rem, 46rem);
-}
-
-.wall-editor--preview-xl {
-  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
-}
-
-.wall-editor--preview-stacked {
-  grid-template-columns: 1fr;
 }
 
 /* The preview-size segmented control sits in the sticky preview header; keep its buttons a touch

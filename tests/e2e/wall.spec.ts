@@ -101,8 +101,8 @@ test('a server-side volume_update updates a card live over WS', async ({ page })
 test('/menu renders the tap list', async ({ page }) => {
   await page.goto(`${baseURL}/menu`);
 
-  await expect(page.getByTestId('menu-page-tap-list').getByTestId('tap-card')).toHaveCount(4);
-  const names = await page.getByTestId('tap-card-name').allTextContents();
+  await expect(page.getByTestId('menu-page-tap-list').getByTestId('menu-tap')).toHaveCount(4);
+  const names = await page.getByTestId('menu-tap-name').allTextContents();
   expect(names.sort()).toEqual(
     ['Belgian Sun', 'Citra Haze', 'Midnight Oats', 'Vienna Nights'].sort(),
   );

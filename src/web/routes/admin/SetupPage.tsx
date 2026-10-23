@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { needsSetup, setup } from '../../lib/adminApi';
-import { ThemeProvider } from '../../themes/ThemeProvider';
+import { AuthFrame } from './AuthFrame';
+import { WELCOME_STEP_COUNT } from './WelcomePage';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -72,13 +73,25 @@ export function SetupPage() {
   if (checking) return null;
 
   return (
-    <ThemeProvider className="admin-auth">
-      <main className="admin-auth__page" data-testid="setup-page">
+    <AuthFrame
+      testId="setup-page"
+      step={{ current: 1, total: WELCOME_STEP_COUNT + 1 }}
+      title="Create the owner account."
+      intro="A one-time setup. You sign in with this account from now on."
+      aside={(
+        <>
+          <h2>Next</h2>
+          <ol>
+            <li>Name the taproom.</li>
+            <li>Connect your Kegtron monitors.</li>
+            <li>Home Assistant, if you use it.</li>
+            <li>Put the wall on a screen.</li>
+            <li>Choose how updates install.</li>
+          </ol>
+        </>
+      )}
+    >
         <form className="admin-auth__form" onSubmit={handleSubmit} data-testid="setup-form">
-          <h1 className="admin-auth__title font-display">Create the admin account</h1>
-          <p className="admin-auth__intro">
-            This is a one-time setup — you&rsquo;ll sign in with this account from now on.
-          </p>
 
           <label className="admin-auth__field">
             <span>Username</span>
@@ -165,7 +178,6 @@ export function SetupPage() {
             {submitting ? 'Creating account…' : 'Create account'}
           </button>
         </form>
-      </main>
-    </ThemeProvider>
+    </AuthFrame>
   );
 }

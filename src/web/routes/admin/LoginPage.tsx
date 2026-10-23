@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { login, needsSetup, sanitizeNextPath } from '../../lib/adminApi';
-import { ThemeProvider } from '../../themes/ThemeProvider';
+import { AuthFrame } from './AuthFrame';
 
 type ErrorKind = 'badCredentials' | 'rateLimited' | 'other' | null;
 
@@ -62,11 +62,22 @@ export function LoginPage() {
   if (checkingSetup) return null;
 
   return (
-    <ThemeProvider className="admin-auth">
-      <main className="admin-auth__page" data-testid="login-page">
+    <AuthFrame
+      testId="login-page"
+      title="Sign in to run the taproom."
+      intro="Beers, taps, kegs and the screens, for owners and staff."
+      aside={(
+        <>
+          <h2>Pourers don’t need an account.</h2>
+          <p>
+            They pick their name on the kegerator tablet, or scan the QR on the wall and claim a pour on
+            their phone.
+          </p>
+          <p>Lost the owner password? See the recovery guide that came with Kegwall.</p>
+        </>
+      )}
+    >
         <form className="admin-auth__form" onSubmit={handleSubmit} data-testid="login-form">
-          <h1 className="admin-auth__title font-display">Sign in</h1>
-          <p className="admin-auth__intro">Sign in to manage beers, taps, and the wall.</p>
 
           <label className="admin-auth__field">
             <span>Username</span>
@@ -123,7 +134,6 @@ export function LoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-      </main>
-    </ThemeProvider>
+    </AuthFrame>
   );
 }

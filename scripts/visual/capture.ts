@@ -147,6 +147,10 @@ if (!ONLY || ONLY.startsWith('pour')) {
 // ---- phone menu + tablet kiosk ----
 await shot('menu-mobile', '/menu', VP.mobile, { full: true });
 await shot('menu-mobile-light', '/menu', VP.mobile, { scheme: 'light' });
+await shot('menu-mobile-fold', '/menu', VP.mobile);
+await shot('menu-beer-sheet', '/menu', VP.mobile, {
+  before: async (p) => { await p.getByTestId('menu-tap').first().click(); await p.waitForTimeout(500); },
+});
 await shot('menu-tablet', '/menu', VP.tabletP);
 await shot('menu-desktop', '/menu', VP.desktop);
 await shot('menu-claim-sheet', '/menu', VP.mobile, {
