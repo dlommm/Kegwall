@@ -93,6 +93,8 @@ export function AdminLayout() {
     };
   }, []);
 
+  // Units, name and serving size are re-read on every page change, so a change saved in
+  // Settings reaches the next page without a reload.
   useEffect(() => {
     let cancelled = false;
     getMenu().then((result) => {
@@ -102,6 +104,13 @@ export function AdminLayout() {
         setServingSizeMl(result.data.servingSizeMl ?? DEFAULT_SERVING_ML);
       }
     });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
     listWalls().then((result) => {
       if (!cancelled && result.ok && result.data.length > 0) {
         setFirstWallSlug(result.data[0]!.slug);

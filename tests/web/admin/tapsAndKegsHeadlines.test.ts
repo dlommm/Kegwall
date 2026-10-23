@@ -23,6 +23,19 @@ describe('the Kegs sentence', () => {
     ], now)).toBe('Three kegs on record. This month’s kegs cost $304.');
   });
 
+  it('puts a keg in the local month it was created, not the UTC one', () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      // 9 pm on Oct 31 in New York is already Nov 1 in UTC.
+      const late = keg(1, { costCents: 13900, createdAt: '2026-11-01T01:00:00.000Z' });
+      expect(kegsHeadline([late], new Date('2026-10-31T23:00:00'))).toContain('This month’s kegs cost $139.');
+      expect(kegsHeadline([late], new Date('2026-11-15T12:00:00'))).toContain('No keg costs logged this month.');
+    } finally {
+      if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+    }
+  });
+
   it('says so when nothing was costed this month', () => {
     expect(kegsHeadline([keg(1)], now)).toBe('One keg on record. No keg costs logged this month.');
     expect(kegsHeadline([], now)).toBe('No kegs yet.');

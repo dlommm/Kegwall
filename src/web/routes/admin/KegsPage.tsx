@@ -3,6 +3,8 @@ import {
   listKegHistory, listSuppliers, updateKeg, type KegHistoryRow,
 } from '../../lib/adminApi';
 import { capitalize, countWord } from '../../lib/tonightAttention';
+import { localDate, money, shortDate, wholeMoney } from '../../lib/adminFormat';
+import { ML_PER_PINT } from '../../../server/core/pricing.js';
 import { PageTemplate } from './PageTemplate';
 import {
   Button, Chips, Drawer, EmptyState, ErrorState, SelectField, Skeleton, Table,
@@ -12,14 +14,6 @@ import {
  * deposit, and purchase date AFTER the fact (e.g. adding a supplier to a keg tapped without one).
  * Admin-only: the list carries owner cost. Data: GET /api/kegs/history + PATCH /api/kegs/:id. */
 
-const ML_PER_PINT = 473.176;
-
-function money(cents: number | null): string {
-  return cents == null ? '—' : `$${(cents / 100).toFixed(2)}`;
-}
-function wholeMoney(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString('en-US')}`;
-}
 function dollarsToCents(v: string): number | null {
   const t = v.trim();
   if (t === '') return null;
@@ -32,9 +26,6 @@ function centsToDollars(cents: number | null): string {
 /** YYYY-MM-DD for a <input type="date"> from a stored ISO/date string. */
 function toDateInput(v: string | null): string {
   return v ? v.slice(0, 10) : '';
-}
-function shortDate(v: string): string {
-  return new Date(v.length === 10 ? `${v}T12:00:00` : v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 /** Owner cost per US pint of the keg's starting volume, or null without a cost. */
 function perPintCents(k: KegHistoryRow): number | null {
@@ -65,8 +56,13 @@ function statusText(k: KegHistoryRow): string {
 export function kegsHeadline(kegs: KegHistoryRow[], now: Date = new Date()): string {
   if (kegs.length === 0) return 'No kegs yet.';
   const first = kegs.length === 1 ? 'One keg on record.' : `${capitalize(countWord(kegs.length))} kegs on record.`;
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const thisMonth = kegs.filter((k) => (k.purchasedAt ?? k.createdAt).slice(0, 7) === month && k.costCents != null);
+  // Compare local calendar months: createdAt is UTC, so slicing its string would put a keg
+  // created late on the 31st into the next month.
+  const inThisMonth = (k: KegHistoryRow) => {
+    const d = localDate(k.purchasedAt ?? k.createdAt);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  };
+  const thisMonth = kegs.filter((k) => inThisMonth(k) && k.costCents != null);
   if (thisMonth.length === 0) return `${first} No keg costs logged this month.`;
   const total = thisMonth.reduce((sum, k) => sum + (k.costCents ?? 0), 0);
   return `${first} This month’s kegs cost ${wholeMoney(total)}.`;

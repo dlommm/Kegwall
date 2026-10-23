@@ -72,8 +72,10 @@ export function BeersPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<BeerFilter>('all');
 
+  // A reload after a save keeps the list mounted (saves never reset scroll); only the first
+  // load shows the skeleton.
   const loadBeers = useCallback(() => {
-    setStatus('loading');
+    setStatus((s) => (s === 'loaded' ? s : 'loading'));
     listBeers().then((result) => {
       if (result.ok) {
         setBeers(result.data);
@@ -136,6 +138,8 @@ export function BeersPage() {
     setDeleting(false);
     if (result.ok) {
       setDeleteState(null);
+      // The editor drawer belonged to the beer that's now gone.
+      setFormState(null);
       loadBeers();
       return;
     }

@@ -7,12 +7,13 @@ import {
   type MonitorWithDeviceKeg, type Supplier,
 } from '../../lib/adminApi';
 import { BeerPicker } from './BeerPicker';
+import { tapLabel } from './monitors/monitorText';
+import { ML_PER_PINT } from '../../../server/core/pricing.js';
 import { Button, Drawer } from './ui';
 import { beerMarkerModel } from '../../wall/wallModel';
 import { TapMarker } from '../../wall/TapMarker';
 import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
-const ML_PER_PINT = 473.176;
 
 interface SwapWizardProps {
   tap: TapState;
@@ -33,10 +34,6 @@ interface SwapWizardProps {
 }
 
 type Step = 'confirm' | 'pick' | 'size' | 'cost' | 'reset';
-
-function tapLabel(tap: TapState): string {
-  return tap.tapName ?? `Tap ${tap.tapNumber}`;
-}
 
 /** Prefills size/volume from the picked beer's most recently created keg, of any status
  * or tap — `kegs` (from `GET /api/kegs`, no status filter) is already sorted newest-first
@@ -482,8 +479,10 @@ export function SwapWizard({
           </div>
           {(() => {
             const cents = dollarsToCents(costDollars);
-            const size = Number(sizeMl.trim());
-            const pints = size > 0 ? size / ML_PER_PINT : 0;
+            // Per pint of what's actually in the keg, the same basis as the Kegs page and the
+            // analytics KPI (a partly used keg costs more per pint than its size suggests).
+            const start = Number(volStartMl.trim());
+            const pints = start > 0 ? start / ML_PER_PINT : 0;
             return cents != null && pints > 0 ? (
               <p className="adm-num-cell" data-testid="swap-wizard-cost-preview">
                 {`≈ $${(cents / 100 / pints).toFixed(2)} / pint owner cost`}

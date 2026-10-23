@@ -20,6 +20,7 @@ import { matchKegType } from '../../lib/kegAssets';
 import { kicksInDays, kicksSoon } from '../../lib/kegForecast';
 import { cleaningProgress, kickTimelinePct } from '../../lib/tapMeters';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
+import { shortDate } from '../../lib/adminFormat';
 import { isEmptyTap, isLowTap, tapsHeadline, tapsSwapFirst } from '../../lib/tapsSay';
 import { wallTapModel, type WallTapModel } from '../../wall/wallModel';
 import { TapMarker } from '../../wall/TapMarker';
@@ -76,11 +77,6 @@ function daysAgoDate(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** "Oct 22". */
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 /** "20 of 40 pints", "Kicked", "Empty". */
@@ -475,7 +471,7 @@ export function TapsPage() {
 }
 
 /** The bound monitor, said the way it's labelled on the device: "Pro B · port 0". */
-function monitorText(monitor: MonitorWithDeviceKeg | undefined): { name: string; seen: string | null } | null {
+function boundMonitorLabel(monitor: MonitorWithDeviceKeg | undefined): { name: string; seen: string | null } | null {
   if (!monitor) return null;
   const kind = monitor.type === 'kegtron_gen1' ? 'Gen 1' : 'Pro';
   return {
@@ -505,7 +501,7 @@ function TapRow({
   const kegType = tap.keg ? tap.keg.kegType ?? matchKegType(tap.keg.sizeMl) : null;
   const hasActiveKeg = tap.keg != null && tap.keg.status === 'on_tap';
   const forecast = !kicked ? kicksInText(stat) : null;
-  const mon = monitorText(monitor);
+  const mon = boundMonitorLabel(monitor);
   const swapLeads = kickSoon || low || empty;
   const kegLine = [
     tap.tapName,
@@ -605,7 +601,7 @@ function TapDrawer({
   const hasActiveKeg = tap.keg != null && tap.keg.status === 'on_tap';
   const timelinePct = stat && tap.keg ? kickTimelinePct(tap.keg.dateTapped, stat.projectedKickDate) : null;
   const forecast = kicksInText(stat);
-  const mon = monitorText(monitor);
+  const mon = boundMonitorLabel(monitor);
   return (
     <Drawer
       open

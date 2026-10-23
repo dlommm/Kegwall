@@ -3,7 +3,7 @@ import type { Pour, Keg } from '../../../server/db/kegs.js';
 import type { Beer } from '../../../server/db/beers.js';
 import type { Tap } from '../../../server/db/taps.js';
 import {
-  listRecentPours, listBeers, listKegs, listTaps, setPourDrinker, setPoursDrinker,
+  listRecentPours, listBeers, listKegs, listTaps, setPourDrinker, setPoursDrinker, getPoursSince,
   type PourQuery,
 } from '../../lib/adminApi';
 import { usePolledFetch } from '../../lib/usePolledFetch';
@@ -67,7 +67,7 @@ export function formatPourTime(ts: string, now: Date = new Date()): string {
   });
 }
 
-/** "Two pours tonight have no name." from the loaded rows (tonight is 4 am to 4 am). */
+/** "Two pours tonight have no name." from all of tonight's pours (tonight is 4 am to 4 am). */
 export function poursHeadline(pours: Pour[], now: Date = new Date()): string {
   const start = serviceDayStart(now).getTime();
   const tonight = pours.filter((p) => new Date(p.ts).getTime() >= start);
@@ -114,6 +114,9 @@ export function PoursPage() {
   const [taps, setTaps] = useState<Tap[]>([]);
   const [drinkers, setDrinkers] = useState<PublicDrinker[]>([]);
   const [status, setStatus] = useState<PageStatus>('loading');
+  // Every pour since 4 am, fetched on its own so the sentence counts the whole night, not
+  // just the page of rows loaded below.
+  const [tonightPours, setTonightPours] = useState<Pour[]>([]);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
@@ -132,6 +135,9 @@ export function PoursPage() {
     const generation = ++loadGeneration.current;
     const limit = Math.min(MAX_POLL_ROWS, Math.max(POURS_PAGE_SIZE, loadedCount.current));
     setStatus((s) => (s === 'loaded' ? s : 'loading'));
+    getPoursSince(serviceDayStart(new Date()).toISOString()).then((result) => {
+      if (!isCancelled() && result.ok) setTonightPours(result.data);
+    });
     Promise.all([
       listRecentPours({ ...pourQueryFor(filters), limit }), listBeers(), listKegs(), listTaps(), getDrinkers(),
     ]).then(([poursRes, beersRes, kegsRes, tapsRes, drinkersRes]) => {
@@ -257,7 +263,7 @@ export function PoursPage() {
   return (
     <PageTemplate
       testId="admin-pours-page"
-      title={status === 'loaded' && !filtered ? poursHeadline(pours, now) : 'Every pour'}
+      title={status === 'loaded' && !filtered ? poursHeadline(tonightPours, now) : 'Every pour'}
       sub={`Every recorded pour, newest first. Guests can only claim a pour for a few minutes, so older ones are assigned here.${canEdit ? ' Change the name on a row, or tick several rows to give them to one person at once.' : ''}`}
     >
       <div className="pours-toolbar" data-testid="pours-filters">

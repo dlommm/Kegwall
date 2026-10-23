@@ -1,12 +1,11 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { Beer, BeerInput } from '../../../server/db/beers.js';
 import { createBeer, updateBeer, uploadLabel, lookupBeers } from '../../lib/adminApi';
-import { srmToColor } from '../../lib/srm';
 import { BreweryAutocomplete } from './BreweryAutocomplete';
 import { StyleAutocomplete } from './StyleAutocomplete';
 import { BeerSearchSheet, type BeerImportedFields } from './BeerSearchSheet';
 import { Button } from './ui';
-import { beerMarkerModel } from '../../wall/wallModel';
+import { beerColorFor, beerMarkerModel } from '../../wall/wallModel';
 import { TapMarker } from '../../wall/TapMarker';
 
 interface BeerFormProps {
@@ -225,7 +224,7 @@ export function BeerForm({ mode, beer, onSaved, onCancel }: BeerFormProps) {
               className="beer-form__srm-swatch"
               data-testid="beer-form-srm-swatch"
               aria-hidden="true"
-              style={{ backgroundColor: srmToColor(srmNumber).liquid }}
+              style={{ backgroundColor: beerColorFor(Number.isFinite(srmNumber) ? srmNumber : null) }}
             />
           </div>
         </label>

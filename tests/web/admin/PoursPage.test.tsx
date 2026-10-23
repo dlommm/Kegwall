@@ -16,6 +16,7 @@ import type { Tap } from '../../../src/server/db/taps';
 import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
+  getPoursSince: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   listRecentPours: vi.fn(),
   listBeers: vi.fn(),
   listKegs: vi.fn(),

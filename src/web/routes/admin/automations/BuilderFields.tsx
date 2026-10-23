@@ -118,7 +118,6 @@ export function weekdayCheckboxes(ctx: BuilderContext, days: number[], testIdPre
 
 export function triggerFields(ctx: BuilderContext) {
   const { form, canEdit, updateTrigger } = ctx;
-  const renderWeekdayCheckboxes = (days: number[], prefix: string, onChange: (d: number[]) => void) => weekdayCheckboxes(ctx, days, prefix, onChange);
 
   const t = form.trigger;
   switch (t.type) {
@@ -220,7 +219,8 @@ export function triggerFields(ctx: BuilderContext) {
           </label>
           <div className="admin-field">
             <span>Weekdays (none = every day)</span>
-            {renderWeekdayCheckboxes(
+            {weekdayCheckboxes(
+              ctx,
               t.weekdays,
               'automation-builder-trigger-weekday',
               (weekdays) => updateTrigger({ ...t, weekdays }),
@@ -235,7 +235,6 @@ export function triggerFields(ctx: BuilderContext) {
 
 export function conditionFields(ctx: BuilderContext, condition: Condition, index: number) {
   const { taps, beers, canEdit, updateCondition } = ctx;
-  const renderWeekdayCheckboxes = (days: number[], prefix: string, onChange: (d: number[]) => void) => weekdayCheckboxes(ctx, days, prefix, onChange);
 
   const prefix = `automation-builder-condition-${index}`;
   switch (condition.type) {
@@ -303,7 +302,8 @@ export function conditionFields(ctx: BuilderContext, condition: Condition, index
         </div>
       );
     case 'weekday':
-      return renderWeekdayCheckboxes(
+      return weekdayCheckboxes(
+        ctx,
         condition.days,
         `${prefix}-weekday`,
         (days) => updateCondition(index, { ...condition, days }),

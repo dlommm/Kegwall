@@ -5,6 +5,7 @@ import {
   type Supplier, type SupplierInput, type SupplierStats, type PriceBookEntry,
 } from '../../lib/adminApi';
 import { formatWholeVolume } from '../../lib/lookData';
+import { money, wholeMoney } from '../../lib/adminFormat';
 import { DAY_KEYS, hoursRuns, isOpenAt } from '../../lib/supplierHours';
 import { capitalize, countWord } from '../../lib/tonightAttention';
 import { SupplierHoursEditor } from './SupplierHoursEditor';
@@ -14,14 +15,6 @@ import {
   Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Skeleton,
 } from './ui';
 
-/** Owner-cost cents → "$12.00". Admin-only surface, so showing real dollars is fine here. */
-function money(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
-function wholeMoney(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString('en-US')}`;
-}
 
 const EMPTY_FORM: SupplierInput = {
   name: '', contactName: '', phone: '', email: '', address: '', hours: null, deliveryNotes: '', notes: '',
@@ -106,7 +99,7 @@ export function SuppliersPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setStatus('loading');
+    setStatus((s) => (s === 'loaded' ? s : 'loading'));
     listSuppliers().then(async (result) => {
       if (!result.ok) { setStatus('error'); return; }
       setSuppliers(result.data);

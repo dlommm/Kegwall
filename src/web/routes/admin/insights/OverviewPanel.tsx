@@ -1,9 +1,9 @@
 import { formatVolumeMl } from '../../../lib/units';
 import { formatWholeVolume } from '../../../lib/lookData';
 import { PoursChart } from '../PoursChart';
+import { ML_PER_PINT } from '../../../../server/core/pricing.js';
 import type { PanelProps } from './HistoryPanels';
 
-const ML_PER_PINT = 473.176;
 
 /**
  * The Overview: KPIs as type, not tiles (blueprint §E.7). A figure with no data prints "—",

@@ -9,7 +9,7 @@ import { BeerForm } from '../../../src/web/routes/admin/BeerForm';
 import {
   createBeer, updateBeer, uploadLabel, lookupBreweries, lookupBeers,
 } from '../../../src/web/lib/adminApi';
-import { srmToColor } from '../../../src/web/lib/srm';
+import { beerColorFor } from '../../../src/web/wall/wallModel';
 import type { Beer } from '../../../src/server/db/beers';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
@@ -68,13 +68,13 @@ describe('BeerForm', () => {
     expect(createBeer).not.toHaveBeenCalled();
   });
 
-  it('shows a live SRM color swatch that updates as the SRM field changes', async () => {
+  it('shows a live SRM color swatch, in the same color the marker and wall use', async () => {
     render(<BeerForm mode="create" beer={null} onSaved={vi.fn()} onCancel={vi.fn()} />);
     const swatch = screen.getByTestId('beer-form-srm-swatch');
     fireEvent.change(screen.getByTestId('beer-form-srm'), { target: { value: '20' } });
-    expect(swatch).toHaveStyle({ backgroundColor: srmToColor(20).liquid });
+    expect(swatch).toHaveStyle({ backgroundColor: beerColorFor(20) });
     fireEvent.change(screen.getByTestId('beer-form-srm'), { target: { value: '3' } });
-    expect(swatch).toHaveStyle({ backgroundColor: srmToColor(3).liquid });
+    expect(swatch).toHaveStyle({ backgroundColor: beerColorFor(3) });
   });
 
   it('submits a valid create form with parsed numeric fields and null for blanks', async () => {
