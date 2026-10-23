@@ -77,4 +77,27 @@ describe('PourLayer', () => {
     render(<PourLayer style={style} lanes={[lane(1)]} units="us" servingSizeMl={473} />);
     expect(screen.getByTestId(`takeover-${style}`)).toHaveTextContent('Beer 1');
   });
+
+  it('Tap Pull pulls the handle while pouring', () => {
+    render(<PourLayer style="tappull" lanes={[lane(1)]} units="us" servingSizeMl={473} />);
+    expect(screen.getByTestId('takeover-tappull').querySelector('[data-pulled="true"]')).not.toBeNull();
+  });
+
+  it('Keg Drain counts pints left down to two decimals', () => {
+    const l = lane(1);
+    l.tap = { ...l.tap, keg: { id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 9500, dateTapped: null, status: 'on_tap', createdAt: '', kegType: null, costCents: null, levelPct: 50, remainingMl: 9500 } as never };
+    render(<PourLayer style="kegdrain" lanes={[l]} units="us" servingSizeMl={473} />);
+    expect(screen.getByTestId('takeover-kegdrain')).toHaveTextContent(((9500 - 236) / 473).toFixed(2));
+  });
+
+  it('several pours on Keg Drain fall back to lanes', () => {
+    render(<PourLayer style="kegdrain" lanes={[lane(1), lane(2)]} units="us" servingSizeMl={473} />);
+    expect(screen.getByTestId('takeover-full')).toBeInTheDocument();
+  });
+
+  it('finishes a single full-screen pour with Cheers and the passport stamp', () => {
+    render(<PourLayer style="full" finish="cheers" lanes={[lane(1, { phase: 'finish', recordedMl: 412, pourerName: 'Alex Rivera', pourerPourCount: 15 })]} units="us" servingSizeMl={473} />);
+    expect(screen.getByTestId('pour-cheers')).toHaveTextContent('Cheers, Alex');
+    expect(screen.getByTestId('pour-cheers')).toHaveTextContent('Passport · pour 15');
+  });
 });

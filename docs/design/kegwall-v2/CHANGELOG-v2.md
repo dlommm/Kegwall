@@ -35,6 +35,14 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Added
 
+- **Added:** three pour takeover styles: **Tap Pull** (a handle swings, the glass fills and
+  slides off), **Keg Drain** (the keg empties live, pints left count down) and **Game On**
+  (the pour moves the pourer up a running game).
+- **Added:** a **Cheers** finish for single full-screen pours, with the pourer's passport
+  pour number.
+- **Added:** opt-in **wall moments**: Just kicked, Just tapped and Pour milestones (the house's
+  every-100th pour and each pourer's own hundreds).
+
 - **Added:** two new wall looks: **Tap Handles** (each tap a handle in its beer's color with a
   sight glass; the pouring handle tips forward) and **Tally** (the night as a sentence, every
   keg's pints left as tally marks).

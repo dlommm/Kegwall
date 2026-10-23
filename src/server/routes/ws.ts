@@ -109,11 +109,17 @@ export async function wsRoutes(app: FastifyInstance, opts: WsRoutesOptions = {})
   // broadcast to EVERY connected client unconditionally (no per-wall scoping exists on
   // this feed today -- same as the snapshot/ping broadcasts above).
   app.ctx.bus.on('wall_banner', (e) => {
-    const msg: { type: 'banner'; text: string; kind: string; durationMs?: number } = {
+    const msg: { type: 'banner'; text: string; kind: string; durationMs?: number; moment?: string } = {
       type: 'banner', text: e.text, kind: e.kind,
     };
     if (e.durationMs !== undefined) msg.durationMs = e.durationMs;
+    if (e.moment !== undefined) msg.moment = e.moment;
     broadcast(JSON.stringify(msg));
+  });
+
+  // Kegwall V2 wall moments (kicked / tapped / milestone): walls that opted in show them.
+  app.ctx.bus.on('wall_moment', (e) => {
+    broadcast(JSON.stringify({ type: 'wall_moment', ...e }));
   });
 
   app.ctx.bus.on('wall_theme_override', (e) => {

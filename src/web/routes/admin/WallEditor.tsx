@@ -59,12 +59,15 @@ const GLYPH_MODES: { value: WallConfig['glyphMode']; label: string }[] = [
 // Pour takeover styles (design 2a/2b/9a/9b/9c) — how the wall reacts to a live
 // pour. Off preserves the pre-overhaul behavior (glow + badge only).
 const TAKEOVER_STYLES: { value: WallConfig['takeover']['style']; label: string }[] = [
-  { value: 'off', label: 'Off' },
+  { value: 'off', label: 'Badge (wall stays still)' },
   { value: 'full', label: 'Full screen' },
-  { value: 'spotlight', label: 'Spotlight row' },
+  { value: 'spotlight', label: 'Spotlight' },
   { value: 'split', label: 'Split panel' },
   { value: 'dock', label: 'Bottom dock' },
   { value: 'fill', label: 'Screen fill' },
+  { value: 'tappull', label: 'Tap Pull' },
+  { value: 'kegdrain', label: 'Keg Drain' },
+  { value: 'gameon', label: 'Game On (while a game runs)' },
 ];
 
 // Keg-asset fill indicator feature: doesn't apply to `compact` (its liquid swatch is too
@@ -467,6 +470,35 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             >
               ▶ Simulate a pour
             </button>
+            <label className="admin-field">
+              <span>Finish</span>
+              <select
+                data-testid="wall-editor-takeover-finish"
+                value={form.takeoverFinish}
+                onChange={(e) => updateField('takeoverFinish', e.target.value as WallConfig['takeover']['finish'])}
+              >
+                <option value="plain">Recorded volume</option>
+                <option value="cheers">Cheers (single full-screen pours)</option>
+              </select>
+            </label>
+            <fieldset className="admin-field" data-testid="wall-editor-moments">
+              <legend>Wall moments</legend>
+              {([
+                ['momentKicked', 'Just kicked'],
+                ['momentTapped', 'Just tapped'],
+                ['momentMilestone', 'Pour milestones'],
+              ] as const).map(([key, label]) => (
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    data-testid={`wall-editor-${key}`}
+                    checked={form[key]}
+                    onChange={(e) => updateField(key, e.target.checked)}
+                  />
+                  {` ${label}`}
+                </label>
+              ))}
+            </fieldset>
             <label className="admin-field">
               <span>Takeover trigger (mL)</span>
               <input

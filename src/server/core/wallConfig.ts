@@ -32,10 +32,19 @@ export const wallConfigSchema = z.object({
   // dock (9b), fill (9c). `minMl` is the trigger threshold — a pour only takes
   // over once its live counter passes this volume, so tiny foam blips don't
   // flash the screen (default ~2 oz).
+  // Kegwall V2 adds 'tappull', 'kegdrain' and 'gameon' (additive), and `finish`: 'cheers'
+  // ends a single full-screen pour with the Cheers moment. A stored takeover parses as before.
   takeover: z.object({
-    style: z.enum(['off', 'full', 'spotlight', 'split', 'dock', 'fill']).default('off'),
+    style: z.enum(['off', 'full', 'spotlight', 'split', 'dock', 'fill', 'tappull', 'kegdrain', 'gameon']).default('off'),
     minMl: z.number().min(0).default(60),
-  }).default({ style: 'off', minMl: 60 }),
+    finish: z.enum(['plain', 'cheers']).default('plain'),
+  }).default({ style: 'off', minMl: 60, finish: 'plain' }),
+  // Kegwall V2 wall moments: full-screen events that aren't pours. All off by default.
+  wallMoments: z.object({
+    kicked: z.boolean().default(false),
+    tapped: z.boolean().default(false),
+    milestone: z.boolean().default(false),
+  }).default({ kicked: false, tapped: false, milestone: false }),
   // View rotation (design 4a/4b): the TV cycles a playlist of views, each with
   // its own seconds + on/off. Off by default so stored configs keep showing the
   // plain wall. A live pour always interrupts (the wall view returns while any

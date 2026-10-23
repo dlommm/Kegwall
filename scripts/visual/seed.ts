@@ -24,7 +24,7 @@ export const THEMES = [
   'midnight-slate', 'cream', 'cellar-teal', 'taproom-green', 'amber-glow', 'arcade', 'taproom',
   'chalkboard', 'bright', 'mono',
 ] as const;
-export const TAKEOVERS = ['full', 'spotlight', 'split', 'dock', 'fill'] as const;
+export const TAKEOVERS = ['full', 'spotlight', 'split', 'dock', 'fill', 'tappull', 'kegdrain'] as const;
 
 // name, brewery, style, abv, ibu, srm, fraction left, description
 const BEERS: ReadonlyArray<readonly [string, string, string, number, number | null, number | null, number, string | null]> = [
@@ -116,7 +116,11 @@ export async function seedTaproom(app: FastifyInstance): Promise<SeededTaproom> 
   wall('rotate', { columns: 4, pages: [{ tapIds: tapIds.slice(0, 6) }, { tapIds: tapIds.slice(6) }], rotationSeconds: 3 });
   wall('saver', { columns: 4, pages: page8, displayPower: { screensaverAfterMinutes: 1, offAfterMinutes: null, cameraMotion: false } });
   for (const style of TAKEOVERS) {
-    wall(`pour-${style}`, { columns: 4, pages: page8, takeover: { style, minMl: 60 }, look: style === 'spotlight' ? 'ledger' : 'classic' });
+    // Tap Pull finishes with Cheers, so the harness photographs that finish too.
+    wall(`pour-${style}`, {
+      columns: 4, pages: page8, look: style === 'spotlight' ? 'ledger' : 'classic',
+      takeover: { style, minMl: 60, finish: style === 'tappull' ? 'cheers' : 'plain' },
+    });
   }
 
   return {

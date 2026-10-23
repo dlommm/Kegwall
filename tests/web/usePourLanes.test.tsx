@@ -13,7 +13,7 @@ function tap(id: number, over: Partial<TapState> = {}): TapState {
     nextUpBeerName: null, tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null, ...over,
   };
 }
-const TAKEOVER = { style: 'full' as const, minMl: 60 };
+const TAKEOVER = { style: 'full' as const, minMl: 60, finish: 'plain' as const };
 let clock = 1_000_000;
 const now = () => clock;
 

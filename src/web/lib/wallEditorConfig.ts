@@ -24,6 +24,10 @@ export interface WallConfigFormState {
   glyphMode: WallConfig['glyphMode'];
   takeoverStyle: WallConfig['takeover']['style'];
   takeoverMinMl: number;
+  takeoverFinish: WallConfig['takeover']['finish'];
+  momentKicked: boolean;
+  momentTapped: boolean;
+  momentMilestone: boolean;
   /** Kegwall V2 Just Tapped spotlight: newest keg, or a pinned tap. */
   spotlightMode: WallConfig['spotlight']['mode'];
   spotlightTapId: number | null;
@@ -134,6 +138,10 @@ export function configToFormState(config: WallConfig): WallConfigFormState {
     glyphMode: config.glyphMode,
     takeoverStyle: config.takeover.style,
     takeoverMinMl: config.takeover.minMl,
+    takeoverFinish: config.takeover.finish,
+    momentKicked: config.wallMoments.kicked,
+    momentTapped: config.wallMoments.tapped,
+    momentMilestone: config.wallMoments.milestone,
     spotlightMode: config.spotlight.mode,
     spotlightTapId: config.spotlight.tapId,
     viewRotationEnabled: config.viewRotation.enabled,
@@ -196,7 +204,8 @@ export function formStateToConfigCandidate(
     columns: form.columns,
     look: form.look,
     glyphMode: form.glyphMode,
-    takeover: { style: form.takeoverStyle, minMl: form.takeoverMinMl },
+    takeover: { style: form.takeoverStyle, minMl: form.takeoverMinMl, finish: form.takeoverFinish },
+    wallMoments: { kicked: form.momentKicked, tapped: form.momentTapped, milestone: form.momentMilestone },
     spotlight: { mode: form.spotlightMode, tapId: form.spotlightTapId },
     viewRotation: {
       enabled: form.viewRotationEnabled,

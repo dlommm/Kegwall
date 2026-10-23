@@ -64,6 +64,27 @@ default, so foam blips never flash the screen), the wall reacts in the chosen st
 | `dock` | A bar rises from the bottom and fills left to right; the wall lifts to make room |
 | `fill` | The screen floods with the beer to the measured level, then drains |
 | `off` (Badge) | Nothing moves: the pouring row shows "Pouring now · 8.0 oz" in the look itself |
+| `tappull` | A giant handle in the beer's color swings forward on its pivot; the glass starts tilted, straightens as it fills, and slides off down the bar at the finish |
+| `kegdrain` | The other side of the pour: the keg empties live, pints left count down to two decimals, a dashed line marks where the keg stood, with the kick forecast |
+| `gameon` | Only while a drinking game runs: the standings stay up during the pour, and when it's recorded the pourer's bar moves and a new leader is called out. With no game running it behaves like `full` |
+
+**Finish** — `Recorded volume` (default) or `Cheers`: a single full-screen pour (Full, Split,
+Fill, Tap Pull, Keg Drain) ends with two glasses meeting, "Cheers, Alex", the recorded volume
+and the pourer's passport pour number.
+
+Keg Drain and Tap Pull show one pour; with several taps pouring they fall back to Full lanes.
+
+### Wall moments
+
+Opt in per wall (all off by default). Each takes the screen for about six seconds:
+
+- **Just kicked** — a KICKED stamp slams down over the beer, and the next keg from the
+  on-deck queue slides in.
+- **Just tapped** — a curtain of the new beer's color wipes up and its name stamps in.
+- **Pour milestones** — the house's every-100th pour, or a pourer's own 100th, 200th…, rolls
+  over with a burst of rings.
+
+A wall that shows the kicked or milestone moment skips the matching celebration banner.
 
 Every style follows the same rules:
 

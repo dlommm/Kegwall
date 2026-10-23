@@ -49,7 +49,8 @@ describe('wallEditorConfig — the form state <-> WallConfig round trip', () => 
       look: 'ledger',
       glyphMode: 'duotone',
       display: { sizeIn: 65, resolution: '4k', uiScale: 0.95 },
-      takeover: { style: 'dock', minMl: 120 },
+      takeover: { style: 'tappull', minMl: 120, finish: 'cheers' },
+      wallMoments: { kicked: true, tapped: false, milestone: true },
       spotlight: { mode: 'pinned', tapId: 3 },
       viewRotation: {
         enabled: true,

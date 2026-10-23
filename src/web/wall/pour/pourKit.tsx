@@ -87,6 +87,8 @@ export interface PourGlassProps {
   height: number;
   /** Marks on the glass, as fractions of a serving, with their labels. */
   marks?: Array<{ at: number; label: string }>;
+  /** Tap Pull: the glass starts tilted and straightens as it fills, then slides off. */
+  tilted?: boolean;
 }
 
 /**
@@ -95,8 +97,11 @@ export interface PourGlassProps {
  * by measured volume over the serving size. Liquid moves only by transform; the stream's
  * texture and the bubbles loop only while beer is flowing.
  */
-export function PourGlass({ frac, flowing, finished, width, height, marks = [] }: PourGlassProps) {
+export function PourGlass({
+  frac, flowing, finished, width, height, marks = [], tilted = false,
+}: PourGlassProps) {
   const style = {
+    '--tilt': tilted ? `${((1 - Math.min(frac * 1.8, 1)) * -16).toFixed(2)}deg` : '0deg',
     '--frac': frac.toFixed(3),
     '--head': headFraction(frac).toFixed(3),
     '--gw': width,
@@ -108,6 +113,7 @@ export function PourGlass({ frac, flowing, finished, width, height, marks = [] }
       style={style}
       data-flowing={flowing ? 'true' : undefined}
       data-finished={finished ? 'true' : undefined}
+      data-tilted={tilted ? 'true' : undefined}
       aria-hidden="true"
     >
       <div className={styles.spout} />

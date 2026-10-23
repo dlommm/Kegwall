@@ -56,7 +56,7 @@ describe('wallConfigSchema look/glyphMode (Pour Wall overhaul)', () => {
 describe('wallConfigSchema takeover (pour takeover)', () => {
   it("defaults to off with a ~2 oz (60 mL) trigger so stored configs don't change behavior", () => {
     const config = wallConfigSchema.parse({});
-    expect(config.takeover).toEqual({ style: 'off', minMl: 60 });
+    expect(config.takeover).toEqual({ style: 'off', minMl: 60, finish: 'plain' });
   });
 
   it('accepts each takeover style', () => {
@@ -152,7 +152,8 @@ describe('Kegwall V2 additions (additive, stored configs untouched)', () => {
     const stored = { look: 'ledger', theme: { id: 'cream' }, takeover: { style: 'full', minMl: 90 } };
     const parsed = wallConfigSchema.parse(stored);
     expect(parsed.look).toBe('ledger');
-    expect(parsed.takeover).toEqual({ style: 'full', minMl: 90 });
+    expect(parsed.takeover).toEqual({ style: 'full', minMl: 90, finish: 'plain' });
+    expect(parsed.wallMoments).toEqual({ kicked: false, tapped: false, milestone: false });
     expect(parsed.spotlight).toEqual({ mode: 'newest', tapId: null });
     expect(wallConfigSchema.parse(parsed)).toEqual(parsed); // idempotent round trip
   });

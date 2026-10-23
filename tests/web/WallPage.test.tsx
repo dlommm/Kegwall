@@ -173,7 +173,7 @@ describe('WallPage', () => {
       },
     });
     (useWallData as Mock).mockReturnValue(baseResult({
-      wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'dock', minMl: 60 } }) },
+      wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'dock', minMl: 60, finish: 'plain' } }) },
       taps: [pouringTap],
     }));
     renderWall();
@@ -188,7 +188,7 @@ describe('WallPage', () => {
       id: 1, beerId: 1, tapId: 1, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 0, dateTapped: null, status: 'on_tap' as const, createdAt: '', kegType: null, costCents: null, levelPct: 100, remainingMl: 19000,
     };
     (useWallData as Mock).mockReturnValue(baseResult({
-      wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'spotlight', minMl: 60 } }) },
+      wall: { slug: 'main', name: 'Main', config: makeConfig({ takeover: { style: 'spotlight', minMl: 60, finish: 'plain' } }) },
       taps: [
         makeTap(1, { pouring: true, curServMl: 250, beer, keg }),
         makeTap(2, { beer: { ...beer, id: 2 }, keg: { ...keg, id: 2, beerId: 2, tapId: 2 } }),
@@ -394,6 +394,31 @@ describe('WallPage', () => {
       const banner = screen.getByTestId('banner-lane-banner');
       expect(banner).toHaveTextContent('Free pours at 6pm');
       expect(banner).toHaveAttribute('data-kind', 'success');
+    });
+
+    it('shows a wall moment full-screen when the wall opted in, and drops the duplicate banner', () => {
+      const captured = mockWallData({
+        wall: { slug: 'main', name: 'Main', config: makeConfig({ wallMoments: { kicked: true, tapped: false, milestone: false } }) },
+        taps: [],
+      });
+      renderWall();
+      act(() => {
+        captured.onMessage?.({ type: 'banner', text: 'KEG KICKED', kind: 'celebrate', moment: 'kicked' });
+        captured.onMessage?.({ type: 'wall_moment', kind: 'kicked', tapNumber: 12, beerName: 'Gourd Times', nextBeerName: 'Harvest Märzen' });
+      });
+      expect(screen.getByTestId('wall-moment')).toHaveTextContent('Gourd Times');
+      expect(screen.queryByTestId('banner-lane-banner')).toBeNull();
+    });
+
+    it('ignores a wall moment the wall did not opt into, keeping the banner', () => {
+      const captured = mockWallData({ wall: { slug: 'main', name: 'Main', config: makeConfig() }, taps: [] });
+      renderWall();
+      act(() => {
+        captured.onMessage?.({ type: 'banner', text: 'KEG KICKED', kind: 'celebrate', moment: 'kicked' });
+        captured.onMessage?.({ type: 'wall_moment', kind: 'kicked', tapNumber: 12, beerName: 'Gourd Times', nextBeerName: null });
+      });
+      expect(screen.queryByTestId('wall-moment')).toBeNull();
+      expect(screen.getByTestId('banner-lane-banner')).toHaveTextContent('KEG KICKED');
     });
 
     it('maps WS banner kind "warning"/"info" straight through', () => {

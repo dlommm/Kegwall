@@ -22,6 +22,9 @@ import {
 import { Stage } from '../design/Stage';
 import { PourLayer } from '../wall/pour/PourLayer';
 import { usePourLanes, type RecordedPour } from '../wall/pour/usePourLanes';
+import {
+  MOMENT_MS, WallMoment, isWallMomentEvent, type WallMomentEvent,
+} from '../wall/pour/WallMoment';
 import { BannerLane } from '../components/BannerLane';
 import { GameStrip } from '../components/GameStrip';
 import { ScreenCare } from '../components/ScreenCare';
@@ -184,9 +187,29 @@ export function WallPage() {
 
   // Recent `pour_recorded` frames (Kegwall V2): a takeover finishes on the recorded volume.
   const [recordedPours, setRecordedPours] = useState<RecordedPour[]>([]);
+  // Wall moments (Kegwall V2): queued, shown one at a time for MOMENT_MS each. The WS
+  // handler reads the wall's moment settings through a ref (it is created before config).
+  const momentsEnabledRef = useRef<{ kicked: boolean; tapped: boolean; milestone: boolean } | null>(null);
+  const momentQueue = useRef<WallMomentEvent[]>([]);
+  const [moment, setMoment] = useState<WallMomentEvent | null>(null);
+  const momentShowing = useRef(false);
+  const showNextMoment = useCallback(() => {
+    const next = momentQueue.current.shift() ?? null;
+    momentShowing.current = next !== null;
+    setMoment(next);
+    if (next) setTimeout(showNextMoment, MOMENT_MS);
+  }, []);
   const handleWsMessage = useCallback((msg: unknown) => {
     onWsMessage(msg);
-    if (isWsBannerMessage(msg)) {
+    if (isWallMomentEvent(msg)) {
+      if (momentsEnabledRef.current?.[msg.kind]) {
+        momentQueue.current.push(msg);
+        if (momentQueue.current.length === 1 && !momentShowing.current) showNextMoment();
+      }
+    } else if (isWsBannerMessage(msg)) {
+      // A built-in celebration banner duplicates a moment this wall shows full-screen.
+      const tag = (msg as { moment?: 'kicked' | 'milestone' }).moment;
+      if (tag && momentsEnabledRef.current?.[tag]) return;
       push(msg.text, mapServerBannerKind(msg.kind), msg.durationMs);
     } else if (isWsHostStatsMessage(msg)) {
       setHostStats(msg);
@@ -205,7 +228,7 @@ export function WallPage() {
     }
     // Any other/unrecognized `type` is silently ignored (same "unknown types are
     // harmless" contract useTapStates' snapshot handling already has).
-  }, [push, onWsMessage]);
+  }, [push, onWsMessage, showNextMoment]);
 
   // Countdown timer cleanup on unmount -- doesn't touch state (nothing to revert to on an
   // unmounted page), just prevents a dangling setTimeout outliving the component.
@@ -314,6 +337,8 @@ export function WallPage() {
     // hand-rolled effect's `[rotationViews]` dependency did.
     restartKey: rotationViews,
   });
+  momentsEnabledRef.current = config?.wallMoments ?? null;
+
   // Spotlight isn't an overlay: the look lifts every pouring row or card and dims the rest.
   const spotlightTapIds = useMemo(
     () => (takeoverStyle === 'spotlight' && pourLanes.length ? new Set(pourLanes.map((l) => l.tapId)) : null),
@@ -418,7 +443,14 @@ export function WallPage() {
                 />
               </div>
           )}
-          <PourLayer style={takeoverStyle} lanes={pourLanes} units={units} servingSizeMl={servingSizeMl} />
+          <PourLayer
+            style={takeoverStyle}
+            lanes={pourLanes}
+            units={units}
+            servingSizeMl={servingSizeMl}
+            finish={config.takeover?.finish}
+          />
+          {moment && <WallMoment moment={moment} />}
           <PlaylistBar views={rotationViews} activeIndex={rotationIndex} />
           {/* Additive live game strip (redesign 5c) — renders itself only when a game runs. */}
           <GameStrip />

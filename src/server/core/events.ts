@@ -115,7 +115,14 @@ export interface EventMap {
   /** Phase 5 Task 3: emitted by the automation engine's `wall_banner` action. Task 4's WS
    * layer relays this to wall clients as `{type:'banner', ...}` — this event is the bus
    * hand-off point only; nothing in this task subscribes to it yet. */
-  wall_banner: { text: string; kind: 'info' | 'celebrate' | 'warning'; durationMs?: number };
+  /** `moment` tags a built-in celebration banner with the wall moment it duplicates, so a
+   * wall that shows that moment full-screen (Kegwall V2 `wallMoments`) skips the banner. */
+  wall_banner: { text: string; kind: 'info' | 'celebrate' | 'warning'; durationMs?: number; moment?: 'kicked' | 'milestone' };
+  /** Kegwall V2 wall moments: full-screen events that aren't pours. Public fields only. */
+  wall_moment:
+    | { kind: 'kicked'; tapId: number; tapNumber: number; beerName: string | null; nextBeerName: string | null; ts: string }
+    | { kind: 'tapped'; tapId: number; tapNumber: number; beerName: string | null; brewery: string | null; style: string | null; abv: number | null; srm: number | null; ts: string }
+    | { kind: 'milestone'; scope: 'taproom' | 'pourer'; count: number; pourerName: string | null; beerName: string | null; ts: string };
   /** Phase 5 Task 3: emitted by the automation engine's `party_mode` action. Task 4's WS
    * layer relays this to wall clients as `{type:'theme_override', ...}` with a
    * client-side countdown revert. */
