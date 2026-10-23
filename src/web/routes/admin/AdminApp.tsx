@@ -3,7 +3,7 @@ import { LoginPage } from './LoginPage';
 import { SetupPage } from './SetupPage';
 import { WelcomePage } from './WelcomePage';
 import { AdminLayout } from './AdminLayout';
-import { DashboardPage } from './DashboardPage';
+import { TonightPage } from './TonightPage';
 import { BeersPage } from './BeersPage';
 import { TapsPage } from './TapsPage';
 import { SuppliersPage } from './SuppliersPage';
@@ -55,7 +55,7 @@ export default function AdminApp() {
           cookie) — adminApi's 401 redirect bounces logged-out visitors to login. */}
       <Route path="welcome" element={<WelcomePage />} />
       <Route element={<AdminLayout />}>
-        <Route index element={<DashboardPage />} />
+        <Route index element={<TonightPage />} />
         <Route path="beers" element={<BeersPage />} />
         <Route path="taps" element={<TapsPage />} />
         <Route path="kegs" element={<KegsPage />} />

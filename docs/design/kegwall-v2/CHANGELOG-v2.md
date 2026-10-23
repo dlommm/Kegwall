@@ -5,6 +5,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Changed
 
+- **Changed:** the admin opens on **Tonight** instead of the dashboard: a sentence about the
+  night, what needs doing, the last pour, every tap as a glass with servings left, pours by hour,
+  screens, hardware, the next kegs to kick and the latest activity.
 - **Changed:** the admin has a top bar instead of a sidebar: six destinations (Tonight, Taps &
   kegs, Beers, People, Screens, Insights), Search, the notification bell, Settings and an account
   menu. A destination's pages show as tabs under the bar; every existing admin address still
@@ -75,6 +78,9 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Fixed
 
+- **Fixed:** **Needs attention** listed one row per tap for the same problem (eleven "Tap N is
+  due for a line cleaning" rows buried a source that was down). Each kind is now one row with one
+  action, ranked problem, then caution, then information.
 - **Fixed:** the end of a pour showed the last live reading instead of the recorded volume,
   which could be several ounces short when the last Kegtron packet lagged the final pour.
 - **Fixed:** the Dock and Fill takeovers had no finish; Split's light panel broke dark themes.

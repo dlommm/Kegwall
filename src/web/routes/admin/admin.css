@@ -369,19 +369,6 @@
   color: var(--text);
 }
 
-/*
- * Dashboard home (Phase 4 Task 3). Same quiet-working-tool surface as the rest of the
- * admin shell — a card grid, sentence-case headings, and the ONE place liquid/SRM
- * language reappears outside the wall/menu: the tap pill's small fill swatch, never the
- * wall's full LiquidFill treatment.
- */
-.dashboard__title {
-  margin-bottom: 1rem;
-  font-size: 1.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
 .dashboard-card {
   display: flex;
   flex-direction: column;
@@ -397,27 +384,6 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-dim);
-}
-
-.dashboard-card__quiet {
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.dashboard-tap-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.dashboard-tap-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.dashboard-tap-pill[data-kicked='true'] .dashboard-tap-pill__bar {
-  opacity: 0.6;
 }
 
 .dashboard-source-list {
@@ -469,30 +435,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.dashboard-activity-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
-  font-size: 0.85rem;
-}
-
-.dashboard-activity-row:last-child {
-  border-bottom: none;
-}
-
-.dashboard-activity-row__text {
-  color: var(--text);
-}
-
-.dashboard-activity-row__time {
-  flex: none;
-  color: var(--text-dim);
-  font-size: 0.75rem;
 }
 
 /*
@@ -3957,7 +3899,6 @@ h2.admin-field__label-text {
   outline-offset: 2px;
 }
 
-
 /* Dashboard banners — setup hint (info), reboot pending (warn), undervoltage
  * (danger). Stacked above the stat grid; the action is a link or inline-confirm
  * button on the right. */
@@ -3995,148 +3936,6 @@ h2.admin-field__label-text {
   cursor: default;
 }
 
-.dashboard-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: 0.5rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  border: 1px solid transparent;
-}
-
-.dashboard-banner--info {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.dashboard-banner--warn {
-  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
-  background: color-mix(in srgb, var(--warn) 14%, transparent);
-}
-
-.dashboard-banner--danger {
-  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-}
-
-.dashboard-banner__action {
-  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
-  background: none;
-  color: inherit;
-  border-radius: 0.4rem;
-  padding: 0.25rem 0.7rem;
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.dashboard-banner__action:hover,
-.dashboard-banner__action:focus-visible {
-  background: color-mix(in srgb, currentColor 12%, transparent);
-}
-
-/* NEEDS ATTENTION triage card (redesign 3b) — the ranked, actionable roll-up above the
-   stat cards. Danger/warn dots use the shared status tokens so it reads on every admin look. */
-.dashboard-triage {
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
-  border-radius: var(--card-radius);
-  padding: 14px 18px;
-  margin-bottom: 16px;
-}
-
-.dashboard-triage__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.dashboard-triage__title {
-  margin: 0;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-}
-
-.dashboard-triage__count {
-  min-width: 1.5rem;
-  padding: 0 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--danger) 20%, transparent);
-  color: var(--danger);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-align: center;
-}
-
-.dashboard-triage__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.dashboard-triage__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 4px 0;
-}
-
-.dashboard-triage__row + .dashboard-triage__row {
-  border-top: 1px solid var(--border);
-}
-
-.dashboard-triage__dot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-
-.dashboard-triage__dot--danger { background: var(--danger); }
-
-.dashboard-triage__dot--warn { background: var(--warn); }
-
-.dashboard-triage__msg {
-  flex: 1 1 auto;
-  color: var(--text);
-  font-size: 0.9rem;
-}
-
-.dashboard-triage__action {
-  flex: none;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: 0.4rem;
-  padding: 0.35rem 0.8rem;
-  color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.dashboard-triage__action:hover,
-.dashboard-triage__action:focus-visible {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.dashboard__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: 14px;
-  align-items: start;
-}
-
 .dashboard-stat {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -4160,110 +3959,9 @@ h2.admin-field__label-text {
   font-weight: 600;
 }
 
-.dashboard-stat__sub {
-  font-size: 16px;
-  color: var(--text-dim);
-  font-weight: 400;
-}
-
 .dashboard-stat__note {
   font-size: 12px;
   color: var(--text-dim);
-}
-
-.dashboard-stat__note--warn {
-  color: var(--warn);
-}
-
-/* Stat-card trends (redesign 3b). */
-.dashboard-spark {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 26px;
-  margin-top: 4px;
-}
-
-.dashboard-spark__bar {
-  flex: 1 1 0;
-  min-height: 2px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--text-dim) 45%, transparent);
-}
-
-.dashboard-spark__bar--today {
-  background: var(--accent);
-}
-
-.dashboard-stat__delta {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.dashboard-stat__delta--up { color: var(--ok); }
-
-.dashboard-stat__delta--down { color: var(--warn); }
-
-.dashboard-stat__pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.dashboard-stat__pill {
-  width: 16px;
-  height: 6px;
-  border-radius: 3px;
-}
-
-/* Per-sensor stat cards (redesign 3b). */
-.dashboard-sensor-stat__tag {
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
-
-.dashboard-sensor-stat__tag--kegtron { color: var(--ok); }
-
-.dashboard-sensor-stat__tag--govee { color: var(--accent); }
-
-.dashboard-sensors-stat__list { display: flex; flex-direction: column; }
-
-.dashboard-sensor-stat {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-  gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--border);
-}
-
-.dashboard-sensor-stat:first-child { border-top: 0; padding-top: 0; }
-
-.dashboard-sensor-stat__identity { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-
-.dashboard-sensor-stat__name { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
-
-.dashboard-sensor-stat--warm { border-left: 2px solid var(--warn); padding-left: 8px; }
-
-.dashboard-sensor-stat__value { grid-column: 2; grid-row: 1 / span 2; font-size: 22px; font-weight: 600; }
-
-.dashboard-sensor-stat__note { grid-column: 1; font-size: 11px; color: var(--text-faint, var(--text-dim)); }
-
-.dashboard-sensor-stat__value--warm {
-  color: var(--warn);
-}
-
-.dashboard__body {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 14px;
-  align-items: start;
-}
-
-@media (max-width: 1100px) {
-
-  .dashboard__body {
-      grid-template-columns: 1fr;
-    }
-
 }
 
 .dashboard-card {
@@ -4286,181 +3984,6 @@ h2.admin-field__label-text {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.1em;
-}
-
-.dashboard-card__hint {
-  font-size: 12px;
-  color: var(--text-faint, var(--text-dim));
-}
-
-.dashboard-card__quiet {
-  color: var(--text-dim);
-  font-size: 0.9rem;
-}
-
-.dashboard__side {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* SERVER HEALTH card meter rows (redesign 3b). */
-.dashboard-server-health .dashboard-meter-row {
-  margin-top: 8px;
-}
-
-.dashboard-meter-row {
-  display: grid;
-  grid-template-columns: 42px 1fr 44px;
-  align-items: center;
-  gap: 10px;
-}
-
-.dashboard-meter-row__label {
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-}
-
-.dashboard-meter-row__track {
-  height: 8px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  overflow: hidden;
-}
-
-.dashboard-meter-row__fill {
-  display: block;
-  height: 100%;
-  border-radius: 4px;
-}
-
-.dashboard-meter-row__val {
-  font-size: 13px;
-  text-align: right;
-  color: var(--text);
-}
-
-.dashboard-server-health .dashboard-card__quiet {
-  margin-top: 10px;
-  font-size: 12px;
-}
-
-.dashboard-tap-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-tap-row {
-  display: grid;
-  grid-template-columns: 14px minmax(100px, 1fr) minmax(64px, 120px) 52px;
-  align-items: center;
-  gap: 14px;
-  padding: 8px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
-}
-
-.dashboard-tap-row__swatch {
-  width: 14px;
-  height: 14px;
-  flex: none;
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
-}
-
-.dashboard-tap-row__name {
-  min-width: 0;
-  flex: none;
-  font-weight: 600;
-  font-size: 14.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dashboard-tap-row__style {
-  display: none;
-  width: 110px;
-  flex: none;
-  font-size: 12.5px;
-  color: var(--text-faint, var(--text-dim));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dashboard-tap-row__bar {
-  flex: 1;
-  height: 9px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  overflow: hidden;
-}
-
-.dashboard-tap-row__fill {
-  display: block;
-  height: 100%;
-  border-radius: 5px;
-}
-
-.dashboard-tap-row__pct {
-  width: 52px;
-  flex: none;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.dashboard-tap-row__pints {
-  grid-column: 3;
-  width: auto;
-  flex: none;
-  text-align: right;
-  font-size: 12px;
-  color: var(--text-faint, var(--text-dim));
-}
-
-/* Inline kick forecast + Swap chip on dashboard tap rows (redesign 3b). */
-.dashboard-tap-row__forecast {
-  grid-column: 2;
-  grid-row: 2;
-  width: auto;
-  flex: none;
-  text-align: right;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.dashboard-tap-row__forecast--danger {
-  color: var(--danger);
-  font-weight: 600;
-}
-
-.dashboard-tap-row__swap {
-  flex: none;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 12px;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.dashboard-tap-row__swap:hover,
-.dashboard-tap-row__swap:focus-visible {
-  filter: brightness(1.08);
-}
-
-.dashboard-sensor-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
 }
 
 .dashboard-source-list {
@@ -4495,21 +4018,6 @@ h2.admin-field__label-text {
   display: flex;
   flex-direction: column;
   gap: 11px;
-}
-
-.dashboard-activity-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.dashboard-activity-row__text {
-  font-size: 13px;
-}
-
-.dashboard-activity-row__time {
-  font-size: 11px;
-  color: var(--text-faint, var(--text-dim));
 }
 
 /* --- Taps & kegs (5b): rows become keg cards ------------------------------ */
@@ -5380,21 +4888,15 @@ h2.admin-field__label-text {
 
 .taps-cleaning__log:disabled { opacity: .55; cursor: wait; }
 
-.dashboard-tap-row__forecast { text-align: left; }
-
-.dashboard-tap-row__swap { grid-column: 4; grid-row: 2; }
-
-.dashboard-tap-row:last-child { border-bottom: 0; }
-
 .dashboard-stat { min-width: 0; }
 
 .dashboard-stat__label { overflow-wrap: anywhere; }
 
 @media (max-width: 600px) {
 
-  .dashboard-tap-row { grid-template-columns: 12px minmax(0, 1fr) 64px 42px; gap: 8px; }
+  
 
-  .dashboard-tap-row__pct { width: auto; }
+  
 
   .taps-row__main { flex-wrap: wrap; }
 
@@ -5479,32 +4981,17 @@ h2.admin-field__label-text {
 
   .pours-bulk { gap: 10px; }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   .admin-content { padding: 16px; }
 
-  .dashboard__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  
 
   .dashboard-stat { padding: 14px; }
 
   .dashboard-stat__value { font-size: 28px; }
 
-  .dashboard-triage__row { flex-wrap: wrap; }
+  
 
-  .dashboard-triage__msg { min-width: 0; flex-basis: 70%; }
+  
 
   .dashboard-card { min-width: 0; padding: 16px; }
 

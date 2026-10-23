@@ -1,17 +1,48 @@
-# Admin dashboard and navigation
+# Tonight and admin navigation
 
-The dashboard brings today's pour totals, active taps, temperature readings, and source status
-together above the tap list. Temperature probes share one summary card, including humidity and
-warming notices where available. The activity card shows the five latest events; open **Logs**
-for the full history or **Pours** to assign an unclaimed pour. Taps whose line-cleaning reminders
-are ignored are listed in a short note below **Needs attention** (see
+The admin opens on **Tonight**: a sentence about the night ("Eleven on tap. Two kegs need a swap
+soon.") and a line with tonight's pours and volume. Tonight is the service day, from 4 am to 4 am,
+so a pour at 1 am still counts as tonight.
+
+**Needs attention** lists what needs doing, one row per kind of problem, each with one action.
+Problems come first (red diamond), then cautions (amber), then information (blue):
+
+| Row | When it shows | Action |
+|---|---|---|
+| Power | The Pi is, or was since it started, short of power | None; the row says to use the official power supply |
+| Sources stopped answering | A configured source (Kegtron cloud, UDP, Govee, …) is down; several fold into one row | Open the doctor |
+| Swap kegs soon | Kegs at or below 15 %, with about how many pints are left | Plan the swaps |
+| OS update waiting | An OS update needs a reboot | Reboot now (asks you to confirm), when Kegwall manages the OS |
+| Pours with no name | Tonight's pours nobody claimed, only when you have pourers | Assign them |
+| Line cleaning | Taps due for a cleaning, all in one row | Log cleanings |
+| No tap wall yet | A fresh install with no wall | Finish setting up |
+
+Taps whose line-cleaning reminders are off are listed in a short note under the list (see
 [Cleaning reminders and unclaimed pours](cleaning-and-pours.md)).
+
+Beside the list, the **last pour** shows its volume on the beer's color, the beer, the tap and
+how long ago, with **Assign it** when nobody has claimed it.
+
+**On tap now** shows every tap as a glass filled to its level in the beer's color, with the
+servings left (amber when the keg is low); select one to open it under Taps & kegs. **Tonight so
+far** charts pours per hour from 4 pm (or the first pour) with the current hour highlighted.
+
+The side column shows:
+
+- **Screens**: paired displays (on, last seen, or not paired), or your walls when no display is
+  paired, at most four with a link to the rest;
+- **Hardware**: each configured source's state, the kegerator (the warmest Kegtron probe), each
+  Govee sensor, and this server's CPU, memory, disk and temperature;
+- **Next to kick**: the three kegs projected to run out first;
+- **Lately**: the five latest events, with a link to Logs.
+
+Tonight never shows keg cost.
 
 ## Getting around
 
 The admin has one top bar and no sidebar. From the left:
 
-- your taproom's name, which takes you back to the dashboard;
+- your taproom's name, which takes you back to Tonight;
 - six destinations: **Tonight**, **Taps & kegs**, **Beers**, **People**, **Screens** and
   **Insights**;
 - **Search** (or **Ctrl K** / **⌘K** from anywhere) to jump to any page by typing part of its
@@ -25,7 +56,7 @@ When a destination has more than one page, its pages show as tabs under the top 
 
 | Destination | Tabs |
 |---|---|
-| Tonight | the dashboard (notifications are behind the bell) |
+| Tonight | the Tonight page (notifications are behind the bell) |
 | Taps & kegs | Taps, Kegs, Suppliers, Monitors |
 | Beers | the beer library |
 | People | pourers and accounts (the page's own tabs) |

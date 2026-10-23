@@ -25,7 +25,7 @@ test('empty taps stay quiet and cleaning reminders can be ignored and resumed', 
     const base = await app.listen({ port: 0, host: '127.0.0.1' });
     expect((await page.request.post(`${base}/api/auth/login`, { data: { username: 'review', password: 'local-test-only' } })).status()).toBe(200);
     await page.goto(`${base}/admin`);
-    await expect(page.getByTestId('dashboard-triage-row').filter({ hasText: 'due for a line cleaning' })).toHaveCount(2);
+    await expect(page.locator('[data-testid="tonight-attention-row"][data-kind="cleaning"]')).toHaveText(/Two taps are due for a line cleaning.*Taps 1 and 2/);
     await page.screenshot({ path: testInfo.outputPath('dashboard-after.png'), fullPage: true });
     await page.goto(`${base}/admin/taps`);
     await page.getByTestId('taps-row-expand').first().click();
@@ -41,7 +41,7 @@ test('empty taps stay quiet and cleaning reminders can be ignored and resumed', 
     await page.screenshot({ path: testInfo.outputPath('taps-mobile-after.png'), fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.goto(`${base}/admin`);
-    await expect(page.getByTestId('dashboard-triage-row').filter({ hasText: 'due for a line cleaning' })).toHaveCount(2);
+    await expect(page.locator('[data-testid="tonight-attention-row"][data-kind="cleaning"]')).toHaveText(/Two taps are due for a line cleaning.*Taps 1 and 2/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('dashboard-mobile-after.png'), fullPage: true });
     await page.goto(`${base}/admin/pours`);
