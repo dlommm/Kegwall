@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.0.0](https://github.com/[secure]m/Kegwall/compare/v1.17.0...v2.0.0) (2026-10-23)
+
+### ⚠ BREAKING CHANGES
+
+* every wall look is redrawn, so existing walls change appearance on
+upgrade (stored configs are not rewritten; reinstalling 1.17 keeps every wall). The
+pre-2.0 wall class names (.tap-card, .ledger-look and the other per-look classes,
+.wall-header, .ticker, .qr-overlay) are gone, so custom CSS that targets them needs
+the new [data-look], [data-tap-state] and [data-surface] hooks (docs/customization.md).
+Themes no longer change the typeface. The admin Appearance setting is removed; the
+admin follows the device's light or dark preference.
+* walls on the classic, ledger, columns and gallery looks change appearance, and custom CSS targeting their old class names no longer matches; use the documented data-* hooks.
+
+### Features
+
+* add Tap Pull, Keg Drain and Game On takeovers, a Cheers finish and wall moments ([529ee65](https://github.com/[secure]m/Kegwall/commit/529ee656890e60fb0af3dd0d592c3ee4a0ef62c5))
+* add tonight's pours, kick forecasts and servings to the live wall feed ([9e2c8bc](https://github.com/[secure]m/Kegwall/commit/9e2c8bc7d560f24f8516d53273eda41fc8602493))
+* Kegwall 2.0 — one design language across the wall, admin, phone menu and kiosk ([4aac2e1](https://github.com/[secure]m/Kegwall/commit/4aac2e1b4ef5497bcf71052f8172b077fec51a43))
+* open the admin on Tonight, with needs-attention grouped one row per kind ([e262ff1](https://github.com/[secure]m/Kegwall/commit/e262ff1b2577655d969c5792ffc4efef2737bcb6))
+* rebuild Insights with KPIs as numbers that show "—" for missing data, and split Analytics ([77d35d7](https://github.com/[secure]m/Kegwall/commit/77d35d7dbdeefa50b6cbf90a35b6cf0d3da6ae0e))
+* rebuild People with pourer cards, roles in plain words and a drawer for adding someone ([564ad09](https://github.com/[secure]m/Kegwall/commit/564ad09d285e507e7f1881ccd1cbd79b86ad03bd))
+* rebuild pour takeovers with a lane per pour and the recorded volume at the finish ([5d7c563](https://github.com/[secure]m/Kegwall/commit/5d7c5639cc4b41dc494913d9166822303e68da27))
+* rebuild Screens and the Wall Editor as a studio with a live preview of the wall's own taps ([a117b37](https://github.com/[secure]m/Kegwall/commit/a117b3718e6afaaaa0a514124cc36b7e0ebb05ea))
+* rebuild Settings, Automations, Diagnostics and Notifications on the V2 template ([bf97035](https://github.com/[secure]m/Kegwall/commit/bf970356082d3328f864ce7d6e0e87c2eebb63fe))
+* rebuild Taps & kegs on the V2 page template, with the keg swap in a drawer ([fc777c2](https://github.com/[secure]m/Kegwall/commit/fc777c24e9a561a4bc02993edb89eda7c45fed3b))
+* redraw the Classic, Ledger, Columns and Gallery looks and add Just Tapped ([274a4f1](https://github.com/[secure]m/Kegwall/commit/274a4f1d99d5892d3a57b9b10045a29ca5ff7985))
+* redraw the phone menu, kiosk and sign-in, with a beer sheet and bigger touch targets ([840876a](https://github.com/[secure]m/Kegwall/commit/840876a6086c63fb2afaf951d9a3d58486e580eb))
+* redraw the remaining wall looks and add Tap Handles and Tally ([6aafc32](https://github.com/[secure]m/Kegwall/commit/6aafc32d469e74979ff0127b86671086e2d2c6fb))
+* replace the admin sidebar with a top bar, Ctrl K search and one admin look ([dae6104](https://github.com/[secure]m/Kegwall/commit/dae61041e24d1cce17a48c9800cfdff05df02f67))
+* show the beer library as cards with a live marker preview in the beer editor ([0f93dd5](https://github.com/[secure]m/Kegwall/commit/0f93dd5e0540cdd073f98998a91b223a7f5e7693))
+
+### Bug Fixes
+
+* harden the M8 admin pages after review ([4b7b25f](https://github.com/[secure]m/Kegwall/commit/4b7b25fa9f305510205d66a461552e15bd879f41))
+* harden Tonight and the admin shell after review ([b7bf61c](https://github.com/[secure]m/Kegwall/commit/b7bf61c1869efd271a8073c7a6c4976a3a033274))
+
+### Performance
+
+* load each screen's styles and code only on that screen ([5426644](https://github.com/[secure]m/Kegwall/commit/54266448aa0974f721a5be34c4479f4644cf500a))
+
+### Documentation
+
+* add current screenshots to the README and docs, and update pages that described the old admin ([26ae696](https://github.com/[secure]m/Kegwall/commit/26ae696755127decc24fff9cc6cba0d264bb55de))
+* add the Kegwall V2 redesign blueprint, architecture decision and implementation plan ([28b9f16](https://github.com/[secure]m/Kegwall/commit/28b9f1613e032cc1b29ba1c9c405254011a2c8d8))
+* record M8 progress in the V2 plan ([b3d52dc](https://github.com/[secure]m/Kegwall/commit/b3d52dc6e4b7704d1e23b360da0fd2c655bf2ed3))
+* refresh the admin screenshots for the finished M8 pages ([d6d6686](https://github.com/[secure]m/Kegwall/commit/d6d6686618e6da2675b52e1caea916e6366a4c0c))
+
+### Build & CI
+
+* author release commits as the maintainer and fix empty release notes ([223ed35](https://github.com/[secure]m/Kegwall/commit/223ed35c5009c1741b79ca8095d721f8976bbccb))
+
 ## [1.17.0](https://github.com/dlommm/Kegwall/compare/v1.16.1...v1.17.0) (2026-10-22)
 
 This release moves Kegwall to GitHub and turns the admin **Pours** page into a full pour history.
