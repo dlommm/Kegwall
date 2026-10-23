@@ -71,6 +71,9 @@ export interface SystemRoutesOptions {
   /** Test-only override for the vcgencmd throttle reader, so the undervoltage
    * warn-once path is exercisable on machines without vcgencmd. */
   readThrottle?: () => Promise<ThrottleFlags | null>;
+  /** Test-only override for the file Debian drops when an update needs a reboot, so the
+   * stats shape test doesn't depend on the state of the machine running it. */
+  rebootRequiredPath?: string;
 }
 
 export async function systemRoutes(
@@ -217,7 +220,7 @@ export async function systemRoutes(
       ...stats,
       throttle,
       // Debian drops this file when an installed update needs a reboot.
-      rebootRequired: existsSync('/var/run/reboot-required'),
+      rebootRequired: existsSync(opts.rebootRequiredPath ?? '/var/run/reboot-required'),
       // Whether the OS-level buttons (reboot, OS update) can work at all — they ride
       // the native install's trigger-file units.
       osManaged: app.ctx.settings.get('updates')?.mode === 'native',

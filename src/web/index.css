@@ -171,12 +171,6 @@
   pointer-events: none;
 }
 
-/*
- * WallGrid — sized to `config.columns` via the `--wall-columns` custom property (set
- * inline by WallGrid.tsx). Fewer columns means more room per cell, which is the entire
- * "card scale" story per the design direction: no separate zoom/scale knob needed.
- */
-
 /* TapCard templates. */
 .tap-card {
   position: relative;
@@ -361,10 +355,6 @@
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
-
-/* .wall-page__loading / .wall-page__error: no CSS here — WallPage.tsx uses plain
-   Tailwind utilities for these two pre-theme-load states (see its own comment for why:
-   there's no wall config yet to mount ThemeProvider's CSS-variable tokens with). */
 /* ScreenCare: full height so the grid beneath it keeps filling the viewport as it
    nudges by a css pixel (see the reduced-motion-gated transition just below). */
 .screen-care {
@@ -481,22 +471,10 @@
 
 /* On-deck queue + kicked history — nested inside a taps-row's expanded details. */
 
-.wall-editor__heading {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
 .stats-switcher__option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-
-/* --- Shared: badges ------------------------------------------------------ */
-
-/* Pour pulse (design: opacity 1 → 0.45, 1.2s ease-in-out infinite). The
-   component only adds the --pulse class outside prefers-reduced-motion; the
-   media gate below is belt-and-braces. */
 
 /* --- Shared: footer ticker marquee --------------------------------------- */
 
@@ -504,38 +482,6 @@
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
-
-/* --- Shared: QR block ---------------------------------------------------- */
-
-/* --- Shared: sensor chips ------------------------------------------------- */
-
-/* --- Ledger (1a) ---------------------------------------------------------- */
-
-/* Redesign 1b: label art on every look. Shared base — the per-look class sets the footprint.
-   DESIGN NOTE: README specifies `1px dashed rgba(255,255,255,0.1)` for the empty slot; using the
-   theme's --border/--text-faint tokens instead so the dashed placeholder + "no art" caption stay
-   visible across all 10 themes (hard requirement #5), not just the dark default. */
-
-/* Ledger: a 150px column inserted after the tap-number circle. Toggling the field swaps this
-   template in/out; no other column moves. */
-
-/* Gallery: an 110px square at the start of the card body. */
-
-/* Other looks: each label thumb sized to that look's rhythm (see per-look DESIGN NOTES in
-   styleLooks.tsx for the text/minimal looks where art is a deliberate compromise). */
-
-/* --- Gallery (1b) --------------------------------------------------------- */
-
-/* --- Tap Columns (1c) ----------------------------------------------------- */
-
-/*
- * ============================================================================
- * Pour takeover (design turns 2 + 9): five per-wall styles — full (2a),
- * spotlight (2b, no overlay: row treatment below), split (9a), dock (9b),
- * fill (9c). All theme-token driven so every style works on every look/theme.
- * Motion (transitions/pulses) gated behind prefers-reduced-motion.
- * ============================================================================
- */
 /* --- Spotlight (2b): row/card treatment, applied by the looks + WallGrid --- */
 .tap-card--spotlight-dimmed {
   opacity: 0.42;
@@ -855,29 +801,6 @@
 
 /*
  * ============================================================================
- * Phase 6: the turn-8 look library (8a Chalkboard · 8b Editorial · 8c Neon ·
- * 8d Terminal · 8e Poster · 8f Departures · 8g Zen). Colors via theme tokens;
- * each look's typography is its own voice. All spotlight/dim modifiers reuse
- * the generic --dimmed/--spotlit pattern.
- * ============================================================================
- */
-
-/* --- 8a Chalkboard --------------------------------------------------------- */
-
-/* --- 8b Editorial ---------------------------------------------------------- */
-
-/* --- 8c Neon arcade -------------------------------------------------------- */
-
-/* --- 8d Terminal ----------------------------------------------------------- */
-
-/* --- 8e Poster ------------------------------------------------------------- */
-
-/* --- 8f Departures --------------------------------------------------------- */
-
-/* --- 8g Zen ---------------------------------------------------------------- */
-
-/*
- * ============================================================================
  * Phase 6 feature pack: rate-after-claim, passport, session mode, cleaning,
  * analytics KPIs + heatmap, connection doctor, ambient sensor chips.
  * ============================================================================
@@ -937,8 +860,6 @@
 }
 
 @media (min-width: 901px) and (max-width: 1600px) {
-
-  /* Give the beer name priority over fixed-width illustrations on smaller TVs. */
 
 }
 

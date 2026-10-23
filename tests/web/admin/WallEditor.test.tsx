@@ -7,6 +7,7 @@ import { WallEditor } from '../../../src/web/routes/admin/WallEditor';
 import {
   listTaps, listMonitors, updateWall, getWallDevices, setWallDevices,
 } from '../../../src/web/lib/adminApi';
+import { getMenu } from '../../../src/web/lib/api';
 import type { Wall } from '../../../src/web/lib/adminApi';
 import { wallConfigSchema } from '../../../src/server/core/wallConfig';
 
@@ -16,6 +17,11 @@ vi.mock('../../../src/web/lib/adminApi', () => ({
   updateWall: vi.fn(),
   getWallDevices: vi.fn(),
   setWallDevices: vi.fn(),
+  listDisplays: vi.fn(() => Promise.resolve({ ok: true, data: [] })),
+}));
+// The studio previews the wall's real taps from the public menu snapshot.
+vi.mock('../../../src/web/lib/api', () => ({
+  getMenu: vi.fn(() => Promise.resolve({ ok: false, status: 0, message: 'offline' })),
 }));
 
 async function flush() {
@@ -128,20 +134,45 @@ describe('WallEditor', () => {
       expect(screen.getByTestId('wall-editor-status')).toHaveTextContent(/unsaved/i);
     });
 
-    it('the first-time banner can be dismissed', async () => {
+    it('the rail switches the inspector between sections, one at a time', async () => {
       render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
       await flush();
-      expect(screen.getByTestId('wall-editor-banner')).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId('wall-editor-banner-dismiss'));
-      expect(screen.queryByTestId('wall-editor-banner')).toBeNull();
+      expect(screen.getByTestId('wall-editor-section-look')).toBeVisible();
+      expect(screen.getByTestId('wall-editor-display-fit')).not.toBeVisible();
+      fireEvent.click(screen.getByTestId('wall-editor-rail-fit'));
+      expect(screen.getByTestId('wall-editor-display-fit')).toBeVisible();
+      expect(screen.getByTestId('wall-editor-section-look')).not.toBeVisible();
     });
 
-    it('settings search hides non-matching sections', async () => {
+    it('marks each changed section on the rail, and Undo / Discard put the saved values back', async () => {
       render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
       await flush();
-      expect(screen.getByTestId('wall-editor-display-fit')).toBeVisible();
-      fireEvent.change(screen.getByTestId('wall-editor-search'), { target: { value: 'theme' } });
-      expect(screen.getByTestId('wall-editor-display-fit')).not.toBeVisible();
+      expect(screen.queryByTestId('wall-editor-dirty-content')).toBeNull();
+
+      fireEvent.change(screen.getByTestId('wall-editor-name'), { target: { value: 'Renamed' } });
+      fireEvent.change(screen.getByTestId('wall-editor-rotation'), { target: { value: '30' } });
+      expect(screen.getByTestId('wall-editor-dirty-content')).toBeInTheDocument();
+      expect(screen.getByTestId('wall-editor-dirty-rotation')).toBeInTheDocument();
+      expect(screen.getByTestId('wall-editor-status')).toHaveTextContent(/two sections changed/i);
+
+      fireEvent.click(screen.getByTestId('wall-editor-revert-rotation'));
+      expect(screen.queryByTestId('wall-editor-dirty-rotation')).toBeNull();
+      expect(screen.getByTestId('wall-editor-rotation')).toHaveValue(15);
+
+      fireEvent.click(screen.getByTestId('wall-editor-revert'));
+      expect(screen.getByTestId('wall-editor-name')).toHaveValue('Main bar');
+      expect(screen.getByTestId('wall-editor-save')).toBeDisabled();
+    });
+
+    it('Back with unsaved changes asks before throwing them away', async () => {
+      const onBack = vi.fn();
+      render(<WallEditor wall={makeWall()} onBack={onBack} onSaved={vi.fn()} />);
+      await flush();
+      fireEvent.change(screen.getByTestId('wall-editor-name'), { target: { value: 'Renamed' } });
+      fireEvent.click(screen.getByTestId('wall-editor-back'));
+      expect(onBack).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('wall-editor-leave-confirm-button'));
+      expect(onBack).toHaveBeenCalled();
     });
 
     it('Simulate a pour runs the selected takeover overlay in the live preview', async () => {
@@ -288,40 +319,41 @@ describe('WallEditor', () => {
     render(<WallEditor wall={makeWall({ slug: 'main-bar' })} onBack={vi.fn()} onSaved={vi.fn()} />);
     await flush();
     expect(screen.getByTestId('wall-live-preview')).toBeInTheDocument();
-    expect(screen.getByTestId('wall-editor-live-note')).toHaveTextContent(/live/i);
-    // Changing the look updates the preview instantly — without saving.
-    fireEvent.change(screen.getByTestId('wall-editor-look'), { target: { value: 'ledger' } });
+    // Picking a look in the gallery updates the preview instantly — without saving.
+    fireEvent.click(screen.getByTestId('wall-editor-look-ledger'));
     expect(screen.getByTestId('look-ledger')).toBeInTheDocument();
+    expect(screen.getByTestId('wall-editor-look-ledger')).toHaveAttribute('aria-checked', 'true');
     expect(updateWall).not.toHaveBeenCalled();
   });
 
-  it('preview-size control resizes the preview, persists per-user, and never counts as a dirty edit', async () => {
-    localStorage.removeItem('kegwall:wallEditor:previewSize');
+  it('previews the wall’s own taps from the live snapshot, limited to its checked monitors', async () => {
+    const tap = (tapId: number, name: string) => ({
+      tapId, tapNumber: tapId, tapName: null, hidden: false, pouring: false, curServMl: null,
+      beer: { id: tapId, name, brewery: 'B', style: 'IPA', abv: 6, ibu: 40, srm: 6, description: null, labelImage: null, createdAt: '' },
+      keg: null, lastPour: null, monitorOnline: true, temp: null, avgRating: null, nextUpBeerName: null,
+      tonight: { pours: 0, volumeMl: 0 }, lastHourPours: 0, kickDate: null,
+    });
+    (getMenu as Mock).mockResolvedValue({
+      ok: true, data: { siteName: 'X', units: 'us', servingSizeMl: 473, taps: [tap(1, 'Real Lager'), tap(2, 'Real Stout'), tap(3, 'Elsewhere Ale')] },
+    });
+    render(<WallEditor wall={makeWall({ config: wallConfigSchema.parse({ look: 'ledger' }) })} onBack={vi.fn()} onSaved={vi.fn()} />);
+    await flush();
+    const preview = screen.getByTestId('wall-live-preview');
+    expect(preview).toHaveAttribute('data-samples', 'false');
+    expect(preview).toHaveTextContent('Real Lager');
+    // Tap 3 is on no monitor this wall draws from.
+    expect(preview).not.toHaveTextContent('Elsewhere Ale');
+  });
+
+  it('Live pour and Screensaver modes change only the preview, never the wall', async () => {
     render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
     await flush();
-
-    // Defaults to 'Large' (bigger than the old fixed column) — the grid carries the modifier class.
-    const grid = screen.getByTestId('wall-editor-form').parentElement!;
-    expect(grid).toHaveClass('wall-editor--preview-l');
-    expect(screen.getByTestId('wall-editor-preview-size-l')).toHaveAttribute('aria-pressed', 'true');
-
-    // Switching to 'Stacked' updates the layout and persists the choice to localStorage…
-    fireEvent.click(screen.getByTestId('wall-editor-preview-size-stacked'));
-    expect(grid).toHaveClass('wall-editor--preview-stacked');
-    expect(grid).not.toHaveClass('wall-editor--preview-l');
-    expect(localStorage.getItem('kegwall:wallEditor:previewSize')).toBe('stacked');
-
-    // …and it's a view preference, not wall config: Save stays disabled (no dirty edit).
+    fireEvent.click(screen.getByRole('button', { name: 'Screensaver' }));
+    expect(screen.getByTestId('wall-live-preview')).toHaveAttribute('data-mode', 'screensaver');
+    expect(screen.getByTestId('screensaver-overlay')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+    expect(screen.getByTestId('wall-live-preview')).toHaveClass('wall-live-preview--actual');
     expect(screen.getByTestId('wall-editor-save')).toBeDisabled();
-    expect(updateWall).not.toHaveBeenCalled();
-  });
-
-  it('restores the persisted preview size on next open', async () => {
-    localStorage.setItem('kegwall:wallEditor:previewSize', 'xl');
-    render(<WallEditor wall={makeWall()} onBack={vi.fn()} onSaved={vi.fn()} />);
-    await flush();
-    const grid = screen.getByTestId('wall-editor-form').parentElement!;
-    expect(grid).toHaveClass('wall-editor--preview-xl');
   });
 
   it('Back calls onBack', async () => {

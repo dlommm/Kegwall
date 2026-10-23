@@ -1,21 +1,28 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  listWalls, createWall, deleteWall, type Wall,
+  listWalls, listDisplays, createWall, deleteWall, type Display, type Wall,
 } from '../../lib/adminApi';
+import { safeParseWallConfig } from '../../lib/wallEditorConfig';
+import { lookLabel, lookThumbUrl, takeoverLabel } from '../../lib/wallCatalog';
+import { capitalize, countWord } from '../../lib/tonightAttention';
+import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { WallEditor } from './WallEditor';
 import { WallPreview } from './WallPreview';
 import { useAdminContext } from './useAdminContext';
+import { PageTemplate } from './PageTemplate';
+import {
+  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Skeleton,
+} from './ui';
 import { NEW_WALL_LOOK } from '../../../server/core/wallConfig.js';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 interface CreateState { name: string; slug: string; slugTouched: boolean; error: string | null; submitting: boolean }
-interface DeleteState { wall: Wall; error: string | null }
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 const COPY_FEEDBACK_MS = 1500;
 
-/** `Front Patio Bar` -> `front-patio-bar` — the create form's slug auto-suggestion, only
- * applied while the admin hasn't hand-edited the slug field themselves. */
+/** `Front Patio Bar` -> `front-patio-bar`: the create form's address suggestion, applied only
+ * until the address is edited by hand. */
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -28,23 +35,46 @@ function wallUrl(slug: string): string {
   return `${window.location.origin}/wall/${slug}`;
 }
 
+function plural(n: number, one: string, many: string): string {
+  return `${n === 1 ? 'one' : countWord(n)} ${n === 1 ? one : many}`;
+}
+
+/** "Two walls on three screens." / "One wall, not on a paired screen yet." */
+function wallsHeadline(walls: number, screens: number): string {
+  if (walls === 0) return 'No walls yet.';
+  const lead = capitalize(plural(walls, 'wall', 'walls'));
+  if (screens === 0) return `${lead}, not on a paired screen yet.`;
+  return `${lead} on ${plural(screens, 'screen', 'screens')}.`;
+}
+
+/** What a wall does, in one line: "Taps 1–11 · pours take over in Full screen · rotates to the leaderboard". */
+function wallSummary(wall: Wall): string {
+  const config = safeParseWallConfig(wall.config);
+  const parts: string[] = [];
+  parts.push(config.pages.length > 1 ? `${config.pages.length} pages` : 'Every tap from its monitors');
+  parts.push(config.takeover.style === 'off'
+    ? 'pours show a badge'
+    : `pours take over in ${takeoverLabel(config.takeover.style)}`);
+  if (config.viewRotation.enabled && config.viewRotation.views.some((v) => v.kind === 'leaderboard' && v.enabled)) {
+    parts.push('rotates to the leaderboard');
+  }
+  return parts.join(' · ');
+}
+
 /**
- * `/admin/walls` (Task 7): the walls list (name, slug, full URL with copy + open-in-new-
- * tab, and a read-only inline preview toggle available to every role) plus, for
- * editor/admin, create/delete and the full `WallEditor`. A viewer can copy a URL, open a
- * wall, and preview it inline, but never sees "Add wall" or any per-row Edit/Delete
- * control — same read-only shape as every other Task 4-6 admin page.
- *
- * Editing swaps the whole section for `WallEditor` (rather than an inline panel above
- * the list, like the simpler tap/beer forms) — the editor's field count and live preview
- * genuinely need the room.
+ * `/admin/walls` (Kegwall V2 M9): each wall as a card with its look, what it does, the paired
+ * screens showing it, and copy / open / preview for every role. Editors and admins also add,
+ * edit (the Wall Editor studio replaces the list) and delete walls. A viewer gets the same
+ * cards, read-only.
  */
 export function WallsPage() {
   const { me } = useAdminContext();
   const [walls, setWalls] = useState<Wall[]>([]);
+  const [displays, setDisplays] = useState<Display[]>([]);
   const [status, setStatus] = useState<ListStatus>('loading');
   const [createState, setCreateState] = useState<CreateState | null>(null);
-  const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Wall | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [previewWallId, setPreviewWallId] = useState<number | null>(null);
   const [editingWallId, setEditingWallId] = useState<number | null>(null);
@@ -60,6 +90,9 @@ export function WallsPage() {
         setStatus('error');
       }
     });
+    Promise.resolve(listDisplays()).then((result) => {
+      if (result?.ok) setDisplays(result.data);
+    }).catch(() => { /* the cards just show no screens */ });
   }, []);
 
   useEffect(() => {
@@ -69,45 +102,28 @@ export function WallsPage() {
   const canEdit = me.role === 'editor' || me.role === 'admin';
 
   async function handleCopy(wall: Wall) {
-    const url = wallUrl(wall.slug);
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(wallUrl(wall.slug));
       setCopiedWallId(wall.id);
       setTimeout(() => {
         setCopiedWallId((id) => (id === wall.id ? null : id));
       }, COPY_FEEDBACK_MS);
     } catch {
-      // Clipboard access can be denied/unavailable (permissions, insecure context, an
-      // older browser) — the URL is still right there in the row to select manually, so
-      // this fails quietly rather than throwing up a dialog over a non-critical action.
+      // Clipboard access can be denied (permissions, an insecure context); the address is on
+      // the card to select by hand, so this fails quietly.
       setCopiedWallId(null);
     }
   }
 
-  function openCreateForm() {
-    setCreateState({
-      name: '', slug: '', slugTouched: false, error: null, submitting: false,
-    });
-  }
-
-  function handleNameChange(name: string) {
-    setCreateState((s) => (s ? {
-      ...s, name, slug: s.slugTouched ? s.slug : slugify(name),
-    } : s));
-  }
-
-  function handleSlugChange(slug: string) {
-    setCreateState((s) => (s ? { ...s, slug, slugTouched: true } : s));
-  }
-
-  async function handleCreateSubmit() {
+  async function handleCreateSubmit(e: FormEvent) {
+    e.preventDefault();
     if (!createState) return;
     if (!createState.name.trim()) {
-      setCreateState({ ...createState, error: 'Name is required.' });
+      setCreateState({ ...createState, error: 'Give the wall a name.' });
       return;
     }
     if (!SLUG_PATTERN.test(createState.slug)) {
-      setCreateState({ ...createState, error: 'Slug must be lowercase letters, numbers, and hyphens only.' });
+      setCreateState({ ...createState, error: 'The address can only use lowercase letters, numbers and hyphens.' });
       return;
     }
     setCreateState({ ...createState, submitting: true, error: null });
@@ -121,25 +137,16 @@ export function WallsPage() {
   }
 
   async function handleConfirmDelete() {
-    if (!deleteState) return;
+    if (!deleteTarget) return;
     setDeleting(true);
-    const result = await deleteWall(deleteState.wall.id);
+    const result = await deleteWall(deleteTarget.id);
     setDeleting(false);
     if (result.ok) {
-      setDeleteState(null);
+      setDeleteTarget(null);
       loadWalls();
       return;
     }
-    setDeleteState({ ...deleteState, error: result.message });
-  }
-
-  function handleEditorBack() {
-    setEditingWallId(null);
-    loadWalls();
-  }
-
-  function handleEditorSaved(saved: Wall) {
-    setWalls((prev) => prev.map((w) => (w.id === saved.id ? saved : w)));
+    setDeleteError(result.message);
   }
 
   if (editingWallId != null) {
@@ -147,214 +154,182 @@ export function WallsPage() {
     if (editingWall) {
       return (
         <section data-testid="admin-walls-page">
-          <WallEditor wall={editingWall} onBack={handleEditorBack} onSaved={handleEditorSaved} />
+          <WallEditor
+            wall={editingWall}
+            onBack={() => { setEditingWallId(null); loadWalls(); }}
+            onSaved={(saved) => setWalls((prev) => prev.map((w) => (w.id === saved.id ? saved : w)))}
+          />
         </section>
       );
     }
-    // The wall being edited vanished from the list underneath us (e.g. deleted in
-    // another tab) — fall back to the list rather than rendering an editor for nothing.
+    // The wall vanished underneath us (deleted in another tab): back to the list.
     setEditingWallId(null);
   }
 
+  const pairedScreens = displays.filter((d) => d.wallId != null).length;
+
   return (
-    <section data-testid="admin-walls-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Walls</h1>
-        {canEdit && !createState && (
-          <button
-            type="button"
-            className="admin-page-header__action"
-            data-testid="walls-add-button"
-            onClick={openCreateForm}
-          >
-            Add wall
-          </button>
-        )}
-      </header>
-
-      {createState && canEdit && (
-        <form
-          className="wall-create-form"
-          data-testid="walls-create-form"
-          aria-label="Add wall"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleCreateSubmit();
-          }}
+    <PageTemplate
+      testId="admin-walls-page"
+      title={status === 'loaded' ? wallsHeadline(walls.length, pairedScreens) : 'Walls'}
+      sub="Each wall is a page any screen can open. Pair a screen under Displays to send it one."
+      actions={canEdit && (
+        <Button
+          variant="primary"
+          data-testid="walls-add-button"
+          onClick={() => setCreateState({ name: '', slug: '', slugTouched: false, error: null, submitting: false })}
         >
-          <div className="wall-create-form__grid">
-            <label className="admin-field">
-              <span>Name</span>
-              <input
-                type="text"
-                data-testid="walls-create-name"
-                value={createState.name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                autoFocus
-              />
-            </label>
-            <label className="admin-field">
-              <span>Slug</span>
-              <input
-                type="text"
-                data-testid="walls-create-slug"
-                value={createState.slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-              />
-            </label>
-          </div>
-          {createState.error && (
-            <p className="wall-create-form__notice" role="alert" data-testid="walls-create-error">
-              {createState.error}
-            </p>
-          )}
-          <div className="wall-create-form__actions">
-            <button type="submit" disabled={createState.submitting} data-testid="walls-create-submit">
-              {createState.submitting ? 'Adding…' : 'Add wall'}
-            </button>
-            <button
-              type="button"
-              disabled={createState.submitting}
-              data-testid="walls-create-cancel"
-              onClick={() => setCreateState(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+          Add a wall
+        </Button>
       )}
-
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="walls-loading">Loading…</p>}
+      drawer={(
+        <>
+          {createState && canEdit && (
+            <Drawer
+              open
+              onOpenChange={(open) => { if (!open && !createState.submitting) setCreateState(null); }}
+              title="Add a wall"
+              description="It starts on the Just Tapped look with every tap. Change anything in the Wall Editor."
+            >
+              <form className="adm-form" data-testid="walls-create-form" aria-label="Add wall" onSubmit={handleCreateSubmit}>
+                <label className="admin-field">
+                  <span>Name</span>
+                  <input
+                    type="text"
+                    data-testid="walls-create-name"
+                    value={createState.name}
+                    placeholder="Patio"
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- the drawer opens to type a name
+                    autoFocus
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setCreateState((s) => (s ? { ...s, name, slug: s.slugTouched ? s.slug : slugify(name) } : s));
+                    }}
+                  />
+                </label>
+                <label className="admin-field">
+                  <span>Address</span>
+                  <input
+                    type="text"
+                    data-testid="walls-create-slug"
+                    value={createState.slug}
+                    onChange={(e) => {
+                      const slug = e.target.value;
+                      setCreateState((s) => (s ? { ...s, slug, slugTouched: true } : s));
+                    }}
+                  />
+                </label>
+                <p className="adm-sub">{`Screens will open ${wallUrl(createState.slug || '…')}`}</p>
+                {createState.error && (
+                  <p className="adm-danger-text" role="alert" data-testid="walls-create-error">{createState.error}</p>
+                )}
+                <div className="adm-form__actions">
+                  <Button type="submit" variant="primary" disabled={createState.submitting} data-testid="walls-create-submit">
+                    {createState.submitting ? 'Adding…' : 'Add wall'}
+                  </Button>
+                  <Button variant="quiet" disabled={createState.submitting} data-testid="walls-create-cancel" onClick={() => setCreateState(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </Drawer>
+          )}
+          <ConfirmDialog
+            open={deleteTarget !== null}
+            onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}
+            title={deleteTarget ? `Delete ${deleteTarget.name}?` : ''}
+            confirmLabel="Delete wall"
+            busyLabel="Deleting…"
+            busy={deleting}
+            error={deleteError}
+            onConfirm={handleConfirmDelete}
+            testId="walls-delete-confirm"
+            confirmTestId="walls-delete-confirm-button"
+            cancelTestId="walls-delete-cancel-button"
+            errorTestId="walls-delete-error"
+          >
+            {deleteTarget && (
+              <p>
+                {`This permanently deletes “${deleteTarget.name}”. Its address (/wall/${deleteTarget.slug}) stops working at once, and any screen showing it goes blank. This can’t be undone.`}
+              </p>
+            )}
+          </ConfirmDialog>
+        </>
+      )}
+    >
+      {status === 'loading' && <div data-testid="walls-loading"><Skeleton height={180} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="walls-error">
-          Couldn&rsquo;t load walls. Reload to try again.
-        </p>
+        <div data-testid="walls-error"><ErrorState title="Couldn’t load walls." onRetry={loadWalls} /></div>
       )}
       {status === 'loaded' && walls.length === 0 && (
-        <p className="admin-page-quiet" data-testid="walls-empty">
-          No walls yet. {canEdit ? 'Add one to get a TV or tablet display live.' : ''}
-        </p>
+        <div data-testid="walls-empty">
+          <EmptyState title="No walls yet.">{canEdit ? 'Add one to put the taps on a TV or tablet.' : 'An editor can add one.'}</EmptyState>
+        </div>
       )}
 
       {status === 'loaded' && walls.length > 0 && (
-        <table className="admin-table walls-table" data-testid="walls-list">
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Slug</th>
-              <th scope="col">URL</th>
-              <th scope="col" aria-label="Actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {walls.map((wall) => {
-              const url = wallUrl(wall.slug);
-              const previewing = previewWallId === wall.id;
-              return (
-                <Fragment key={wall.id}>
-                  <tr data-testid="walls-row">
-                    <td className="font-body">{wall.name}</td>
-                    <td className="font-tabular">{wall.slug}</td>
-                    <td>
-                      <div className="walls-table__url">
-                        <span className="walls-table__url-text" data-testid="walls-row-url">{url}</span>
-                        <button type="button" data-testid="walls-row-copy" onClick={() => handleCopy(wall)}>
-                          {copiedWallId === wall.id ? 'Copied!' : 'Copy'}
-                        </button>
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          data-testid="walls-row-open"
-                        >
-                          Open
-                        </a>
-                      </div>
-                    </td>
-                    <td className="walls-table__actions">
-                      <button
-                        type="button"
-                        data-testid="walls-row-preview"
-                        onClick={() => setPreviewWallId(previewing ? null : wall.id)}
+        <ul className="walls-v2" data-testid="walls-list">
+          {walls.map((wall) => {
+            const url = wallUrl(wall.slug);
+            const config = safeParseWallConfig(wall.config);
+            const previewing = previewWallId === wall.id;
+            const onScreens = displays.filter((d) => d.wallId === wall.id);
+            return (
+              <li key={wall.id} className="walls-v2__card" data-testid="walls-row">
+                {previewing ? (
+                  <div className="walls-v2__preview" data-testid="walls-row-preview-row">
+                    <WallPreview slug={wall.slug} className="walls-v2__frame" />
+                  </div>
+                ) : (
+                  <img className="walls-v2__thumb" src={lookThumbUrl(config.look)} alt="" loading="lazy" width={400} height={225} />
+                )}
+                <div className="walls-v2__body">
+                  <p className="adm-sub">{`${lookLabel(config.look)} look`}</p>
+                  <h2 className="walls-v2__name">{wall.name}</h2>
+                  <p className="walls-v2__url">
+                    <span className="adm-ell" data-testid="walls-row-url">{url}</span>
+                  </p>
+                  <p className="adm-sub">{wallSummary(wall)}</p>
+                  <ul className="walls-v2__screens" aria-label="Paired screens">
+                    {onScreens.length === 0 ? (
+                      <li className="adm-sub">No paired screen yet</li>
+                    ) : onScreens.map((d) => (
+                      <li key={d.id}>
+                        <span className={d.lastSeen ? 'walls-v2__dot is-on' : 'walls-v2__dot'} aria-hidden="true" />
+                        {d.name}
+                        <span className="adm-sub">{d.lastSeen ? ` · seen ${formatRelativeTime(d.lastSeen)}` : ' · never connected'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="walls-v2__actions">
+                    {canEdit && (
+                      <Button variant="primary" data-testid="walls-row-edit" onClick={() => setEditingWallId(wall.id)}>Edit wall</Button>
+                    )}
+                    <a className="adm-btn adm-btn--secondary" href={url} target="_blank" rel="noreferrer noopener" data-testid="walls-row-open">
+                      Open
+                    </a>
+                    <Button data-testid="walls-row-copy" onClick={() => handleCopy(wall)}>
+                      {copiedWallId === wall.id ? 'Copied!' : 'Copy link'}
+                    </Button>
+                    <Button variant="quiet" data-testid="walls-row-preview" onClick={() => setPreviewWallId(previewing ? null : wall.id)}>
+                      {previewing ? 'Hide live view' : 'Live view'}
+                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="quiet"
+                        data-testid="walls-row-delete"
+                        onClick={() => { setDeleteError(null); setDeleteTarget(wall); }}
                       >
-                        {previewing ? 'Hide preview' : 'Preview'}
-                      </button>
-                      {canEdit && (
-                        <button
-                          type="button"
-                          data-testid="walls-row-edit"
-                          onClick={() => setEditingWallId(wall.id)}
-                        >
-                          Edit
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button
-                          type="button"
-                          data-testid="walls-row-delete"
-                          onClick={() => setDeleteState({ wall, error: null })}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  {previewing && (
-                    <tr data-testid="walls-row-preview-row">
-                      <td colSpan={4}>
-                        <WallPreview slug={wall.slug} className="walls-table__preview-frame" />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
-
-      {deleteState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="walls-delete-confirm"
-          onClick={() => !deleting && setDeleteState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="walls-delete-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="walls-delete-title" className="font-display">Delete wall</h3>
-            <p>
-              This will permanently delete &ldquo;{deleteState.wall.name}&rdquo; and its live URL
-              (/wall/{deleteState.wall.slug}) will stop working immediately. This can&rsquo;t be undone.
-            </p>
-            {deleteState.error && (
-              <p role="alert" data-testid="walls-delete-error">{deleteState.error}</p>
-            )}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="walls-delete-confirm-button"
-                disabled={deleting}
-                onClick={handleConfirmDelete}
-              >
-                {deleting ? 'Deleting…' : 'Delete wall'}
-              </button>
-              <button
-                type="button"
-                data-testid="walls-delete-cancel-button"
-                disabled={deleting}
-                onClick={() => setDeleteState(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+    </PageTemplate>
   );
 }

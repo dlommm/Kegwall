@@ -65,6 +65,15 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Added
 
+- **Added:** the **Wall Editor studio**: a rail of eight sections with a dot on each changed
+  one, a live 16:9 stage of the wall's own taps (Wall / Live pour / Screensaver, Fit / 100%,
+  page picker), a 14-look gallery with pictures, theme swatches, per-section Undo, Discard
+  changes, and a prompt before leaving with unsaved changes.
+- **Added:** **Screens** pages on the new template: Walls as cards (look, what it does, which
+  paired screens show it, live view), Displays (**Pair a screen**, look and takeover overrides by
+  name), Presence (zones, sleep timers, motion sources and webhook, each zone named by wall *and*
+  address) and Games.
+
 - **Added:** **Ctrl K** / **⌘K** opens Search from anywhere in the admin: type part of a page's
   name, arrow to it and press Enter. Editors and viewers never see admin-only pages there.
 
@@ -102,6 +111,13 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 
 ## Fixed
 
+- **Fixed:** a screen's look override accepted only 4 of the 14 looks and 6 of the 9 pour
+  styles; choosing any other was rejected.
+- **Fixed:** unpairing a screen happened on one click; it now asks first. Pairing codes are no
+  longer shown to viewer accounts on the Displays page.
+- **Fixed:** starting or ending a game failed silently; the error is now shown.
+- **Fixed:** walls with the same name couldn't be told apart on the Presence page.
+
 - **Fixed:** Analytics showed an average pour quality of **0** when no pour had a quality
   score; it now shows **—** and says there's no Kegtron quality data yet.
 
@@ -113,6 +129,11 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
 - **Fixed:** the Dock and Fill takeovers had no finish; Split's light panel broke dark themes.
 
 ## Developer
+
+- **Added:** `npm run lint:css` lists stylesheet rules for classes nothing renders (`--fix`
+  deletes them); a test runs the same check, so CI fails on a dead selector.
+- **Fixed:** the system stats test read the host's real `/var/run/reboot-required` and failed on
+  any machine waiting for a reboot.
 
 - **Added:** `npm run visual:contrast` renders every redrawn look in every theme and fails on
   any text below WCAG AA contrast.

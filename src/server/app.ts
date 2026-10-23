@@ -112,6 +112,8 @@ export interface AppOptions {
   /** Test-only override for the stats endpoint's vcgencmd throttle reader — see
    * `SystemRoutesOptions.readThrottle`. Never set by index.ts. */
   readThrottle?: SystemRoutesOptions['readThrottle'];
+  /** Test-only: see `SystemRoutesOptions.rebootRequiredPath`. Never set by index.ts. */
+  rebootRequiredPath?: string;
   /** Whether `POST /api/auth/setup` requires the first-run claim token. Defaults to
    * `NODE_ENV !== 'test'` (on in production, off in the test suite). A dedicated test sets
    * it true to exercise the enforced flow. */
@@ -317,6 +319,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
                                            // (see backup.ts's doc comment on MAX_RESTORE_BYTES)
   await systemRoutes(app, dataDir, {
     updateTimeoutMs: opts.updateTimeoutMs, port: opts.port, readThrottle: opts.readThrottle,
+    rebootRequiredPath: opts.rebootRequiredPath,
   });
                                            // direct call — see encapsulation note above;
                                            // needs the resolved dataDir (native-mode

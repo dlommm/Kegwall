@@ -11,6 +11,7 @@ import { renderAdminPage, adminContext } from './renderAdminPage';
 
 vi.mock('../../../src/web/lib/adminApi', () => ({
   listWalls: vi.fn(),
+  listDisplays: vi.fn(() => Promise.resolve({ ok: true, data: [] })),
   createWall: vi.fn(),
   deleteWall: vi.fn(),
 }));
@@ -193,7 +194,7 @@ describe('WallsPage', () => {
     await screen.findAllByTestId('walls-row');
     fireEvent.click(screen.getByTestId('walls-row-delete'));
     const confirm = screen.getByTestId('walls-delete-confirm');
-    expect(confirm).toHaveTextContent('This will permanently delete');
+    expect(confirm).toHaveTextContent('This permanently deletes');
     expect(confirm).toHaveTextContent('Main bar');
     expect(confirm).toHaveTextContent(/wall\/main-bar/);
     expect(confirm).toHaveTextContent("can’t be undone");

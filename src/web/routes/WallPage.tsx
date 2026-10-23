@@ -14,7 +14,7 @@ import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { formatTempC } from '../lib/units';
 import { useBanners, type BannerKind } from '../lib/useBanners';
 import { usePolledFetch } from '../lib/usePolledFetch';
-import { resolveWallPages, useRotatingPageIndex } from '../lib/wallPages';
+import { useRotatingPageIndex, wallPagesFor } from '../lib/wallPages';
 import { ThemeProvider } from '../themes/ThemeProvider';
 import {
   WallLook, autoPageSize, resolveLook,
@@ -270,19 +270,10 @@ export function WallPage() {
   // Page cycling: with no manual pages configured, a wall with more taps than its look
   // holds auto-chunks into pages. Pre-V2 looks were designed around 6 taps per screen;
   // Kegwall V2 stage looks declare their own capacity (the density ladder).
-  const pages = useMemo(() => {
-    const configuredPages = config?.pages ?? [];
-    const look = resolveLook(config?.look);
-    const size = autoPageSize(look);
-    if (configuredPages.length === 0 && taps.length > size) {
-      const chunks: typeof taps[] = [];
-      for (let i = 0; i < taps.length; i += size) {
-        chunks.push(taps.slice(i, i + size));
-      }
-      return chunks;
-    }
-    return resolveWallPages(configuredPages, taps);
-  }, [config, taps]);
+  const pages = useMemo(
+    () => wallPagesFor(config?.pages ?? [], taps, autoPageSize(resolveLook(config?.look))),
+    [config, taps],
+  );
   // Max temp across every tap on the wall (not just the current rotating page) — a
   // site-wide readout, so it shouldn't flicker/change as pages rotate.
   const maxTempC = useMemo(() => {

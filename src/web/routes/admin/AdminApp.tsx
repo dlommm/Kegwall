@@ -30,6 +30,8 @@ import './admin.css';
 import './shell.css';
 // Kegwall V2 page vocabulary (M8), and the bridge that skins older page classes.
 import './pages.css';
+// Screens and the Wall Editor studio (M9).
+import './screens.css';
 
 /**
  * The entire `/admin/*` route subtree, as its own module — Phase 5 Task 0 (Phase 4 final

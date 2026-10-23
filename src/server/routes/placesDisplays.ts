@@ -8,6 +8,7 @@ import {
 import { updateMonitorDeviceIdentity, getMonitorById, sanitizeMonitor } from '../db/monitors.js';
 import { requireDisplayToken } from './displayAuth.js';
 import { NotFoundError } from '../core/errors.js';
+import { TAKEOVER_STYLE_IDS, WALL_LOOK_IDS } from '../core/wallConfig.js';
 
 /**
  * Monitor device identity (name + enabled) + displays with pairing (design 7c).
@@ -43,9 +44,10 @@ export async function placesDisplaysRoutes(app: FastifyInstance) {
   // --- Displays (7c) --------------------------------------------------------
 
   const overridesSchema = z.object({
-    look: z.enum(['classic', 'ledger', 'gallery', 'columns']).optional(),
+    // The same ids a wall's own config accepts: every look and every takeover style.
+    look: z.enum(WALL_LOOK_IDS).optional(),
     themeId: z.string().max(40).optional(),
-    takeoverStyle: z.enum(['off', 'full', 'spotlight', 'split', 'dock', 'fill']).optional(),
+    takeoverStyle: z.enum(TAKEOVER_STYLE_IDS).optional(),
   });
 
   app.get('/api/displays', viewer, async () => listDisplays(db));

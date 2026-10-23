@@ -23,6 +23,20 @@ export function resolveWallPages(pages: WallPageDef[], taps: TapState[]): TapSta
 }
 
 /**
+ * The pages a wall actually shows: its configured pages, or — with none configured and more
+ * taps than the look holds (`autoSize`, the look's density ladder) — the taps in look-sized
+ * chunks. Shared by the wall and the Wall Editor's preview so both page the same way.
+ */
+export function wallPagesFor(pages: WallPageDef[], taps: TapState[], autoSize: number): TapState[][] {
+  if (pages.length === 0 && taps.length > autoSize) {
+    const chunks: TapState[][] = [];
+    for (let i = 0; i < taps.length; i += autoSize) chunks.push(taps.slice(i, i + autoSize));
+    return chunks;
+  }
+  return resolveWallPages(pages, taps);
+}
+
+/**
  * Rotates a page index 0..pageCount-1 every `rotationSeconds`, wrapping back to 0. Zero
  * or one page never starts a timer — there is nothing to rotate to. If `pageCount`
  * shrinks to or below the current index (e.g. a wall config reload drops pages), the

@@ -192,6 +192,18 @@ for (const [n, u] of ADMIN_PAGES) await shot(`admin-${n}`, u, VP.desktop, { ctx:
 const openEditor = async (p: Page) => { await p.getByRole('button', { name: /^edit/i }).first().click(); await p.waitForTimeout(1500); };
 await shot('admin-wall-editor', '/admin/walls', VP.desktop, { ctx: admin, full: true, wait: 1200, before: openEditor });
 await shot('admin-wall-editor-fold', '/admin/walls', VP.desktop, { ctx: admin, wait: 1200, before: openEditor });
+// Kegwall V2 M9 studio: a pour held mid-way in the chosen style, and the takeover inspector.
+await shot('admin-wall-editor-pour', '/admin/walls', VP.desktop, {
+  ctx: admin, wait: 1200,
+  before: async (p) => {
+    await openEditor(p);
+    await p.getByRole('button', { name: 'Live pour' }).click();
+    await p.getByTestId('wall-editor-rail-takeover').click();
+    await p.getByTestId('wall-editor-takeover-full').click();
+    await p.waitForTimeout(600);
+  },
+});
+await shot('admin-wall-editor-laptop', '/admin/walls', VP.laptop, { ctx: admin, wait: 1200, before: openEditor });
 await shot('admin-dashboard-laptop', '/admin', VP.laptop, { ctx: admin, wait: 1500 });
 await shot('admin-dashboard-tablet', '/admin', VP.tabletL, { ctx: admin, wait: 1500 });
 await shot('admin-dashboard-mobile', '/admin', VP.mobile, { ctx: admin, wait: 1500 });
@@ -233,7 +245,7 @@ await shot('admin-stats-kegs', '/admin/stats', VP.desktop, {
 });
 await shot('admin-taps-mobile', '/admin/taps', VP.mobile, { ctx: admin, wait: 1500, full: true });
 const light = await adminCtx('light');
-for (const [n, u] of [['dashboard', '/admin'], ['taps', '/admin/taps'], ['stats', '/admin/stats']] as const) {
+for (const [n, u] of [['dashboard', '/admin'], ['taps', '/admin/taps'], ['stats', '/admin/stats'], ['walls', '/admin/walls']] as const) {
   await shot(`admin-light-${n}`, u, VP.desktop, { ctx: light, wait: 1500 });
 }
 await light.close();

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createPresenceSource, deletePresenceSource, getPresenceSources, getSettings, getWall,
   listWalls, patchSettings, setPresenceState, updatePresenceSource, updateWall,
@@ -7,247 +7,39 @@ import {
 import { isDisplayPowerMessage, type PowerStage } from '../../lib/displayPower';
 import { useTapStates } from '../../lib/useTapStates';
 import { usePolledFetch } from '../../lib/usePolledFetch';
-import { formatRelativeTime } from '../../lib/useRelativeTime';
 import {
   configToFormState, parseWallConfigForm, safeParseWallConfig, type WallConfigFormState,
 } from '../../lib/wallEditorConfig';
-// From db/settings.ts, a plain db module with no Fastify-specific value imports of its own
-// (see adminApi.ts's own doc comment on this exact "types via type-only server imports"
-// precedent for `MotionSource`) — safe to type-import here for the Sources panel's
-// add/edit modal, which needs `MatchRule` (adminApi.ts only re-exports `MotionSource`
-// via `PresenceSourcesResponse`, not the nested match-rule union).
-import type { MatchRule, MotionSource } from '../../../server/db/settings.js';
+import { capitalize, countWord, listJoin } from '../../lib/tonightAttention';
+import type { MotionSource } from '../../../server/db/settings.js';
+import {
+  BLINK_MS, POLL_INTERVAL_MS, blankSourceForm, buildSourceConfig, dpFieldsFromWall,
+  effectiveSourceName, isMotionMessage, sourceFormFrom, validateSourceForm,
+  type DpFields, type SourceFormState, type SourceRow,
+} from './presence/presenceModel';
+import {
+  DisplayPowerPanel, SourcesPanel, WebhookPanel, ZonesPanel,
+} from './presence/PresencePanels';
+import { SourceForm } from './presence/SourceForm';
+import { PageTemplate } from './PageTemplate';
+import { ConfirmDialog } from './ui';
 
-/** Same cadence as DashboardPage's source-health/activity poll — there's no push channel
- * for the SSE agent-connection counts `GET /api/presence/sources` reports (unlike zone
- * power state, which rides `display_power` WS frames below). */
-const POLL_INTERVAL_MS = 60_000;
+export { parseEqualsInput } from './presence/presenceModel';
 
-const POWER_STAGE_LABEL: Record<PowerStage, string> = {
-  active: 'Active', screensaver: 'Screensaver', off: 'Off',
-};
-
-/** "no agent" / "1 agent connected" / "N agents connected" — the Zones panel's per-row
- * agent-count text (spec Part B, panel 1). */
-function agentsLabel(count: number): string {
-  if (count === 0) return 'no agent';
-  return `${count} agent${count === 1 ? '' : 's'} connected`;
-}
-
-/** A display-power panel row's three editable fields — the same shape WallEditor's
- * `displayPower` fieldset writes (wallEditorConfig.ts's `WallConfigFormState`), pulled
- * out on its own so this page doesn't have to hold a full per-wall form-state object
- * for fields it never shows. */
-interface DpFields {
-  screensaverAfterMinutes: number | null;
-  offAfterMinutes: number | null;
-  cameraMotion: boolean;
-}
-
-function dpFieldsFromWall(wall: Wall): DpFields {
-  const { displayPower } = safeParseWallConfig(wall.config);
-  return {
-    screensaverAfterMinutes: displayPower.screensaverAfterMinutes,
-    offAfterMinutes: displayPower.offAfterMinutes,
-    cameraMotion: displayPower.cameraMotion,
-  };
-}
-
-/** How long a matching WS `motion` frame briefly marks a Sources-panel row via
- * `data-blink="true"` (spec Part B, panel 3: "a live blink when a source fires"). A plain
- * `setTimeout`, not CSS animation-end or `requestAnimationFrame` — the brief's own
- * "assert the attribute, not the animation" steer means this has to be advanceable by
- * `vi.advanceTimersByTime` under fake timers, which only `setTimeout`/`setInterval` are. */
-const BLINK_MS = 2000;
-
-const SOURCE_TYPE_LABEL: Record<MotionSource['type'], string> = {
-  mqtt: 'MQTT', webhook: 'Webhook', gpio: 'GPIO', ble: 'BLE',
-};
-
-/** The WS frame ws.ts's `motion_detected` relay sends (Task 3) whenever ANY source fires
- * — `sourceId` is `null` for a legacy/anonymous webhook wake (no motionSources id
- * attached), a real registry id for a configured source, or the `camera:<wallSlug>`
- * sentinel for a tablet camera wake (core/motionSources.ts's `trigger()`). Only
- * `sourceId` is read here (to blink the matching row); `wallSlug`/`ts` aren't needed by
- * this page the way they are by the Zones panel's `display_power` frames. */
-interface MotionMessage { type: 'motion'; sourceId: string | null }
-
-function isMotionMessage(msg: unknown): msg is MotionMessage {
-  if (typeof msg !== 'object' || msg === null) return false;
-  const m = msg as { type?: unknown; sourceId?: unknown };
-  return m.type === 'motion' && (m.sourceId === null || typeof m.sourceId === 'string');
+/** "Two zones, all awake." / "Two zones. Patio is asleep." */
+function presenceHeadline(walls: Wall[], states: Record<string, PowerStage>): string {
+  if (walls.length === 0) return 'No zones yet.';
+  const lead = walls.length === 1 ? 'One zone' : `${capitalize(countWord(walls.length))} zones`;
+  const resting = walls.filter((w) => (states[w.slug] ?? 'active') !== 'active');
+  if (resting.length === 0) return `${lead}, all awake.`;
+  if (resting.length === walls.length) return `${lead}, all resting.`;
+  const names = listJoin(resting.map((w) => w.name));
+  return `${lead}. ${names} ${resting.length === 1 ? 'is' : 'are'} resting.`;
 }
 
 /**
- * Parses free text typed into the add/edit modal's mqtt json-match "equals" field
- * (`source-mqtt-json-equals`) into whatever primitive it actually looks like:
- * `'true'`/`'false'` become real booleans, a bare numeric string becomes a number,
- * anything else stays a string. This matters because `matchRuleSchema`'s `json` mode
- * (db/settings.ts) compares the parsed MQTT payload's field against `equals` with `===`
- * — a sensor publishing the real JSON boolean `{"occupancy": true}` would never match an
- * `equals: "true"` STRING, only the boolean `true`, so the raw text input has to be
- * upgraded to the type it's describing rather than sent through verbatim as a string.
- */
-export function parseEqualsInput(raw: string): string | number | boolean {
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  if (raw.trim() !== '' && !Number.isNaN(Number(raw))) return Number(raw);
-  return raw;
-}
-
-/** The Sources panel's combined table row shape: every configured `motionSources` entry
- * plus every derived camera row, given a single `id` so blink-matching (`isMotionMessage`
- * above) and `data-testid="source-row-<id>"` work identically for both — a camera row's
- * `id` is the SAME `camera:<wallSlug>` sentinel `core/motionSources.ts`'s registry uses to
- * key its own status map, so a WS `motion` frame from a camera wake blinks the right row
- * with no extra mapping. */
-type SourceRow =
-  | { id: string; kind: 'source'; source: MotionSource; status: PresenceSourcesResponse['sources'][number]['status'] }
-  | { id: string; kind: 'camera'; wallSlug: string; enabled: boolean; lastTriggeredAt: string | null };
-
-/** The add/edit modal's flat draft shape — one field set per source type, all present at
- * once (simpler than a discriminated union here since the modal just hides the fields the
- * current `type` doesn't use; see `buildSourceConfig` below for the per-type narrowing
- * back down to `MotionSource['config']` at save time). `id: null` means "creating"; a
- * present `id` means "editing that source" (`saveSource` branches on it). */
-interface SourceFormState {
-  id: string | null;
-  name: string;
-  type: MotionSource['type'];
-  enabled: boolean;
-  wallSlug: string; // '' = every wall (null on the wire)
-  mqttTopic: string;
-  mqttMatchMode: MatchRule['mode'];
-  mqttJsonField: string;
-  mqttJsonEquals: string; // raw text, run through parseEqualsInput at save time
-  mqttExactValue: string;
-  gpioLine: string; // raw text for a number input
-  gpioActiveLow: boolean;
-  bleMac: string;
-}
-
-function blankSourceForm(): SourceFormState {
-  return {
-    id: null, name: '', type: 'mqtt', enabled: true, wallSlug: '',
-    mqttTopic: '', mqttMatchMode: 'any', mqttJsonField: '', mqttJsonEquals: '', mqttExactValue: '',
-    gpioLine: '', gpioActiveLow: false, bleMac: '',
-  };
-}
-
-function sourceFormFrom(source: MotionSource): SourceFormState {
-  const match = source.config.match;
-  return {
-    id: source.id, name: source.name, type: source.type, enabled: source.enabled,
-    wallSlug: source.wallSlug ?? '',
-    mqttTopic: source.config.topic ?? '',
-    mqttMatchMode: match?.mode ?? 'any',
-    mqttJsonField: match?.mode === 'json' ? match.field : '',
-    mqttJsonEquals: match?.mode === 'json' ? String(match.equals) : '',
-    mqttExactValue: match?.mode === 'exact' ? match.value : '',
-    gpioLine: source.config.line !== undefined ? String(source.config.line) : '',
-    gpioActiveLow: source.config.activeLow ?? false,
-    bleMac: source.config.mac ?? '',
-  };
-}
-
-/** Narrows the modal's flat draft back down to the per-type `config` shape
- * `motionSourceSchema` (db/settings.ts) expects — only the fields the CURRENT `type`
- * actually uses are sent, so switching the type select never leaks a stale sibling
- * type's fields (e.g. a leftover `topic` on a source just switched to `gpio`) into the
- * saved config. */
-function buildSourceConfig(form: SourceFormState): MotionSource['config'] {
-  if (form.type === 'mqtt') {
-    const match: MatchRule = form.mqttMatchMode === 'json'
-      ? { mode: 'json', field: form.mqttJsonField, equals: parseEqualsInput(form.mqttJsonEquals) }
-      : form.mqttMatchMode === 'exact'
-        ? { mode: 'exact', value: form.mqttExactValue }
-        : { mode: 'any' };
-    return { topic: form.mqttTopic, match };
-  }
-  if (form.type === 'gpio') {
-    return { line: Number(form.gpioLine), activeLow: form.gpioActiveLow };
-  }
-  if (form.type === 'ble') {
-    return { mac: form.bleMac.trim() || null };
-  }
-  return {}; // webhook: identity comes from the URL (?source=<id>), no config fields
-}
-
-/**
- * The name to actually save when the admin leaves the Name field blank: falls back to
- * the type's own natural identifier (mqtt's topic, gpio's line) rather than forcing a
- * redundant re-typing of information already entered elsewhere in the same form — the
- * SAME precedent `core/motionSources.ts`'s `migrateMotionTopics` already uses for a
- * legacy mqtt entry (`name: t.topic`, no separate name ever existed for those). `ble`/
- * `webhook` have no comparably natural identifier (a MAC is optional and identity-by-URL
- * has no field at all), so those fall through to `''` — genuinely nameless, which
- * `validateSourceForm` below rejects.
- */
-function effectiveSourceName(form: SourceFormState): string {
-  const typed = form.name.trim();
-  if (typed !== '') return typed;
-  if (form.type === 'mqtt') return form.mqttTopic.trim();
-  if (form.type === 'gpio' && form.gpioLine.trim() !== '') return `GPIO line ${form.gpioLine.trim()}`;
-  if (form.type === 'ble') return form.bleMac.trim();
-  return '';
-}
-
-/**
- * Client-side pre-flight validation for the add/edit modal (review fix F3) — mirrors
- * SourcesGroup's "check before calling the api, set the form's error, return" idiom
- * (SettingsPage.tsx's `handleSubmit`, `mqttDirty && !mqttUrl.trim()`) rather than firing a
- * doomed `createPresenceSource`/`updatePresenceSource` call the server would 400 on
- * anyway (`motionSourceSchema`'s own per-type `superRefine` requirements, db/settings.ts:
- * mqtt needs `config.topic`+`config.match`, gpio needs `config.line`). Returns a human
- * message on failure, `null` when the form is good to submit. A name is always required
- * in the end (checked LAST, against `effectiveSourceName` — the typed value or its
- * type-appropriate fallback — not the raw field, so leaving Name blank while a topic/
- * line is already filled in isn't a redundant second error); `wallSlug`/`enabled`/the
- * non-required per-type fields (e.g. ble's `mac`) are all genuinely optional, so they're
- * left unchecked.
- */
-function validateSourceForm(form: SourceFormState): string | null {
-  if (form.type === 'mqtt') {
-    if (form.mqttTopic.trim() === '') return 'An MQTT topic is required.';
-    if (form.mqttMatchMode === 'json' && form.mqttJsonField.trim() === '') {
-      return 'A JSON field is required for the "JSON field equals" match mode.';
-    }
-  }
-  if (form.type === 'gpio') {
-    const line = Number(form.gpioLine);
-    if (form.gpioLine.trim() === '' || Number.isNaN(line) || line < 0) {
-      return 'A GPIO line number (0 or greater) is required.';
-    }
-  }
-  if (effectiveSourceName(form) === '') return 'A name is required.';
-  return null;
-}
-
-/** The HA `rest_command` + automation YAML template, parameterized by whichever webhook
- * URL it should point at (review fix F2) — shared by the per-source Sources-table
- * snippet (`ha-snippet-<id>`, attributed via that source's own `&source=<id>` URL) and
- * the Webhook & agent panel's fallback (`ha-snippet`, the unattributed base URL, shown
- * only while no webhook-type source exists yet — see this component's doc comment on
- * why the unattributed URL is a fallback, not the promoted path). */
-function haSnippetYaml(url: string): string {
-  return `rest_command:
-  kegwall_motion:
-    url: "${url}"
-    method: POST
-
-automation:
-  - alias: "Kegwall motion wake"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.your_motion_sensor
-        to: "on"
-    action:
-      - service: rest_command.kegwall_motion`;
-}
-
-/**
- * `/admin/presence` — the Displays & Presence hub (spec 2026-08-01, Part B), all four
- * panels:
+ * `/admin/presence` — Presence (spec 2026-08-01 Part B; on the V2 page template in M9), four
+ * sections (presence/PresencePanels.tsx):
  *
  *  1. Zones — one row per wall: live power state (seeded 'active' from the walls fetch,
  *     then kept current by `display_power` WS frames — both the on-connect replay and
@@ -640,564 +432,83 @@ export function PresencePage() {
   const hasWebhookSource = sources.some((s) => s.source.type === 'webhook');
 
   return (
-    <div data-testid="presence-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Displays &amp; Presence</h1>
-        <p className="admin-page-quiet">
-          Zone power state, per-wall display-power timing, every configured motion
-          source, and the webhook/agent setup that feeds them.
-        </p>
-      </header>
-
-      <div className="presence-panels">
-        <section className="dashboard-card presence-panel" data-testid="presence-panel-zones">
-          <div className="dashboard-card__head">
-            <h2 className="dashboard-card__title font-display">ZONES</h2>
-            <button type="button" data-testid="zone-wake-all" onClick={() => { void handleSetState(undefined, 'active'); }}>
-              Wake all
-            </button>
-          </div>
-          {zoneError && <p className="admin-page-quiet" role="alert" data-testid="zone-error">{zoneError}</p>}
-          {wallsLoaded && walls.length === 0 ? (
-            <p className="admin-page-quiet" data-testid="zones-empty">No walls set up yet.</p>
-          ) : (
-            <table className="admin-table" data-testid="zones-table">
-              <thead>
-                <tr>
-                  <th scope="col">Wall</th>
-                  <th scope="col">State</th>
-                  <th scope="col">Agents</th>
-                  <th scope="col" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {walls.map((wall) => {
-                  const state = zoneStates[wall.slug] ?? 'active';
-                  const agents = agentsBySlug[wall.slug] ?? 0;
-                  return (
-                    <tr key={wall.slug} data-testid={`zone-row-${wall.slug}`}>
-                      <td>{wall.name}</td>
-                      <td className="font-tabular" data-testid={`zone-state-${wall.slug}`}>
-                        {POWER_STAGE_LABEL[state]}
-                      </td>
-                      <td data-testid={`zone-agents-${wall.slug}`}>{agentsLabel(agents)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          data-testid={`zone-wake-${wall.slug}`}
-                          onClick={() => { void handleSetState(wall.slug, 'active'); }}
-                        >
-                          Wake
-                        </button>
-                        <button
-                          type="button"
-                          data-testid={`zone-sleep-${wall.slug}`}
-                          onClick={() => { void handleSetState(wall.slug, 'off'); }}
-                        >
-                          Sleep
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+    <PageTemplate
+      testId="presence-page"
+      title={wallsLoaded ? presenceHeadline(walls, zoneStates) : 'Presence'}
+      sub="Screens rest after a quiet spell and wake when someone walks in or pours."
+      drawer={(
+        <>
+          {sourceForm && (
+            <SourceForm
+              form={sourceForm}
+              onChange={setSourceForm}
+              walls={walls}
+              submitting={sourceFormSubmitting}
+              error={sourceFormError}
+              onSave={() => { void saveSource(); }}
+              onClose={closeSourceForm}
+            />
           )}
-        </section>
-
-        <section className="dashboard-card presence-panel" data-testid="presence-panel-display-power">
-          <div className="dashboard-card__head">
-            <h2 className="dashboard-card__title font-display">DISPLAY POWER</h2>
-          </div>
-          {wallsLoaded && walls.length === 0 ? (
-            <p className="admin-page-quiet" data-testid="display-power-empty">No walls set up yet.</p>
-          ) : (
-            <table className="admin-table" data-testid="display-power-table">
-              <thead>
-                <tr>
-                  <th scope="col">Wall</th>
-                  <th scope="col">Screensaver after (min)</th>
-                  <th scope="col">Off after (min)</th>
-                  <th scope="col">Camera motion</th>
-                  <th scope="col" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {walls.map((wall) => {
-                  const fields = dpForm[wall.id] ?? dpFieldsFromWall(wall);
-                  const errors = dpErrors[wall.id];
-                  return (
-                    <tr key={wall.slug} data-testid={`dp-row-${wall.slug}`}>
-                      <td>{wall.name}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min={1}
-                          data-testid={`dp-saver-${wall.slug}`}
-                          value={fields.screensaverAfterMinutes ?? ''}
-                          onChange={(e) => updateDpField(
-                            wall,
-                            'screensaverAfterMinutes',
-                            e.target.value === '' ? null : Number(e.target.value),
-                          )}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min={2}
-                          data-testid={`dp-off-${wall.slug}`}
-                          value={fields.offAfterMinutes ?? ''}
-                          onChange={(e) => updateDpField(
-                            wall,
-                            'offAfterMinutes',
-                            e.target.value === '' ? null : Number(e.target.value),
-                          )}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          data-testid={`dp-camera-${wall.slug}`}
-                          checked={fields.cameraMotion}
-                          onChange={(e) => updateDpField(wall, 'cameraMotion', e.target.checked)}
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          data-testid={`dp-save-${wall.slug}`}
-                          onClick={() => { void saveDisplayPower(wall); }}
-                        >
-                          Save
-                        </button>
-                        {errors && (
-                          <ul className="wall-editor__errors" role="alert" data-testid={`dp-errors-${wall.slug}`}>
-                            {errors.map((err) => <li key={err}>{err}</li>)}
-                          </ul>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        <section className="dashboard-card presence-panel" data-testid="presence-panel-sources">
-          <div className="dashboard-card__head">
-            <h2 className="dashboard-card__title font-display">MOTION SOURCES</h2>
-            <button type="button" data-testid="source-add" onClick={openAddSource}>
-              Add source
-            </button>
-          </div>
-          {sourcesActionError && (
-            <p className="admin-page-quiet" role="alert" data-testid="sources-error">{sourcesActionError}</p>
-          )}
-          {sourceRows.length === 0 ? (
-            <p className="admin-page-quiet" data-testid="sources-empty">No motion sources configured yet.</p>
-          ) : (
-            <table className="admin-table" data-testid="sources-table">
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Wall</th>
-                  <th scope="col">Health</th>
-                  <th scope="col">Last motion</th>
-                  <th scope="col" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {sourceRows.map((row) => {
-                  const lastTriggeredAt = row.kind === 'source' ? row.status.lastTriggeredAt : row.lastTriggeredAt;
-                  const healthy = row.kind === 'source' ? row.status.healthy : true;
-                  const wallName = row.kind === 'source'
-                    ? (row.source.wallSlug
-                      ? (walls.find((w) => w.slug === row.source.wallSlug)?.name ?? row.source.wallSlug)
-                      : 'All walls')
-                    : (walls.find((w) => w.slug === row.wallSlug)?.name ?? row.wallSlug);
-                  // Final-review C2: a disabled source stays LISTED (this row comes from
-                  // `snapshotAll()`, not the enabled-only `snapshot()`) — `data-enabled`
-                  // lets the row render dimmed while its Edit button (the only re-enable
-                  // path — the modal's own `source-enabled` checkbox) still works exactly
-                  // like any other row's. A camera row has no `enabled` field of its own
-                  // here (it's simply absent from `cameraRows` once its wall's
-                  // `displayPower.cameraMotion` is off — see routes/presence.ts's
-                  // derivation), so it's always rendered non-dimmed.
-                  const enabled = row.kind === 'source' ? row.source.enabled : true;
-                  return (
-                    <Fragment key={row.id}>
-                      <tr
-                        data-testid={`source-row-${row.id}`}
-                        data-blink={blinking[row.id] ? 'true' : 'false'}
-                        data-enabled={String(enabled)}
-                      >
-                        <td>{row.kind === 'source' ? row.source.name : `Tablet camera — ${wallName}`}</td>
-                        <td>{row.kind === 'source' ? SOURCE_TYPE_LABEL[row.source.type] : 'Camera'}</td>
-                        <td>{wallName}</td>
-                        <td>
-                          <span
-                            className={`dashboard-source-badge dashboard-source-badge--${healthy ? 'healthy' : 'unhealthy'}`}
-                            data-testid={`source-health-${row.id}`}
-                            data-healthy={String(healthy)}
-                          >
-                            {healthy ? '● OK' : '● Down'}
-                          </span>
-                        </td>
-                        <td className="font-tabular" data-testid={`source-last-${row.id}`}>
-                          {lastTriggeredAt ? formatRelativeTime(lastTriggeredAt) : 'Never'}
-                        </td>
-                        <td>
-                          {row.kind === 'source' ? (
-                            <>
-                              <button type="button" data-testid={`source-edit-${row.id}`} onClick={() => openEditSource(row.source)}>
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                data-testid={`source-delete-${row.id}`}
-                                onClick={() => requestDeleteSource(row.source)}
-                              >
-                                Delete
-                              </button>
-                            </>
-                          ) : (
-                            <label className="settings-toggle">
-                              <input
-                                type="checkbox"
-                                data-testid={`source-camera-toggle-${row.wallSlug}`}
-                                checked={row.enabled}
-                                onChange={(e) => { void toggleCameraMotion(row.wallSlug, e.target.checked); }}
-                              />
-                              <span>Enabled</span>
-                            </label>
-                          )}
-                        </td>
-                      </tr>
-                      {row.kind === 'source' && row.source.type === 'webhook' && (
-                        <tr>
-                          <td colSpan={6}>
-                            <code data-testid={`source-webhook-url-${row.id}`}>{webhookUrl(row.id)}</code>
-                            {/* Final-review C1/M7: this row's URL renders unconditionally
-                                (there's no `webhookToken`-gated wrapper the way the panel
-                                below has), so it's the one place M7's "token= empty" bug
-                                lived — `webhookUrl` now always falls back to the
-                                `<token>` placeholder instead, gated the SAME way here. */}
-                            {!hasFreshToken && (
-                              <p className="admin-page-quiet" data-testid={`source-webhook-url-hint-${row.id}`}>
-                                Regenerate the token to get copy-paste-ready URLs.
-                              </p>
-                            )}
-                            <details className="presence-ha-snippet-details">
-                              <summary>Home Assistant snippet</summary>
-                              <pre className="presence-ha-snippet" data-testid={`ha-snippet-${row.id}`}>
-                                {haSnippetYaml(webhookUrl(row.id))}
-                              </pre>
-                            </details>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        <section className="dashboard-card presence-panel" data-testid="presence-panel-webhook">
-          <div className="dashboard-card__head">
-            <h2 className="dashboard-card__title font-display">WEBHOOK &amp; AGENT</h2>
-          </div>
-          <p className="admin-page-quiet">
-            A shared token gates the external motion webhook and the presence-agent
-            stream. Generate one, then point your motion sensor&rsquo;s automation (or a
-            webhook source&rsquo;s own row above, for per-source attribution) at its URL.
-          </p>
-          <div className="admin-field masked-secret" data-testid="webhook-token-field">
-            <span>Webhook token</span>
-            <div className="masked-secret__row">
-              <span className="masked-secret__value" data-testid="webhook-token-masked">
-                {webhookToken || 'Not set'}
-              </span>
-              <button
-                type="button"
-                data-testid="webhook-token-generate"
-                disabled={tokenSubmitting}
-                onClick={() => { void handleGenerateToken(); }}
-              >
-                {tokenSubmitting ? 'Generating…' : 'Generate'}
-              </button>
-            </div>
-          </div>
-          {tokenError && (
-            <p className="beer-form__notice" role="alert" data-testid="webhook-token-error">{tokenError}</p>
-          )}
-          {webhookToken ? (
-            <>
-              <p className="admin-page-quiet" data-testid="webhook-base-url">
-                <code>{webhookUrl()}</code>
-              </p>
-              {/* Final-review C1: `webhookToken` being set only proves SOME token exists
-                  (possibly only in its masked '••••'+last4 form, from a page load or a
-                  PREVIOUS tab's Generate) — the URL above is only real/paste-ready when
-                  THIS tab also has `freshToken` in hand. */}
-              {!hasFreshToken && (
-                <p className="admin-page-quiet" data-testid="webhook-url-hint">
-                  Regenerate the token to get copy-paste-ready URLs.
-                </p>
-              )}
-              {hasWebhookSource ? (
-                <p className="admin-page-quiet">
-                  See a webhook-type row in the Motion sources table above for its own
-                  HA snippet, attributed to that source&rsquo;s health and last-motion time.
-                </p>
-              ) : (
-                <>
-                  <p className="admin-page-quiet">
-                    No webhook-type source yet — this generic snippet works, but won&rsquo;t
-                    give Home Assistant per-source health or last-motion attribution. Add a
-                    webhook source above for that.
-                  </p>
-                  <pre className="presence-ha-snippet" data-testid="ha-snippet">
-                    {haSnippetYaml(webhookUrl())}
-                  </pre>
-                </>
-              )}
-            </>
-          ) : (
-            <p className="admin-page-quiet">Generate a token to see your webhook URL and Home Assistant snippet.</p>
-          )}
-        </section>
-      </div>
-
-      {sourceForm && (
-        <div
-          className="user-form"
-          data-testid="source-form"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="source-form-title"
-        >
-          <h2 id="source-form-title" className="user-form__title font-display">
-            {sourceForm.id ? 'Edit motion source' : 'Add motion source'}
-          </h2>
-          <div className="user-form__grid">
-            <label className="admin-field">
-              <span>Name</span>
-              <input
-                type="text"
-                data-testid="source-name"
-                value={sourceForm.name}
-                onChange={(e) => setSourceForm({ ...sourceForm, name: e.target.value })}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Type</span>
-              <select
-                data-testid="source-type-select"
-                value={sourceForm.type}
-                onChange={(e) => setSourceForm({ ...sourceForm, type: e.target.value as MotionSource['type'] })}
-              >
-                <option value="mqtt">MQTT</option>
-                <option value="webhook">Webhook</option>
-                <option value="gpio">GPIO</option>
-                <option value="ble">BLE</option>
-              </select>
-            </label>
-            <label className="admin-field">
-              <span>Wall</span>
-              <select
-                data-testid="source-wall-select"
-                value={sourceForm.wallSlug}
-                onChange={(e) => setSourceForm({ ...sourceForm, wallSlug: e.target.value })}
-              >
-                <option value="">All walls</option>
-                {walls.map((w) => <option key={w.id} value={w.slug}>{w.name}</option>)}
-              </select>
-            </label>
-            <label className="settings-toggle">
-              <input
-                type="checkbox"
-                data-testid="source-enabled"
-                checked={sourceForm.enabled}
-                onChange={(e) => setSourceForm({ ...sourceForm, enabled: e.target.checked })}
-              />
-              <span>Enabled</span>
-            </label>
-          </div>
-
-          {sourceForm.type === 'mqtt' && (
-            <div className="wall-editor__section">
-              <h3 className="channels-group__block-title">MQTT</h3>
-              <label className="admin-field">
-                <span>Topic</span>
-                <input
-                  type="text"
-                  data-testid="source-mqtt-topic"
-                  value={sourceForm.mqttTopic}
-                  onChange={(e) => setSourceForm({ ...sourceForm, mqttTopic: e.target.value })}
-                />
-              </label>
-              <label className="admin-field">
-                <span>Match mode</span>
-                <select
-                  data-testid="source-mqtt-match-mode"
-                  value={sourceForm.mqttMatchMode}
-                  onChange={(e) => setSourceForm({ ...sourceForm, mqttMatchMode: e.target.value as MatchRule['mode'] })}
-                >
-                  <option value="any">Any non-empty payload</option>
-                  <option value="json">JSON field equals</option>
-                  <option value="exact">Exact payload match</option>
-                </select>
-              </label>
-              {sourceForm.mqttMatchMode === 'json' && (
-                <>
-                  <label className="admin-field">
-                    <span>JSON field</span>
-                    <input
-                      type="text"
-                      data-testid="source-mqtt-json-field"
-                      value={sourceForm.mqttJsonField}
-                      onChange={(e) => setSourceForm({ ...sourceForm, mqttJsonField: e.target.value })}
-                    />
-                  </label>
-                  <label className="admin-field">
-                    <span>Equals</span>
-                    <input
-                      type="text"
-                      data-testid="source-mqtt-json-equals"
-                      value={sourceForm.mqttJsonEquals}
-                      onChange={(e) => setSourceForm({ ...sourceForm, mqttJsonEquals: e.target.value })}
-                    />
-                  </label>
-                </>
-              )}
-              {sourceForm.mqttMatchMode === 'exact' && (
-                <label className="admin-field">
-                  <span>Exact payload</span>
-                  <input
-                    type="text"
-                    data-testid="source-mqtt-exact-value"
-                    value={sourceForm.mqttExactValue}
-                    onChange={(e) => setSourceForm({ ...sourceForm, mqttExactValue: e.target.value })}
-                  />
-                </label>
-              )}
-            </div>
-          )}
-
-          {sourceForm.type === 'gpio' && (
-            <div className="wall-editor__section">
-              <h3 className="channels-group__block-title">GPIO</h3>
-              <label className="admin-field">
-                <span>Line</span>
-                <input
-                  type="number"
-                  min={0}
-                  data-testid="source-gpio-line"
-                  value={sourceForm.gpioLine}
-                  onChange={(e) => setSourceForm({ ...sourceForm, gpioLine: e.target.value })}
-                />
-              </label>
-              <label className="settings-toggle">
-                <input
-                  type="checkbox"
-                  data-testid="source-gpio-active-low"
-                  checked={sourceForm.gpioActiveLow}
-                  onChange={(e) => setSourceForm({ ...sourceForm, gpioActiveLow: e.target.checked })}
-                />
-                <span>Active low</span>
-              </label>
-            </div>
-          )}
-
-          {sourceForm.type === 'ble' && (
-            <div className="wall-editor__section">
-              <h3 className="channels-group__block-title">BLE</h3>
-              <label className="admin-field">
-                <span>MAC address (blank = any BTHome motion sensor)</span>
-                <input
-                  type="text"
-                  data-testid="source-ble-mac"
-                  value={sourceForm.bleMac}
-                  onChange={(e) => setSourceForm({ ...sourceForm, bleMac: e.target.value })}
-                />
-              </label>
-            </div>
-          )}
-
-          {sourceForm.type === 'webhook' && (
-            <p className="admin-page-quiet">
-              Identity comes from the URL — save this source, then copy its row&rsquo;s
-              webhook URL in the table above.
-            </p>
-          )}
-
-          {sourceFormError && (
-            <p className="beer-form__notice" role="alert" data-testid="source-form-error">{sourceFormError}</p>
-          )}
-          <div className="beer-form__actions">
-            <button
-              type="button"
-              className="beer-form__submit"
-              data-testid="source-save"
-              disabled={sourceFormSubmitting}
-              onClick={() => { void saveSource(); }}
-            >
-              {sourceFormSubmitting ? 'Saving…' : 'Save'}
-            </button>
-            <button type="button" className="beer-form__cancel" data-testid="source-cancel" onClick={closeSourceForm}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {deleteState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="source-delete-confirm-backdrop"
-          onClick={() => !deleting && setDeleteState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="source-delete-title"
-            onClick={(e) => e.stopPropagation()}
+          <ConfirmDialog
+            open={deleteState !== null}
+            onOpenChange={(open) => { if (!open) setDeleteState(null); }}
+            title="Delete this motion source?"
+            confirmLabel="Delete"
+            busyLabel="Deleting…"
+            busy={deleting}
+            error={deleteState?.error}
+            onConfirm={() => { void handleConfirmDeleteSource(); }}
+            testId="source-delete-confirm-backdrop"
+            confirmTestId="source-delete-confirm"
+            cancelTestId="source-delete-cancel"
+            errorTestId="source-delete-error"
           >
-            <h3 id="source-delete-title" className="font-display">Delete motion source</h3>
-            <p>
-              This will permanently delete &ldquo;{deleteState.name}&rdquo;. Any transport
-              watching it (mqtt/gpio/ble) stops firing immediately. This can&rsquo;t be undone.
-            </p>
-            {deleteState.error && (
-              <p role="alert" data-testid="source-delete-error">{deleteState.error}</p>
+            {deleteState && (
+              <p>
+                {`This permanently deletes “${deleteState.name}”. Whatever it listens to (MQTT, GPIO or Bluetooth) stops waking screens at once. This can’t be undone.`}
+              </p>
             )}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="source-delete-confirm"
-                disabled={deleting}
-                onClick={() => { void handleConfirmDeleteSource(); }}
-              >
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
-              <button
-                type="button"
-                data-testid="source-delete-cancel"
-                disabled={deleting}
-                onClick={() => setDeleteState(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+          </ConfirmDialog>
+        </>
       )}
-    </div>
+    >
+      <ZonesPanel
+        walls={walls}
+        wallsLoaded={wallsLoaded}
+        zoneStates={zoneStates}
+        agentsBySlug={agentsBySlug}
+        error={zoneError}
+        onSetState={(wall, state) => { void handleSetState(wall, state); }}
+      />
+      <DisplayPowerPanel
+        walls={walls}
+        wallsLoaded={wallsLoaded}
+        fieldsFor={(wall) => dpForm[wall.id] ?? dpFieldsFromWall(wall)}
+        errors={dpErrors}
+        onChange={updateDpField}
+        onSave={(wall) => { void saveDisplayPower(wall); }}
+      />
+      <SourcesPanel
+        rows={sourceRows}
+        walls={walls}
+        blinking={blinking}
+        error={sourcesActionError}
+        hasFreshToken={hasFreshToken}
+        webhookUrl={webhookUrl}
+        onAdd={openAddSource}
+        onEdit={openEditSource}
+        onDelete={requestDeleteSource}
+        onToggleCamera={(slug, enabled) => { void toggleCameraMotion(slug, enabled); }}
+      />
+      <WebhookPanel
+        token={webhookToken}
+        hasFreshToken={hasFreshToken}
+        hasWebhookSource={hasWebhookSource}
+        submitting={tokenSubmitting}
+        error={tokenError}
+        webhookUrl={webhookUrl}
+        onGenerate={() => { void handleGenerateToken(); }}
+      />
+    </PageTemplate>
   );
 }

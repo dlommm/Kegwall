@@ -343,69 +343,12 @@
   color: var(--text);
 }
 
-.dashboard-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 1.1rem 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.dashboard-card__title {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-}
-
-.dashboard-source-badge {
-  grid-row: span 2;
-  align-self: start;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-}
-
-.dashboard-source-badge--healthy {
-  background: color-mix(in srgb, #4caf7d 22%, transparent);
-  color: #8fe0b8;
-}
-
-.dashboard-source-badge--unhealthy {
-  background: color-mix(in srgb, #e0793d 22%, transparent);
-  color: #f2b088;
-}
-
-.dashboard-source-badge--unconfigured {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  color: var(--text-dim);
-}
-
 /*
  * Beers page (Phase 4 Task 4) — the catalog table, the create/edit form (BeerForm), and
  * its brewery + style autocompletes. Reuses the admin shell's quiet working-tool
  * language; the SRM chip/swatch is the one place liquid/SRM color reappears
  * here, per the binding design direction — a small dot, never a full LiquidFill.
  */
-.admin-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.admin-page-header__title {
-  font-size: 1.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
 
 .admin-page-header__action {
   padding: 0.5rem 1rem;
@@ -457,12 +400,6 @@
 }
 
 /* Header lead (title + count summary), search, LOOKUP chips, "add art" chip, STATUS pills (3f). */
-.admin-page-header__lead {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
 
 .beers-summary {
   color: var(--text-dim);
@@ -481,10 +418,6 @@
   font-weight: 600;
   cursor: pointer;
 }
-
-/* Automations sentence cards (4g). */
-
-/* Accent inline "Bind tap →" chip on an unbound monitor port (4d). */
 
 /* Doctor verdict banner (4c). */
 .doctor-verdict {
@@ -507,52 +440,6 @@
   color: var(--warn);
 }
 
-/* Backdated cleaning dialog (4a). */
-
-/* Game setup sheet (5b). */
-.game-setup__label {
-  display: block;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  margin: 0.75rem 0 0.4rem;
-}
-
-.game-setup__players {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.game-setup__player {
-  padding: 0.4rem 0.8rem;
-  min-height: 44px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.game-setup__player--on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-}
-
-.game-setup__target {
-  margin-top: 0.75rem;
-  max-width: 12rem;
-}
-
-.game-setup__start {
-  background: var(--accent);
-  color: var(--bg);
-  border: none;
-  font-weight: 600;
-}
-
 /* --- Games (5a) ------------------------------------------------------------- */
 .games-active-banner {
   display: flex;
@@ -567,84 +454,11 @@
   font-weight: 600;
 }
 
-.games-active-banner__dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--ok);
-  margin-right: 6px;
-}
-
-.games-active-banner__end {
-  padding: 0.35rem 0.9rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border-strong, var(--border));
-  background: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
 .games-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 1.25rem;
-}
-
-.games-chip {
-  padding: 0.35rem 0.8rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text-dim);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.games-chip[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.games-section {
-  margin-bottom: 1.75rem;
-}
-
-.games-section__head {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  margin-bottom: 0.75rem;
-}
-
-.games-section__tick {
-  align-self: center;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  flex: none;
-}
-
-.games-section__title {
-  font-size: 1.05rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.games-section__subtitle {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.games-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.75rem;
 }
 
 .game-card {
@@ -656,60 +470,6 @@
   flex-direction: column;
   gap: 0.5rem;
 }
-
-.game-card__name {
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.game-card__premise {
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  margin: 0;
-  flex: 1;
-}
-
-.game-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.game-tag {
-  padding: 0.15rem 0.5rem;
-  border-radius: 0.3rem;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.game-tag--auto { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
-
-.game-tag--tablet { background: color-mix(in srgb, #B48CFF 22%, transparent); color: #B48CFF; }
-
-.game-tag--hybrid { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
-
-.game-card__meta {
-  font-size: 0.72rem;
-  color: var(--text-faint, var(--text-dim));
-}
-
-.game-card__start {
-  margin-left: auto;
-  padding: 0.3rem 0.8rem;
-  border-radius: 0.4rem;
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* --- Suppliers (4l) --------------------------------------------------------- */
 
 /* Weekly opening hours — grid editor on the form, compressed runs on the card. */
 .supplier-hours-editor {
@@ -894,10 +654,6 @@ h2.admin-field__label-text {
   text-align: center;
 }
 
-/* "Search catalog.beer" (Wave N, replaces the removed "Search Untappd" button) gets the
-   accent color — same "this is the beer-lookup shortcut" visual weight the removed
-   button had — while sharing every other button-shell property above. */
-
 /* Shared form classes still used by Settings, Automations and Home Assistant forms: the
    same look as the V2 Button primitive (primary / quiet) and an inline warning line. */
 .beer-form__notice {
@@ -1025,16 +781,6 @@ h2.admin-field__label-text {
 
 /* Delete confirmation — always a full consequence sentence, never a bare "are you sure?"
    per the binding design direction. */
-.admin-confirm__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.55);
-}
 
 .admin-confirm {
   display: flex;
@@ -1047,26 +793,6 @@ h2.admin-field__label-text {
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
   color: var(--text);
-}
-
-.admin-confirm__actions {
-  display: flex;
-  gap: 0.6rem;
-}
-
-.admin-confirm__actions button {
-  padding: 0.5rem 1rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.admin-confirm__actions button:first-child {
-  border: none;
-  background: #c94b3f;
-  color: #fff;
 }
 
 /* Visible keyboard focus everywhere, per the design direction. */
@@ -1084,15 +810,6 @@ h2.admin-field__label-text {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-
-/*
- * Taps & kegs (Phase 4 Task 5). The list reuses the dashboard tap pill's small SRM-tinted
- * fill bar (the one other place the liquid language reappears), not the wall's full
- * LiquidFill treatment — same design-direction rule as DashboardPage.
- */
-
-/* Tap create/edit form — shares BeerForm's field/action/notice classes for a consistent
-   look without duplicating them (see beer-form__* below). */
 
 /* BeerPicker — the swap drawer's and on-deck queue's shared "pick a beer" list. */
 .beer-picker {
@@ -1233,8 +950,6 @@ h2.admin-field__label-text {
   outline-offset: 2px;
 }
 
-/* Accent "Swap now →" when the current keg is about to kick (redesign 3d). */
-
 /* Visible keyboard focus for every new Task 5 interactive element. */
 .beer-picker input:focus-visible,
 .beer-picker__create:focus-visible,
@@ -1256,184 +971,13 @@ h2.admin-field__label-text {
   font-family: inherit;
 }
 
-/*
- * Monitors page (Phase 4 Task 6). The table reuses `.admin-table` (BeersPage) and the
- * bind-picker/reset-confirm dialogs reuse the `.admin-confirm` shell (BeersPage/TapsPage
- * delete confirms) rather than inventing new modal chrome.
- */
-
-/* One card per physical Kegtron device (monitors grouped by type+identifier);
-   the per-port bind/volume table nests inside. */
-
-/* Disabled (Govee) sensors stay listed for re-enabling, just visibly muted. */
-
-/* The "Not bound" nudge — a visible affordance (not just quiet empty text), same warm-
-   attention tint as `.beer-picker__notice`. */
-
 /* Visible keyboard focus for every new Task 6 interactive element. */
 .admin-field select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/*
- * Walls page + wall editor (Phase 4 Task 7). The list reuses `.admin-table` (as beers/
- * monitors do); the delete confirm reuses `.admin-confirm`. Everything below is new:
- * the URL/copy/open cell, the inline create form, the pages builder, and the full
- * editor + live-preview split.
- */
-.walls-table__url {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.walls-table__url-text {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-  font-family: var(--font-mono-numeric, inherit);
-  word-break: break-all;
-}
-
-.walls-table__url button,
-.walls-table__url a {
-  padding: 0.25rem 0.55rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.78rem;
-  text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.walls-table__url button:hover,
-.walls-table__url a:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.walls-table__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  justify-content: flex-end;
-  white-space: nowrap;
-}
-
-.walls-table__actions button {
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.walls-table__actions button:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-/* The inline read-only preview row a click on "Preview" expands under any wall's row. */
-.walls-table__preview-frame {
-  display: block;
-  width: 100%;
-  height: 20rem;
-  margin: 0.5rem 0;
-  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
-  border-radius: var(--card-radius, 0.75rem);
-  background: #000;
-}
-
-.wall-create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  margin-bottom: 1.5rem;
-  padding: 1.1rem 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.wall-create-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.85rem;
-}
-
-.wall-create-form__notice {
-  border-radius: 0.4rem;
-  padding: 0.55rem 0.7rem;
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-  font-size: 0.85rem;
-}
-
-.wall-create-form__actions,
-/* Redesign 1c: Display Fit — resolution segmented picker + UI scale controls. */
-.wall-editor__seg {
-  display: flex;
-  gap: 6px;
-  margin: 6px 0 10px;
-}
-
-.wall-editor__seg-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 8px 6px;
-  min-height: 44px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.wall-editor__seg-btn--active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text);
-}
-
-.wall-editor__seg-main {
-  font-family: var(--font-display);
-  font-size: 15px;
-}
-
-.wall-editor__seg-sub {
-  font-size: 10px;
-  color: var(--text-faint);
-}
-
-.wall-editor__reset-scale {
-  min-height: 32px;
-  align-self: flex-start;
-  padding: 4px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
 /* Redesign 1c: live inline preview — a scaled 1920×1080 frame rendering the draft config. */
-.wall-editor__preview-label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
 
 .wall-live-preview {
   position: relative;
@@ -1474,150 +1018,6 @@ h2.admin-field__label-text {
   flex-direction: column;
 }
 
-/* Redesign 1c: editor toolbar + settings rail chrome. */
-.wall-editor__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  height: 56px;
-  padding: 0 18px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.wall-editor__toolbar-name {
-  font-size: 17px;
-  margin: 0;
-}
-
-.wall-editor__live-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  color: var(--ok);
-}
-
-.wall-editor__live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--ok);
-}
-
-.wall-editor__status {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.wall-editor__status--dirty {
-  color: var(--warn);
-}
-
-.wall-editor__save {
-  min-height: 36px;
-  padding: 0 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-faint);
-  font-weight: 600;
-  cursor: not-allowed;
-}
-
-.wall-editor__save--dirty {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #14100b;
-  cursor: pointer;
-}
-
-.wall-editor__banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.wall-editor__banner-dismiss {
-  margin-left: auto;
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.wall-editor__search {
-  width: 100%;
-  min-height: 40px;
-  margin-bottom: 12px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-}
-
-.wall-editor__simulate {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--accent);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Two-pane: the settings rail scrolls while the preview stays put. */
-.wall-editor__preview {
-  position: sticky;
-  top: 12px;
-  align-self: start;
-}
-
-.wall-editor__save-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.wall-create-form__actions button,
-.wall-editor__save-row button {
-  padding: 0.5rem 1rem;
-  border-radius: 0.4rem;
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.wall-create-form__actions button:last-child {
-  background: none;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  color: var(--text);
-  font-weight: 500;
-}
-
-.wall-create-form__actions button:disabled,
-.wall-editor__save-row button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 /* --- Wall editor shell: form column + a preview column that stays put alongside it --- */
 .wall-editor {
   display: grid;
@@ -1647,47 +1047,8 @@ h2.admin-field__label-text {
   grid-template-columns: 1fr;
 }
 
-.wall-editor--preview-stacked .wall-editor__preview {
-  position: static;
-  order: -1;
-}
-
 /* The preview-size segmented control sits in the sticky preview header; keep its buttons a touch
    more compact than the Display-fit segments (single line, no sub-label). */
-.wall-editor__preview-size .wall-editor__seg-btn {
-  min-height: 40px;
-  padding: 6px 6px;
-}
-
-.wall-editor__back {
-  align-self: flex-start;
-  padding: 0.25rem 0;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.wall-editor__back:hover {
-  color: var(--text);
-}
-
-.wall-editor__form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  padding: 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.wall-editor__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.85rem;
-}
 
 .wall-editor__section {
   display: flex;
@@ -1706,12 +1067,6 @@ h2.admin-field__label-text {
   letter-spacing: 0.04em;
 }
 
-.wall-editor__field-toggles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.5rem;
-}
-
 .wall-editor__checkbox {
   display: flex;
   align-items: center;
@@ -1721,74 +1076,8 @@ h2.admin-field__label-text {
   cursor: pointer;
 }
 
-.wall-editor__tokens {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.wall-editor__token-row {
-  display: grid;
-  grid-template-columns: 8rem 1fr auto;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.wall-editor__token-label {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.wall-editor__token-row input[type='color'] {
-  width: 2.75rem;
-  height: 2rem;
-  padding: 0;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  cursor: pointer;
-}
-
-.wall-editor__token-row input[type='text'] {
-  padding: 0.4rem 0.55rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--text);
-  font-size: 0.85rem;
-}
-
-.wall-editor__token-row button {
-  padding: 0.3rem 0.55rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.wall-editor__token-row button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.wall-editor__css-textarea {
-  min-height: 6rem;
-  font-family: var(--font-mono-numeric, monospace);
-  font-size: 0.85rem;
-}
-
 /* The mandated inline trust warning next to custom CSS — same warm-attention tint as the
    "Not bound" monitor nudge and the auth notices, never just quiet gray text. */
-.wall-editor__css-warning {
-  margin-top: -0.5rem;
-  padding: 0.5rem 0.7rem;
-  border-radius: 0.4rem;
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-  font-size: 0.8rem;
-}
 
 .wall-editor__errors {
   display: flex;
@@ -1802,19 +1091,6 @@ h2.admin-field__label-text {
   font-size: 0.85rem;
   list-style: disc;
   list-style-position: inside;
-}
-
-.wall-editor__live-note {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.wall-editor__preview {
-  position: sticky;
-  top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
 }
 
 .wall-preview__frame {
@@ -1978,10 +1254,6 @@ h2.admin-field__label-text {
       grid-template-columns: 1fr;
     }
 
-  .wall-editor__preview {
-      position: static;
-    }
-
 }
 
 /*
@@ -1990,38 +1262,6 @@ h2.admin-field__label-text {
  * shell exactly (own class only so this section reads independently, not because the
  * look differs).
  */
-.user-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin: 1rem 0;
-  padding: 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.user-form__title {
-  font-size: 1.1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.user-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 0.9rem;
-}
-
-.user-form input[type='color'] {
-  width: 3rem;
-  height: 2.2rem;
-  padding: 0.15rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  cursor: pointer;
-}
 
 .users-avatar-dot {
   display: block;
@@ -2041,23 +1281,6 @@ h2.admin-field__label-text {
   border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
   color: var(--text);
 }
-
-/* Face-data management (Task 9, Plan B): the "N face samples" + "Delete face data" row
- * that appears under a drinker's role pill once they have at least one enrolled sample. */
-
-.user-form button:focus-visible,
-.user-form input:focus-visible,
-.user-form select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/*
- * Settings page + Backup panel (Phase 4 Task 8). Each group is its own quiet card
- * (`.settings-group`, same shell language as `.user-form`/`.tap-form`/`.beer-form`) that
- * saves independently; masked secret fields (`.masked-secret`) share one small "Replace"
- * affordance component across Kegtron/Sources/Integrations.
- */
 /* Doctor raw-UDP capture — collapsible packet dump under the UDP listen row. */
 .doctor-raw {
   margin: 0.25rem 0 0.75rem;
@@ -2290,19 +1513,6 @@ h2.admin-field__label-text {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-
-/*
- * Stats page (Phase 4 Task 9) — Recharts-driven pours/hour/temp/volume charts, per-keg
- * depletion cards, and the leaderboard table. Per the binding "Charts style" section:
- * one brass primary series (var(--accent)) everywhere except the volume-by-beer chart,
- * whose bars are SRM-tinted because each one IS a specific beer; no gradients/3D/
- * decorative animation (every Bar/Line below sets isAnimationActive={false} in JSX);
- * axis ticks pick up tabular numerals via the shared `.font-tabular` rules through plain
- * CSS inheritance (XAxis/YAxis pass `className="font-tabular"` straight onto Recharts'
- * own <g> wrapper, and SVG <text> inherits font-family/font-variant-numeric from its
- * ancestors); a custom `<Tooltip content>` on every chart names the exact value + unit
- * instead of Recharts' bare default.
- */
 /* A CSS multi-column ("masonry") layout rather than CSS Grid: the six sections here are
    very different heights (four short charts, but keg-depletion and the leaderboard both
    grow with the number of rows they list), and a same-height-row grid would stretch
@@ -2517,13 +1727,6 @@ h2.admin-field__label-text {
   border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
 }
 
-/*
- * Automations (Task 6) — the list follows `.taps-list`/`.taps-row`'s exact shell language
- * (row card, main line, right-aligned actions); the template picker and structured
- * builder reuse `.beer-form`/`.admin-field`/`.wall-editor__section` throughout rather than
- * inventing new field chrome, per the existing pages' "one form language" convention.
- */
-
 /* Alert badge — same small-pill language as `.users-role-badge`, tinted per severity. */
 .automations-alert-badge {
   display: inline-block;
@@ -2727,10 +1930,6 @@ h2.admin-field__label-text {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-
-/* Dashboard banners — setup hint (info), reboot pending (warn), undervoltage
- * (danger). Stacked above the stat grid; the action is a link or inline-confirm
- * button on the right. */
 /* Settings action rows — secondary buttons like "Check for updates" / "Update now" /
  * "Update OS now". These previously borrowed .doctor-row__actions, which has no CSS
  * of its own (the Doctor page styles buttons via its .doctor-row PARENT), so in
@@ -2765,44 +1964,6 @@ h2.admin-field__label-text {
   opacity: 0.5;
   cursor: default;
 }
-
-.dashboard-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dashboard-card__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-
-.dashboard-card__title {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-}
-
-.dashboard-source-badge {
-  font-size: 12px;
-}
-
-.dashboard-source-badge--healthy { color: var(--ok); }
-
-.dashboard-source-badge--unhealthy { color: var(--danger); }
-
-.dashboard-source-badge--unconfigured { color: var(--text-faint, var(--text-dim)); }
-
-/* --- Taps & kegs (5b): rows become keg cards ------------------------------ */
-
-/* Redesign 3d: a keg kicking within 3 days reads danger-red, and its Swap is the accent primary. */
-
-/* Days-to-kick timeline (redesign 3d): green→amber→red gradient with an elapsed marker. */
 
 /* --- Logs (Kegwall V2 M8: prototypes/admin-diagnostics.html's live log) ------------ */
 .logs-toolbar {
@@ -2958,74 +2119,6 @@ h2.admin-field__label-text {
   font-size: 14px;
 }
 
-/* --- Pourers (11c, first cut) --------------------------------------------- */
-
-.displays-section {
-  margin-top: 18px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.displays-add {
-  display: flex;
-  gap: 10px;
-}
-
-.displays-add input {
-  padding: 7px 12px;
-  border-radius: 9px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.displays-add button {
-  padding: 7px 14px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-/* Device→wall assignment panel: one checkbox per physical Kegtron device. */
-.wall-editor__devices {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 14px 0;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.wall-editor__device {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 0.9rem;
-}
-
-.wall-editor__rotation-view {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-/* --- Cleaning (6e; meter redesign 3d) -------------------------------------- */
-
-/* Progress toward the next cleaning — the meter that replaces the surprise badge. */
-
-/* --- Analytics (10a; 9-tab hub 4e/4j) -------------------------------------- */
-/* Grafana-style tab strip; horizontally scrolls on narrow screens rather than wrapping. */
-
 /* History tables scroll horizontally inside their own container (never the page body). */
 .analytics-table-scroll {
   overflow-x: auto;
@@ -3136,109 +2229,6 @@ h2.admin-field__label-text {
   cursor: pointer;
 }
 
-/* --- Displays & Presence hub (Task 4: Zones + Display power panels) -------- */
-/* `.dashboard-card`/`.dashboard-card__head`/`.admin-table` (above) do the heavy lifting
- * for the panel shell + head row + row table; this section only adds what's specific to
- * this page's row actions and inline inputs. */
-.presence-panels {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.presence-panel .admin-table td {
-  vertical-align: middle;
-}
-
-.presence-panel .admin-table input[type='number'] {
-  width: 6rem;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.presence-panel .admin-table input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-}
-
-.presence-panel .admin-table td button,
-.presence-panel .dashboard-card__head button {
-  padding: 6px 12px;
-  margin-right: 6px;
-  border-radius: 9px;
-  border: 1px solid var(--border-strong);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.presence-panel .admin-table td button:last-of-type {
-  margin-right: 0;
-}
-
-.presence-panel .wall-editor__errors {
-  margin-top: 8px;
-  color: var(--danger);
-  font-size: 12px;
-}
-
-/* --- Displays & Presence hub Task 5: Motion sources + Webhook & agent panels -------- */
-/* `tr[data-blink="true"]` is a purely visual highlight — tests assert the `data-blink`
- * attribute itself (fake-timer-safe), never this animation running. */
-.presence-panel tr[data-blink='true'] {
-  animation: presence-source-blink 1s ease-in-out 2;
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-  .presence-panel tr[data-blink='true'] {
-      animation: none;
-      background: color-mix(in srgb, var(--accent) 18%, transparent);
-    }
-
-}
-
-/* Final-review C2: a disabled source stays listed (its only re-enable path is this same
- * table's Edit modal) but reads as visually inactive, same "dim, don't hide" affordance
- * as `.dashboard-source-badge--unconfigured` elsewhere in this stylesheet. */
-.presence-panel tr[data-enabled='false'] {
-  opacity: 0.55;
-}
-
-.presence-panel tr[data-enabled='false'] td:not(:last-child) {
-  color: var(--text-faint, var(--text-dim));
-}
-
-.presence-ha-snippet {
-  margin: 0.75rem 0 0;
-  padding: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
-  border-radius: 0.4rem;
-  font-size: 0.78rem;
-  font-family: var(--font-mono-numeric, monospace);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-x: auto;
-}
-
-/* Review fix F2: the per-webhook-source-row expandable HA snippet — same collapsible
- * affordance as `.doctor-raw` (DoctorPage's raw-UDP capture). */
-.presence-ha-snippet-details {
-  margin: 0.4rem 0 0;
-  font-size: 0.8rem;
-}
-
-.presence-ha-snippet-details summary {
-  cursor: pointer;
-  color: color-mix(in srgb, var(--text) 60%, transparent);
-}
-
 /* --- Kegs page (keg history + edit cost/supplier) --- */
 
 .stats-chart__metric {
@@ -3252,8 +2242,6 @@ h2.admin-field__label-text {
   letter-spacing: 0.04em;
   color: var(--text-dim);
 }
-
-/* Keep maintenance controls readable in both the card grid and narrow layouts. */
 
 /* Padding grows the tap target to 44px; the negative margin keeps the line height normal. */
 
@@ -3317,22 +2305,10 @@ h2.admin-field__label-text {
 
   .admin-content { padding: 16px; }
 
-  
-
-  
-
-  .dashboard-card { min-width: 0; padding: 16px; }
-
-  .dashboard-card__head { flex-wrap: wrap; }
-
 }
 
 /* Shared admin polish: readable controls and contained tables on small screens. */
 .admin-content input[type='checkbox'] { accent-color: var(--accent); }
-
-.admin-page-header { flex-wrap: wrap; gap: 12px; }
-
-.admin-page-header > .admin-page-quiet { flex-basis: 100%; }
 
 .admin-content :where(button):not([class]) {
   min-height: 34px; padding: 6px 12px; border: 1px solid var(--border-strong);
@@ -3350,8 +2326,6 @@ h2.admin-field__label-text {
   .admin-content table:not(.adm-table) { display: block; max-width: 100%; overflow-x: auto; }
 
   .admin-content :not(.adm-table) > * > tr > :is(th, td) { white-space: nowrap; }
-
-  .dashboard-source-badge { white-space: normal; overflow-wrap: anywhere; }
 
 }
 

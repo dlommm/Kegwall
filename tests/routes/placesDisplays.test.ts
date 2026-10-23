@@ -139,6 +139,23 @@ describe('displays (design 7c)', () => {
     });
     expect(bad.statusCode).toBe(400);
   });
+
+  it('accepts every wall look and takeover style as an override (Kegwall V2 ids included)', async () => {
+    const display = (await app.inject({
+      method: 'POST', url: '/api/displays', payload: { name: 'TV' }, cookies,
+    })).json();
+    for (const overrides of [
+      { look: 'just-tapped', takeoverStyle: 'tappull' },
+      { look: 'handles', takeoverStyle: 'kegdrain' },
+      { look: 'zen', takeoverStyle: 'gameon' },
+    ]) {
+      const res = await app.inject({
+        method: 'PATCH', url: `/api/displays/${display.id}`, payload: { overrides }, cookies,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().overrides).toEqual(overrides);
+    }
+  });
 });
 
 describe('display-token gating (sub-project A)', () => {

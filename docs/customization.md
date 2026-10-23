@@ -1,10 +1,29 @@
 # Customizing walls
 
 A "wall" is a public, unauthenticated display page (`/wall/:slug`) meant for a TV or
-kiosk display — a rotating grid of tap cards. Everything below is configured per-wall in
-the admin UI at **Settings -> Walls -> (pick a wall) -> Edit** (editor role or higher);
-this doc explains what each option actually does, sourced from the wall config schema
-(`src/server/core/wallConfig.ts`).
+kiosk display. Everything below is configured per wall in the admin's **Wall Editor**:
+**Screens → Walls → Edit wall** (editor role or higher). This doc explains what each option
+actually does, sourced from the wall config schema (`src/server/core/wallConfig.ts`).
+
+## The Wall Editor
+
+![The Wall Editor](images/admin-wall-editor.jpg)
+
+The editor is a studio in three parts:
+
+- **A rail of eight sections** on the left: Look, Colors, What shows, Taps and pages, Pour
+  takeover, Rotation and sleep, Screen fit, Custom CSS. A dot marks every section with unsaved
+  changes; **Undo** in a section puts just that section back, **Discard changes** puts back
+  everything.
+- **A live 16:9 stage** in the middle, drawn from the draft with **this wall's own taps** (the
+  taps on the monitors it's assigned). Switch it between **Wall**, **Live pour** (a pour held
+  half-way in the chosen takeover style) and **Screensaver**, between **Fit** and **100%**, and
+  between pages. **Preview a pour** plays one whole pour; nothing is recorded. Under the stage:
+  which taps the wall shows, which paired screens get it on save, and the spotlight.
+- **The inspector** on the right: the 14-look gallery, theme swatches (individual colors under
+  a disclosure), plain fields elsewhere, and custom CSS checked before it saves.
+
+Nothing reaches a TV until **Save to TVs**. Leaving with unsaved changes asks first.
 
 ## Looks
 
@@ -115,7 +134,7 @@ Every style follows the same rules:
 - **QR code** — show a scannable code for the phone menu and claiming pours.
 - **Columns, card template, fields, glyph style and fill style** no longer change the wall:
   every look chooses its own composition. They are kept in the stored config (nothing is
-  lost on upgrade) and leave the Wall Editor in a later 2.0 milestone.
+  lost on upgrade or downgrade) and sit under **Custom CSS → Kegwall 1.x card settings**.
 
 ## Themes
 
@@ -131,8 +150,8 @@ validated against a safe `--custom-property: value` shape before being written t
 
 ## Custom CSS — read the trust model before you paste anything here
 
-The wall editor also has a raw **Custom CSS** textarea, with this warning shown directly
-above the save button:
+The Wall Editor's **Custom CSS** section is a raw stylesheet, with this warning shown under
+it:
 
 > Custom CSS runs on every screen showing this wall — only paste CSS you trust.
 
@@ -175,8 +194,9 @@ until it is redrawn.
 
 ## Display power
 
-The wall editor's **Display power** fieldset controls a server-owned idle/wake state
-machine (the presence engine), independent per wall:
+The Wall Editor's **Rotation and sleep → Sleep** settings (also on **Screens → Presence →
+Sleep timers**) control a server-owned idle/wake state machine (the presence engine),
+independent per wall:
 
 - **Screensaver after (minutes, blank = never)** — after this many minutes of no
   activity, the display drops into a dimmed screensaver stage: a dim clock overlay over
@@ -213,15 +233,18 @@ Assistant, etc).
 
 ## Pairing screens by code
 
-The **Displays** admin page mints a short pairing code per screen; the TV opens
-`/display` and types it to learn which wall it shows. Two rules to know:
+**Screens → Displays** (**Pair a screen**) mints a short pairing code per screen; the TV opens
+`/display` and types it to learn which wall it shows. Each paired screen can also override its
+wall's look and pour takeover (any of the 14 looks and 9 styles). Unpairing asks first. Rules
+to know:
 
 - **Codes expire 15 minutes after they're minted.** If the TV reports an expired code
   (or you're pairing a display created before this rule existed), press **New code** on
   the Displays page (or `POST /api/displays/:id/regenerate-code`, editor role) and type
   the fresh one. Expiry only gates *pairing* — a screen that's already paired keeps its
   own token and stays connected through code regeneration.
-- Pairing-code values are never written to the app log.
+- Pairing-code values are never written to the app log, and the Displays page shows them to
+  editors and admins only.
 
 ## See also
 

@@ -4,6 +4,18 @@ import { z } from 'zod';
  * 'classic' so a stored config without a `look` key keeps rendering as it always did. */
 export const NEW_WALL_LOOK = 'just-tapped' as const;
 
+/** Every wall look id. Ids are only ever added, so a stored config always parses. */
+export const WALL_LOOK_IDS = [
+  'classic', 'ledger', 'gallery', 'columns',
+  'chalkboard', 'editorial', 'neon', 'terminal', 'poster', 'departures', 'zen',
+  'just-tapped', 'handles', 'tally',
+] as const;
+
+/** Every pour takeover style. `off` is shown as "Badge". */
+export const TAKEOVER_STYLE_IDS = [
+  'off', 'full', 'spotlight', 'split', 'dock', 'fill', 'tappull', 'kegdrain', 'gameon',
+] as const;
+
 export const wallConfigSchema = z.object({
   columns: z.number().int().min(1).max(6).default(2),
   // Wall LOOK (Pour Wall overhaul): the layout template axis, separate from `theme`
@@ -12,11 +24,7 @@ export const wallConfigSchema = z.object({
   // existing walls' stored config (parsed with this key absent) render unchanged.
   // Kegwall V2 adds 'just-tapped', 'handles' and 'tally' (additive). Every look id stays
   // valid forever, so a stored config never fails to parse.
-  look: z.enum([
-    'classic', 'ledger', 'gallery', 'columns',
-    'chalkboard', 'editorial', 'neon', 'terminal', 'poster', 'departures', 'zen',
-    'just-tapped', 'handles', 'tally',
-  ]).default('classic'),
+  look: z.enum(WALL_LOOK_IDS).default('classic'),
   // Kegwall V2 (decision D3): which keg owns the Just Tapped look's spotlight half.
   // 'newest' = the most recently tapped keg on the wall; 'pinned' = `tapId` (falling back
   // to newest when that tap is empty or not on the wall). Other looks ignore it.
@@ -35,7 +43,7 @@ export const wallConfigSchema = z.object({
   // Kegwall V2 adds 'tappull', 'kegdrain' and 'gameon' (additive), and `finish`: 'cheers'
   // ends a single full-screen pour with the Cheers moment. A stored takeover parses as before.
   takeover: z.object({
-    style: z.enum(['off', 'full', 'spotlight', 'split', 'dock', 'fill', 'tappull', 'kegdrain', 'gameon']).default('off'),
+    style: z.enum(TAKEOVER_STYLE_IDS).default('off'),
     minMl: z.number().min(0).default(60),
     finish: z.enum(['plain', 'cheers']).default('plain'),
   }).default({ style: 'off', minMl: 60, finish: 'plain' }),

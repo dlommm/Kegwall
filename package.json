@@ -20,7 +20,8 @@
     "visual:capture": "tsx scripts/visual/capture.ts",
     "visual:diff": "tsx scripts/visual/diff.ts",
     "visual:contrast": "tsx scripts/visual/contrast.ts",
-    "docs:images": "tsx scripts/visual/docs-images.ts"
+    "docs:images": "tsx scripts/visual/docs-images.ts",
+    "lint:css": "tsx scripts/css-usage.ts"
   },
   "keywords": [
     "kegtron",
