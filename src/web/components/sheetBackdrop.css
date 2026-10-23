@@ -1,0 +1,11 @@
+/* Styles for the public bottom sheets (claim picker, kiosk face confirm), moved out of index.css in Kegwall V2 M11 so only the screens that render it load it. */
+
+.claim-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}

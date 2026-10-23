@@ -11,6 +11,7 @@ import { initials } from '../lib/initials';
 import { usePolledFetch } from '../lib/usePolledFetch';
 import { useFocusTrap } from '../lib/useFocusTrap';
 import { CLAIM_WINDOW_MINUTES } from '../../server/db/pours.js';
+import './sheetBackdrop.css';
 
 const REFRESH_INTERVAL_MS = 30_000;
 

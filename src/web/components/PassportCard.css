@@ -1,0 +1,12 @@
+/* Styles for PassportCard, moved out of index.css in Kegwall V2 M11 so only the screens that render it load it. */
+
+.passport {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}

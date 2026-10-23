@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { TapState } from '../../server/core/state.js';
+import './ScreenCare.css';
 
 const DRIFT_INTERVAL_MS = 5 * 60_000;
 const HIGHLIGHT_INTERVAL_MS = 4_000;

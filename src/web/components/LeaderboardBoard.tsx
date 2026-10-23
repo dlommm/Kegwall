@@ -1,6 +1,7 @@
 import { formatVolumeMl, type VolumeUnits } from '../lib/units';
 import { initials } from '../lib/initials';
 import type { LeaderboardResponse } from '../lib/api';
+import './LeaderboardBoard.css';
 
 const ML_PER_GALLON = 3785.411784;
 

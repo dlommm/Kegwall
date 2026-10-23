@@ -68,6 +68,9 @@ export function findDeadRules(files = plainStylesheets()): DeadRule[] {
     return hit;
   };
   const dead: DeadRule[] = [];
+  // Every stylesheet (CSS Modules too) and the TSX can name an animation.
+  const allCss = walk(WEB).filter((f) => f.endsWith('.css')).map((f) => readFileSync(f, 'utf8')).join('\n');
+  const animationText = `${allCss}\n${text}`;
   for (const file of files) {
     const root = postcss.parse(readFileSync(file, 'utf8'), { from: file });
     root.walkRules((rule: Rule) => {
@@ -80,6 +83,14 @@ export function findDeadRules(files = plainStylesheets()): DeadRule[] {
           selector: rule.selector.replace(/\s+/g, ' '),
           unused: [...new Set(unusedPerSelector.flat())],
         });
+      }
+    });
+    root.walkAtRules(/keyframes$/i, (at) => {
+      const name = at.params.trim();
+      const uses = animationText.split(name).length - 1;
+      // The declaration itself is one mention; any other is a use.
+      if (uses <= 1) {
+        dead.push({ file: relative(ROOT, file), line: at.source?.start?.line ?? 0, selector: `@keyframes ${name}`, unused: [name] });
       }
     });
   }
@@ -112,6 +123,9 @@ export function removeDeadRules(files = plainStylesheets()): number {
     const root = postcss.parse(readFileSync(file, 'utf8'), { from: file });
     root.walkRules((rule) => {
       if (lines.has(rule.source?.start?.line ?? -1)) rule.remove();
+    });
+    root.walkAtRules(/keyframes$/i, (at) => {
+      if (lines.has(at.source?.start?.line ?? -1)) at.remove();
     });
     root.walkAtRules((at) => {
       if (at.nodes && at.nodes.length === 0) at.remove();

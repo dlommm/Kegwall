@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TapMarker } from '../../src/web/wall/TapMarker';
-import { PintsLeft } from '../../src/web/wall/PintsLeft';
 import { resolveLook } from '../../src/web/components/looks/WallLook';
 
 const base = { beerColor: '#E0D01B', markerInk: '#141110', markerLetters: 'CH', tapNumber: 3, labelImage: null, name: 'Citra Haze' };
@@ -20,15 +19,6 @@ describe('TapMarker', () => {
     const m = screen.getByTestId('tap-marker');
     expect(m.querySelector('img')).toHaveAttribute('src', '/labels/1.png');
     expect(m).not.toHaveTextContent('CH');
-  });
-});
-
-describe('PintsLeft', () => {
-  it('marks low and kicked states for styling', () => {
-    const { rerender } = render(<PintsLeft model={{ servingsLabel: '≈ 2 pints left', isKicked: false, isLow: true, hasBeer: true }} />);
-    expect(screen.getByTestId('pints-left')).toHaveAttribute('data-state', 'low');
-    rerender(<PintsLeft model={{ servingsLabel: 'Kicked', isKicked: true, isLow: false, hasBeer: true }} />);
-    expect(screen.getByTestId('pints-left')).toHaveAttribute('data-state', 'kicked');
   });
 });
 

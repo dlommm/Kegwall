@@ -7,20 +7,21 @@
  * The catalog has two generations:
  *  - The redesign set (Pour Wall overhaul handoff, option 7a): Midnight Slate
  *    (flagship/default), Cream, Cellar Teal, Taproom Green, Amber Glow and
- *    Arcade — typeset in Barlow Condensed (display) / Barlow (body).
+ *    Arcade.
  *  - The four legacy themes (taproom/chalkboard/bright/mono) kept so existing
- *    walls' stored `theme.id`s keep rendering exactly as before — typeset in
- *    Oswald / Inter as they always were.
+ *    walls' stored `theme.id`s keep rendering.
+ *  Kegwall 2.0 sets every theme in the Kegwall type (Big Shoulders Display and Atkinson
+ *  Hyperlegible, design/fonts.ts): a theme changes color, never the typeface.
  *
  * A theme is a color + shape skin; the wall LOOK (layout template) is a
  * separate config axis (`wallConfig.look`). Every theme must define the full
  * token set below — looks and glyphs read all of them.
  */
 
-const FONT_DISPLAY = "'Barlow Condensed', sans-serif";
-const FONT_BODY = "'Barlow', ui-sans-serif, system-ui, sans-serif";
-const LEGACY_FONT_DISPLAY = "'Oswald Variable', 'Oswald', sans-serif";
-const LEGACY_FONT_BODY = "'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif";
+const FONT_DISPLAY = "'Big Shoulders Display Variable', 'Big Shoulders Display', 'Arial Narrow', sans-serif";
+const FONT_BODY = "'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif";
+const LEGACY_FONT_DISPLAY = FONT_DISPLAY;
+const LEGACY_FONT_BODY = FONT_BODY;
 
 /** Status colors (keg level: ok > 35% > warn > 15% > danger) shared by every
  * dark theme; light themes carry slightly deeper variants for contrast on
@@ -52,7 +53,7 @@ export function themePreview(theme: Theme): ThemePreview {
 }
 
 /** Tabular alignment for ABV/IBU/% comes from `font-variant-numeric:
- * tabular-nums` applied where this token is used — Barlow/Inter both ship
+ * tabular-nums` applied where this token is used — Atkinson Hyperlegible ships
  * tabular figures, so no separate monospace family is needed. */
 function fonts(display: string, body: string): Record<string, string> {
   return {

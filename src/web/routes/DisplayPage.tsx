@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { pairDisplay, getDisplayView } from '../lib/api';
 import { setDisplayToken } from '../lib/displayToken';
+import './display.css';
 
 const STORAGE_KEY = 'kegtron.display';
 

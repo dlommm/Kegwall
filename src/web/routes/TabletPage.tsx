@@ -25,6 +25,7 @@ import { KioskWho } from './tablet/KioskWho';
 import { KioskArmed, KioskDone } from './tablet/KioskPour';
 // Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
 import './tablet.css';
+import '../components/sheetBackdrop.css';
 
 /** The signup screen's preset avatar palette (design 3a). */
 export const POURER_COLORS = ['#D08C4C', '#5FD9BC', '#7FA8E0', '#C77FB8', '#94C25C', '#E0B23D'];

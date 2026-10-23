@@ -566,9 +566,10 @@ describe('downloadAndStoreLabel', () => {
       expect(result).toEqual({
         ok: false, status: 400, error: 'validation', message: 'That image URL is not allowed',
       });
-      // Fast — proves this was rejected synchronously by the guard, not after a real
-      // connection attempt/timeout to an unroutable address like 169.254.169.254.
-      expect(elapsed).toBeLessThan(90);
+      // Well under the 1000 ms timeout: rejected by the guard, not after a real connection
+      // attempt to an unroutable address like 169.254.169.254 (which would sit out the
+      // whole timeout). Not a tighter bound: a loaded CI box can take ~100 ms to schedule.
+      expect(elapsed).toBeLessThan(500);
     });
 
     it('rejects a hostname that resolves (per the injected resolver) to a private address', async () => {

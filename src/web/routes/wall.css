@@ -100,24 +100,6 @@
   padding: calc(1.6 * var(--u, 1px)) calc(4.8 * var(--u, 1px));
 }
 
-/* QrOverlay */
-.qr-overlay {
-  position: fixed;
-  right: 1.25rem;
-  bottom: 1.25rem;
-  z-index: 30;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  background: #fff;
-  line-height: 0;
-}
-
-.qr-overlay svg {
-  width: 6rem;
-  height: 6rem;
-  display: block;
-}
-
 /* Page-rotation transitions — the content wrapper is remounted (React `key`) per page
    change, which is what replays these entrance animations each time. */
 .wall-grid-transition--crossfade {
@@ -324,4 +306,25 @@
   .look-frame {
     transition: opacity 300ms ease;
   }
+}
+
+/* Moved from index.css (Kegwall V2 M11). */
+@keyframes wall-reconnect-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@keyframes banner-lane-slide-in {
+  from { transform: translateY(1rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes wall-grid-crossfade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wall-grid-slide {
+  from { opacity: 0; transform: translateX(2.5%); }
+  to { opacity: 1; transform: translateX(0); }
 }

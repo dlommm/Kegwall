@@ -39,8 +39,10 @@ and the hardware.
 | Taps, with the keg swap drawer | The beer library and editor |
 |---|---|
 | ![The Taps page with the swap drawer open, offering the tap's next keg and another keg of the same beer](docs/images/admin-taps-swap.jpg) | ![The beer editor drawer with a live preview of the beer's marker](docs/images/admin-beers-editor.jpg) |
+| **The Wall Editor** | **The kegerator kiosk** |
+| ![The Wall Editor: a rail of sections, a live preview of the wall's own taps and the look gallery](docs/images/admin-wall-editor.jpg) | ![The kiosk's Who's pouring screen with big avatar tiles](docs/images/kiosk.jpg) |
 | **Tonight on a phone** | **Phone QR menu** |
-| ![Tonight on a phone](docs/images/admin-tonight-phone.jpg) | ![Mobile menu page with tap list and a claim-your-pour prompt](docs/images/menu.png) |
+| ![Tonight on a phone](docs/images/admin-tonight-phone.jpg) | ![The phone menu: the newest keg in its own color, search, style chips and the tap list](docs/images/menu-phone.jpg) |
 
 ## What it does
 
@@ -191,12 +193,13 @@ for browsing, and [CHANGELOG.md](CHANGELOG.md) describes every released version.
 | [docs/setup/motion-sensors.md](docs/setup/motion-sensors.md) | Motion sensor buying/wiring guide — mmWave, PIR/GPIO, BLE (Shelly BLU Motion), Zigbee via zigbee2mqtt, HA webhook |
 | [docs/setup/face-sign-in.md](docs/setup/face-sign-in.md) | On-device browser face matching for tablet sign-in, privacy model, enable/enroll/delete flow |
 | [docs/recovery.md](docs/recovery.md) | Backup, restore, and manual crash-loop recovery |
-| [docs/customization.md](docs/customization.md) | The 14 wall looks, themes, pour takeovers and wall moments, custom CSS trust model, screensaver |
+| [docs/customization.md](docs/customization.md) | The Wall Editor, the 14 wall looks, themes, pour takeovers and wall moments, custom CSS trust model and 2.0 selector changes, screensaver |
 | [docs/admin-dashboard.md](docs/admin-dashboard.md) | Tonight, the admin top bar, Search and phone navigation |
 | [docs/taps-and-kegs.md](docs/taps-and-kegs.md) | Taps, swapping a keg, keg costs, monitors |
 | [docs/settings.md](docs/settings.md) | Settings, automations, diagnostics |
 | [docs/insights.md](docs/insights.md) | Analytics, every pour, logs |
 | [docs/people.md](docs/people.md) | Pourers, accounts and roles |
+| [docs/menu-and-kiosk.md](docs/menu-and-kiosk.md) | The phone menu and beer sheet, the kegerator kiosk, sign-in and first-run setup |
 | [docs/beers.md](docs/beers.md) | The beer library and editor |
 | [docs/suppliers.md](docs/suppliers.md) | Suppliers, opening hours and the price book |
 | [docs/cleaning-and-pours.md](docs/cleaning-and-pours.md) | Line-cleaning reminders and unclaimed pours |

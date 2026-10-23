@@ -1,0 +1,13 @@
+/* Styles for GameStrip, moved out of index.css in Kegwall V2 M11 so only the screens that render it load it. */
+
+.game-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(44 * var(--u, 1px)); /* rides above the footer ticker */
+  z-index: 40;
+  padding: calc(10 * var(--u, 1px)) calc(40 * var(--u, 1px));
+  border-top: calc(2 * var(--u, 1px)) solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  color: var(--text);
+}

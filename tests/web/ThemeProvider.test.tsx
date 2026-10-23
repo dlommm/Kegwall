@@ -31,7 +31,7 @@ describe('ThemeProvider', () => {
     const monoTokens = getTheme('mono').tokens;
     expect(computed.getPropertyValue('--bg').trim()).toBe(monoTokens['--bg']);
     expect(computed.getPropertyValue('--accent').trim()).toBe(monoTokens['--accent']);
-    expect(computed.getPropertyValue('--font-display').trim()).toContain('Oswald');
+    expect(computed.getPropertyValue('--font-display').trim()).toContain('Big Shoulders Display');
   });
 
   it('falls back to midnight-slate for an unknown theme id', () => {

@@ -3,6 +3,7 @@ import { getPassport, type PassportResponse } from '../lib/api';
 import { getRememberedPourer } from '../lib/pourerIdentity';
 import { formatVolumeMl } from '../lib/units';
 import { formatRelativeTime } from '../lib/useRelativeTime';
+import './PassportCard.css';
 
 const ML_PER_GALLON = 3785.411784;
 

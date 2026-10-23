@@ -51,8 +51,8 @@ describe('themes', () => {
     expect(tokens['--ok']).toBe('#57B45F');
     expect(tokens['--warn']).toBe('#E5B84A');
     expect(tokens['--danger']).toBe('#E05B4B');
-    expect(tokens['--font-display']).toContain('Barlow Condensed');
-    expect(tokens['--font-body']).toContain('Barlow');
+    expect(tokens['--font-display']).toContain('Big Shoulders Display');
+    expect(tokens['--font-body']).toContain('Atkinson Hyperlegible');
   });
 
   it('redesign themes carry the design-doc background/accent hexes', () => {
@@ -71,7 +71,7 @@ describe('themes', () => {
   it('legacy themes keep their original core tokens so stored walls render unchanged', () => {
     expect(getTheme('taproom').tokens['--bg']).toBe('#19140F');
     expect(getTheme('taproom').tokens['--accent']).toBe('#C9972B');
-    expect(getTheme('taproom').tokens['--font-display']).toContain('Oswald');
+    expect(getTheme('taproom').tokens['--font-display']).toContain('Big Shoulders Display');
     expect(getTheme('chalkboard').tokens['--bg']).toBe('#12211B');
     expect(getTheme('bright').tokens['--bg']).toBe('#F7F4EE');
     expect(getTheme('mono').tokens['--bg']).toBe('#0A0A0A');

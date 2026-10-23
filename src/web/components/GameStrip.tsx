@@ -3,6 +3,7 @@ import { getGameStrip } from '../lib/api';
 import { initials } from '../lib/initials';
 import { usePolledFetch } from '../lib/usePolledFetch';
 import type { GameStrip as GameStripData } from '../lib/adminApi';
+import './GameStrip.css';
 
 const ML_PER_OZ = 29.5735;
 /** Re-poll the active game; there's no dedicated push channel, and a game strip changing

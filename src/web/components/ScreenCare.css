@@ -1,0 +1,57 @@
+/* Styles for ScreenCare, moved out of index.css in Kegwall V2 M11 so only the screens that render it load it. */
+
+.screen-care {
+  min-height: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* The 1px OLED drift (ScreenCare.tsx) eases over 2s under normal motion, but that's
+     still a recurring, if subtle, transform animation — gated behind prefers-reduced-
+     motion like every other bit of motion on the wall so reduced-motion users get the
+     drift's position change instantly instead of eased. CSS-only (no JS state needed:
+     the drift offset itself is unaffected, only whether its change transitions). */
+  .screen-care {
+      transition: transform 2s ease;
+    }
+
+}
+
+.screen-care__saver {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(16 * var(--u, 1px));
+  background: color-mix(in srgb, var(--bg) 92%, black);
+}
+
+.screen-care__saver-title {
+  font-size: calc(48 * var(--u, 1px));
+  opacity: 0.35;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.screen-care__saver-highlight {
+  color: var(--accent);
+  opacity: 0.6;
+  font-size: calc(17.6 * var(--u, 1px));
+}
+
+.screen-care__off {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  background: #000;
+}
+
+.screen-care__saver-clock {
+  font-size: calc(96 * var(--u, 1px));
+  line-height: 1;
+  opacity: 0.5;
+  font-weight: 600;
+}

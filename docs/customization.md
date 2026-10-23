@@ -189,8 +189,23 @@ them. Use the stable hooks instead:
 | `[data-testid="tap-marker"]` | Each tap marker |
 
 Every wall look is drawn on the stage, so the pre-2.0 look class names (`.ledger-look`,
-`.tap-card` on the wall, …) no longer exist on walls. The phone menu keeps its class names
-until it is redrawn.
+`.tap-card` on the wall, …) no longer exist on walls.
+
+### Selector changes in 2.0
+
+Custom CSS is per wall, so only wall selectors matter here; the phone menu and kiosk take no
+custom CSS.
+
+| Gone in 2.0 | Use instead |
+| --- | --- |
+| `.tap-card`, `.tap-card__*`, `.liquid-fill*`, `.keg-fill*` | `[data-tap-state]` on each tap, `[data-testid="tap-marker"]` |
+| `.ledger-look`, `.gallery-look`, `.columns-look`, `.chalk-look`, `.neon-look`, … (one per look, and their `__` children) | `[data-look="<look id>"]` |
+| `.wall-grid`, `.wall-header`, `.ticker`, `.ticker__*` | `[data-surface="wall"]` and the look root |
+| `.qr-overlay` | The QR now sits inside each look's footer |
+
+Theme token overrides (`--bg`, `--surface`, `--text`, `--accent`, …) work as before. Every theme
+now uses the Kegwall type, so a `--font-display` / `--font-body` override is the only way to
+change the typeface.
 
 ## Display power
 
