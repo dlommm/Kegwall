@@ -32,6 +32,9 @@ export interface MenuResponse {
   taps: PublicTap[];
   /** The taproom's configured display units (global settings' `displayUnits`). */
   units: VolumeUnits;
+  /** One serving in mL (settings' `servingSizeMl`). Optional so an older payload falls back
+   * to a US pint. */
+  servingSizeMl?: number;
 }
 
 /** The public-facing projection of a drinker (see listDrinkers + publicRoutes). */

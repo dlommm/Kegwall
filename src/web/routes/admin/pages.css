@@ -1,0 +1,876 @@
+/*
+ * Kegwall V2 admin pages (M8): the page vocabulary from prototypes/admin-*.html, shared by
+ * every page on PageTemplate. The second half skins the older page classes that pages still
+ * render inside (forms, pickers, confirms) with the same tokens, so nothing on a moved page
+ * keeps the old look. Imported after shell.css.
+ */
+
+/* --- Page vocabulary ----------------------------------------------------------- */
+
+.adm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.adm-toolbar__end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.adm-sub {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.adm-dim {
+  color: var(--text-dim);
+}
+
+.adm-warn-text {
+  color: var(--warn);
+}
+
+.adm-danger-text {
+  color: var(--danger);
+}
+
+.adm-ok-text {
+  color: var(--ok);
+}
+
+.adm-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.adm-who > div {
+  min-width: 0;
+}
+
+.adm-ell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-num-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-table tbody tr.is-selected td {
+  background: var(--surface);
+}
+
+.adm-table tbody tr.is-selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--text);
+}
+
+.adm-table .adm-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.adm-table .adm-actions > * + * {
+  margin-left: 6px;
+}
+
+.adm-section {
+  margin-top: 48px;
+}
+
+.adm-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.adm-section__head .adm-h2 {
+  font-size: 28px;
+}
+
+.adm-grid-2,
+.adm-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.adm-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* A short note in a list's flow (owner-only costs, read-only for viewers). */
+.adm-note {
+  margin: 0 0 16px;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+/* KPIs as type, not tiles (blueprint §E.7). */
+.adm-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 56px;
+  margin: 0 0 32px;
+}
+
+.adm-kpi {
+  display: flex;
+  flex-direction: column;
+}
+
+.adm-kpi b {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-kpi span {
+  color: var(--text-dim);
+}
+
+.adm-kpi small {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+/* Facts in a drawer: label left, value right. */
+.adm-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.adm-facts dt {
+  color: var(--text-faint);
+}
+
+.adm-facts dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A choice card (swap: next up, same beer, another beer). */
+.adm-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.adm-option:hover,
+.adm-option[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+/* A form inside a drawer: fields stacked, actions at the end. */
+.adm-form-wrap,
+.adm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.adm-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-shell .admin-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.admin-shell .admin-field--checkbox > span:first-child,
+.admin-shell .admin-field--checkbox > span {
+  font-weight: 400;
+}
+
+.admin-shell .admin-field--checkbox input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--text);
+}
+
+/* Wizard steps, said in words. */
+.adm-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  color: var(--text-faint);
+  font-size: 14px;
+  list-style: none;
+}
+
+.adm-steps [aria-current='step'] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* --- Taps & kegs: Taps ---------------------------------------------------------- */
+
+.taps-v2 .taps-row__num {
+  width: 56px;
+  color: var(--text-faint);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.taps-v2 .taps-row__beer {
+  max-width: 320px;
+}
+
+.taps-v2 .taps-row[data-kicked='true'] .taps-row__beer {
+  color: var(--text-faint);
+}
+
+.taps-v2 .taps-row__left {
+  width: 190px;
+}
+
+.taps-v2 .taps-row__forecast--danger {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.taps-v2 .taps-row__monitor {
+  white-space: nowrap;
+}
+
+.taps-v2 .taps-row__flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.taps-detail__timeline {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--ok), var(--warn), var(--danger));
+}
+
+.taps-detail__timeline .taps-row__timeline-marker {
+  position: absolute;
+  top: -4px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--text);
+  transform: translateX(-50%);
+}
+
+.taps-detail__timeline-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.taps-detail__timeline-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.taps-detail__meter {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.taps-detail__meter .taps-cleaning__meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+
+.taps-detail__meter .taps-cleaning__meter-fill[data-due='true'] {
+  background: var(--warn);
+}
+
+.taps-detail__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cleaning-dialog__picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cleaning-dialog__picks button[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+/* The swap drawer (replaces the SwapWizard modal). */
+.swap-wizard__step {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.swap-wizard__step p {
+  margin: 0;
+}
+
+.swap-wizard__options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.swap-wizard__or {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.swap-wizard__swatch {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.swap-wizard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* On deck and kicked history, inside a tap's drawer. */
+.adm-drawer .on-deck-queue,
+.adm-drawer .kicked-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.adm-drawer .on-deck-queue__title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.adm-drawer .on-deck-queue__list,
+.adm-drawer .kicked-history__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.adm-drawer .on-deck-queue__row,
+.adm-drawer .kicked-history__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.adm-drawer .on-deck-queue__beer {
+  flex: 1;
+  font-weight: 700;
+}
+
+.adm-drawer .on-deck-queue__row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.adm-drawer .kicked-history__toggle {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* --- Taps & kegs: Suppliers ------------------------------------------------------- */
+
+.supplier-v2__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.supplier-v2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 32px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+}
+
+.supplier-v2 p {
+  margin: 4px 0 0;
+}
+
+.supplier-v2 h2 {
+  margin: 0;
+}
+
+.supplier-v2__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--ok);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.supplier-v2__hours {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.supplier-v2__week {
+  display: flex;
+  gap: 4px;
+}
+
+.supplier-v2__week span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.supplier-v2__week span.is-open {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.supplier-v2__runs {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  list-style: none;
+}
+
+.supplier-v2__runs li {
+  display: flex;
+  gap: 10px;
+}
+
+.supplier-v2__runs li span:first-child {
+  min-width: 72px;
+  color: var(--text-faint);
+}
+
+.supplier-v2__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.supplier-v2__book h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.supplier-v2__book .adm-table td {
+  padding: 10px 8px;
+}
+
+.supplier-v2__book .adm-num {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .supplier-v2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+/* --- Taps & kegs: Monitors ------------------------------------------------------- */
+
+.monitor-v2 {
+  padding: 24px 0 8px;
+  border-top: 1px solid var(--border);
+}
+
+.monitor-v2.is-disabled .monitor-v2__who,
+.monitor-v2.is-disabled .monitor-v2__ports {
+  opacity: 0.55;
+}
+
+.monitor-v2__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+}
+
+.monitor-v2__who {
+  flex: 1;
+  min-width: 220px;
+}
+
+.monitor-v2__who h2 {
+  margin: 0;
+}
+
+.monitor-v2__meta {
+  margin: 4px 0 0;
+}
+
+.monitor-v2__rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-v2__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.monitor-v2__ports {
+  margin-top: 10px;
+  table-layout: fixed;
+}
+
+.monitor-v2__ports th:nth-child(1) { width: 72px; }
+.monitor-v2__ports th:nth-child(3) { width: 130px; }
+.monitor-v2__ports th:nth-child(4) { width: 130px; }
+.monitor-v2__ports th:nth-child(5) { width: 340px; }
+
+.monitor-v2__ports td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-v2__port {
+  width: 56px;
+  color: var(--text-faint);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.monitor-v2__telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.monitor-v2__telemetry p {
+  margin: 0;
+}
+
+.monitor-v2__spark {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  margin-top: 4px;
+  color: var(--text);
+}
+
+/* --- Bridge: older page classes, skinned with the admin look ---------------------- */
+
+.adm-main .admin-page-header {
+  align-items: flex-end;
+  margin: 28px 0 28px;
+}
+
+.adm-main .admin-page-header__title {
+  font-family: var(--font-body);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.adm-main .admin-page-header__action {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.adm-main .admin-table,
+.adm-modal .admin-table,
+.adm-drawer .admin-table {
+  font-size: 15px;
+}
+
+.adm-main .admin-table th,
+.adm-drawer .admin-table th {
+  padding: 10px;
+  border-bottom: 0;
+  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.adm-main .admin-table td,
+.adm-drawer .admin-table td {
+  padding: 12px 10px;
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+
+.admin-shell .admin-field {
+  gap: 6px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.admin-shell .admin-field > span:first-child {
+  font-weight: 700;
+}
+
+.admin-shell .admin-field input[type='text'],
+.admin-shell .admin-field input[type='number'],
+.admin-shell .admin-field input[type='date'],
+.admin-shell .admin-field input[type='url'],
+.admin-shell .admin-field input[type='email'],
+.admin-shell .admin-field input[type='password'],
+.admin-shell .admin-field input[type='time'],
+.admin-shell .admin-field select,
+.admin-shell .admin-field textarea,
+.admin-shell .brewery-autocomplete input,
+.admin-shell .style-autocomplete input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  font: inherit;
+}
+
+.admin-shell .adm-drawer .admin-field input,
+.admin-shell .adm-drawer .admin-field select,
+.admin-shell .adm-drawer .admin-field textarea,
+.admin-shell .adm-modal input[type='date'] {
+  background: var(--surface-2);
+}
+
+.admin-shell .admin-field textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+}
+
+.admin-shell .admin-field__unit-hint {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.admin-shell .adm-modal input[type='date'] {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Unclassed buttons inside pages, forms and drawers read as secondary buttons. */
+.admin-shell :where(.adm-main, .adm-drawer, .adm-modal) :where(button):not([class]) {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-shell :where(.adm-main, .adm-drawer, .adm-modal) :where(button):not([class]):hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--text-dim);
+}
+
+.admin-shell :where(.adm-main, .adm-drawer, .adm-modal) :where(button):not([class]):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.adm-main .dashboard-card {
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.admin-shell .admin-confirm {
+  gap: 14px;
+  max-width: 460px;
+  padding: 24px;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.5), 0 0 0 1px var(--border);
+}
+
+.admin-shell .admin-confirm__actions button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  font-weight: 700;
+}
+
+.admin-shell .admin-confirm__actions button:first-child {
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg));
+  box-shadow: none;
+  color: var(--danger);
+}
+
+@media (max-width: 700px) {
+  .adm-grid-2,
+  .adm-grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adm-kpi b {
+    font-size: 44px;
+  }
+
+  .monitor-v2__ports {
+    table-layout: auto;
+  }
+
+  .monitor-v2__ports th:nth-child(4),
+  .monitor-v2__ports td:nth-child(4) {
+    display: none;
+  }
+
+  .monitor-v2__ports td {
+    white-space: normal;
+  }
+
+  .taps-v2 .taps-row__kicks,
+  .taps-v2 .taps-row__monitor,
+  .taps-v2 .taps-row__marker {
+    display: none;
+  }
+
+  .taps-v2 .taps-row__num {
+    width: 32px;
+    font-size: 22px;
+  }
+
+  /* Fixed columns so a long beer name ellipsizes instead of pushing the table sideways. */
+  .taps-v2 {
+    table-layout: fixed;
+  }
+
+  .taps-v2 th:first-child {
+    width: 36px;
+  }
+
+  .taps-v2 th.taps-row__left {
+    width: 104px;
+  }
+
+  .taps-v2 th:last-child {
+    width: 92px;
+  }
+
+  .taps-v2 td {
+    overflow: hidden;
+  }
+
+  .taps-v2 .taps-row__beer {
+    max-width: none;
+  }
+
+  .taps-v2 .adm-actions .taps-row__swap,
+  .taps-v2 .taps-row__pct {
+    display: none;
+  }
+}

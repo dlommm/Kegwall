@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import {
-  Field, StatusDot, Switch, type RunState,
+  Chips, ConfirmDialog, Field, StatusDot, Switch, barColor, type RunState,
 } from '../../../src/web/routes/admin/ui';
 import { filterEntries, paletteEntries } from '../../../src/web/routes/admin/CommandPalette';
 import { visibleDestinations } from '../../../src/web/routes/admin/adminNav';
@@ -16,6 +16,39 @@ describe('admin primitives (Kegwall V2)', () => {
     const shapes = [...container.querySelectorAll('svg')].map((svg) => svg.innerHTML);
     expect(new Set(shapes).size).toBe(6);
     expect(container).toHaveTextContent('OnOffWaitingRunningDoneFailed');
+  });
+
+  it('marks the one applied filter chip as pressed', () => {
+    const onChange = vi.fn();
+    render(
+      <Chips
+        label="Show taps"
+        value="all"
+        onChange={onChange}
+        options={[{ value: 'all', label: 'All', count: 12 }, { value: 'swap', label: 'Needs a swap', count: 3 }]}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'All 12' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Needs a swap 3' }));
+    expect(onChange).toHaveBeenCalledWith('swap');
+  });
+
+  it("won't close a confirm while its action is running", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <ConfirmDialog open onOpenChange={onOpenChange} title="Delete tap 3?" confirmLabel="Delete" busy onConfirm={vi.fn()}>
+        <p>This permanently deletes tap 3.</p>
+      </ConfirmDialog>,
+    );
+    expect(screen.getByRole('alertdialog', { name: 'Delete tap 3?' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('lifts a stout’s near-black so its level bar still reads on the dark track', () => {
+    expect(barColor('#0a0503')).not.toBe('#0a0503');
+    expect(barColor('#E0B266')).toBe('#E0B266');
+    expect(barColor('var(--surface)')).toBe('var(--surface)');
   });
 
   it('keeps an icon-only state readable by screen readers', () => {

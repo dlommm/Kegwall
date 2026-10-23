@@ -379,7 +379,17 @@
     font-size: 96px;
   }
 
+  /* Every other hour is labelled, and the chart clips its own edge, so a late night's last
+     label never pushes the page sideways. */
+  .tonight__hours {
+    overflow: hidden;
+  }
+
   .tonight__hours span {
     font-size: 11px;
+  }
+
+  .tonight__hours li:nth-last-child(even) span {
+    visibility: hidden;
   }
 }

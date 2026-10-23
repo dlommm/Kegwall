@@ -3,6 +3,7 @@ import type { Beer } from '../../../server/db/beers.js';
 import type { Keg } from '../../../server/db/kegs.js';
 import { listOnDeck, createKeg, removeOnDeckKeg } from '../../lib/adminApi';
 import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
+import { Button, ConfirmDialog } from './ui';
 import { BeerPicker } from './BeerPicker';
 import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
@@ -141,22 +142,22 @@ export function OnDeckQueue({
               <span className="font-tabular">{formatVolumeMl(keg.sizeMl, units)}</span>
               {canEdit && (
                 <span className="on-deck-queue__row-actions">
-                  <button
-                    type="button"
+                  <Button
+                    variant={critical ? 'primary' : 'secondary'}
                     className={critical ? 'on-deck-queue__promote--now' : undefined}
                     data-testid="on-deck-row-promote"
                     data-critical={critical}
                     onClick={() => onPromote(keg)}
                   >
-                    {critical ? 'Swap now →' : 'Promote'}
-                  </button>
-                  <button
-                    type="button"
+                    {critical ? 'Swap now' : 'Tap next'}
+                  </Button>
+                  <Button
+                    variant="quiet"
                     data-testid="on-deck-row-remove"
                     onClick={() => { setRemoveTarget(keg); setRemoveError(null); }}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </span>
               )}
             </li>
@@ -165,9 +166,9 @@ export function OnDeckQueue({
       )}
 
       {canEdit && !adding && (
-        <button type="button" data-testid="on-deck-add-toggle" onClick={() => setAdding(true)}>
+        <Button data-testid="on-deck-add-toggle" onClick={() => setAdding(true)}>
           Add to queue
-        </button>
+        </Button>
       )}
 
       {canEdit && adding && (
@@ -176,8 +177,8 @@ export function OnDeckQueue({
             <BeerPicker beers={beers} allowCreate onPick={handlePick} />
           ) : (
             <>
-              <p className="swap-wizard__picked">{pickedBeer.name}</p>
-              <div className="tap-form__grid">
+              <p className="adm-name">{pickedBeer.name}</p>
+              <div className="adm-grid-2">
                 <label className="admin-field">
                   <span>Size (mL)</span>
                   <input
@@ -214,61 +215,52 @@ export function OnDeckQueue({
                 </label>
               </div>
               {addError && (
-                <p role="alert" data-testid="on-deck-add-error">{addError}</p>
+                <p className="adm-danger-text" role="alert" data-testid="on-deck-add-error">{addError}</p>
               )}
               <div className="swap-wizard__actions">
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   data-testid="on-deck-add-submit"
                   disabled={submitting}
                   onClick={handleAddSubmit}
                 >
                   {submitting ? 'Adding…' : 'Add to queue'}
-                </button>
-                <button type="button" data-testid="on-deck-add-cancel" onClick={resetAddForm} disabled={submitting}>
+                </Button>
+                <Button variant="quiet" data-testid="on-deck-add-cancel" onClick={resetAddForm} disabled={submitting}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </>
           )}
           {!pickedBeer && (
-            <button type="button" data-testid="on-deck-add-cancel" onClick={resetAddForm}>
+            <Button variant="quiet" data-testid="on-deck-add-cancel" onClick={resetAddForm}>
               Cancel
-            </button>
+            </Button>
           )}
         </div>
       )}
 
-      {removeTarget && (
-        <div className="admin-confirm__backdrop" data-testid="on-deck-remove-confirm">
-          <div className="admin-confirm" role="alertdialog" aria-modal="true" aria-labelledby="on-deck-remove-title">
-            <h3 id="on-deck-remove-title" className="font-display">Remove from queue</h3>
-            <p>
-              This will permanently remove &ldquo;{beerName(beers, removeTarget.beerId)}&rdquo; from the on-deck
-              queue. This can&rsquo;t be undone.
-            </p>
-            {removeError && <p role="alert" data-testid="on-deck-remove-error">{removeError}</p>}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="on-deck-remove-confirm-button"
-                disabled={removing}
-                onClick={handleConfirmRemove}
-              >
-                {removing ? 'Removing…' : 'Remove'}
-              </button>
-              <button
-                type="button"
-                data-testid="on-deck-remove-cancel-button"
-                disabled={removing}
-                onClick={() => { setRemoveTarget(null); setRemoveError(null); }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveError(null); } }}
+        title="Remove from the queue?"
+        confirmLabel="Remove"
+        busyLabel="Removing…"
+        busy={removing}
+        error={removeError}
+        onConfirm={handleConfirmRemove}
+        testId="on-deck-remove-confirm"
+        confirmTestId="on-deck-remove-confirm-button"
+        cancelTestId="on-deck-remove-cancel-button"
+        errorTestId="on-deck-remove-error"
+      >
+        {removeTarget && (
+          <p>
+            This will permanently remove &ldquo;{beerName(beers, removeTarget.beerId)}&rdquo; from the on-deck
+            queue. This can&rsquo;t be undone.
+          </p>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }

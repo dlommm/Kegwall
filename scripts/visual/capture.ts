@@ -53,6 +53,24 @@ async function shot(name: string, url: string, vp: Viewport, opts: {
     if (opts.before) await opts.before(page);
     await snap(page, name, opts.full);
     log.push(`ok ${name} ${url}`);
+    // Phones and tablets: the page must never scroll sideways. Name the widest culprits.
+    if (vp.width <= 1024 && !url.startsWith('/wall') && !url.startsWith('/board')) {
+      const wide = await page.evaluate(() => {
+        const vw = window.innerWidth;
+        if (document.documentElement.scrollWidth <= vw) return null;
+        const out: string[] = [];
+        for (const el of Array.from(document.querySelectorAll('body *'))) {
+          const r = el.getBoundingClientRect();
+          if (r.right <= vw + 1 || r.width === 0) continue;
+          const parent = el.parentElement?.getBoundingClientRect();
+          if (parent && parent.right > vw + 1) continue;
+          out.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]} right=${Math.round(r.right)}`);
+          if (out.length >= 4) break;
+        }
+        return `${document.documentElement.scrollWidth}px: ${out.join(', ')}`;
+      });
+      if (wide) log.push(`WIDE ${name} ${wide}`);
+    }
   } catch (e) {
     log.push(`FAIL ${name} ${url} ${(e as Error).message.split('\n')[0]}`);
     try { await snap(page, name); } catch { /* page already gone */ }
@@ -187,6 +205,22 @@ await shot('admin-palette', '/admin', VP.desktop, {
 await shot('admin-account-menu', '/admin/taps', VP.desktop, {
   ctx: admin, wait: 1500, before: async (p) => { await p.getByTestId('admin-account').click(); await p.waitForTimeout(300); },
 });
+// M8 pages: drawers, the swap flow, phones.
+await shot('admin-taps-drawer', '/admin/taps', VP.desktop, {
+  ctx: admin, wait: 1500, before: async (p) => { await p.getByTestId('taps-row-expand').first().click(); await p.waitForTimeout(500); },
+});
+await shot('admin-taps-swap', '/admin/taps', VP.desktop, {
+  ctx: admin,
+  wait: 1500,
+  before: async (p) => {
+    await p.getByTestId('taps-row-swap').first().click();
+    await p.waitForTimeout(300);
+    const kick = p.getByTestId('swap-wizard-kick-button');
+    if (await kick.count()) await kick.click();
+    await p.waitForTimeout(500);
+  },
+});
+await shot('admin-taps-mobile', '/admin/taps', VP.mobile, { ctx: admin, wait: 1500, full: true });
 const light = await adminCtx('light');
 for (const [n, u] of [['dashboard', '/admin'], ['taps', '/admin/taps'], ['stats', '/admin/stats']] as const) {
   await shot(`admin-light-${n}`, u, VP.desktop, { ctx: light, wait: 1500 });

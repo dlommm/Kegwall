@@ -1,22 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   listSuppliers, getSupplierStats, getSupplierPriceBook,
   createSupplier, updateSupplier, deleteSupplier,
   type Supplier, type SupplierInput, type SupplierStats, type PriceBookEntry,
 } from '../../lib/adminApi';
 import { formatWholeVolume } from '../../lib/lookData';
-import { hoursRuns, isOpenAt } from '../../lib/supplierHours';
+import { DAY_KEYS, hoursRuns, isOpenAt } from '../../lib/supplierHours';
+import { capitalize, countWord } from '../../lib/tonightAttention';
 import { SupplierHoursEditor } from './SupplierHoursEditor';
 import { useAdminContext } from './useAdminContext';
+import { PageTemplate } from './PageTemplate';
+import {
+  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Skeleton,
+} from './ui';
 
 /** Owner-cost cents → "$12.00". Admin-only surface, so showing real dollars is fine here. */
 function money(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-/** First letters of a supplier name, for the monogram tile (max two). */
-function monogram(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
+function wholeMoney(cents: number): string {
+  return `$${Math.round(cents / 100).toLocaleString('en-US')}`;
 }
 
 const EMPTY_FORM: SupplierInput = {
@@ -30,49 +34,62 @@ const TEXT_FIELDS = [
   ['address', 'Address'], ['deliveryNotes', 'Delivery day / notes'],
 ] as const;
 
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
 type FormState = { mode: 'create' } | { mode: 'edit'; supplier: Supplier } | null;
 
 /**
- * A supplier card's opening hours: consecutive days sharing a range collapse into one
- * line ("Mon–Fri 9 AM–5 PM"), with a live open/closed badge. The badge is omitted for a
- * legacy note-only supplier — there's no structured week to judge it against.
+ * A supplier's opening hours: a week of day letters (open days in ink), the runs in words
+ * ("Mon–Fri 9 AM–5 PM") and whether they're open right now. The open/closed state is
+ * omitted for a legacy note-only supplier — there's no structured week to judge it against.
  */
 function SupplierHours({ hours }: { hours: Supplier['hours'] }) {
   const runs = hoursRuns(hours);
   const open = isOpenAt(hours, new Date());
   if (runs.length === 0 && !hours?.note) return null;
   return (
-    <div className="supplier-card__hours" data-testid="supplier-card-hours">
-      <div className="supplier-card__hours-head">
-        <span className="supplier-card__pricebook-label">HOURS</span>
-        {open != null && (
-          <span
-            className={`supplier-badge supplier-badge--${open ? 'open' : 'closed'}`}
-            data-testid="supplier-open-badge"
-          >
-            {open ? 'OPEN NOW' : 'CLOSED'}
-          </span>
-        )}
-      </div>
+    <div className="supplier-v2__hours" data-testid="supplier-card-hours">
+      {runs.length > 0 && hours && (
+        <div className="supplier-v2__week" aria-hidden="true">
+          {DAY_KEYS.map((k, i) => (
+            <span key={k} className={hours.days[k] ? 'is-open' : undefined}>{DAY_LETTERS[i]}</span>
+          ))}
+        </div>
+      )}
       {runs.length > 0 && (
-        <ul className="supplier-card__hours-list">
+        <ul className="supplier-v2__runs">
           {runs.map((run) => (
             <li key={run.days}>
-              <span className="supplier-card__hours-days">{run.days}</span>
-              <span className="font-tabular">{run.hours}</span>
+              <span>{run.days}</span>
+              <span className="adm-num-cell">{run.hours}</span>
             </li>
           ))}
         </ul>
       )}
-      {hours?.note && <p className="supplier-card__hours-note">{hours.note}</p>}
+      {open != null && (
+        <span className={open ? 'adm-ok-text' : 'adm-sub'} data-testid="supplier-open-badge">
+          {open ? 'Open now' : 'Closed now'}
+        </span>
+      )}
+      {hours?.note && <p className="adm-sub supplier-v2__note">{hours.note}</p>}
     </div>
   );
 }
 
+/** "Three suppliers. You've bought 11 kegs from them this year for $1,684." */
+function suppliersHeadline(count: number, stats: SupplierStats | null): string {
+  if (count === 0) return 'No suppliers yet.';
+  const first = count === 1 ? 'One supplier.' : `${capitalize(countWord(count))} suppliers.`;
+  if (!stats || stats.kegsPurchased === 0) return first;
+  const kegs = stats.kegsPurchased === 1 ? 'one keg' : `${countWord(stats.kegsPurchased)} kegs`;
+  return `${first} You’ve logged ${kegs} from them, ${wholeMoney(stats.ytdSpendCents)} this year.`;
+}
+
 /**
- * `/admin/suppliers` (redesign 4l): supplier directory + DERIVED price book (from keg
- * purchase history — never hand-entered). Admin-only route: it surfaces owner cost (last-paid
- * prices, YTD spend), which the hard requirement keeps off every public surface.
+ * `/admin/suppliers` (Kegwall V2 M8; redesign 4l): who you buy from, when they're open, and
+ * the DERIVED price book (from keg purchase history — never hand-entered). Adding and editing
+ * happen in a drawer. Admin-only route: it surfaces owner cost (last-paid prices, YTD spend),
+ * which the hard requirement keeps off every public surface.
  */
 export function SuppliersPage() {
   const { units } = useAdminContext();
@@ -83,7 +100,10 @@ export function SuppliersPage() {
   const [formState, setFormState] = useState<FormState>(null);
   const [form, setForm] = useState<SupplierInput>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setStatus('loading');
@@ -108,6 +128,7 @@ export function SuppliersPage() {
 
   function openCreate() {
     setForm(EMPTY_FORM);
+    setSaveError(null);
     setFormState({ mode: 'create' });
   }
 
@@ -122,10 +143,11 @@ export function SuppliersPage() {
       deliveryNotes: supplier.deliveryNotes ?? '',
       notes: supplier.notes ?? '',
     });
+    setSaveError(null);
     setFormState({ mode: 'edit', supplier });
   }
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (!formState || !form.name.trim()) return;
     setSaving(true);
@@ -136,119 +158,149 @@ export function SuppliersPage() {
     if (result.ok) {
       setFormState(null);
       load();
+    } else {
+      setSaveError(result.message);
     }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
+    setDeleting(true);
     const result = await deleteSupplier(deleteTarget.id);
+    setDeleting(false);
     if (result.ok) {
       setDeleteTarget(null);
       load();
+    } else {
+      setDeleteError(result.message);
     }
   }
 
   return (
-    <section data-testid="admin-suppliers-page">
-      <header className="admin-page-header">
-        <div className="admin-page-header__lead">
-          <h1 className="admin-page-header__title font-display">Suppliers</h1>
-          {stats && (
-            <span className="beers-summary font-tabular" data-testid="suppliers-summary">
-              {`${stats.supplierCount} suppliers · ${stats.kegsPurchased} kegs purchased · ${money(stats.ytdSpendCents)} YTD`}
+    <PageTemplate
+      testId="admin-suppliers-page"
+      title={status === 'loaded' ? suppliersHeadline(suppliers.length, stats) : 'Suppliers'}
+      sub={(
+        <>
+          {stats && stats.supplierCount > 0 && (
+            <span data-testid="suppliers-summary">
+              {`${stats.supplierCount} suppliers · ${stats.kegsPurchased} kegs purchased · ${wholeMoney(stats.ytdSpendCents)} this year. `}
             </span>
           )}
-        </div>
-        {!formState && (
-          <button type="button" className="admin-page-header__action" data-testid="suppliers-add-button" onClick={openCreate}>
-            Add supplier
-          </button>
-        )}
-      </header>
-
-      {formState && (
-        <form className="supplier-form" data-testid="supplier-form" onSubmit={handleSave}>
-          <div className="supplier-form__grid">
-            {TEXT_FIELDS.map(([field, label]) => (
-              <label key={field} className="supplier-form__field">
-                <span>{label}</span>
-                <input
-                  type="text"
-                  data-testid={`supplier-form-${field}`}
-                  value={(form[field] as string) ?? ''}
-                  onChange={(ev) => setForm((f) => ({ ...f, [field]: ev.target.value }))}
-                  required={field === 'name'}
+          Prices come from what you paid for each keg, so the price book keeps itself current.
+        </>
+      )}
+      actions={(
+        <Button variant="primary" data-testid="suppliers-add-button" onClick={openCreate}>Add a supplier</Button>
+      )}
+      drawer={(
+        <>
+          {formState && (
+            <Drawer
+              open
+              onOpenChange={(open) => { if (!open) setFormState(null); }}
+              size="wide"
+              title={formState.mode === 'create' ? 'Add a supplier' : `Edit ${formState.supplier.name}`}
+            >
+              <form className="adm-form" data-testid="supplier-form" onSubmit={handleSave}>
+                <div className="adm-grid-2">
+                  {TEXT_FIELDS.map(([field, label]) => (
+                    <label key={field} className="admin-field">
+                      <span>{label}</span>
+                      <input
+                        type="text"
+                        data-testid={`supplier-form-${field}`}
+                        value={(form[field] as string) ?? ''}
+                        onChange={(ev) => setForm((f) => ({ ...f, [field]: ev.target.value }))}
+                        required={field === 'name'}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <SupplierHoursEditor
+                  value={form.hours ?? null}
+                  onChange={(hours) => setForm((f) => ({ ...f, hours }))}
                 />
-              </label>
-            ))}
-          </div>
-          <SupplierHoursEditor
-            value={form.hours ?? null}
-            onChange={(hours) => setForm((f) => ({ ...f, hours }))}
-          />
-          <div className="admin-confirm__actions">
-            <button type="submit" data-testid="supplier-form-save" disabled={saving || !form.name.trim()}>
-              {saving ? 'Saving…' : formState.mode === 'create' ? 'Add supplier' : 'Save supplier'}
-            </button>
-            <button type="button" data-testid="supplier-form-cancel" onClick={() => setFormState(null)}>Cancel</button>
-          </div>
-        </form>
+                {saveError && <p className="adm-danger-text" role="alert">{saveError}</p>}
+                <div className="adm-form__actions">
+                  <Button type="submit" variant="primary" data-testid="supplier-form-save" disabled={saving || !form.name.trim()}>
+                    {saving ? 'Saving…' : formState.mode === 'create' ? 'Add supplier' : 'Save supplier'}
+                  </Button>
+                  <Button variant="quiet" data-testid="supplier-form-cancel" onClick={() => setFormState(null)}>Cancel</Button>
+                </div>
+              </form>
+            </Drawer>
+          )}
+          <ConfirmDialog
+            open={deleteTarget !== null}
+            onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}
+            title={deleteTarget ? `Delete ${deleteTarget.name}?` : ''}
+            confirmLabel="Delete supplier"
+            busyLabel="Deleting…"
+            busy={deleting}
+            error={deleteError}
+            onConfirm={handleDelete}
+            testId="supplier-delete-confirm"
+            confirmTestId="supplier-delete-confirm-button"
+            cancelTestId="supplier-delete-cancel-button"
+          >
+            <p>Kegs bought from them keep their recorded cost. Only the supplier link is cleared.</p>
+          </ConfirmDialog>
+        </>
+      )}
+    >
+      <p className="adm-note">Only owners see costs. Guests and staff never get them on any screen.</p>
+      {status === 'loading' && <div data-testid="suppliers-loading"><Skeleton height={120} /></div>}
+      {status === 'error' && (
+        <div data-testid="suppliers-error"><ErrorState title="Couldn’t load suppliers." onRetry={load} /></div>
+      )}
+      {status === 'loaded' && suppliers.length === 0 && (
+        <div data-testid="suppliers-empty">
+          <EmptyState title="No suppliers yet.">Add one to start tracking what each keg costs.</EmptyState>
+        </div>
       )}
 
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="suppliers-loading">Loading…</p>}
-      {status === 'error' && <p className="admin-page-quiet" role="alert" data-testid="suppliers-error">Couldn’t load suppliers.</p>}
-      {status === 'loaded' && suppliers.length === 0 && !formState && (
-        <p className="admin-page-quiet" data-testid="suppliers-empty">No suppliers yet — add one to start tracking keg costs.</p>
-      )}
-
-      <div className="suppliers-grid">
+      <ul className="supplier-v2__list">
         {suppliers.map((supplier) => {
           const book = priceBooks[supplier.id] ?? [];
           const bestCount = book.filter((e) => e.isBestKnown).length;
           const onlyCount = book.filter((e) => e.bestElsewhereCents == null).length;
+          const contact = [supplier.contactName, supplier.phone, supplier.email].filter(Boolean).join(' · ');
           return (
-            <section key={supplier.id} className="supplier-card" data-testid="supplier-card">
-              <div className="supplier-card__head">
-                <span className="supplier-card__monogram" aria-hidden="true">{monogram(supplier.name)}</span>
-                <div className="supplier-card__title">
-                  <h2 className="supplier-card__name font-display">{supplier.name}</h2>
-                  <div className="supplier-card__badges">
-                    {bestCount > 0 && (
-                      <span className="supplier-badge supplier-badge--best" data-testid="supplier-badge-best">{`BEST PRICE ×${bestCount}`}</span>
-                    )}
-                    {onlyCount > 0 && (
-                      <span className="supplier-badge supplier-badge--only" data-testid="supplier-badge-only">{`ONLY SOURCE ×${onlyCount}`}</span>
-                    )}
-                  </div>
+            <li key={supplier.id} className="supplier-v2" data-testid="supplier-card">
+              <div className="supplier-v2__who">
+                <h2 className="adm-name">{supplier.name}</h2>
+                {(bestCount > 0 || onlyCount > 0) && (
+                  <p className="supplier-v2__flags">
+                    {bestCount > 0 && <span data-testid="supplier-badge-best">{`Best price on ${bestCount}`}</span>}
+                    {onlyCount > 0 && <span data-testid="supplier-badge-only">{`Only source for ${onlyCount}`}</span>}
+                  </p>
+                )}
+                {contact && <p className="adm-sub">{contact}</p>}
+                {supplier.address && <p className="adm-sub">{supplier.address}</p>}
+                {supplier.deliveryNotes && <p className="adm-sub">{`Delivery: ${supplier.deliveryNotes}`}</p>}
+                <SupplierHours hours={supplier.hours} />
+                <div className="supplier-v2__actions">
+                  <Button data-testid="supplier-edit" onClick={() => openEdit(supplier)}>Edit</Button>
+                  <Button variant="quiet" data-testid="supplier-delete" onClick={() => { setDeleteError(null); setDeleteTarget(supplier); }}>Delete</Button>
                 </div>
               </div>
-
-              <dl className="supplier-card__contact">
-                {supplier.contactName && (<><dt>Contact</dt><dd>{supplier.contactName}</dd></>)}
-                {supplier.phone && (<><dt>Phone</dt><dd>{supplier.phone}</dd></>)}
-                {supplier.email && (<><dt>Email</dt><dd>{supplier.email}</dd></>)}
-                {supplier.address && (<><dt>Address</dt><dd>{supplier.address}</dd></>)}
-                {supplier.deliveryNotes && (<><dt>Delivery</dt><dd>{supplier.deliveryNotes}</dd></>)}
-              </dl>
-
-              <SupplierHours hours={supplier.hours} />
-
-              <div className="supplier-card__pricebook" data-testid="supplier-pricebook">
-                <span className="supplier-card__pricebook-label">PRICE BOOK</span>
+              <div className="supplier-v2__book" data-testid="supplier-pricebook">
+                <h3>Price book</h3>
                 {book.length === 0 ? (
-                  <p className="admin-page-quiet">No purchases logged yet.</p>
+                  <p className="adm-sub">No purchases logged yet.</p>
                 ) : (
-                  <table className="admin-table supplier-pricebook-table">
+                  <table className="adm-table">
                     <tbody>
                       {book.map((entry) => (
                         <tr key={`${entry.beerId}-${entry.sizeMl}`} data-testid="supplier-pricebook-row">
                           <td>{entry.beerName}</td>
-                          <td className="font-tabular">{formatWholeVolume(entry.sizeMl, units)}</td>
-                          <td className={`font-tabular${entry.isBestKnown ? ' supplier-price--best' : ''}`}>
+                          <td className="adm-num">{formatWholeVolume(entry.sizeMl, units)}</td>
+                          <td className={entry.isBestKnown ? 'adm-num adm-ok-text' : 'adm-num'}>
                             {entry.isBestKnown ? '★ ' : ''}
                             {money(entry.lastPaidCents)}
                           </td>
-                          <td className="supplier-price__compare">
+                          <td className="adm-sub">
                             {entry.bestElsewhereCents != null
                               ? `${entry.bestElsewhereSupplierName}: ${money(entry.bestElsewhereCents)}`
                               : 'no other source'}
@@ -259,31 +311,10 @@ export function SuppliersPage() {
                   </table>
                 )}
               </div>
-
-              <div className="supplier-card__actions">
-                <button type="button" data-testid="supplier-edit" onClick={() => openEdit(supplier)}>Edit</button>
-                <button type="button" data-testid="supplier-delete" onClick={() => setDeleteTarget(supplier)}>Delete</button>
-              </div>
-            </section>
+            </li>
           );
         })}
-      </div>
-
-      {deleteTarget && (
-        <div className="admin-confirm__backdrop" data-testid="supplier-delete-confirm" onClick={() => setDeleteTarget(null)}>
-          <div className="admin-confirm" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-display">Delete supplier</h3>
-            <p>
-              {`Delete “${deleteTarget.name}”? Kegs bought from them keep their recorded cost — only the
-              supplier link is cleared.`}
-            </p>
-            <div className="admin-confirm__actions">
-              <button type="button" data-testid="supplier-delete-confirm-button" onClick={handleDelete}>Delete supplier</button>
-              <button type="button" data-testid="supplier-delete-cancel-button" onClick={() => setDeleteTarget(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+      </ul>
+    </PageTemplate>
   );
 }

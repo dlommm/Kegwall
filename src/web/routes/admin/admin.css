@@ -431,12 +431,6 @@
   color: var(--text-dim);
 }
 
-.dashboard-activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
 /*
  * Beers page (Phase 4 Task 4) — the catalog table, the create/edit form (BeerForm), and
  * its brewery + style autocompletes. Reuses the admin shell's quiet working-tool
@@ -653,12 +647,6 @@
 }
 
 /* Accent inline "Bind tap →" chip on an unbound monitor port (4d). */
-.monitors-row__bind-chip {
-  border-color: var(--accent) !important;
-  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
-  color: var(--accent) !important;
-  font-weight: 600;
-}
 
 /* Doctor verdict banner (4c). */
 .doctor-verdict {
@@ -682,59 +670,6 @@
 }
 
 /* Backdated cleaning dialog (4a). */
-.cleaning-dialog__picks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
-}
-
-.cleaning-dialog__picks button {
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.cleaning-dialog__picks button[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
-}
-
-.cleaning-dialog__picks input[type='date'] {
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-}
-
-.cleaning-dialog__preview {
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-/* Swap-wizard cost step (4k). */
-.swap-wizard__cost-field input {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-}
-
-.swap-wizard__cost-preview {
-  font-weight: 600;
-  color: var(--accent);
-  margin: 0.5rem 0 0;
-}
-
-.swap-wizard__cost-lock {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  margin: 0.5rem 0 0;
-}
 
 /* Game setup sheet (5b). */
 .game-setup__label {
@@ -937,310 +872,97 @@
 }
 
 /* --- Suppliers (4l) --------------------------------------------------------- */
-.supplier-form {
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 1.25rem;
-  background: var(--surface);
-}
-
-.supplier-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.supplier-form__field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.supplier-form__field input {
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
-}
-
-.suppliers-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1rem;
-}
-
-.supplier-card {
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  padding: 1rem;
-  background: var(--surface);
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.supplier-card__head {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.supplier-card__monogram {
-  flex: none;
-  width: 2.75rem;
-  height: 2.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.supplier-card__name {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-.supplier-card__badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.25rem;
-}
-
-.supplier-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-}
-
-.supplier-badge--best {
-  background: color-mix(in srgb, var(--ok) 18%, transparent);
-  color: var(--ok);
-}
-
-.supplier-badge--only {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-}
-
-.supplier-card__contact {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.2rem 0.75rem;
-  margin: 0;
-  font-size: 0.82rem;
-}
-
-.supplier-card__contact dt {
-  color: var(--text-faint, var(--text-dim));
-  text-transform: uppercase;
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  align-self: center;
-}
-
-.supplier-card__contact dd {
-  margin: 0;
-  color: var(--text);
-}
-
-.supplier-card__pricebook-label {
-  display: block;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  color: var(--text-faint, var(--text-dim));
-  margin-bottom: 0.35rem;
-}
 
 /* Weekly opening hours — grid editor on the form, compressed runs on the card. */
 .supplier-hours-editor {
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.75rem 0.9rem 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.supplier-hours-editor legend {
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint, var(--text-dim));
-  padding: 0 0.35rem;
-}
-
-.supplier-hours-editor__days {
-  list-style: none;
-  margin: 0 0 0.75rem;
+  margin: 0;
   padding: 0;
+  border: 0;
+}
+.supplier-hours-editor legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+.supplier-hours-editor__days {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
 }
-
 .supplier-hours-editor__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  min-height: 44px;
+  gap: 8px;
+  min-height: 52px;
+  border-top: 1px solid var(--border);
 }
-
 .supplier-hours-editor__toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-width: 5.5rem;
+  gap: 10px;
+  min-width: 88px;
   min-height: 44px;
   cursor: pointer;
 }
-
 .supplier-hours-editor__toggle input {
-  width: 1.15rem;
-  height: 1.15rem;
-  accent-color: var(--accent);
+  width: 22px;
+  height: 22px;
+  accent-color: var(--text);
 }
-
 .supplier-hours-editor__day {
-  font-size: 0.85rem;
   color: var(--text);
 }
-
 .supplier-hours-editor__row input[type='time'] {
-  padding: 0.4rem 0.5rem;
-  min-height: 40px;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: var(--bg);
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
   font: inherit;
-  font-size: 0.85rem;
 }
-
 .supplier-hours-editor__dash,
 .supplier-hours-editor__closed {
-  color: var(--text-dim);
-  font-size: 0.82rem;
+  color: var(--text-faint);
 }
-
 .supplier-hours-editor__copy {
-  margin-left: auto;
   min-height: 44px;
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
+  margin-left: auto;
+  padding: 0 10px;
+  border: 0;
   background: transparent;
   color: var(--text-dim);
-  font-size: 0.72rem;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
 }
-
 .supplier-hours-editor__copy:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--text);
 }
-
 .supplier-hours-editor__note {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--text-dim);
+  gap: 6px;
+  color: var(--text);
+  font-weight: 700;
 }
-
 .supplier-hours-editor__note input {
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: var(--bg);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
   font: inherit;
-  font-size: 0.9rem;
-}
-
-.supplier-card__hours-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.supplier-card__hours-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 0.82rem;
-}
-
-.supplier-card__hours-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.1rem 0;
-}
-
-.supplier-card__hours-days {
-  color: var(--text-dim);
-}
-
-.supplier-card__hours-note {
-  margin: 0.35rem 0 0;
-  font-size: 0.76rem;
-  color: var(--text-dim);
-  font-style: italic;
-}
-
-.supplier-badge--open {
-  background: color-mix(in srgb, var(--ok) 18%, transparent);
-  color: var(--ok);
-}
-
-.supplier-badge--closed {
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-  color: var(--text-dim);
-}
-
-.supplier-pricebook-table td {
-  font-size: 0.82rem;
-  padding: 0.3rem 0.5rem 0.3rem 0;
-}
-
-.supplier-price--best {
-  color: var(--ok);
-  font-weight: 600;
-}
-
-.supplier-price__compare {
-  color: var(--text-dim);
-  font-size: 0.75rem;
-}
-
-.supplier-card__actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: auto;
-}
-
-.supplier-card__actions button,
-.supplier-form .admin-confirm__actions button {
-  padding: 0.35rem 0.8rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border-strong, var(--border));
-  background: none;
-  color: var(--text);
-  font-size: 0.82rem;
-  cursor: pointer;
+  font-weight: 400;
 }
 
 .beers-table__srm-chip {
@@ -1605,219 +1327,96 @@ h2.admin-field__label-text {
  * fill bar (the one other place the liquid language reappears), not the wall's full
  * LiquidFill treatment — same design-direction rule as DashboardPage.
  */
-.taps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.taps-row {
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.taps-row__main {
-  display: grid;
-  grid-template-columns: 2.5rem 8rem 6rem 1fr 4rem auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-}
-
-.taps-row__number {
-  color: var(--text-dim);
-  font-size: 1.1rem;
-}
-
-.taps-row__name {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.taps-row[data-kicked='true'] .taps-row__bar {
-  opacity: 0.6;
-}
-
-.taps-row__beer {
-  overflow: hidden;
-  color: var(--text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.taps-row__status {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  text-align: right;
-}
-
-.taps-row__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  justify-content: flex-end;
-}
-
-.taps-row__actions button {
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.taps-row__actions button:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.taps-row__details {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 0 1rem 1rem;
-  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-}
 
 /* Tap create/edit form — shares BeerForm's field/action/notice classes for a consistent
    look without duplicating them (see beer-form__* below). */
-.tap-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin: 1rem 0;
-  padding: 1.25rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
 
-.tap-form__title {
-  font-size: 1.1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.tap-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.9rem;
-}
-
-/* BeerPicker — the swap wizard's / on-deck queue's shared "pick a beer" widget. */
+/* BeerPicker — the swap drawer's and on-deck queue's shared "pick a beer" list. */
 .beer-picker {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 10px;
 }
 
 .beer-picker input[type='text'] {
-  padding: 0.55rem 0.65rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
+  font: inherit;
 }
 
 .beer-picker__actions {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .beer-picker__create,
 .beer-picker__import {
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
   color: var(--text);
-  font-size: 0.85rem;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .beer-picker__notice {
-  border-radius: 0.4rem;
-  padding: 0.5rem 0.7rem;
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-  font-size: 0.85rem;
+  margin: 0;
+  color: var(--warn);
 }
 
 .beer-picker__empty {
+  margin: 0;
   color: var(--text-dim);
-  font-size: 0.85rem;
 }
 
 .beer-picker__list {
   display: flex;
-  max-height: 14rem;
+  max-height: 22rem;
   flex-direction: column;
-  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
   overflow-y: auto;
+  list-style: none;
 }
 
 .beer-picker__option {
   display: flex;
   width: 100%;
+  min-height: 52px;
   flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  justify-content: center;
+  padding: 8px 4px;
+  border: 0;
+  border-top: 1px solid var(--border);
   background: none;
   color: var(--text);
+  font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .beer-picker__option:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--surface-2);
+}
+
+.beer-picker__option-name {
+  font-weight: 700;
 }
 
 .beer-picker__option-brewery {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-/* Swap wizard modal — same shell language as .admin-confirm, wider to hold BeerPicker/
-   size fields. */
-.swap-wizard__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.swap-wizard {
-  display: flex;
-  width: 100%;
-  max-width: 30rem;
-  max-height: 90vh;
-  flex-direction: column;
-  gap: 0.85rem;
-  overflow-y: auto;
-  padding: 1.5rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-  color: var(--text);
-}
-
-.swap-wizard__title {
-  font-size: 1.2rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.swap-wizard__picked {
-  font-weight: 600;
+  color: var(--text-faint);
+  font-size: 14px;
 }
 
 /* Gallon-equivalent readout under the metric Size / Starting volume inputs (the
@@ -1825,38 +1424,6 @@ h2.admin-field__label-text {
 .admin-field__unit-hint {
   font-size: 0.72rem;
   color: color-mix(in srgb, var(--text) 55%, transparent);
-}
-
-.swap-wizard__device-note {
-  font-size: 0.78rem;
-  color: color-mix(in srgb, var(--text) 65%, transparent);
-}
-
-.swap-wizard__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.swap-wizard__actions button {
-  padding: 0.5rem 1rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.swap-wizard__actions button:first-child {
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-weight: 600;
-}
-
-.swap-wizard__actions button:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 /* BeerSearchSheet (Wave N) — the beers form's "Search catalog.beer" modal, replacing the
@@ -1999,105 +1566,13 @@ h2.admin-field__label-text {
   outline-offset: 2px;
 }
 
-.on-deck-queue__title {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-}
-
-.on-deck-queue__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.on-deck-queue__row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-}
-
-.on-deck-queue__beer {
-  flex: 1;
-  color: var(--text);
-}
-
-.on-deck-queue__row-actions {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.on-deck-queue__row-actions button,
-.on-deck-queue__add-form > button,
-.on-deck-queue > button {
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
 /* Accent "Swap now →" when the current keg is about to kick (redesign 3d). */
-.on-deck-queue__row-actions button.on-deck-queue__promote--now {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #14100b;
-  font-weight: 600;
-}
-
-.on-deck-queue__add-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.75rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.kicked-history__toggle {
-  align-self: flex-start;
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.kicked-history__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.kicked-history__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.3rem 0.5rem;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
 
 /* Visible keyboard focus for every new Task 5 interactive element. */
-.taps-row__actions button:focus-visible,
-.tap-form__grid input:focus-visible,
 .beer-picker input:focus-visible,
 .beer-picker__create:focus-visible,
 .beer-picker__import:focus-visible,
-.beer-picker__option:focus-visible,
-.swap-wizard__actions button:focus-visible,
-.on-deck-queue__row-actions button:focus-visible,
-.on-deck-queue__add-form button:focus-visible,
-.on-deck-queue > button:focus-visible,
-.kicked-history__toggle:focus-visible {
+.beer-picker__option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -2119,163 +1594,17 @@ h2.admin-field__label-text {
  * bind-picker/reset-confirm dialogs reuse the `.admin-confirm` shell (BeersPage/TapsPage
  * delete confirms) rather than inventing new modal chrome.
  */
-.monitors-type-badge {
-  display: inline-block;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.monitors-type-badge--kegtron_gen1 {
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-}
-
-.monitors-row__quiet {
-  color: var(--text-dim);
-  font-size: 0.78rem;
-}
 
 /* One card per physical Kegtron device (monitors grouped by type+identifier);
    the per-port bind/volume table nests inside. */
-.monitors-device-card {
-  margin-top: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 
 /* Disabled (Govee) sensors stay listed for re-enabling, just visibly muted. */
-.monitors-device-card--disabled {
-  opacity: 0.55;
-}
-
-.monitors-device-card__header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.monitors-device-card__name {
-  font-size: 1.05rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.monitors-device-card__meta {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--text-dim);
-  font-size: 0.8rem;
-  margin-right: auto;
-}
-
-.monitors-device-card__rename {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.monitors-device-card__rename input {
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text);
-  font-size: 0.85rem;
-}
 
 /* The "Not bound" nudge — a visible affordance (not just quiet empty text), same warm-
    attention tint as `.beer-picker__notice`. */
-.monitors-row__unbound {
-  display: inline-block;
-  padding: 0.2rem 0.55rem;
-  border-radius: 0.35rem;
-  background: color-mix(in srgb, #e0793d 18%, transparent);
-  color: var(--text);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.monitors-row__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  justify-content: flex-end;
-  white-space: nowrap;
-}
-
-.monitors-row__actions button {
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.monitors-row__actions button:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.monitors-row__actions button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.monitors-table tbody tr[data-testid='monitors-row-details'] td {
-  padding: 0.75rem 1rem 1rem;
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-}
-
-.monitors-telemetry {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.monitors-telemetry__latest {
-  color: var(--text);
-  font-size: 0.9rem;
-}
-
-.monitors-telemetry__sparklines {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-}
-
-.monitors-telemetry__sparkline-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.monitors-telemetry__sparkline-label {
-  color: var(--text-dim);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.monitors-sparkline-empty {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
 
 /* Visible keyboard focus for every new Task 6 interactive element. */
-.admin-field select:focus-visible,
-.monitors-row__actions button:focus-visible {
+.admin-field select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -4014,152 +3343,11 @@ h2.admin-field__label-text {
 
 .dashboard-source-badge--unconfigured { color: var(--text-faint, var(--text-dim)); }
 
-.dashboard-activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-}
-
 /* --- Taps & kegs (5b): rows become keg cards ------------------------------ */
-.taps-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
-  gap: 14px;
-}
-
-.taps-row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 18px 20px;
-}
-
-.taps-row__main {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.taps-row__glyph {
-  flex: none;
-  align-self: center;
-}
-
-.taps-row__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.taps-row__tap-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.taps-row__number {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--text-faint, var(--text-dim));
-  font-weight: 600;
-}
-
-.taps-row__name {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.taps-row__beer {
-  font-size: 22px;
-  line-height: 1.1;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.taps-row__meta {
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.taps-row__status {
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.taps-row__forecast {
-  font-size: 12px;
-  color: var(--text-faint, var(--text-dim));
-}
 
 /* Redesign 3d: a keg kicking within 3 days reads danger-red, and its Swap is the accent primary. */
-.taps-row__forecast--danger {
-  color: var(--danger);
-  font-weight: 600;
-}
-
-.taps-row__swap--critical {
-  border-color: var(--accent) !important;
-  background: var(--accent) !important;
-  color: #14100b !important;
-  font-weight: 600;
-}
 
 /* Days-to-kick timeline (redesign 3d): green→amber→red gradient with an elapsed marker. */
-.taps-row__timeline {
-  position: relative;
-  display: block;
-  width: 200px;
-  max-width: 100%;
-  height: 6px;
-  margin-top: 6px;
-  border-radius: 3px;
-  background: linear-gradient(to right, var(--ok), var(--warn), var(--danger));
-}
-
-.taps-row__timeline-marker {
-  position: absolute;
-  top: 50%;
-  width: 3px;
-  height: 12px;
-  margin-left: -1.5px;
-  transform: translateY(-50%);
-  border-radius: 2px;
-  background: var(--text);
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
-.taps-row__actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.taps-row__actions button {
-  padding: 6px 13px;
-  border-radius: 8px;
-  border: 1px solid var(--border-strong);
-  color: var(--text-dim);
-  font-size: 12px;
-  background: none;
-  cursor: pointer;
-}
-
-.taps-row__actions button:first-child {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: transparent;
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.taps-row__details {
-  margin-top: 14px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
 
 /* --- Logs (5d) ------------------------------------------------------------ */
 .logs-toolbar {
@@ -4451,11 +3639,6 @@ h2.admin-field__label-text {
   cursor: pointer;
 }
 
-.displays-table button {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
 /* Device→wall assignment panel: one checkbox per physical Kegtron device. */
 .wall-editor__devices {
   display: flex;
@@ -4481,67 +3664,8 @@ h2.admin-field__label-text {
 }
 
 /* --- Cleaning (6e; meter redesign 3d) -------------------------------------- */
-.taps-cleaning {
-  padding: 8px 0 12px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
-}
-
-.taps-cleaning__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.taps-cleaning__label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--text-faint, var(--text-dim));
-}
-
-.taps-cleaning__status {
-  flex: 1;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-
-.taps-cleaning--due .taps-cleaning__status {
-  color: var(--warn);
-  font-weight: 600;
-}
-
-.taps-cleaning__log {
-  padding: 5px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-strong);
-  color: var(--text-dim);
-  font-size: 12px;
-  background: none;
-  cursor: pointer;
-}
 
 /* Progress toward the next cleaning — the meter that replaces the surprise badge. */
-.taps-cleaning__meter {
-  display: block;
-  height: 6px;
-  margin-top: 8px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  overflow: hidden;
-}
-
-.taps-cleaning__meter-fill {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: var(--ok);
-}
-
-.taps-cleaning__meter-fill[data-due='true'] {
-  background: var(--warn);
-}
 
 /* --- Analytics (10a; 9-tab hub 4e/4j) -------------------------------------- */
 /* Grafana-style tab strip; horizontally scrolls on narrow screens rather than wrapping. */
@@ -4797,73 +3921,6 @@ h2.admin-field__label-text {
 }
 
 /* --- Kegs page (keg history + edit cost/supplier) --- */
-.kegs-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.75rem 0;
-}
-
-.kegs-toolbar__btn {
-  padding: 0.35rem 0.85rem;
-  min-height: 40px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.kegs-toolbar__btn--active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text);
-}
-
-.kegs-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.kegs-table th,
-.kegs-table td {
-  padding: 0.5rem 0.6rem;
-  text-align: left;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  font-size: 0.9rem;
-  vertical-align: middle;
-}
-
-.kegs-table th {
-  color: var(--text-dim);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.kegs-table__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: flex-end;
-}
-
-.kegs-edit__inline {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  font-size: 0.7rem;
-  color: var(--text-dim);
-}
-
-.kegs-table__editing input,
-.kegs-table__editing select {
-  padding: 0.3rem 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-  border-radius: 0.35rem;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--text);
-}
 
 .stats-chart__metric {
   margin-top: 0.5rem;
@@ -4878,38 +3935,12 @@ h2.admin-field__label-text {
 }
 
 /* Keep maintenance controls readable in both the card grid and narrow layouts. */
-.taps-cleaning__actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
-
-.taps-cleaning__actions button { min-height: 36px; }
-
-.taps-cleaning__log:hover { background: var(--surface-raised, var(--surface)); color: var(--text); }
-
-.taps-cleaning__log:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-
-.taps-cleaning__log:disabled { opacity: .55; cursor: wait; }
 
 .dashboard-stat { min-width: 0; }
 
 .dashboard-stat__label { overflow-wrap: anywhere; }
 
-@media (max-width: 600px) {
-
-  
-
-  
-
-  .taps-row__main { flex-wrap: wrap; }
-
-  .taps-row__actions { flex-direction: row; flex-wrap: wrap; width: 100%; }
-
-  .taps-row__glyph { width: 56px; }
-
-}
-
-.dashboard-cleaning-ignored { margin: 0 0 14px; font-size: 13px; color: var(--text-dim); }
-
 /* Padding grows the tap target to 44px; the negative margin keeps the line height normal. */
-.dashboard-cleaning-ignored a { display: inline-block; padding: 12px 2px; margin: -12px 0; color: var(--accent); }
 
 .pours-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin: 16px 0; }
 
@@ -5017,17 +4048,11 @@ h2.admin-field__label-text {
 
 .admin-table select { padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
 
-.supplier-card .admin-table { font-size: 12px; }
-
 @media (max-width: 900px) {
 
-  .admin-content table { display: block; max-width: 100%; overflow-x: auto; }
+  .admin-content table:not(.adm-table) { display: block; max-width: 100%; overflow-x: auto; }
 
-  .admin-content th, .admin-content td { white-space: nowrap; }
-
-  .admin-content .admin-page-header__actions { flex-wrap: wrap; }
-
-  .monitors-device-card__header { flex-wrap: wrap; }
+  .admin-content :not(.adm-table) > * > tr > :is(th, td) { white-space: nowrap; }
 
   .dashboard-source-row { flex-wrap: wrap; gap: 8px; }
 

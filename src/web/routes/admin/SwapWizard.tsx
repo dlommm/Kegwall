@@ -7,6 +7,10 @@ import {
   type MonitorWithDeviceKeg, type Supplier,
 } from '../../lib/adminApi';
 import { BeerPicker } from './BeerPicker';
+import { Button, Drawer } from './ui';
+import { srmToColor } from '../../lib/srm';
+import { pickInk } from '../../lib/contrast';
+import { markerLettersFor } from '../../wall/wallModel';
 import { KEG_TYPE_OPTIONS, type KegTypeSelectValue } from '../../lib/kegTypeOptions';
 
 const ML_PER_PINT = 473.176;
@@ -64,8 +68,10 @@ function galHint(ml: string): string | null {
  * queued keg already carries both.
  */
 export function SwapWizard({
-  tap, beers, kegs, monitors, promoteKeg = null, onClose, onDone,
+  tap, beers, kegs, monitors, promoteKeg: promoteKegProp = null, onClose, onDone,
 }: SwapWizardProps) {
+  // Choosing the tap's next-up keg on the pick step turns a plain swap into a promote.
+  const [promoteKeg, setPromoteKeg] = useState<Keg | null>(promoteKegProp);
   const hasActiveKeg = tap.keg != null && tap.keg.status === 'on_tap';
   const boundMonitor = monitors.find((m) => m.tapId === tap.tapId && m.type === 'kegtron_pro') ?? null;
 
@@ -97,25 +103,13 @@ export function SwapWizard({
   const step = steps[stepIndex];
   const canGoBack = stepIndex > 0 && step !== 'reset';
 
-  // Escape closes the wizard from any step, the same modal-dismiss convention used
-  // elsewhere in the admin UI. Safe even mid-flow: nothing is committed before a step's
-  // own submit button runs `doSwap`, and once the swap HAS succeeded (the 'reset' step),
-  // closing is exactly what "Finish" already does.
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   // Suppliers for the cost step's dropdown (redesign 4l) — editor-readable list.
   useEffect(() => {
-    if (promoteKeg) return; // promoting keeps the queued keg's own cost; no cost step
+    if (promoteKegProp) return; // promoting keeps the queued keg's own cost; no cost step
     listSuppliers().then((result) => {
       if (result.ok) setSuppliers(result.data);
     });
-  }, [promoteKeg]);
+  }, [promoteKegProp]);
 
   async function doSwap(
     input:
@@ -229,276 +223,346 @@ export function SwapWizard({
 
   const promoteBeerName = promoteKeg ? beers.find((b) => b.id === promoteKeg.beerId)?.name ?? 'the queued keg' : null;
   const currentBeerName = tap.beer?.name ?? 'the current keg';
+  // The pick step's quick choices (prototypes/admin-taps.html): the tap's next on-deck keg,
+  // and another keg of the beer that's on now.
+  const nextUp = promoteKeg ? null : kegs
+    .filter((k) => k.tapId === tap.tapId && k.status === 'on_deck')
+    .sort((a, b) => a.id - b.id)[0] ?? null;
+  const nextUpBeer = nextUp ? beers.find((b) => b.id === nextUp.beerId) ?? null : null;
+  const sameBeer = tap.beer ? beers.find((b) => b.id === tap.beer!.id) ?? null : null;
+  const stepLabels: Record<Step, string> = {
+    confirm: hasActiveKeg ? 'Kick the old keg' : 'Confirm',
+    pick: 'Choose the beer',
+    size: 'Keg size',
+    cost: 'Cost',
+    reset: 'Reset the counter',
+  };
 
   return (
-    <div className="swap-wizard__backdrop" data-testid="swap-wizard-backdrop" onClick={onClose}>
-      <div
-        className="swap-wizard"
-        role="dialog"
-        aria-modal="true"
-        aria-label={promoteKeg ? 'Promote on-deck keg' : `Swap keg on ${tapLabel(tap)}`}
-        data-testid="swap-wizard"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="swap-wizard__title font-display">
-          {promoteKeg ? `Promote on-deck keg — ${tapLabel(tap)}` : `Swap keg — ${tapLabel(tap)}`}
-        </h2>
+    <Drawer
+      open
+      onOpenChange={(open) => { if (!open && !swapping) onClose(); }}
+      size="wide"
+      testId="swap-wizard"
+      title={promoteKeg ? `Tap the next keg on ${tapLabel(tap)}` : `Swap the keg on ${tapLabel(tap)}`}
+      description={hasActiveKeg
+        ? `${currentBeerName} is on now. The old keg is marked kicked and its pours stay in history.`
+        : `${tapLabel(tap)} has no keg on.`}
+    >
+      <ol className="adm-steps" aria-label="Steps">
+        {steps.map((st, i) => (
+          <li key={st} aria-current={i === stepIndex ? 'step' : undefined}>{`${i + 1} ${stepLabels[st]}`}</li>
+        ))}
+      </ol>
 
-        {step === 'confirm' && (
-          <div data-testid="swap-wizard-step-confirm">
-            {hasActiveKeg && promoteKeg ? (
-              <p>
-                This will kick {currentBeerName} and tap {promoteBeerName} from the on-deck queue
-                onto {tapLabel(tap)}. The kicked keg moves to history and this can&rsquo;t be undone.
-              </p>
-            ) : hasActiveKeg ? (
-              <p>
-                This will kick {tapLabel(tap)}&rsquo;s current keg, {currentBeerName}. It moves to
-                kicked history and this can&rsquo;t be undone.
-              </p>
-            ) : (
-              <p>
-                This will tap {promoteBeerName} from the on-deck queue onto {tapLabel(tap)}.
-              </p>
-            )}
-            {swapError && (
-              <p role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
-            )}
-            <div className="swap-wizard__actions">
-              <button
-                type="button"
-                data-testid="swap-wizard-kick-button"
-                disabled={swapping}
-                onClick={handleConfirm}
-              >
-                {swapping ? 'Working…' : hasActiveKeg ? 'Kick keg' : 'Tap this keg'}
-              </button>
-              <button type="button" data-testid="swap-wizard-cancel" onClick={onClose} disabled={swapping}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'pick' && (
-          <div data-testid="swap-wizard-step-pick">
-            <BeerPicker
-              beers={beers}
-              allowCreate
-              kegtronMonitorId={boundMonitor?.id ?? null}
-              onPick={handlePick}
-            />
-            <div className="swap-wizard__actions">
-              {canGoBack && (
-                <button type="button" data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)}>
-                  Back
-                </button>
-              )}
-              <button type="button" data-testid="swap-wizard-cancel" onClick={onClose}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'size' && pickedBeer && (
-          <div data-testid="swap-wizard-step-size">
-            <p className="swap-wizard__picked">{pickedBeer.name}</p>
-            <div className="tap-form__grid">
-              <label className="admin-field">
-                <span>Size (mL)</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  data-testid="swap-wizard-size"
-                  value={sizeMl}
-                  onChange={(e) => setSizeMl(e.target.value)}
-                />
-                {galHint(sizeMl) && (
-                  <span className="admin-field__unit-hint" data-testid="swap-wizard-size-gal">
-                    {galHint(sizeMl)}
-                  </span>
-                )}
-              </label>
-              <label className="admin-field">
-                <span>Starting volume (mL)</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  data-testid="swap-wizard-volstart"
-                  value={volStartMl}
-                  onChange={(e) => setVolStartMl(e.target.value)}
-                />
-                {galHint(volStartMl) && (
-                  <span className="admin-field__unit-hint" data-testid="swap-wizard-volstart-gal">
-                    {galHint(volStartMl)}
-                  </span>
-                )}
-              </label>
-              <label className="admin-field">
-                <span>Keg type</span>
-                <select
-                  data-testid="swap-wizard-keg-type"
-                  value={kegTypeSelect}
-                  onChange={(e) => setKegTypeSelect(e.target.value as KegTypeSelectValue)}
-                >
-                  {KEG_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value} data-testid="swap-wizard-keg-type-option">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {prefilledFromDevice && (
-              <p className="swap-wizard__device-note" data-testid="swap-wizard-device-prefill-note">
-                Prefilled from the Kegtron device&rsquo;s own keg setup — adjust if the
-                device hasn&rsquo;t been updated for the new keg yet.
-              </p>
-            )}
-            {sizeError && (
-              <p role="alert" data-testid="swap-wizard-size-error">{sizeError}</p>
-            )}
-            {swapError && (
-              <p role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
-            )}
-            <div className="swap-wizard__actions">
-              <button
-                type="button"
-                data-testid="swap-wizard-submit"
-                disabled={swapping}
-                onClick={handleSizeSubmit}
-              >
-                Next: keg cost →
-              </button>
-              {canGoBack && (
-                <button type="button" data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)}>
-                  Back
-                </button>
-              )}
-              <button type="button" data-testid="swap-wizard-cancel" onClick={onClose} disabled={swapping}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'cost' && pickedBeer && (
-          <div data-testid="swap-wizard-step-cost">
-            <p className="swap-wizard__picked">{`What did this keg cost? (optional)`}</p>
-            <div className="tap-form__grid">
-              <label className="admin-field swap-wizard__cost-field">
-                <span>Keg cost ($)</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  data-testid="swap-wizard-cost"
-                  placeholder="e.g. 131.00"
-                  value={costDollars}
-                  onChange={(e) => setCostDollars(e.target.value)}
-                />
-              </label>
-              <label className="admin-field">
-                <span>Deposit ($)</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  data-testid="swap-wizard-deposit"
-                  value={depositDollars}
-                  onChange={(e) => setDepositDollars(e.target.value)}
-                />
-              </label>
-              <label className="admin-field">
-                <span>Supplier</span>
-                <select
-                  data-testid="swap-wizard-supplier"
-                  value={supplierId}
-                  onChange={(e) => setSupplierId(e.target.value)}
-                >
-                  <option value="">—</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="admin-field">
-                <span>Purchase date</span>
-                <input
-                  type="date"
-                  data-testid="swap-wizard-purchased"
-                  value={purchasedAt}
-                  onChange={(e) => setPurchasedAt(e.target.value)}
-                />
-              </label>
-            </div>
-            {(() => {
-              const cents = dollarsToCents(costDollars);
-              const size = Number(sizeMl.trim());
-              const pints = size > 0 ? size / ML_PER_PINT : 0;
-              return cents != null && pints > 0 ? (
-                <p className="swap-wizard__cost-preview" data-testid="swap-wizard-cost-preview">
-                  {`≈ $${(cents / 100 / pints).toFixed(2)} / pint owner cost`}
-                </p>
-              ) : null;
-            })()}
-            <p className="swap-wizard__cost-lock" data-testid="swap-wizard-cost-lock">
-              🔒 Owner cost is admin-only. It never appears on the wall, menu, tablet, or board.
+      {step === 'confirm' && (
+        <div className="swap-wizard__step" data-testid="swap-wizard-step-confirm">
+          {hasActiveKeg && promoteKeg ? (
+            <p>
+              This will kick {currentBeerName} and tap {promoteBeerName} from the on-deck queue
+              onto {tapLabel(tap)}. The kicked keg moves to history and this can&rsquo;t be undone.
             </p>
-            {swapError && (
-              <p role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
+          ) : hasActiveKeg ? (
+            <p>
+              This will kick {tapLabel(tap)}&rsquo;s current keg, {currentBeerName}. It moves to
+              kicked history and this can&rsquo;t be undone.
+            </p>
+          ) : (
+            <p>
+              This will tap {promoteBeerName} from the on-deck queue onto {tapLabel(tap)}.
+            </p>
+          )}
+          {swapError && (
+            <p className="adm-danger-text" role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
+          )}
+          <div className="swap-wizard__actions">
+            <Button
+              variant={hasActiveKeg ? 'danger' : 'primary'}
+              data-testid="swap-wizard-kick-button"
+              disabled={swapping}
+              onClick={handleConfirm}
+            >
+              {swapping ? 'Working…' : hasActiveKeg ? 'Kick keg' : 'Tap this keg'}
+            </Button>
+            {promoteKeg && !promoteKegProp && (
+              <Button onClick={() => { setPromoteKeg(null); setStepIndex(hasActiveKeg ? 1 : 0); }}>Back</Button>
             )}
-            <div className="swap-wizard__actions">
-              <button
-                type="button"
-                data-testid="swap-wizard-cost-submit"
-                disabled={swapping}
-                onClick={() => handleCostSubmit(false)}
-              >
-                {swapping ? 'Tapping…' : 'Tap this keg'}
-              </button>
-              <button
-                type="button"
-                data-testid="swap-wizard-cost-skip"
-                disabled={swapping}
-                onClick={() => handleCostSubmit(true)}
-              >
-                Skip
-              </button>
-              <button type="button" data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)} disabled={swapping}>
-                Back
-              </button>
-            </div>
+            <Button variant="quiet" data-testid="swap-wizard-cancel" onClick={onClose} disabled={swapping}>
+              Cancel
+            </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {step === 'reset' && (
-          <div data-testid="swap-wizard-step-reset">
-            <p>{tapLabel(tap)} is now on tap.</p>
-            <p>This monitor is a Kegtron Pro — you can reset its on-device volume counter to match.</p>
-            {resetResult === 'done' && (
-              <p data-testid="swap-wizard-reset-done">Volume reset on the device.</p>
-            )}
-            {resetResult === 'error' && (
-              <p role="alert" data-testid="swap-wizard-reset-error">{resetError}</p>
-            )}
-            <div className="swap-wizard__actions">
-              {resetResult !== 'done' && (
+      {step === 'pick' && (
+        <div className="swap-wizard__step" data-testid="swap-wizard-step-pick">
+          {(nextUpBeer || sameBeer) && (
+            <div className="swap-wizard__options">
+              {nextUp && nextUpBeer && (
                 <button
                   type="button"
-                  data-testid="swap-wizard-reset-button"
-                  disabled={resetting}
-                  onClick={handleResetVolume}
+                  className="adm-option"
+                  data-testid="swap-wizard-next-up"
+                  onClick={() => { setPromoteKeg(nextUp); setStepIndex(0); }}
                 >
-                  {resetting ? 'Resetting…' : 'Reset volume on device'}
+                  <BeerSwatch beer={nextUpBeer} />
+                  <span>
+                    <b className="adm-name">{nextUpBeer.name}</b>
+                    <span className="adm-sub" style={{ display: 'block' }}>On deck for this tap</span>
+                  </span>
+                  <span className="adm-sub">Next up</span>
                 </button>
               )}
-              <button type="button" data-testid="swap-wizard-finish" onClick={onClose}>
-                Finish
-              </button>
+              {sameBeer && (
+                <button
+                  type="button"
+                  className="adm-option"
+                  data-testid="swap-wizard-same-beer"
+                  onClick={() => handlePick(sameBeer)}
+                >
+                  <BeerSwatch beer={sameBeer} />
+                  <span>
+                    <b className="adm-name">{sameBeer.name}</b>
+                    <span className="adm-sub" style={{ display: 'block' }}>Another keg of the same beer</span>
+                  </span>
+                  <span />
+                </button>
+              )}
+              <h3 className="swap-wizard__or">Or a different beer</h3>
             </div>
+          )}
+          <BeerPicker
+            beers={beers}
+            allowCreate
+            kegtronMonitorId={boundMonitor?.id ?? null}
+            onPick={handlePick}
+          />
+          <div className="swap-wizard__actions">
+            {canGoBack && (
+              <Button data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)}>
+                Back
+              </Button>
+            )}
+            <Button variant="quiet" data-testid="swap-wizard-cancel" onClick={onClose}>
+              Cancel
+            </Button>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      {step === 'size' && pickedBeer && (
+        <div className="swap-wizard__step" data-testid="swap-wizard-step-size">
+          <p className="adm-name">{pickedBeer.name}</p>
+          <div className="adm-grid-2">
+            <label className="admin-field">
+              <span>Size (mL)</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                data-testid="swap-wizard-size"
+                value={sizeMl}
+                onChange={(e) => setSizeMl(e.target.value)}
+              />
+              {galHint(sizeMl) && (
+                <span className="admin-field__unit-hint" data-testid="swap-wizard-size-gal">
+                  {galHint(sizeMl)}
+                </span>
+              )}
+            </label>
+            <label className="admin-field">
+              <span>Starts at (mL)</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                data-testid="swap-wizard-volstart"
+                value={volStartMl}
+                onChange={(e) => setVolStartMl(e.target.value)}
+              />
+              {galHint(volStartMl) && (
+                <span className="admin-field__unit-hint" data-testid="swap-wizard-volstart-gal">
+                  {galHint(volStartMl)}
+                </span>
+              )}
+              <span className="admin-field__unit-hint">Lower it for a partly used keg.</span>
+            </label>
+            <label className="admin-field">
+              <span>Keg type</span>
+              <select
+                data-testid="swap-wizard-keg-type"
+                value={kegTypeSelect}
+                onChange={(e) => setKegTypeSelect(e.target.value as KegTypeSelectValue)}
+              >
+                {KEG_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} data-testid="swap-wizard-keg-type-option">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {prefilledFromDevice && (
+            <p className="adm-sub" data-testid="swap-wizard-device-prefill-note">
+              Prefilled from the Kegtron device&rsquo;s own keg setup. Adjust it if the
+              device hasn&rsquo;t been updated for the new keg yet.
+            </p>
+          )}
+          {sizeError && (
+            <p className="adm-danger-text" role="alert" data-testid="swap-wizard-size-error">{sizeError}</p>
+          )}
+          {swapError && (
+            <p className="adm-danger-text" role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
+          )}
+          <div className="swap-wizard__actions">
+            <Button
+              variant="primary"
+              data-testid="swap-wizard-submit"
+              disabled={swapping}
+              onClick={handleSizeSubmit}
+            >
+              Next: keg cost
+            </Button>
+            {canGoBack && (
+              <Button data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)}>
+                Back
+              </Button>
+            )}
+            <Button variant="quiet" data-testid="swap-wizard-cancel" onClick={onClose} disabled={swapping}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'cost' && pickedBeer && (
+        <div className="swap-wizard__step" data-testid="swap-wizard-step-cost">
+          <p>What did this keg cost? This is optional.</p>
+          <div className="adm-grid-2">
+            <label className="admin-field">
+              <span>Keg cost ($)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                data-testid="swap-wizard-cost"
+                placeholder="e.g. 131.00"
+                value={costDollars}
+                onChange={(e) => setCostDollars(e.target.value)}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Deposit ($)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                data-testid="swap-wizard-deposit"
+                value={depositDollars}
+                onChange={(e) => setDepositDollars(e.target.value)}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Supplier</span>
+              <select
+                data-testid="swap-wizard-supplier"
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+              >
+                <option value="">—</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>Purchase date</span>
+              <input
+                type="date"
+                data-testid="swap-wizard-purchased"
+                value={purchasedAt}
+                onChange={(e) => setPurchasedAt(e.target.value)}
+              />
+            </label>
+          </div>
+          {(() => {
+            const cents = dollarsToCents(costDollars);
+            const size = Number(sizeMl.trim());
+            const pints = size > 0 ? size / ML_PER_PINT : 0;
+            return cents != null && pints > 0 ? (
+              <p className="adm-num-cell" data-testid="swap-wizard-cost-preview">
+                {`≈ $${(cents / 100 / pints).toFixed(2)} / pint owner cost`}
+              </p>
+            ) : null;
+          })()}
+          <p className="adm-sub" data-testid="swap-wizard-cost-lock">
+            Only owners see costs. They never appear on the wall, menu, tablet or board.
+          </p>
+          {swapError && (
+            <p className="adm-danger-text" role="alert" data-testid="swap-wizard-swap-error">{swapError}</p>
+          )}
+          <div className="swap-wizard__actions">
+            <Button
+              variant="primary"
+              data-testid="swap-wizard-cost-submit"
+              disabled={swapping}
+              onClick={() => handleCostSubmit(false)}
+            >
+              {swapping ? 'Tapping…' : `Tap ${pickedBeer.name}`}
+            </Button>
+            <Button
+              data-testid="swap-wizard-cost-skip"
+              disabled={swapping}
+              onClick={() => handleCostSubmit(true)}
+            >
+              Skip
+            </Button>
+            <Button variant="quiet" data-testid="swap-wizard-back" onClick={() => setStepIndex(stepIndex - 1)} disabled={swapping}>
+              Back
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'reset' && (
+        <div className="swap-wizard__step" data-testid="swap-wizard-step-reset">
+          <p>{tapLabel(tap)} is now on tap.</p>
+          <p>
+            This tap&rsquo;s monitor is a Kegtron Pro. You can reset its counter to zero to match
+            the new keg. This changes the real device&rsquo;s counter.
+          </p>
+          {resetResult === 'done' && (
+            <p className="adm-ok-text" data-testid="swap-wizard-reset-done">Volume reset on the device.</p>
+          )}
+          {resetResult === 'error' && (
+            <p className="adm-danger-text" role="alert" data-testid="swap-wizard-reset-error">{resetError}</p>
+          )}
+          <div className="swap-wizard__actions">
+            {resetResult !== 'done' && (
+              <Button
+                data-testid="swap-wizard-reset-button"
+                disabled={resetting}
+                onClick={handleResetVolume}
+              >
+                {resetting ? 'Resetting…' : 'Reset volume on device'}
+              </Button>
+            )}
+            <Button variant="primary" data-testid="swap-wizard-finish" onClick={onClose}>
+              Finish
+            </Button>
+          </div>
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
+/** A beer's color square with its initials, for the swap choices (no tap number yet). */
+function BeerSwatch({ beer }: { beer: Beer }) {
+  const color = srmToColor(beer.srm).liquid;
+  return (
+    <span
+      className="swap-wizard__swatch"
+      style={{ background: color, color: pickInk(color) }}
+      aria-hidden="true"
+    >
+      {markerLettersFor(beer.name)}
+    </span>
   );
 }

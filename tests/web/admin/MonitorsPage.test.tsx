@@ -178,7 +178,7 @@ describe('MonitorsPage', () => {
 
       expect(updateMonitorIdentity).toHaveBeenCalledWith(30, { enabled: false });
       const cards = screen.getAllByTestId('monitors-device-card');
-      expect(within(cards[0]!).getByTestId('monitors-card-disabled-badge')).toHaveTextContent('DISABLED');
+      expect(within(cards[0]!).getByTestId('monitors-card-disabled-badge')).toHaveTextContent('Disabled');
       expect(screen.getByTestId('monitors-card-toggle-enabled')).toHaveTextContent('Enable');
     });
 
@@ -201,7 +201,7 @@ describe('MonitorsPage', () => {
     await flush();
 
     expect(updateMonitorIdentity).toHaveBeenCalledWith(1, { enabled: false });
-    expect(screen.getByTestId('monitors-card-disabled-badge')).toHaveTextContent('DISABLED');
+    expect(screen.getByTestId('monitors-card-disabled-badge')).toHaveTextContent('Disabled');
   });
 
   it('shows the device friendly name as the card title when set', async () => {

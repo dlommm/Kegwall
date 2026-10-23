@@ -27,7 +27,7 @@ export function renderAdminPage(
   /** Initial URL — pass a query string (e.g. `/x?tap=2`) to exercise deep links. */
   entry = '/x',
 ): RenderResult {
-  const ctx: AdminOutletContext = { me: DEFAULT_ME, units: 'us', ...overrides };
+  const ctx: AdminOutletContext = { me: DEFAULT_ME, units: 'us', servingSizeMl: 473, ...overrides };
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
@@ -41,5 +41,5 @@ export function renderAdminPage(
 
 /** Convenience for the common "just change the role" case. */
 export function adminContext(role: AdminOutletContext['me']['role'], units: AdminOutletContext['units'] = 'us'): AdminOutletContext {
-  return { me: { ...DEFAULT_ME, role }, units };
+  return { me: { ...DEFAULT_ME, role }, units, servingSizeMl: 473 };
 }

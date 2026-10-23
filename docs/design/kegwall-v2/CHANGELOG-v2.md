@@ -13,6 +13,12 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   menu. A destination's pages show as tabs under the bar; every existing admin address still
   works. On phones the destinations open from **Menu** as a sheet.
 - **Changed:** one admin design, dark by default and light when the device prefers it.
+- **Changed:** **Taps & kegs** is rebuilt. Taps is one table with what's left in servings, the
+  kick forecast and the bound monitor, filter chips (needs a swap, due for cleaning) and a drawer
+  per tap for cleaning, on deck and kicked history. Swapping a keg runs in a drawer that offers
+  the tap's next-up keg and another keg of the same beer first. Kegs shows costs as numbers over
+  one table with editing in a drawer; Suppliers lists each supplier's week at a glance beside its
+  price book; Monitors says whether each device is receiving and maps each port to its tap.
 
 - **Changed:** pour takeovers are rebuilt. Full shows a glass filling from a stream of beer,
   Split slides a panel in the beer's color, Dock lifts the wall for a filling bar, Fill floods
@@ -68,8 +74,8 @@ Collected milestone by milestone on the `v2` branch. semantic-release owns `CHAN
   `[data-tap-state]` and `[data-testid="tap-marker"]`.
 
 - **Added:** every tap in the live wall feed now carries tonight's pours and volume (since
-  4 am), pours in the last hour and a projected kick date, and the wall payload carries the
-  taproom's serving size. None of it reveals keg cost.
+  4 am), pours in the last hour and a projected kick date, and the wall and menu payloads
+  carry the taproom's serving size. None of it reveals keg cost.
 
 ## Removed
 

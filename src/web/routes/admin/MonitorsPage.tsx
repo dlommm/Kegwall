@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Monitor } from '../../../server/db/monitors.js';
-import type { TelemetryPoint } from '../../../server/db/telemetry.js';
 import {
   listMonitors, bindMonitor, getMonitorTelemetry, resetKegtronVolume, getMonitorWifiRssi,
   updateMonitorIdentity,
@@ -9,120 +8,61 @@ import {
 import { getMenu } from '../../lib/api';
 import { useTapStates } from '../../lib/useTapStates';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
-import { formatVolumeMl, formatTempC } from '../../lib/units';
+import { formatVolumeMl } from '../../lib/units';
 import { groupMonitors, deviceLabel, type MonitorDeviceGroup } from '../../lib/monitorDevices';
+import { capitalize, countWord } from '../../lib/tonightAttention';
 import { useAdminContext } from './useAdminContext';
-
-/** How far back the Pro-device detail panel's temp/humidity sparkline looks — matches
- * `GET /api/monitors/:id/telemetry`'s own default window (Task 6). A time-range switcher
- * arrives with the rest of the charts in Task 9; this page only ever asks for 24h. */
-const TELEMETRY_HOURS = 24;
-
-const TYPE_LABELS: Record<Monitor['type'], string> = {
-  kegtron_pro: 'Kegtron Pro',
-  kegtron_gen1: 'Kegtron Gen 1',
-  govee_sensor: 'Govee sensor',
-};
-
-/** `meta.deviceName` — the sensor's name in Govee's own app, stamped at discovery.
- * Read defensively like `monitorFirmware` (meta is untyped JSON). */
-function goveeDeviceName(monitor: Monitor): string | null {
-  const name = monitor.meta.deviceName;
-  return typeof name === 'string' && name.length > 0 ? name : null;
-}
+import { PageTemplate } from './PageTemplate';
+import {
+  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Modal, SelectField, Skeleton, StatusDot, Table,
+} from './ui';
+import {
+  DeviceDetails, TELEMETRY_HOURS, type RssiEntry, type TelemetryEntry,
+} from './monitors/DeviceDetails';
+import {
+  TYPE_LABELS, deviceLastSeen, goveeDeviceName, isReceiving, portLabel, tapLabel,
+} from './monitors/monitorText';
 
 type BindState = { monitor: Monitor; deviceName: string; tapId: string; error: string | null };
 type ResetState = { monitor: Monitor; deviceName: string; result: 'idle' | 'done' | 'error'; error: string | null };
 type RenameState = { group: MonitorDeviceGroup; value: string; saving: boolean; error: string | null };
-interface TelemetryEntry { status: 'loading' | 'loaded' | 'error'; points: TelemetryPoint[] }
-interface RssiEntry { status: 'loading' | 'loaded' | 'error'; rssi: number | null; error: string | null }
 
-function tapLabel(tap: TapState): string {
-  return tap.tapName ?? `Tap ${tap.tapNumber}`;
+/** "Four monitors on twelve ports. One hasn't reported in the last 10 minutes." */
+export function monitorsHeadline(devices: MonitorDeviceGroup[], now: Date = new Date()): string {
+  if (devices.length === 0) return 'No monitors yet.';
+  const enabled = devices.filter((g) => g.ports[0]!.enabled);
+  const ports = devices.filter((g) => g.type !== 'govee_sensor').reduce((n, g) => n + g.ports.length, 0);
+  const count = devices.length === 1 ? 'One monitor' : `${capitalize(countWord(devices.length))} monitors`;
+  const first = ports > 0 ? `${count} on ${countWord(ports)} port${ports === 1 ? '' : 's'}.` : `${count}.`;
+  const quiet = enabled.filter((g) => !isReceiving(g, now));
+  if (enabled.length === 0) return `${first} All are disabled.`;
+  if (quiet.length === 0) return `${first} All of them are reporting.`;
+  if (quiet.length === 1) return `${first} ${deviceLabel(quiet[0]!)} hasn’t reported in the last 10 minutes.`;
+  return `${first} ${capitalize(countWord(quiet.length))} haven’t reported in the last 10 minutes.`;
 }
 
-/** Dialog copy for a single port of a device — "Main kegerator, port 2". */
-function portLabel(deviceName: string, monitor: Monitor): string {
-  return `${deviceName}, port ${monitor.portIndex}`;
-}
-
-/** `monitor.meta.fw`/`.online` — stamped at cloud discovery (see shadow.ts's
- * `diffToEvents`, Phase 5 Task 0). `meta` is a plain `Record<string, unknown>` (it's
- * JSON under the hood — `db/monitors.ts` never narrows its shape), so these read it
- * defensively rather than trusting the field is present/well-typed (an older monitor row,
- * discovered before this field existed, or a Gen 1 monitor, simply has neither key). */
-function monitorFirmware(monitor: Monitor): string | null {
-  const fw = monitor.meta.fw;
-  return typeof fw === 'string' && fw.length > 0 ? fw : null;
-}
-
-function monitorOnlineFromMeta(monitor: Monitor): boolean | null {
-  const online = monitor.meta.online;
-  return typeof online === 'boolean' ? online : null;
-}
-
-/** The freshest last-seen across a device's ports (each port row updates its own). */
-function deviceLastSeen(group: MonitorDeviceGroup): string | null {
-  const seen = group.ports.map((p) => p.lastSeen).filter((s): s is string => s != null);
-  return seen.length > 0 ? seen.sort().at(-1)! : null;
-}
-
-/** A tiny inline `<svg><polyline>` sparkline — no chart lib yet (Recharts arrives Task
- * 9). Renders nothing but a quiet "not enough data" note until there are at least two
- * numeric samples to draw a line between. Null samples (a sensor with no humidity, or a
- * gap in reporting) are simply skipped rather than plotted as zero. */
-function Sparkline({ values, testId, label }: { values: (number | null)[]; testId: string; label: string }) {
-  const nums = values.filter((v): v is number => v != null);
-  if (nums.length < 2) {
-    return (
-      <p className="monitors-sparkline-empty" data-testid={`${testId}-empty`}>
-        Not enough readings yet for a trend line.
-      </p>
-    );
-  }
-  const width = 120;
-  const height = 28;
-  const min = Math.min(...nums);
-  const max = Math.max(...nums);
-  const range = max - min || 1;
-  const points = nums
-    .map((v, i) => {
-      const x = (i / (nums.length - 1)) * width;
-      const y = height - ((v - min) / range) * height;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-  return (
-    <svg
-      className="monitors-sparkline"
-      data-testid={testId}
-      viewBox={`0 0 ${width} ${height}`}
-      width={width}
-      height={height}
-      role="img"
-      aria-label={`${label} over the last ${TELEMETRY_HOURS} hours`}
-    >
-      <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="1.5" />
-    </svg>
-  );
+/** Where a device's state comes from, said in the row (blueprint §E.8). */
+function deviceState(group: MonitorDeviceGroup): { state: 'completed' | 'failed' | 'disabled'; label: string } {
+  if (!group.ports[0]!.enabled) return { state: 'disabled', label: 'Disabled' };
+  const seen = deviceLastSeen(group);
+  if (!seen) return { state: 'failed', label: 'Never heard from' };
+  return isReceiving(group)
+    ? { state: 'completed', label: `Receiving · ${formatRelativeTime(seen)}` }
+    : { state: 'failed', label: `Not heard from · ${formatRelativeTime(seen)}` };
 }
 
 /**
- * `/admin/monitors` — one CARD per physical Kegtron device (`monitors` rows grouped by
- * type+identifier via `groupMonitors`; a Pro has 1-4 ports, a Gen 1 unit 1-2), with the
- * device-level things said once — editable friendly name, identifier/serial, freshest
- * last-seen, firmware + online (from cloud-discovery meta), a "Check WiFi signal"
- * round-trip and ONE temp/humidity detail panel (telemetry is per DEVICE: Kegtron
- * reports temp once per device, and `GET /api/monitors/:id/telemetry` answers
- * device-wide for any port row) — and a port table underneath where each port binds to
- * a tap, shows its live volume, and offers per-port Reset volume. A viewer sees
- * everything read-only (no rename/bind/unbind/reset/WiFi controls); the detail expand
- * stays viewer-role like its endpoint.
+ * `/admin/monitors` (Kegwall V2 M8) — one section per physical device (`monitors` rows
+ * grouped by type+identifier via `groupMonitors`; a Pro has 1-4 ports, a Gen 1 unit 1-2),
+ * saying once what belongs to the device — its name (renamable), identifier/serial, whether
+ * it's receiving and since when — with a port → tap table under it where each port binds to
+ * a tap, shows what's left on that tap, and offers a per-port volume reset. Firmware, WiFi
+ * and the temperature/humidity trend open in a drawer (telemetry is per DEVICE). A viewer
+ * sees everything read-only; the details stay viewer-role like their endpoint.
  *
- * Any device can be DISABLED — the case is hardware living at another location. The card
- * stays (greyed, badged) so it can be re-enabled, but the device stops feeding the system
- * entirely: no volume updates, no pours, no telemetry (see core/state.ts), and it charts
- * nowhere on the Stats page.
+ * Any device can be disabled — the case is hardware living at another location. It stays
+ * listed (dimmed) so it can be enabled again, but stops feeding the system entirely: no
+ * volume updates, no pours, no telemetry (see core/state.ts).
  */
 export function MonitorsPage() {
   const { me, units } = useAdminContext();
@@ -171,6 +111,7 @@ export function MonitorsPage() {
   const canEdit = me.role === 'editor' || me.role === 'admin';
   const devices = groupMonitors(monitors).sort((a, b) =>
     Number(b.ports[0]!.enabled) - Number(a.ports[0]!.enabled));
+  const detailGroup = devices.find((g) => g.key === expandedDeviceKey) ?? null;
 
   function loadTelemetry(group: MonitorDeviceGroup) {
     setTelemetryByDevice((prev) => ({ ...prev, [group.key]: { status: 'loading', points: [] } }));
@@ -280,21 +221,115 @@ export function MonitorsPage() {
   }
 
   return (
-    <section data-testid="admin-monitors-page">
-      <header className="admin-page-header">
-        <h1 className="admin-page-header__title font-display">Monitors</h1>
-      </header>
+    <PageTemplate
+      testId="admin-monitors-page"
+      title={status === 'loaded' ? monitorsHeadline(devices) : 'Monitors'}
+      sub={(() => {
+        const unbound = monitors.filter((m) => m.type !== 'govee_sensor' && m.enabled && m.tapId == null).length;
+        if (status !== 'loaded' || devices.length === 0) return undefined;
+        return unbound > 0
+          ? `${capitalize(countWord(unbound))} port${unbound === 1 ? ' isn’t' : 's aren’t'} bound to a tap yet, so ${unbound === 1 ? 'its pours go' : 'their pours go'} nowhere.`
+          : 'Each port feeds one tap. Pours and levels come from the port it’s bound to.';
+      })()}
+      drawer={(
+        <>
+          {detailGroup && (
+            <Drawer
+              open
+              onOpenChange={(open) => { if (!open) setExpandedDeviceKey(null); }}
+              title={deviceLabel(detailGroup)}
+              description={`${TYPE_LABELS[detailGroup.type]} · ${detailGroup.identifier}`}
+            >
+              <DeviceDetails
+                group={detailGroup}
+                units={units}
+                canEdit={canEdit}
+                telemetry={telemetryByDevice[detailGroup.key]}
+                rssi={rssiByDevice[detailGroup.key]}
+                onCheckRssi={() => checkRssi(detailGroup)}
+              />
+            </Drawer>
+          )}
 
-      {status === 'loading' && <p className="admin-page-quiet" data-testid="monitors-loading">Loading…</p>}
+          <Modal
+            open={bindState !== null}
+            onOpenChange={(open) => { if (!open && !binding) setBindState(null); }}
+            title="Bind to a tap"
+            description={bindState ? `Choose which tap ${portLabel(bindState.deviceName, bindState.monitor)} feeds, or leave it unbound.` : undefined}
+            testId="monitors-bind-picker"
+            footer={(
+              <>
+                <Button variant="primary" data-testid="monitors-bind-submit" disabled={binding} onClick={handleBindSubmit}>
+                  {binding ? 'Saving…' : 'Save'}
+                </Button>
+                <Button variant="quiet" data-testid="monitors-bind-cancel" disabled={binding} onClick={() => setBindState(null)}>
+                  Cancel
+                </Button>
+              </>
+            )}
+          >
+            {bindState && (
+              <>
+                <SelectField
+                  label="Tap"
+                  data-testid="monitors-bind-select"
+                  value={bindState.tapId}
+                  onChange={(e) => setBindState({ ...bindState, tapId: e.target.value })}
+                >
+                  <option value="">Not bound</option>
+                  {taps.map((t) => (
+                    <option key={t.tapId} value={t.tapId}>{tapLabel(t)}</option>
+                  ))}
+                </SelectField>
+                {bindState.error && (
+                  <p className="adm-modal__error" role="alert" data-testid="monitors-bind-error">{bindState.error}</p>
+                )}
+              </>
+            )}
+          </Modal>
+
+          <ConfirmDialog
+            open={resetState !== null}
+            onOpenChange={(open) => { if (!open) setResetState(null); }}
+            title="Reset the volume counter?"
+            confirmLabel={resetState?.result === 'done' ? 'Done' : 'Reset volume'}
+            busyLabel="Resetting…"
+            busy={resetting}
+            error={resetState?.result === 'error' ? resetState.error : null}
+            onConfirm={() => (resetState?.result === 'done' ? setResetState(null) : handleConfirmReset())}
+            testId="monitors-reset-confirm"
+            confirmTestId={resetState?.result === 'done' ? 'monitors-reset-close' : 'monitors-reset-confirm-button'}
+            cancelTestId="monitors-reset-cancel-button"
+            errorTestId="monitors-reset-error"
+          >
+            {resetState && (
+              <>
+                <p>
+                  This will reset {portLabel(resetState.deviceName, resetState.monitor)}&rsquo;s on-device
+                  dispensed-volume counter to zero, matching its configured keg size. Any pour tracking
+                  based on the old count is lost and this can&rsquo;t be undone.
+                </p>
+                {resetState.result === 'done' && (
+                  <p className="adm-ok-text" data-testid="monitors-reset-done">Volume reset on the device.</p>
+                )}
+              </>
+            )}
+          </ConfirmDialog>
+        </>
+      )}
+    >
+      {status === 'loading' && <div data-testid="monitors-loading"><Skeleton height={120} /></div>}
       {status === 'error' && (
-        <p className="admin-page-quiet" role="alert" data-testid="monitors-error">
-          Couldn&rsquo;t load monitors. Reload to try again.
-        </p>
+        <div data-testid="monitors-error">
+          <ErrorState title="Couldn’t load monitors." onRetry={loadMonitors}>Reload to try again.</ErrorState>
+        </div>
       )}
       {status === 'loaded' && devices.length === 0 && (
-        <p className="admin-page-quiet" data-testid="monitors-empty">
-          No monitors discovered yet. They&rsquo;ll appear here once a Kegtron device reports in.
-        </p>
+        <div data-testid="monitors-empty">
+          <EmptyState title="No monitors discovered yet.">
+            They&rsquo;ll appear here once a Kegtron device reports in.
+          </EmptyState>
+        </div>
       )}
 
       {status === 'loaded' && devices.map((group) => {
@@ -302,380 +337,165 @@ export function MonitorsPage() {
         const isGovee = group.type === 'govee_sensor';
         const anchor = group.ports[0]!;
         const isDisabled = !anchor.enabled;
-        const expanded = expandedDeviceKey === group.key;
-        const telemetry = telemetryByDevice[group.key];
-        const rssi = rssiByDevice[group.key];
         const renaming = renameState?.group.key === group.key ? renameState : null;
-        const lastSeen = deviceLastSeen(group);
+        const state = deviceState(group);
         return (
           <article
-            className={`monitors-device-card${isDisabled ? ' monitors-device-card--disabled' : ''}`}
+            className={isDisabled ? 'monitor-v2 is-disabled' : 'monitor-v2'}
             data-testid="monitors-device-card"
             data-device-type={group.type}
             key={group.key}
           >
-            <header className="monitors-device-card__header">
-              <span
-                className={`monitors-type-badge monitors-type-badge--${group.type}`}
-                data-testid="monitors-card-type"
-              >
-                {TYPE_LABELS[group.type]}
-              </span>
-              {renaming ? (
-                <span className="monitors-device-card__rename">
-                  <input
-                    type="text"
-                    data-testid="monitors-card-rename-input"
-                    value={renaming.value}
-                    disabled={renaming.saving}
-                    placeholder={group.identifier}
-                    onChange={(e) => setRenameState({ ...renaming, value: e.target.value })}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void handleRenameSubmit(); }}
-                  />
-                  <button
-                    type="button"
-                    data-testid="monitors-card-rename-save"
-                    disabled={renaming.saving}
-                    onClick={handleRenameSubmit}
-                  >
-                    {renaming.saving ? 'Saving…' : 'Save'}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="monitors-card-rename-cancel"
-                    disabled={renaming.saving}
-                    onClick={() => setRenameState(null)}
-                  >
-                    Cancel
-                  </button>
-                  {renaming.error && (
-                    <span role="alert" data-testid="monitors-card-rename-error">{renaming.error}</span>
-                  )}
-                </span>
-              ) : (
-                <>
-                  <h2 className="monitors-device-card__name font-display" data-testid="monitors-card-name">
-                    {deviceLabel(group)}
-                  </h2>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      data-testid="monitors-card-rename"
-                      onClick={() => setRenameState({ group, value: group.name ?? '', saving: false, error: null })}
-                    >
-                      Rename
-                    </button>
-                  )}
-                </>
-              )}
-              <span className="monitors-device-card__meta">
-                <span data-testid="monitors-card-identifier">{group.identifier}</span>
-                {isGovee && goveeDeviceName(anchor) && (
-                  <span className="monitors-row__quiet" data-testid="monitors-card-govee-name">
-                    {goveeDeviceName(anchor)}
+            <header className="monitor-v2__head">
+              <div className="monitor-v2__who">
+                {renaming ? (
+                  <span className="monitor-v2__rename">
+                    <input
+                      type="text"
+                      className="adm-input"
+                      aria-label="Device name"
+                      data-testid="monitors-card-rename-input"
+                      value={renaming.value}
+                      disabled={renaming.saving}
+                      placeholder={group.identifier}
+                      onChange={(e) => setRenameState({ ...renaming, value: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void handleRenameSubmit(); }}
+                    />
+                    <Button variant="primary" data-testid="monitors-card-rename-save" disabled={renaming.saving} onClick={handleRenameSubmit}>
+                      {renaming.saving ? 'Saving…' : 'Save'}
+                    </Button>
+                    <Button variant="quiet" data-testid="monitors-card-rename-cancel" disabled={renaming.saving} onClick={() => setRenameState(null)}>
+                      Cancel
+                    </Button>
+                    {renaming.error && (
+                      <span className="adm-danger-text" role="alert" data-testid="monitors-card-rename-error">{renaming.error}</span>
+                    )}
                   </span>
+                ) : (
+                  <h2 className="adm-name" data-testid="monitors-card-name">{deviceLabel(group)}</h2>
                 )}
-                {group.serial && (
-                  <span className="monitors-row__quiet" data-testid="monitors-card-serial">{group.serial}</span>
-                )}
-                <span className="font-tabular" data-testid="monitors-card-lastseen">
-                  {lastSeen ? formatRelativeTime(lastSeen) : 'Never seen'}
+                <p className="adm-sub monitor-v2__meta">
+                  <span data-testid="monitors-card-type">{TYPE_LABELS[group.type]}</span>
+                  {' · '}
+                  <span data-testid="monitors-card-identifier">{group.identifier}</span>
+                  {isGovee && goveeDeviceName(anchor) && (
+                    <>{' · '}<span data-testid="monitors-card-govee-name">{goveeDeviceName(anchor)}</span></>
+                  )}
+                  {group.serial && <>{' · '}<span data-testid="monitors-card-serial">{group.serial}</span></>}
+                </p>
+              </div>
+              <span className="monitor-v2__state">
+                {isDisabled
+                  ? <span data-testid="monitors-card-disabled-badge"><StatusDot state={state.state} label={state.label} /></span>
+                  : <StatusDot state={state.state} label={state.label} />}
+                <span className="adm-sr-only" data-testid="monitors-card-lastseen">
+                  {deviceLastSeen(group) ? formatRelativeTime(deviceLastSeen(group)!) : 'Never seen'}
                 </span>
               </span>
-              {isDisabled && (
-                <span className="look-badge look-badge--kicked" data-testid="monitors-card-disabled-badge">
-                  DISABLED
-                </span>
-              )}
-              {canEdit && (
-                <button
-                  type="button"
-                  data-testid="monitors-card-toggle-enabled"
-                  onClick={() => {
-                    void updateMonitorIdentity(group.anchorId, { enabled: isDisabled }).then(loadMonitors);
-                  }}
-                >
-                  {isDisabled ? 'Enable' : 'Disable'}
-                </button>
-              )}
-              {(isPro || isGovee) && (
-                <button
-                  type="button"
-                  data-testid="monitors-card-expand"
-                  onClick={() => toggleExpand(group)}
-                >
-                  {expanded ? 'Hide details' : 'Details'}
-                </button>
-              )}
+              <span className="monitor-v2__actions">
+                {(isPro || isGovee) && (
+                  <Button variant="quiet" data-testid="monitors-card-expand" onClick={() => toggleExpand(group)}>
+                    Details
+                  </Button>
+                )}
+                {canEdit && !renaming && (
+                  <Button
+                    variant="quiet"
+                    data-testid="monitors-card-rename"
+                    onClick={() => setRenameState({ group, value: group.name ?? '', saving: false, error: null })}
+                  >
+                    Rename
+                  </Button>
+                )}
+                {canEdit && (
+                  <Button
+                    variant="quiet"
+                    data-testid="monitors-card-toggle-enabled"
+                    onClick={() => {
+                      void updateMonitorIdentity(group.anchorId, { enabled: isDisabled }).then(loadMonitors);
+                    }}
+                  >
+                    {isDisabled ? 'Enable' : 'Disable'}
+                  </Button>
+                )}
+              </span>
             </header>
 
-            {expanded && (isPro || isGovee) && (
-              <div data-testid="monitors-card-details">
-                {isPro && (
-                <div className="monitors-device-info" data-testid="monitors-device-info">
-                  <span className="monitors-device-info__item" data-testid="monitors-device-firmware">
-                    Firmware: {monitorFirmware(anchor) ?? 'Unknown'}
-                  </span>
-                  <span
-                    className="monitors-device-info__item"
-                    data-testid="monitors-device-online"
-                    data-online={monitorOnlineFromMeta(anchor) ?? undefined}
-                  >
-                    {(() => {
-                      const online = monitorOnlineFromMeta(anchor);
-                      return online === null ? 'Online: Unknown' : online ? 'Online' : 'Offline';
-                    })()}
-                  </span>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      data-testid="monitors-rssi-check"
-                      disabled={rssi?.status === 'loading'}
-                      onClick={() => checkRssi(group)}
-                    >
-                      {rssi?.status === 'loading' ? 'Checking…' : 'Check WiFi signal'}
-                    </button>
-                  )}
-                  {rssi?.status === 'loaded' && (
-                    <span data-testid="monitors-rssi-value">{rssi.rssi} dBm</span>
-                  )}
-                  {rssi?.status === 'error' && (
-                    <span role="alert" data-testid="monitors-rssi-error">{rssi.error}</span>
-                  )}
-                </div>
-                )}
-                {(!telemetry || telemetry.status === 'loading') && (
-                  <p data-testid="monitors-telemetry-loading">Loading readings…</p>
-                )}
-                {telemetry?.status === 'error' && (
-                  <p role="alert" data-testid="monitors-telemetry-error">
-                    Couldn&rsquo;t load readings. Try again.
-                  </p>
-                )}
-                {telemetry?.status === 'loaded' && telemetry.points.length === 0 && (
-                  <p data-testid="monitors-telemetry-empty">
-                    No temperature or humidity readings yet — they&rsquo;ll appear here once this
-                    device reports in.
-                  </p>
-                )}
-                {telemetry?.status === 'loaded' && telemetry.points.length > 0 && (() => {
-                  const latest = telemetry.points[telemetry.points.length - 1]!;
-                  return (
-                    <div className="monitors-telemetry" data-testid="monitors-telemetry">
-                      <p className="monitors-telemetry__latest" data-testid="monitors-telemetry-latest">
-                        Latest: {latest.temp != null ? formatTempC(latest.temp, units) : '—'}
-                        {' / '}
-                        {latest.humidity != null ? `${Math.round(latest.humidity)}%` : '—'} humidity
-                        {' — '}
-                        {formatRelativeTime(latest.ts)}
-                      </p>
-                      <div className="monitors-telemetry__sparklines">
-                        <div className="monitors-telemetry__sparkline-block">
-                          <span className="monitors-telemetry__sparkline-label">
-                            Temp ({TELEMETRY_HOURS}h)
-                          </span>
-                          <Sparkline
-                            values={telemetry.points.map((p) => p.temp)}
-                            testId="monitors-sparkline-temp"
-                            label="Temperature"
-                          />
-                        </div>
-                        <div className="monitors-telemetry__sparkline-block">
-                          <span className="monitors-telemetry__sparkline-label">
-                            Humidity ({TELEMETRY_HOURS}h)
-                          </span>
-                          <Sparkline
-                            values={telemetry.points.map((p) => p.humidity)}
-                            testId="monitors-sparkline-humidity"
-                            label="Humidity"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
             {!isGovee && (
-            <table className="admin-table monitors-table" data-testid="monitors-port-table">
-              <thead>
-                <tr>
-                  <th scope="col">Port</th>
-                  <th scope="col">Last seen</th>
-                  <th scope="col">Bound tap</th>
-                  <th scope="col">Volume</th>
-                  <th scope="col" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {group.ports.map((monitor) => {
-                  const tap = taps.find((t) => t.tapId === monitor.tapId) ?? null;
-                  const hasLiveKeg = tap?.keg != null && tap.keg.status === 'on_tap';
-                  return (
-                    <tr data-testid="monitors-port-row" key={monitor.id}>
-                      <td className="font-tabular" data-testid="monitors-row-port">{monitor.portIndex}</td>
-                      <td className="font-tabular" data-testid="monitors-row-lastseen">
-                        {monitor.lastSeen ? formatRelativeTime(monitor.lastSeen) : 'Never'}
-                      </td>
-                      <td>
-                        {tap ? (
-                          <span data-testid="monitors-row-tap">{tapLabel(tap)}</span>
-                        ) : (
-                          <span className="monitors-row__unbound" data-testid="monitors-row-unbound-nudge">
-                            Not bound
-                          </span>
-                        )}
-                      </td>
-                      <td className="font-tabular" data-testid="monitors-row-volume">
-                        {hasLiveKeg && tap?.keg ? formatVolumeMl(tap.keg.remainingMl, units) : '—'}
-                      </td>
-                      <td className="monitors-row__actions">
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className={monitor.tapId == null ? 'monitors-row__bind-chip' : undefined}
-                            data-testid="monitors-row-bind"
-                            onClick={() => openBindPicker(monitor, deviceLabel(group))}
-                          >
-                            {monitor.tapId != null ? 'Change tap' : 'Bind tap →'}
-                          </button>
-                        )}
-                        {canEdit && monitor.tapId != null && (
-                          <button
-                            type="button"
-                            data-testid="monitors-row-unbind"
-                            disabled={unbindingId === monitor.id}
-                            onClick={() => handleUnbind(monitor, deviceLabel(group))}
-                          >
-                            {unbindingId === monitor.id ? 'Unbinding…' : 'Unbind'}
-                          </button>
-                        )}
-                        {canEdit && isPro && (
-                          <button
-                            type="button"
-                            data-testid="monitors-row-reset"
-                            onClick={() => setResetState({
-                              monitor, deviceName: deviceLabel(group), result: 'idle', error: null,
-                            })}
-                          >
-                            Reset volume
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              <Table className="monitor-v2__ports" data-testid="monitors-port-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Port</th>
+                    <th scope="col">Feeds tap</th>
+                    <th scope="col" className="adm-num">Left on tap</th>
+                    <th scope="col">Last seen</th>
+                    <th scope="col"><span className="adm-sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.ports.map((monitor) => {
+                    const tap = taps.find((t) => t.tapId === monitor.tapId) ?? null;
+                    const hasLiveKeg = tap?.keg != null && tap.keg.status === 'on_tap';
+                    return (
+                      <tr data-testid="monitors-port-row" key={monitor.id}>
+                        <td className="adm-num-cell monitor-v2__port" data-testid="monitors-row-port">{monitor.portIndex}</td>
+                        <td>
+                          {tap ? (
+                            <span data-testid="monitors-row-tap">
+                              <b>{tapLabel(tap)}</b>
+                              {tap.beer && <span className="adm-sub">{` · ${tap.beer.name}`}</span>}
+                            </span>
+                          ) : (
+                            <span className="adm-warn-text" data-testid="monitors-row-unbound-nudge">Not bound</span>
+                          )}
+                        </td>
+                        <td className="adm-num" data-testid="monitors-row-volume">
+                          {hasLiveKeg && tap?.keg ? formatVolumeMl(tap.keg.remainingMl, units) : '—'}
+                        </td>
+                        <td className="adm-num-cell adm-sub" data-testid="monitors-row-lastseen">
+                          {monitor.lastSeen ? formatRelativeTime(monitor.lastSeen) : 'Never'}
+                        </td>
+                        <td className="adm-actions">
+                          {canEdit && (
+                            <Button
+                              variant={monitor.tapId == null ? 'primary' : 'quiet'}
+                              data-testid="monitors-row-bind"
+                              onClick={() => openBindPicker(monitor, deviceLabel(group))}
+                            >
+                              {monitor.tapId != null ? 'Change tap' : 'Bind a tap'}
+                            </Button>
+                          )}
+                          {canEdit && monitor.tapId != null && (
+                            <Button
+                              variant="quiet"
+                              data-testid="monitors-row-unbind"
+                              disabled={unbindingId === monitor.id}
+                              onClick={() => handleUnbind(monitor, deviceLabel(group))}
+                            >
+                              {unbindingId === monitor.id ? 'Unbinding…' : 'Unbind'}
+                            </Button>
+                          )}
+                          {canEdit && isPro && (
+                            <Button
+                              variant="quiet"
+                              data-testid="monitors-row-reset"
+                              onClick={() => setResetState({
+                                monitor, deviceName: deviceLabel(group), result: 'idle', error: null,
+                              })}
+                            >
+                              Reset volume
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
             )}
           </article>
         );
       })}
-
-      {bindState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="monitors-bind-picker"
-          onClick={() => !binding && setBindState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="monitors-bind-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="monitors-bind-title" className="font-display">Bind to a tap</h3>
-            <p>
-              Choose which tap {portLabel(bindState.deviceName, bindState.monitor)} feeds, or leave it unbound.
-            </p>
-            <label className="admin-field">
-              <span>Tap</span>
-              <select
-                data-testid="monitors-bind-select"
-                value={bindState.tapId}
-                onChange={(e) => setBindState({ ...bindState, tapId: e.target.value })}
-              >
-                <option value="">Not bound</option>
-                {taps.map((t) => (
-                  <option key={t.tapId} value={t.tapId}>{tapLabel(t)}</option>
-                ))}
-              </select>
-            </label>
-            {bindState.error && (
-              <p role="alert" data-testid="monitors-bind-error">{bindState.error}</p>
-            )}
-            <div className="admin-confirm__actions">
-              <button
-                type="button"
-                data-testid="monitors-bind-submit"
-                disabled={binding}
-                onClick={handleBindSubmit}
-              >
-                {binding ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                data-testid="monitors-bind-cancel"
-                disabled={binding}
-                onClick={() => setBindState(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {resetState && (
-        <div
-          className="admin-confirm__backdrop"
-          data-testid="monitors-reset-confirm"
-          onClick={() => !resetting && setResetState(null)}
-        >
-          <div
-            className="admin-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="monitors-reset-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="monitors-reset-title" className="font-display">Reset volume</h3>
-            <p>
-              This will reset {portLabel(resetState.deviceName, resetState.monitor)}&rsquo;s on-device
-              dispensed-volume counter to zero, matching its configured keg size. Any pour tracking
-              based on the old count is lost and this can&rsquo;t be undone.
-            </p>
-            {resetState.result === 'done' && (
-              <p data-testid="monitors-reset-done">Volume reset on the device.</p>
-            )}
-            {resetState.result === 'error' && (
-              <p role="alert" data-testid="monitors-reset-error">{resetState.error}</p>
-            )}
-            <div className="admin-confirm__actions">
-              {resetState.result !== 'done' && (
-                <button
-                  type="button"
-                  data-testid="monitors-reset-confirm-button"
-                  disabled={resetting}
-                  onClick={handleConfirmReset}
-                >
-                  {resetting ? 'Resetting…' : 'Reset volume'}
-                </button>
-              )}
-              <button
-                type="button"
-                data-testid="monitors-reset-cancel-button"
-                disabled={resetting}
-                onClick={() => setResetState(null)}
-              >
-                {resetState.result === 'done' ? 'Close' : 'Cancel'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+    </PageTemplate>
   );
 }

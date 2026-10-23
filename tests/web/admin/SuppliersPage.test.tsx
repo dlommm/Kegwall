@@ -59,7 +59,7 @@ describe('SuppliersPage', () => {
   it('shows header stats with YTD spend in dollars', async () => {
     (getSupplierStats as Mock).mockResolvedValue({ ok: true, data: { supplierCount: 3, kegsPurchased: 11, ytdSpendCents: 168400 } });
     renderAdminPage(<SuppliersPage />);
-    expect(await screen.findByTestId('suppliers-summary')).toHaveTextContent('3 suppliers · 11 kegs purchased · $1684.00 YTD');
+    expect(await screen.findByTestId('suppliers-summary')).toHaveTextContent('3 suppliers · 11 kegs purchased · $1,684 this year');
   });
 
   it('renders a supplier card with contact block, price book, and a best-price star', async () => {
@@ -76,14 +76,14 @@ describe('SuppliersPage', () => {
     expect(row).toHaveTextContent('Yuengling');
     expect(row).toHaveTextContent('★ $80.00');
     expect(row).toHaveTextContent('Johns: $85.00');
-    expect(screen.getByTestId('supplier-badge-best')).toHaveTextContent('BEST PRICE ×1');
+    expect(screen.getByTestId('supplier-badge-best')).toHaveTextContent('Best price on 1');
   });
 
   it('flags an only-source beer with the ONLY SOURCE badge', async () => {
     (listSuppliers as Mock).mockResolvedValue({ ok: true, data: [supplier()] });
     (getSupplierPriceBook as Mock).mockResolvedValue({ ok: true, data: [entry({ bestElsewhereCents: null })] });
     renderAdminPage(<SuppliersPage />);
-    expect(await screen.findByTestId('supplier-badge-only')).toHaveTextContent('ONLY SOURCE ×1');
+    expect(await screen.findByTestId('supplier-badge-only')).toHaveTextContent('Only source for 1');
   });
 
   it('adds a supplier through the form', async () => {

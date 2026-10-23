@@ -17,6 +17,9 @@ import type { VolumeUnits } from '../../lib/units';
 export interface AdminOutletContext {
   me: User;
   units: VolumeUnits;
+  /** One serving in mL (settings' `servingSizeMl`, from the same menu fetch as `units`):
+   * keg levels read in servings across the admin, as they do on the wall. */
+  servingSizeMl: number;
 }
 
 /** Typed wrapper around `useOutletContext` for `/admin/*` pages — see `AdminOutletContext`. */

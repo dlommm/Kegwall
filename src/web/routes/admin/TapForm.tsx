@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import type { Tap } from '../../../server/db/taps.js';
 import { getDrinkers, type PublicDrinker } from '../../lib/api';
 import { createTap, updateTap } from '../../lib/adminApi';
+import { Button } from './ui';
 
 interface TapFormProps {
   mode: 'create' | 'edit';
@@ -78,14 +79,12 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
 
   return (
     <form
-      className="tap-form"
+      className="tap-form adm-form-wrap"
       onSubmit={handleSubmit}
       data-testid="tap-form"
       aria-label={mode === 'edit' ? 'Edit tap' : 'Add tap'}
     >
-      <h2 className="tap-form__title font-display">{mode === 'edit' ? `Edit tap ${tap?.number}` : 'Add tap'}</h2>
-
-      <div className="tap-form__grid">
+      <div className="adm-form">
         <label className="admin-field">
           <span>Tap number</span>
           <input
@@ -130,28 +129,28 @@ export function TapForm({ mode, tap, onSaved, onCancel }: TapFormProps) {
             checked={hidden}
             onChange={(e) => setHidden(e.target.checked)}
           />
-          <span>Hide from wall &amp; menu (tap stays here for later)</span>
+          <span>Hide from the wall and menu (the tap stays here for later)</span>
         </label>
       </div>
 
       {validationError && (
-        <p className="beer-form__notice" role="alert" data-testid="tap-form-validation-error">
+        <p className="adm-danger-text" role="alert" data-testid="tap-form-validation-error">
           {validationError}
         </p>
       )}
       {serverError && (
-        <p className="beer-form__notice" role="alert" data-testid="tap-form-server-error">
+        <p className="adm-danger-text" role="alert" data-testid="tap-form-server-error">
           {serverError}
         </p>
       )}
 
-      <div className="beer-form__actions">
-        <button type="submit" className="beer-form__submit" disabled={submitting} data-testid="tap-form-submit">
+      <div className="adm-form__actions">
+        <Button type="submit" variant="primary" disabled={submitting} data-testid="tap-form-submit">
           {submitting ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Add tap'}
-        </button>
-        <button type="button" className="beer-form__cancel" onClick={onCancel} data-testid="tap-form-cancel">
+        </Button>
+        <Button variant="quiet" onClick={onCancel} data-testid="tap-form-cancel">
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

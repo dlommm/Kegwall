@@ -89,6 +89,7 @@ export async function publicRoutes(app: FastifyInstance) {
     // also attaches the computed display price when pricing is enabled.
     taps: app.ctx.state.getTapStates().filter((t) => !t.hidden).map(toPublicTap),
     units: app.ctx.settings.get('displayUnits'),
+    servingSizeMl: app.ctx.settings.get('servingSizeMl'),
   }));
 
   app.get('/api/public/drinkers', async () =>

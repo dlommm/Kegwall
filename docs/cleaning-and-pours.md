@@ -2,20 +2,19 @@
 
 ## Line-cleaning reminders
 
-The dashboard and **Taps & kegs** page show cleaning reminders for taps with an active keg
+Tonight and the **Taps & kegs** page show cleaning reminders for taps with an active keg
 containing beer. Empty, kicked, and archived taps do not create cleaning reminders. Cleaning
 history is retained when a keg becomes empty; putting a new keg on the tap makes it eligible for
 reminders again.
 
-To pause reminders for a particular tap, open **Taps & kegs**, expand that tap's details, and
-choose **Ignore reminders**. Choose **Resume reminders** to turn them back on. Ignoring reminders
+To pause reminders for a particular tap, open **Taps & kegs**, select **Details** on that tap,
+and choose **Ignore reminders** in its drawer. Choose **Resume reminders** to turn them back on. Ignoring reminders
 does not record a cleaning or change the cleaning history, and it stays in effect across keg
 changes until you resume it.
 
-Ignored taps never appear under **Needs attention**, but the dashboard lists them in a short
+Ignored taps never appear under **Needs attention**, but Tonight lists them in a short
 "Line-cleaning reminders are off for …" note so a paused line isn't forgotten. Each tap in that
-note, and each dashboard cleaning action, opens **Taps & kegs** with that tap expanded and
-scrolled into view.
+note, and each cleaning action on Tonight, opens **Taps & kegs** with that tap's drawer open.
 
 ## The Pours page
 

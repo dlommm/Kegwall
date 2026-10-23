@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { createBeer } from '../../src/server/db/beers.js';
 import { createTap } from '../../src/server/db/taps.js';
 import { createKeg, recordPourTx } from '../../src/server/db/kegs.js';
+import { createSupplier } from '../../src/server/db/suppliers.js';
 import { upsertMonitor, bindMonitorToTap } from '../../src/server/db/monitors.js';
 import { createDrinker, createUser } from '../../src/server/db/users.js';
 import { createWall } from '../../src/server/routes/crud.js';
@@ -54,14 +55,36 @@ export async function seedTaproom(app: FastifyInstance): Promise<SeededTaproom> 
   const db = app.ctx.db;
   const tapIds: number[] = [];
   const kegs: { id: number }[] = [];
+  // Two suppliers and owner keg costs, so Kegs, Suppliers and the cost reports have content.
+  const weekdays = { open: '09:00', close: '17:00' };
+  const hillside = createSupplier(db, {
+    name: 'Hillside Supply', contactName: 'Rae', phone: '555-0142',
+    hours: { note: null, days: { mon: weekdays, tue: weekdays, wed: weekdays, thu: weekdays, fri: weekdays, sat: null, sun: null } },
+    deliveryNotes: 'Tuesdays',
+  });
+  const cellar = createSupplier(db, { name: 'Wild Cellar direct', email: 'orders@wildcellar.example' });
+  const month = new Date().toISOString().slice(0, 10);
   BEERS.forEach(([name, brewery, style, abv, ibu, srm, , description], i) => {
     const beer = createBeer(db, { name, brewery, style, abv, ibu, srm, description });
     const tap = createTap(db, { number: i + 1 });
-    const keg = createKeg(db, { beerId: beer.id, sizeMl: KEG_ML, volStartMl: KEG_ML, tapId: tap.id });
+    const cost = i < 9 ? {
+      costCents: abv >= 9 ? 18900 : abv >= 7 ? 16500 : 13900,
+      depositCents: 3000,
+      supplierId: i === 5 ? cellar.id : hillside.id,
+      purchasedAt: month,
+    } : {};
+    const keg = createKeg(db, { beerId: beer.id, sizeMl: KEG_ML, volStartMl: KEG_ML, tapId: tap.id, ...cost });
     const mon = upsertMonitor(db, { ...DEVICES[Math.floor(i / 3)]!, portIndex: i % 3 }, { serial: `SHOT-${i}` });
     bindMonitorToTap(db, mon.id, tap.id);
     tapIds.push(tap.id);
     kegs.push(keg);
+  });
+
+  // Next up behind Midnight Oats (tap 4), which is nearly done.
+  const marzen = createBeer(db, { name: 'Harvest Märzen', brewery: 'Garage Brewing', style: 'Märzen', abv: 5.8, ibu: 22, srm: 11 });
+  createKeg(db, {
+    beerId: marzen.id, sizeMl: KEG_ML, volStartMl: KEG_ML, tapId: tapIds[3], status: 'on_deck',
+    costCents: 14500, supplierId: hillside.id, purchasedAt: month,
   });
 
   const colors = ['#c8963e', '#4e7a4e', '#3e6ec8', '#b04a6a', '#7a5ac8', '#2f9a8f'];

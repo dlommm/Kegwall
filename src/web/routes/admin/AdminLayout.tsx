@@ -21,6 +21,9 @@ import {
   AdminPortalContext, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger,
 } from './ui';
 
+/** A US pint, until the menu fetch says otherwise. */
+const DEFAULT_SERVING_ML = 473;
+
 /** Admin-only routes that no longer have their own nav entry but must stay guarded against
  * direct URL entry — `/admin/users` (account management, now the People page's admin-only
  * Accounts tab, redesign 4h). Kept reachable for deep links, but still admin-gated. */
@@ -62,6 +65,7 @@ export function AdminLayout() {
   const [me, setMe] = useState<User | null>(null);
   const [units, setUnits] = useState<VolumeUnits>('us');
   const [siteName, setSiteName] = useState('');
+  const [servingSizeMl, setServingSizeMl] = useState(DEFAULT_SERVING_ML);
   const [firstWallSlug, setFirstWallSlug] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -95,6 +99,7 @@ export function AdminLayout() {
       if (!cancelled && result.ok) {
         setUnits(result.data.units ?? 'us');
         setSiteName(result.data.siteName ?? '');
+        setServingSizeMl(result.data.servingSizeMl ?? DEFAULT_SERVING_ML);
       }
     });
     listWalls().then((result) => {
@@ -296,7 +301,7 @@ export function AdminLayout() {
         </header>
 
         <main className="admin-content adm-main" id="admin-main" tabIndex={-1}>
-          <Outlet context={{ me, units } satisfies AdminOutletContext} />
+          <Outlet context={{ me, units, servingSizeMl } satisfies AdminOutletContext} />
         </main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} entries={entries} onSelect={openEntry} />

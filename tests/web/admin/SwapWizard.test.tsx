@@ -107,7 +107,7 @@ describe('SwapWizard', () => {
     fireEvent.click(screen.getByTestId('swap-wizard-submit'));
     // Cost step visible with the privacy lock note.
     expect(screen.getByTestId('swap-wizard-step-cost')).toBeInTheDocument();
-    expect(screen.getByTestId('swap-wizard-cost-lock')).toHaveTextContent('never appears on the wall');
+    expect(screen.getByTestId('swap-wizard-cost-lock')).toHaveTextContent('never appear on the wall');
     fireEvent.change(screen.getByTestId('swap-wizard-cost'), { target: { value: '131.00' } });
     expect(screen.getByTestId('swap-wizard-cost-preview')).toHaveTextContent('$1.31 / pint');
     fireEvent.click(screen.getByTestId('swap-wizard-cost-submit'));
@@ -308,15 +308,33 @@ describe('SwapWizard', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('clicking the backdrop closes the wizard, but clicking inside it does not', () => {
+  it("runs in a drawer: clicking inside it doesn't close it, its Close button does", () => {
     const onClose = vi.fn();
     render(
       <SwapWizard tap={activeTap} beers={[]} kegs={[]} monitors={[]} onClose={onClose} onDone={vi.fn()} />,
     );
     fireEvent.click(screen.getByTestId('swap-wizard'));
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('swap-wizard-backdrop'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("offers the tap's next on-deck keg and another keg of the same beer before the full list", async () => {
+    (swapTap as Mock).mockResolvedValue({ ok: true, data: makeKeg({ id: 9, status: 'on_tap' }) });
+    const current = makeBeer({ id: 1, name: 'Citra IPA' });
+    const queued = makeBeer({ id: 7, name: 'Harvest Märzen' });
+    const onDeck = makeKeg({ id: 9, beerId: 7, tapId: 1, status: 'on_deck' });
+    render(
+      <SwapWizard tap={activeTap} beers={[current, queued]} kegs={[onDeck]} monitors={[]} onClose={vi.fn()} onDone={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByTestId('swap-wizard-kick-button'));
+    expect(screen.getByTestId('swap-wizard-same-beer')).toHaveTextContent('Another keg of the same beer');
+    fireEvent.click(screen.getByTestId('swap-wizard-next-up'));
+    // Choosing the next-up keg becomes a promote: confirm, then swap from the queued keg.
+    expect(screen.getByTestId('swap-wizard-step-confirm')).toHaveTextContent('tap Harvest Märzen from the on-deck queue');
+    fireEvent.click(screen.getByTestId('swap-wizard-kick-button'));
+    await flush();
+    expect(swapTap).toHaveBeenCalledWith(1, { fromKegId: 9 });
   });
 
   it('the "Import from Kegtron" beer-pick option only appears when a Pro monitor is bound to this tap', () => {

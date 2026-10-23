@@ -11,6 +11,9 @@ export interface DrawerProps {
   /** Buttons pinned to the drawer's foot (Save, Cancel). */
   footer?: ReactNode;
   children: ReactNode;
+  /** `wide` for an editor or a picker that needs the room (560 px instead of 440). */
+  size?: 'normal' | 'wide';
+  testId?: string;
 }
 
 /**
@@ -19,14 +22,17 @@ export interface DrawerProps {
  * row that opened it.
  */
 export function Drawer({
-  open, onOpenChange, title, description, footer, children,
+  open, onOpenChange, title, description, footer, children, size = 'normal', testId,
 }: DrawerProps) {
   const container = useAdminPortal();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal container={container}>
         <Dialog.Overlay className="adm-overlay" />
-        <Dialog.Content className="adm-drawer">
+        <Dialog.Content
+          className={size === 'wide' ? 'adm-drawer adm-drawer--wide' : 'adm-drawer'}
+          data-testid={testId}
+        >
           <header className="adm-drawer__head">
             <Dialog.Title className="adm-drawer__title">{title}</Dialog.Title>
             <Dialog.Close className="adm-btn adm-btn--quiet adm-drawer__close">Close</Dialog.Close>

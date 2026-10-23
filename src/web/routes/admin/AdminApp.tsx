@@ -28,6 +28,8 @@ import { HomeAssistantPage } from './HomeAssistantPage';
 import './admin.css';
 // Kegwall V2 shell and primitives, after admin.css so the new frame wins over old page rules.
 import './shell.css';
+// Kegwall V2 page vocabulary (M8), and the bridge that skins older page classes.
+import './pages.css';
 
 /**
  * The entire `/admin/*` route subtree, as its own module — Phase 5 Task 0 (Phase 4 final

@@ -115,7 +115,8 @@ describe('TapsPage', () => {
     });
     renderAdminPage(<TapsPage />, {}, '/x?tap=2');
     const rows = await screen.findAllByTestId('taps-row');
-    expect(rows[1]).toContainElement(screen.getByTestId('taps-row-details'));
+    expect(rows[1]).toHaveClass('is-selected');
+    expect(screen.getByTestId('taps-row-details')).toHaveTextContent('Tap 2');
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(scrollIntoView.mock.contexts[0]).toBe(rows[1]);
   });
@@ -194,6 +195,8 @@ describe('TapsPage', () => {
       stale: false, connected: true, reconnectCount: 0,
     });
     renderAdminPage(<TapsPage />);
+    fireEvent.click(await screen.findByTestId('taps-row-expand'));
+    await flush();
     const marker = (await screen.findByTestId('taps-row-timeline')).querySelector('.taps-row__timeline-marker') as HTMLElement;
     const left = parseInt(marker.style.left, 10);
     expect(left).toBeGreaterThanOrEqual(18);
@@ -290,6 +293,7 @@ describe('TapsPage', () => {
     });
     renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
+    fireEvent.click(screen.getByTestId('taps-row-expand'));
     fireEvent.click(screen.getByTestId('taps-row-edit'));
     expect(screen.getByTestId('mock-tap-form-mode')).toHaveTextContent('edit');
     expect(screen.getByTestId('mock-tap-form-target')).toHaveTextContent('3:3:Right:null');
@@ -306,6 +310,7 @@ describe('TapsPage', () => {
     renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
     await flush();
+    fireEvent.click(screen.getByTestId('taps-row-expand'));
     fireEvent.click(screen.getByTestId('taps-row-edit'));
     expect(screen.getByTestId('mock-tap-form-target')).toHaveTextContent('3:3:Right:42');
   });
@@ -328,6 +333,7 @@ describe('TapsPage', () => {
     (deleteTap as Mock).mockResolvedValue({ ok: true, data: null });
     renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
+    fireEvent.click(screen.getByTestId('taps-row-expand'));
     fireEvent.click(screen.getByTestId('taps-row-delete'));
     const confirm = screen.getByTestId('taps-delete-confirm');
     expect(confirm).toHaveTextContent('permanently delete tap 2');
@@ -348,6 +354,7 @@ describe('TapsPage', () => {
     });
     renderAdminPage(<TapsPage />);
     await screen.findAllByTestId('taps-row');
+    fireEvent.click(screen.getByTestId('taps-row-expand'));
     fireEvent.click(screen.getByTestId('taps-row-delete'));
     fireEvent.click(screen.getByTestId('taps-delete-confirm-button'));
     await flush();
