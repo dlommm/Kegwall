@@ -1,55 +1,149 @@
 # Changelog
 
-## [2.0.0](https://github.com/[secure]m/Kegwall/compare/v1.17.0...v2.0.0) (2026-10-23)
+## [2.0.0](https://github.com/dlommm/Kegwall/compare/v1.17.0...v2.0.0) (2026-10-23)
 
-### ⚠ BREAKING CHANGES
+Kegwall 2.0 redraws every screen in one design language: the TV wall (14 looks, each showing
+what's left as a picture and in pints), the pour takeovers, the admin, the Wall Editor, the phone
+menu and the kegerator kiosk. No feature is removed and no stored data is migrated.
 
-* every wall look is redrawn, so existing walls change appearance on
-upgrade (stored configs are not rewritten; reinstalling 1.17 keeps every wall). The
-pre-2.0 wall class names (.tap-card, .ledger-look and the other per-look classes,
-.wall-header, .ticker, .qr-overlay) are gone, so custom CSS that targets them needs
-the new [data-look], [data-tap-state] and [data-surface] hooks (docs/customization.md).
-Themes no longer change the typeface. The admin Appearance setting is removed; the
-admin follows the device's light or dark preference.
-* walls on the classic, ledger, columns and gallery looks change appearance, and custom CSS targeting their old class names no longer matches; use the documented data-* hooks.
+**Before you upgrade:**
 
-### Features
+- Every wall changes appearance: the looks are redrawn from their names. Stored wall settings are
+  kept as they are, so reinstalling 1.17 brings every wall back unchanged.
+- Custom CSS that targets the pre-2.0 wall class names (`.tap-card`, `.ledger-look` and the other
+  per-look classes, `.wall-header`, `.ticker`, `.qr-overlay`) no longer matches. Use the
+  `[data-look]`, `[data-tap-state]` and `[data-surface]` hooks; see
+  [Customizing walls](docs/customization.md#selector-changes-in-20).
+- Themes now change color only; every theme uses the Kegwall type (Big Shoulders Display and
+  Atkinson Hyperlegible).
+- The admin **Appearance** setting is gone: the admin is dark, or light when the device prefers it.
 
-* add Tap Pull, Keg Drain and Game On takeovers, a Cheers finish and wall moments ([529ee65](https://github.com/[secure]m/Kegwall/commit/529ee656890e60fb0af3dd0d592c3ee4a0ef62c5))
-* add tonight's pours, kick forecasts and servings to the live wall feed ([9e2c8bc](https://github.com/[secure]m/Kegwall/commit/9e2c8bc7d560f24f8516d53273eda41fc8602493))
-* Kegwall 2.0 — one design language across the wall, admin, phone menu and kiosk ([4aac2e1](https://github.com/[secure]m/Kegwall/commit/4aac2e1b4ef5497bcf71052f8172b077fec51a43))
-* open the admin on Tonight, with needs-attention grouped one row per kind ([e262ff1](https://github.com/[secure]m/Kegwall/commit/e262ff1b2577655d969c5792ffc4efef2737bcb6))
-* rebuild Insights with KPIs as numbers that show "—" for missing data, and split Analytics ([77d35d7](https://github.com/[secure]m/Kegwall/commit/77d35d7dbdeefa50b6cbf90a35b6cf0d3da6ae0e))
-* rebuild People with pourer cards, roles in plain words and a drawer for adding someone ([564ad09](https://github.com/[secure]m/Kegwall/commit/564ad09d285e507e7f1881ccd1cbd79b86ad03bd))
-* rebuild pour takeovers with a lane per pour and the recorded volume at the finish ([5d7c563](https://github.com/[secure]m/Kegwall/commit/5d7c5639cc4b41dc494913d9166822303e68da27))
-* rebuild Screens and the Wall Editor as a studio with a live preview of the wall's own taps ([a117b37](https://github.com/[secure]m/Kegwall/commit/a117b3718e6afaaaa0a514124cc36b7e0ebb05ea))
-* rebuild Settings, Automations, Diagnostics and Notifications on the V2 template ([bf97035](https://github.com/[secure]m/Kegwall/commit/bf970356082d3328f864ce7d6e0e87c2eebb63fe))
-* rebuild Taps & kegs on the V2 page template, with the keg swap in a drawer ([fc777c2](https://github.com/[secure]m/Kegwall/commit/fc777c24e9a561a4bc02993edb89eda7c45fed3b))
-* redraw the Classic, Ledger, Columns and Gallery looks and add Just Tapped ([274a4f1](https://github.com/[secure]m/Kegwall/commit/274a4f1d99d5892d3a57b9b10045a29ca5ff7985))
-* redraw the phone menu, kiosk and sign-in, with a beer sheet and bigger touch targets ([840876a](https://github.com/[secure]m/Kegwall/commit/840876a6086c63fb2afaf951d9a3d58486e580eb))
-* redraw the remaining wall looks and add Tap Handles and Tally ([6aafc32](https://github.com/[secure]m/Kegwall/commit/6aafc32d469e74979ff0127b86671086e2d2c6fb))
-* replace the admin sidebar with a top bar, Ctrl K search and one admin look ([dae6104](https://github.com/[secure]m/Kegwall/commit/dae61041e24d1cce17a48c9800cfdff05df02f67))
-* show the beer library as cards with a live marker preview in the beer editor ([0f93dd5](https://github.com/[secure]m/Kegwall/commit/0f93dd5e0540cdd073f98998a91b223a7f5e7693))
+- **Changed:** the admin opens on **Tonight** instead of the dashboard: a sentence about the
+  night, what needs doing, the last pour, every tap as a glass with servings left, pours by hour,
+  screens, hardware, the next kegs to kick and the latest activity.
+- **Changed:** the admin has a top bar instead of a sidebar: six destinations (Tonight, Taps &
+  kegs, Beers, People, Screens, Insights), Search, the notification bell, Settings and an account
+  menu. A destination's pages show as tabs under the bar; every existing admin address still
+  works. On phones the destinations open from **Menu** as a sheet.
+- **Changed:** one admin design, dark by default and light when the device prefers it.
+- **Changed:** **Taps & kegs** is rebuilt. Taps is one table with what's left in servings, the
+  kick forecast and the bound monitor, filter chips (needs a swap, due for cleaning) and a drawer
+  per tap for cleaning, on deck and kicked history. Swapping a keg runs in a drawer that offers
+  the tap's next-up keg and another keg of the same beer first. Kegs shows costs as numbers over
+  one table with editing in a drawer; Suppliers lists each supplier's week at a glance beside its
+  price book; Monitors says whether each device is receiving and maps each port to its tap.
+- **Changed:** **Beers** is a library of cards with each beer's marker and where it is (on tap
+  with its level, on deck, or in the library), with search and filters. The editor opens in a
+  drawer with a live preview of the beer's marker.
+- **Changed:** **Settings** lists its sections down the side (Taproom, Kegtron and sources,
+  Integrations and alerts, System) with a line on what each holds; "Saved." appears as a short
+  confirmation in the corner. Automations reads each rule as one sentence ("When a keg drops
+  below 15%, notify in the app.") with an On, Off or Just ran state beside it and a switch to
+  turn it off. Diagnostics leads with the connection doctor's verdict, and Notifications says
+  how many are unread.
+- **Changed:** **Insights** opens Analytics with a sentence about the range and KPIs set as
+  large numbers; the range switch and tabs sit under it. Every pour says how many of tonight's
+  pours have no name, and Logs counts the problems in the range.
+- **Changed:** **People** names this month's leader, shows each pourer as a card with their pours
+  and volume, and lists accounts with what each role can do. Adding and editing someone happens
+  in a drawer that first asks whether it's an account or a pourer.
+- **Changed:** pour takeovers are rebuilt. Full shows a glass filling from a stream of beer,
+  Split slides a panel in the beer's color, Dock lifts the wall for a filling bar, Fill floods
+  the screen, Spotlight lifts the pouring card, and Off keeps the wall still with a live
+  counter on the pouring row. Every style handles several taps pouring at once, one lane each.
+- **Changed:** the Chalkboard, Editorial, Neon, Terminal, Poster, Departures and Zen looks are
+  redrawn from their names, each showing what's left as a picture and in pints: chalk tally
+  gates, a magazine contents page with level rules, neon rings, ASCII gauges with the pour
+  log, a festival line-up, a split-flap board sorted by kick time, and an orb.
+- **Changed:** every part of a wall (rotation, leaderboard view, banners, game strip, pour
+  takeovers, screensaver) scales with the screen the same way, so a 4K TV no longer needs
+  the browser zoom workaround.
+- **Changed:** the Classic, Ledger, Columns and Gallery wall looks are redrawn. Every card,
+  row, column or plate is the keg itself, filled in the beer's color, with what's left stated
+  in pints ("≈ 32 pints left") using the taproom's serving size. Classic picks its layout by
+  tap count (large cards, two rows of cards, or board rows). **Existing walls on these looks
+  change appearance on upgrade.**
+- **Changed:** redrawn looks render on a fixed 1920 × 1080 layout scaled to the screen, so
+  720p, 1080p and 4K TVs show the same composition with no white band at 720p and no
+  overlapping names at 4K; text is never smaller than 22 px at 1080p.
+- **Changed:** themes keep their colors, but secondary text and warning colors on redrawn
+  looks are adjusted to meet WCAG contrast in every theme.
+- **Changed:** TVs, phones and kiosks download only their own screen's code and styles. A wall
+  now loads 88 KB of CSS instead of 230 KB, and 237 KB of JavaScript instead of 374 KB; the
+  admin's styles load only with the admin.
+- **Added:** the redrawn **phone menu**: the newest keg leads in its own color, search, style
+  family chips (Light, Hoppy, Dark, Sour), one row per beer with the name on its own line, and a
+  **beer sheet** with the description, rating, kick forecast and that tap's unclaimed pours.
+- **Added:** the redrawn **kiosk**: bigger avatars and tiles for wet hands, and armed / pouring /
+  done as one screen with a glass that fills by the measured volume.
+- **Added:** sign-in and first-run setup in the admin look, with one progress bar across setup
+  and the welcome wizard.
+- **Added:** the **Wall Editor studio**: a rail of eight sections with a dot on each changed
+  one, a live 16:9 stage of the wall's own taps (Wall / Live pour / Screensaver, Fit / 100%,
+  page picker), a 14-look gallery with pictures, theme swatches, per-section Undo, Discard
+  changes, and a prompt before leaving with unsaved changes.
+- **Added:** **Screens** pages on the new template: Walls as cards (look, what it does, which
+  paired screens show it, live view), Displays (**Pair a screen**, look and takeover overrides by
+  name), Presence (zones, sleep timers, motion sources and webhook, each zone named by wall *and*
+  address) and Games.
+- **Added:** **Ctrl K** / **⌘K** opens Search from anywhere in the admin: type part of a page's
+  name, arrow to it and press Enter. Editors and viewers never see admin-only pages there.
+- **Added:** three pour takeover styles: **Tap Pull** (a handle swings, the glass fills and
+  slides off), **Keg Drain** (the keg empties live, pints left count down) and **Game On**
+  (the pour moves the pourer up a running game).
+- **Added:** a **Cheers** finish for single full-screen pours, with the pourer's passport
+  pour number.
+- **Added:** opt-in **wall moments**: Just kicked, Just tapped and Pour milestones (the house's
+  every-100th pour and each pourer's own hundreds).
+- **Added:** two new wall looks: **Tap Handles** (each tap a handle in its beer's color with a
+  sight glass; the pouring handle tips forward) and **Tally** (the night as a sentence, every
+  keg's pints left as tally marks).
+- **Added:** prices on the Chalkboard look when pricing is turned on.
+- **Added:** the **Just Tapped** wall look, the default for new walls: the newest (or a
+  pinned) keg fills half the screen in its own color, with the tap list beside it.
+- **Added:** tap markers (the beer's color, initials and tap number) on every redrawn look;
+  uploaded label art replaces the initials.
+- **Added:** stable custom-CSS hooks: `[data-look]`, `[data-surface="wall"]`,
+  `[data-tap-state]` and `[data-testid="tap-marker"]`.
+- **Added:** every tap in the live wall feed now carries tonight's pours and volume (since
+  4 am), pours in the last hour and a projected kick date, and the wall and menu payloads
+  carry the taproom's serving size. None of it reveals keg cost.
+- **Added:** current screenshots in the README and docs (every wall look, the pour takeovers,
+  Tonight, Taps & kegs, Beers), generated from the app by `npm run docs:images`.
+- **Removed:** the admin **Appearance** setting (Midnight Slate, Workshop, Console). A saved
+  choice is ignored.
+- **Fixed:** the phone menu's claim sheet was see-through on the default theme; every sheet is
+  now opaque.
+- **Fixed:** phone menu names squeezed into two-word lines beside the style and ABV columns.
+- **Fixed:** the kiosk didn't say when it couldn't get the taps ready for a pourer.
+- **Fixed:** a screen's look override accepted only 4 of the 14 looks and 6 of the 9 pour
+  styles; choosing any other was rejected.
+- **Fixed:** unpairing a screen happened on one click; it now asks first. Pairing codes are no
+  longer shown to viewer accounts on the Displays page.
+- **Fixed:** starting or ending a game failed silently; the error is now shown.
+- **Fixed:** walls with the same name couldn't be told apart on the Presence page.
+- **Fixed:** Analytics showed an average pour quality of **0** when no pour had a quality
+  score; it now shows **—** and says there's no Kegtron quality data yet.
+- **Fixed:** **Needs attention** listed one row per tap for the same problem (eleven "Tap N is
+  due for a line cleaning" rows buried a source that was down). Each kind is now one row with one
+  action, ranked problem, then caution, then information.
+- **Fixed:** the end of a pour showed the last live reading instead of the recorded volume,
+  which could be several ounces short when the last Kegtron packet lagged the final pour.
+- **Fixed:** the Dock and Fill takeovers had no finish; Split's light panel broke dark themes.
 
-### Bug Fixes
+For contributors:
 
-* harden the M8 admin pages after review ([4b7b25f](https://github.com/[secure]m/Kegwall/commit/4b7b25fa9f305510205d66a461552e15bd879f41))
-* harden Tonight and the admin shell after review ([b7bf61c](https://github.com/[secure]m/Kegwall/commit/b7bf61c1869efd271a8073c7a6c4976a3a033274))
-
-### Performance
-
-* load each screen's styles and code only on that screen ([5426644](https://github.com/[secure]m/Kegwall/commit/54266448aa0974f721a5be34c4479f4644cf500a))
-
-### Documentation
-
-* add current screenshots to the README and docs, and update pages that described the old admin ([26ae696](https://github.com/[secure]m/Kegwall/commit/26ae696755127decc24fff9cc6cba0d264bb55de))
-* add the Kegwall V2 redesign blueprint, architecture decision and implementation plan ([28b9f16](https://github.com/[secure]m/Kegwall/commit/28b9f1613e032cc1b29ba1c9c405254011a2c8d8))
-* record M8 progress in the V2 plan ([b3d52dc](https://github.com/[secure]m/Kegwall/commit/b3d52dc6e4b7704d1e23b360da0fd2c655bf2ed3))
-* refresh the admin screenshots for the finished M8 pages ([d6d6686](https://github.com/[secure]m/Kegwall/commit/d6d6686618e6da2675b52e1caea916e6366a4c0c))
-
-### Build & CI
-
-* author release commits as the maintainer and fix empty release notes ([223ed35](https://github.com/[secure]m/Kegwall/commit/223ed35c5009c1741b79ca8095d721f8976bbccb))
+- **Added:** `tests/e2e/touch.spec.ts` fails when any control on the phone menu, the beer sheet
+  or the kiosk is smaller than 44 × 44 px.
+- **Added:** `npm run lint:css` lists stylesheet rules for classes nothing renders (`--fix`
+  deletes them); a test runs the same check, so CI fails on a dead selector.
+- **Fixed:** the system stats test read the host's real `/var/run/reboot-required` and failed on
+  any machine waiting for a reboot.
+- **Added:** `npm run visual:contrast` renders every redrawn look in every theme and fails on
+  any text below WCAG AA contrast.
+- **Added:** a visual harness (`npm run visual:capture`, `npm run visual:diff`) that seeds a
+  synthetic taproom, photographs every surface at TV, desktop, tablet and phone sizes, and
+  pixel-diffs two runs. Plus `scripts/visual/wpe-probe.html` to check a display's browser engine.
 
 ## [1.17.0](https://github.com/dlommm/Kegwall/compare/v1.16.1...v1.17.0) (2026-10-22)
 

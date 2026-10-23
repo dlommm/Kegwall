@@ -1,6 +1,6 @@
 # Kegwall V2 — implementation plan
 
-> **Status: APPROVED 2026-10-22.** The owner approved this plan and the D1–D10 recommendations
+> **Status: SHIPPED as 2.0.0 on 2026-10-23** (approved 2026-10-22). The owner approved this plan and the D1–D10 recommendations
 > ("Cool lets do it!") and asked for the milestones to be built one at a time, each committed and
 > reviewed before the next, until V2 is done. Progress is tracked in §9.
 

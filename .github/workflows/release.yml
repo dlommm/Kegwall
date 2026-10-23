@@ -52,11 +52,14 @@ jobs:
       - run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The release commit is authored as the maintainer (GitHub noreply address), not the
-          # default semantic-release-bot identity.
-          GIT_AUTHOR_NAME: dlomm
+          # The release commit is credited to the maintainer by their GitHub noreply address, not
+          # the default semantic-release-bot identity. The NAME must not be a substring of the repo
+          # URL: semantic-release masks the value of every env var whose name matches /auth/
+          # (GIT_AUTHOR_NAME included) as "[secure]" in all output, so the 2.0.0 notes came out
+          # with "github.com/[secure]m/Kegwall" when the name was "dlomm".
+          GIT_AUTHOR_NAME: dlomm-release
           GIT_AUTHOR_EMAIL: 118149483+dlommm@users.noreply.github.com
-          GIT_COMMITTER_NAME: dlomm
+          GIT_COMMITTER_NAME: dlomm-release
           GIT_COMMITTER_EMAIL: 118149483+dlommm@users.noreply.github.com
       - id: tag
         name: Detect the tag this run created (empty when no release was cut)

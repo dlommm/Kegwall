@@ -54,9 +54,9 @@ and wiki are updated with every change).
 
 | Doc | For |
 | --- | --- |
-| [design/kegwall-v2/UI_REDESIGN_BLUEPRINT.md](design/kegwall-v2/UI_REDESIGN_BLUEPRINT.md) | **Approved, in progress.** Kegwall V2 redesign: baseline audit, concepts, screen specs, roadmap |
+| [design/kegwall-v2/UI_REDESIGN_BLUEPRINT.md](design/kegwall-v2/UI_REDESIGN_BLUEPRINT.md) | **Shipped in 2.0.0.** Kegwall V2 redesign: baseline audit, concepts, screen specs, roadmap |
 | [design/kegwall-v2/ADR-0001-frontend-architecture.md](design/kegwall-v2/ADR-0001-frontend-architecture.md) | Accepted frontend architecture decision for V2 |
-| [design/kegwall-v2/IMPLEMENTATION_PLAN.md](design/kegwall-v2/IMPLEMENTATION_PLAN.md) | **Approved, in progress.** V2 milestones, decisions, verification and release plan |
+| [design/kegwall-v2/IMPLEMENTATION_PLAN.md](design/kegwall-v2/IMPLEMENTATION_PLAN.md) | **Shipped in 2.0.0** (Pi hardware measurements still pending). V2 milestones, decisions, verification and release plan |
 
 ## Reference
 
