@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { ThemeProvider } from '../../themes/ThemeProvider';
+import { getMenu } from '../../lib/api';
+import { beerColorFor } from '../../wall/wallModel';
 import { useAdminLook } from './adminLook';
 import './auth.css';
 
@@ -23,6 +25,40 @@ export interface AuthFrameProps {
  * signed in yet. The form sits on the left under a sentence; a quiet panel on the right says
  * what happens next.
  */
+/** Sample levels for a fresh install's empty columns. */
+const SAMPLE = [0.82, 0.5, 0.94, 0.3, 0.66, 0.18];
+
+/**
+ * The taps as tall columns of beer at their keg levels, over the sign-in panel (Kegwall 2.1
+ * "g-login"): the wall shown, not described. A fresh install (or a menu that needs a display
+ * token) shows quiet sample columns and says the taps will appear.
+ */
+function AuthTaps() {
+  const [cols, setCols] = useState<{ color: string; level: number }[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void getMenu().then((r) => {
+      if (!alive) return;
+      const on = r.ok ? r.data.taps.filter((t) => t.beer && t.keg?.status === 'on_tap' && !t.hidden) : [];
+      setCols(on.slice(0, 12).map((t) => ({ color: beerColorFor(t.beer!.srm), level: Math.max(0.04, (t.keg!.levelPct ?? 0) / 100) })));
+    }).catch(() => { if (alive) setCols([]); });
+    return () => { alive = false; };
+  }, []);
+  const sample = cols !== null && cols.length === 0;
+  const shown = sample ? SAMPLE.map((level) => ({ color: '', level })) : cols ?? [];
+  return (
+    <div className="adm-auth__taps" data-sample={sample || undefined} aria-hidden="true">
+      <div className="adm-auth__cols">
+        {shown.map((c, i) => (
+          // eslint-disable-next-line react/no-array-index-key -- columns have no identity
+          <span key={i} style={{ '--level': c.level, '--beer': c.color || undefined } as CSSProperties}><i /></span>
+        ))}
+      </div>
+      {sample && <p className="adm-auth__taps-note">Your taps will show up here.</p>}
+    </div>
+  );
+}
+
 export function AuthFrame({
   title, intro, step, aside, testId, children,
 }: AuthFrameProps) {
@@ -47,7 +83,12 @@ export function AuthFrame({
           {intro && <p className="adm-auth__intro">{intro}</p>}
           {children}
         </section>
-        {aside && <aside className="adm-auth__aside">{aside}</aside>}
+        {aside && (
+          <aside className="adm-auth__aside">
+            <AuthTaps />
+            {aside}
+          </aside>
+        )}
       </main>
     </ThemeProvider>
   );

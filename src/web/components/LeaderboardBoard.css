@@ -54,103 +54,6 @@
   color: var(--bg);
 }
 
-.board-podium {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  align-items: end;
-  gap: calc(24 * var(--u, 1px));
-  padding: calc(28 * var(--u, 1px)) calc(40 * var(--u, 1px)) calc(8 * var(--u, 1px));
-}
-
-.board-podium__card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(8 * var(--u, 1px));
-  padding: calc(24 * var(--u, 1px)) calc(16 * var(--u, 1px));
-  border: calc(2 * var(--u, 1px)) solid;
-  border-radius: calc(18 * var(--u, 1px));
-  text-align: center;
-}
-
-.board-podium__card--first {
-  padding-top: calc(40 * var(--u, 1px));
-  padding-bottom: calc(40 * var(--u, 1px));
-}
-
-.board-podium__avatar {
-  width: calc(84 * var(--u, 1px));
-  height: calc(84 * var(--u, 1px));
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: calc(30 * var(--u, 1px));
-  font-weight: 700;
-}
-
-.board-podium__label {
-  font-size: calc(15 * var(--u, 1px));
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
-.board-podium__name {
-  font-size: calc(26 * var(--u, 1px));
-  font-weight: 600;
-}
-
-.board-podium__figure--first { font-size: calc(58 * var(--u, 1px)); }
-
-.board-podium__figure--other { font-size: calc(44 * var(--u, 1px)); }
-
-.board-podium__figure {
-  font-weight: 700;
-  line-height: 1;
-}
-
-.board-podium__caption {
-  font-size: calc(16 * var(--u, 1px));
-  color: var(--text-dim);
-}
-
-.board-row__quality-pill {
-  padding: calc(4 * var(--u, 1px)) calc(12 * var(--u, 1px));
-  border-radius: calc(999 * var(--u, 1px));
-  font-size: calc(16 * var(--u, 1px));
-  font-weight: 700;
-  text-align: center;
-}
-
-.board-row__quality-pill--good {
-  background: color-mix(in srgb, var(--ok) 20%, transparent);
-  color: var(--ok);
-}
-
-.board-row__quality-pill--low {
-  background: color-mix(in srgb, var(--warn) 20%, transparent);
-  color: var(--warn);
-}
-
-.board-trophy {
-  padding: calc(8 * var(--u, 1px)) calc(16 * var(--u, 1px));
-  border-radius: calc(999 * var(--u, 1px));
-  border: calc(1 * var(--u, 1px)) solid;
-  font-size: calc(16 * var(--u, 1px));
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.board-trophy--gold { border-color: #E7B93F; color: #E7B93F; }
-
-.board-trophy--green { border-color: var(--ok); color: var(--ok); }
-
-.board-trophy--copper { border-color: #C77B4A; color: #C77B4A; }
-
-.board-trophy--game { border-color: var(--accent); color: var(--accent); }
-
 .board-look__empty {
   flex: 1;
   display: flex;
@@ -160,69 +63,117 @@
   font-size: calc(18 * var(--u, 1px));
 }
 
-.board-look__rows {
+/* The tally board (Kegwall 2.1 "g-board"): a ledger row per pourer, pours as tally marks. */
+.board-tally {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: calc(4 * var(--u, 1px));
+  margin: 0;
   padding: calc(20 * var(--u, 1px)) calc(40 * var(--u, 1px));
-  gap: calc(6 * var(--u, 1px));
+  list-style: none;
 }
 
-.board-row {
-  flex: 1;
+.board-tally__row {
+  flex: 1 1 auto;
+  max-height: calc(150 * var(--u, 1px));
   display: grid;
-  grid-template-columns: calc(56 * var(--u, 1px)) calc(56 * var(--u, 1px)) 1fr calc(140 * var(--u, 1px)) calc(140 * var(--u, 1px)) calc(90 * var(--u, 1px));
+  grid-template-columns: calc(48 * var(--u, 1px)) minmax(calc(200 * var(--u, 1px)), calc(320 * var(--u, 1px))) minmax(0, 1fr) auto;
   align-items: center;
-  gap: calc(18 * var(--u, 1px));
-  padding: calc(8 * var(--u, 1px)) calc(20 * var(--u, 1px));
-  border-radius: calc(14 * var(--u, 1px));
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-  border: calc(1 * var(--u, 1px)) solid var(--border);
-  min-height: 0;
+  gap: calc(24 * var(--u, 1px));
+  padding: calc(14 * var(--u, 1px)) 0;
+  border-bottom: calc(1 * var(--u, 1px)) solid var(--border);
 }
 
-.board-row__rank {
-  font-size: calc(34 * var(--u, 1px));
-  font-weight: 600;
+/* The leader's row: larger, on a field tinted with the beer they pour most. */
+.board-tally__row--lead {
+  margin: 0 calc(-20 * var(--u, 1px)) calc(8 * var(--u, 1px));
+  padding: calc(22 * var(--u, 1px)) calc(20 * var(--u, 1px));
+  border: 0;
+  border-radius: calc(16 * var(--u, 1px));
+  background: color-mix(in srgb, var(--lead) 40%, var(--surface));
+}
+
+.board-tally__rank {
   color: var(--text-dim);
-  text-align: center;
+  font-size: calc(32 * var(--u, 1px));
+  font-weight: 800;
 }
 
-.board-row__avatar {
-  width: calc(46 * var(--u, 1px));
-  height: calc(46 * var(--u, 1px));
-  border-radius: 50%;
-  color: var(--bg);
+.board-tally__who {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(17 * var(--u, 1px));
-  font-weight: 600;
+  flex-direction: column;
+  gap: calc(8 * var(--u, 1px));
+  min-width: 0;
 }
 
-.board-row__name {
-  font-size: calc(28 * var(--u, 1px));
-  font-weight: 600;
-  letter-spacing: 0.02em;
+.board-tally__name {
+  overflow: hidden;
+  font-size: calc(36 * var(--u, 1px));
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.board-row__figure {
-  font-size: calc(17 * var(--u, 1px));
+.board-tally__row--lead .board-tally__name {
+  font-size: calc(54 * var(--u, 1px));
+}
+
+.board-tally__strip {
+  display: flex;
+  height: calc(6 * var(--u, 1px));
+  overflow: hidden;
+  border-radius: calc(3 * var(--u, 1px));
+}
+
+.board-tally__marks {
+  max-width: 100%;
   color: var(--text-dim);
-  text-align: right;
+}
+
+.board-tally__row--lead .board-tally__marks {
+  color: var(--text);
+}
+
+.board-tally__total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.board-tally__total b {
+  font-family: var(--font-v2-display, var(--font-display));
+  font-size: calc(44 * var(--u, 1px));
+  font-weight: 900;
+  line-height: 0.9;
+}
+
+.board-tally__row--lead .board-tally__total b {
+  font-size: calc(64 * var(--u, 1px));
+}
+
+.board-tally__total span {
+  color: var(--text-dim);
+  font-size: calc(18 * var(--u, 1px));
+}
+
+/* Superlatives as sentences along the foot. */
+.board-line {
+  color: var(--text-dim);
+  font-size: calc(22 * var(--u, 1px));
 }
 
 .board-look__footer {
-  height: calc(52 * var(--u, 1px));
+  min-height: calc(64 * var(--u, 1px));
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: calc(46 * var(--u, 1px));
+  gap: calc(8 * var(--u, 1px)) calc(40 * var(--u, 1px));
+  padding: calc(12 * var(--u, 1px)) calc(40 * var(--u, 1px));
   border-top: calc(1 * var(--u, 1px)) solid var(--border);
-  font-size: calc(13 * var(--u, 1px));
-  letter-spacing: 0.1em;
   color: var(--text-dim);
 }
 
@@ -240,6 +191,10 @@
 
   .board-look__windows { flex-wrap: wrap; }
 
-  .board-podium { padding: calc(20 * var(--u, 1px)); gap: calc(12 * var(--u, 1px)); grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(180 * var(--u, 1px))), 1fr)); }
+  .board-tally { padding: calc(12 * var(--u, 1px)) calc(16 * var(--u, 1px)); }
+
+  .board-tally__row { grid-template-columns: calc(32 * var(--u, 1px)) minmax(0, 1fr) auto; }
+
+  .board-tally__marks { display: none; }
 
 }

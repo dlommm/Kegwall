@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import {
   listWalls, listDisplays, createWall, deleteWall, type Display, type Wall,
 } from '../../lib/adminApi';
@@ -8,10 +8,16 @@ import { capitalize, countWord } from '../../lib/tonightAttention';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { WallEditor } from './WallEditor';
 import { WallPreview } from './WallPreview';
+import { WallLivePreview } from '../../components/WallLivePreview';
+import { autoPageSize, resolveLook } from '../../components/looks/WallLook';
+import { wallPagesFor } from '../../lib/wallPages';
+import { getMenu } from '../../lib/api';
+import type { TapState } from '../../../server/core/state.js';
+import { beerColorFor } from '../../wall/wallModel';
 import { useAdminContext } from './useAdminContext';
 import { PageTemplate } from './PageTemplate';
 import {
-  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Skeleton,
+  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton,
 } from './ui';
 import { NEW_WALL_LOOK } from '../../../server/core/wallConfig.js';
 
@@ -67,10 +73,20 @@ function wallSummary(wall: Wall): string {
  * edit (the Wall Editor studio replaces the list) and delete walls. A viewer gets the same
  * cards, read-only.
  */
+/** Walls drawn as live TVs; past this many the rest show their look's picture (a cheap page). */
+const LIVE_TVS = 12;
+/** A paired screen heard from within this long is on. */
+const SCREEN_ON_MS = 3 * 60_000;
+
+function isLive(d: Display): boolean {
+  return d.lastSeen != null && Date.now() - new Date(d.lastSeen).getTime() < SCREEN_ON_MS;
+}
+
 export function WallsPage() {
-  const { me } = useAdminContext();
+  const { me, units, servingSizeMl } = useAdminContext();
   const [walls, setWalls] = useState<Wall[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
+  const [taps, setTaps] = useState<TapState[]>([]);
   const [status, setStatus] = useState<ListStatus>('loading');
   const [createState, setCreateState] = useState<CreateState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Wall | null>(null);
@@ -93,6 +109,10 @@ export function WallsPage() {
     Promise.resolve(listDisplays()).then((result) => {
       if (result?.ok) setDisplays(result.data);
     }).catch(() => { /* the cards just show no screens */ });
+    // The taps each wall's TV shows; without them the TVs draw the sample beers.
+    Promise.resolve(getMenu()).then((result) => {
+      if (result?.ok) setTaps(result.data.taps.filter((t) => !t.hidden));
+    }).catch(() => { /* sample beers */ });
   }, []);
 
   useEffect(() => {
@@ -269,7 +289,7 @@ export function WallsPage() {
 
       {status === 'loaded' && walls.length > 0 && (
         <ul className="walls-v2" data-testid="walls-list">
-          {walls.map((wall) => {
+          {walls.map((wall, index) => {
             const url = wallUrl(wall.slug);
             const config = safeParseWallConfig(wall.config);
             const previewing = previewWallId === wall.id;
@@ -281,21 +301,48 @@ export function WallsPage() {
                     <WallPreview slug={wall.slug} className="walls-v2__frame" />
                   </div>
                 ) : (
-                  <img className="walls-v2__thumb" src={lookThumbUrl(config.look)} alt="" loading="lazy" width={400} height={225} />
+                  // The wall as the TV it is (Kegwall 2.1 "s-tvs"): its own taps, look and theme on
+                  // a bezel, a strip of its beers above, a light that's on while a screen plays it.
+                  <div className="walls-tv" data-on={onScreens.some((d) => isLive(d)) || undefined}>
+                    {taps.length > 0 && (
+                      <span className="walls-tv__rail" aria-hidden="true">
+                        {taps.filter((t) => t.beer && t.keg?.status === 'on_tap').slice(0, 12).map((t) => (
+                          <i key={t.tapId} style={{ background: beerColorFor(t.beer!.srm) } as CSSProperties} />
+                        ))}
+                      </span>
+                    )}
+                    <div className="walls-tv__screen" aria-hidden="true">
+                      {index < LIVE_TVS ? (
+                        <WallLivePreview
+                          config={config}
+                          title={config.header?.title || wall.name}
+                          units={units}
+                          servingSizeMl={servingSizeMl}
+                          menuUrl="/menu"
+                          taps={wallPagesFor(config.pages, taps, autoPageSize(resolveLook(config.look)))[0] ?? taps}
+                          allTaps={taps}
+                          fit="fit"
+                        />
+                      ) : (
+                        <img className="walls-v2__thumb" src={lookThumbUrl(config.look)} alt="" loading="lazy" width={400} height={225} />
+                      )}
+                      <span className="walls-tv__led" />
+                    </div>
+                    <span className="walls-tv__stand" aria-hidden="true" />
+                  </div>
                 )}
                 <div className="walls-v2__body">
-                  <p className="adm-sub">{`${lookLabel(config.look)} look`}</p>
                   <h2 className="walls-v2__name">{wall.name}</h2>
                   <p className="walls-v2__url">
-                    <span className="adm-ell" data-testid="walls-row-url">{url}</span>
+                    <span className="adm-ell" data-testid="walls-row-url">{`${lookLabel(config.look)} · ${url}`}</span>
                   </p>
                   <p className="adm-sub">{wallSummary(wall)}</p>
                   <ul className="walls-v2__screens" aria-label="Paired screens">
                     {onScreens.length === 0 ? (
-                      <li className="adm-sub">No paired screen yet</li>
+                      <li className="adm-sub">Not on a screen yet</li>
                     ) : onScreens.map((d) => (
                       <li key={d.id}>
-                        <span className={d.lastSeen ? 'walls-v2__dot is-on' : 'walls-v2__dot'} aria-hidden="true" />
+                        <span className={isLive(d) ? 'walls-v2__dot is-on' : 'walls-v2__dot'} aria-hidden="true" />
                         {d.name}
                         <span className="adm-sub">{d.lastSeen ? ` · seen ${formatRelativeTime(d.lastSeen)}` : ' · never connected'}</span>
                       </li>
@@ -305,24 +352,30 @@ export function WallsPage() {
                     {canEdit && (
                       <Button variant="primary" data-testid="walls-row-edit" onClick={() => setEditingWallId(wall.id)}>Edit wall</Button>
                     )}
-                    <a className="adm-btn adm-btn--secondary" href={url} target="_blank" rel="noreferrer noopener" data-testid="walls-row-open">
-                      Open
-                    </a>
-                    <Button data-testid="walls-row-copy" onClick={() => handleCopy(wall)}>
-                      {copiedWallId === wall.id ? 'Copied!' : 'Copy link'}
-                    </Button>
-                    <Button variant="quiet" data-testid="walls-row-preview" onClick={() => setPreviewWallId(previewing ? null : wall.id)}>
-                      {previewing ? 'Hide live view' : 'Live view'}
-                    </Button>
-                    {canEdit && (
-                      <Button
-                        variant="quiet"
-                        data-testid="walls-row-delete"
-                        onClick={() => { setDeleteError(null); setDeleteTarget(wall); }}
-                      >
-                        Delete
-                      </Button>
-                    )}
+                    <Menu>
+                      <MenuTrigger className="adm-btn adm-btn--secondary" data-testid="walls-row-more" aria-label={`More for ${wall.name}`}>
+                        More
+                      </MenuTrigger>
+                      <MenuContent align="start">
+                        <MenuItem asChild>
+                          <a href={url} target="_blank" rel="noreferrer noopener" data-testid="walls-row-open">Open the wall</a>
+                        </MenuItem>
+                        <MenuItem data-testid="walls-row-copy" onSelect={(e) => { e.preventDefault(); handleCopy(wall); }}>
+                          {copiedWallId === wall.id ? 'Copied!' : 'Copy link'}
+                        </MenuItem>
+                        <MenuItem data-testid="walls-row-preview" onSelect={() => setPreviewWallId(previewing ? null : wall.id)}>
+                          {previewing ? 'Hide the full-size view' : 'Show the full-size view'}
+                        </MenuItem>
+                        {canEdit && (
+                          <MenuItem
+                            data-testid="walls-row-delete"
+                            onSelect={() => { setDeleteError(null); setDeleteTarget(wall); }}
+                          >
+                            Delete wall
+                          </MenuItem>
+                        )}
+                      </MenuContent>
+                    </Menu>
                   </div>
                 </div>
               </li>

@@ -168,7 +168,8 @@ export function MenuPage() {
                 <span>
                   {`${unclaimed === 1 ? 'One pour' : `${word(unclaimed).charAt(0).toUpperCase()}${word(unclaimed).slice(1)} pours`} in the last few minutes ${unclaimed === 1 ? 'has' : 'have'} no name yet.`}
                 </span>
-                <button type="button" onClick={() => claim.openPour(claim.pours[0]!)}>Claim one</button>
+                {/* The one way in: down to the list of pours to claim (no floating bar too). */}
+                <a href="#claim">Find yours</a>
               </div>
             )}
 
@@ -231,6 +232,11 @@ export function MenuPage() {
                         disabled={!m.hasBeer}
                         onClick={() => setOpenTapId(m.tap.tapId)}
                       >
+                        <span
+                          className="menu-tap__edge"
+                          aria-hidden="true"
+                          style={{ '--srm': m.beerColor, '--level': `${m.hasBeer && !m.isKicked ? m.levelPct : 0}%` } as CSSProperties}
+                        />
                         <TapMarker model={m} size={54} showNumber={false} />
                         <span className="menu-tap__text">
                           <span className="menu-tap__name" data-testid="menu-tap-name">{m.name ?? `Tap ${m.tapNumber} is empty`}</span>
@@ -253,7 +259,7 @@ export function MenuPage() {
             )}
 
             <div id="passport"><PassportCard /></div>
-            <ClaimSection flow={claim} picker={false} />
+            <div id="claim"><ClaimSection flow={claim} picker={false} sticky={false} /></div>
 
             <footer className="menu-page__footer">
               <Link to="/admin" className="menu-page__admin-link" data-testid="menu-admin-link">

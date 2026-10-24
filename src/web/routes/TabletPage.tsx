@@ -25,6 +25,7 @@ import { KioskWho } from './tablet/KioskWho';
 import { KioskArmed, KioskDone } from './tablet/KioskPour';
 // Styles only this route tree uses (split out of index.css in Kegwall V2 M1).
 import './tablet.css';
+import { beerColorFor } from '../wall/wallModel';
 import '../components/sheetBackdrop.css';
 
 /** The signup screen's preset avatar palette (design 3a). */
@@ -517,6 +518,7 @@ export function TabletPage() {
               servingSizeMl={servingSizeMl}
               reducedMotion={reducedMotion}
               pouringTap={pouringTap}
+              taps={taps}
               onSignOut={signOut}
             >
               <FaceEnrollPanel enabled={faces.enabled} enrollment={faceEnrollment} />
@@ -530,6 +532,8 @@ export function TabletPage() {
               servingSizeMl={servingSizeMl}
               reducedMotion={reducedMotion}
               pour={screen.pour}
+              beerColor={taps.find((t) => t.tapNumber === screen.pour.tapNumber)?.beer
+                ? beerColorFor(taps.find((t) => t.tapNumber === screen.pour.tapNumber)!.beer!.srm) : null}
               countdown={countdown}
               onStay={() => { void stayAfterDone(screen.pourer); }}
             />

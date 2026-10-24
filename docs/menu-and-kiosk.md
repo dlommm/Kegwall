@@ -30,6 +30,10 @@ the **kiosk** on the kegerator tablet where pourers pick their name, and the adm
 
 Every control on the menu is at least 44 px tall, checked by `tests/e2e/touch.spec.ts`.
 
+Each beer row has an edge in the beer's color that drains with its keg. Tapping a beer opens its
+sheet, which starts on a band in the beer's color. Unclaimed pours get one line near the top;
+**Find yours** jumps to the list of pours to claim.
+
 ## The kiosk (`/tablet/:wall`)
 
 <img src="images/kiosk.jpg" alt="Who's pouring?" width="480"> <img src="images/kiosk-armed.jpg" alt="Armed for a pourer" width="480">
@@ -46,6 +50,11 @@ Every control on the menu is at least 44 px tall, checked by `tests/e2e/touch.sp
 - **Group tabs.** **Start a group tab** keeps a running total for everyone who signs in until it's
   ended (unchanged).
 
+On **Who's pouring?** each name is a tab with a stripe of the beer that person last poured. While
+the tablet is armed, every tap's handle shows along the bottom in its beer's color; once a tap
+flows, its handle stands up and that beer fills the whole screen from the bottom with the ounces
+on top, then the foam settles on **Cheers**.
+
 ## Signing in and first-run setup
 
 ![Sign in](images/admin-signin.jpg)
@@ -55,3 +64,6 @@ prefers it) without the top bar. First run is one sequence with a progress bar: 
 owner account** (`/admin/setup`, which needs the setup token printed in the server log on first
 start), then name the taproom, connect Kegtron, Home Assistant, put the wall on a screen, and
 choose how updates install (`/admin/welcome`).
+
+The sign-in and setup screens show your taps as tall columns of beer at their keg levels beside
+the form. A fresh install shows quiet sample columns and says your taps will show up there.

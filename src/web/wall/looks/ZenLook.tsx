@@ -26,8 +26,16 @@ export const ZenLook = memo(function ZenLook(props: WallLookProps) {
   return (
     <div className={styles.look} data-look="zen" data-testid="look-zen">
       <main className={styles.main}>
-        <div className={styles.orb} role="img" aria-label={f ? `${f.levelPct}% left` : 'empty'}>
-          {f && <i style={{ '--level': f.levelPct / 100, background: levelColor(f.beerColor) } as CSSProperties} />}
+        {/* The featured beer in its true color, filled to its level with a foam line on top,
+            so the disc never reads as an empty grey placeholder (Kegwall 2.1 "g-looks"). */}
+        <div
+          className={styles.orb}
+          role="img"
+          aria-label={f ? `${f.levelPct}% left` : 'empty'}
+          style={f ? { '--level': f.levelPct / 100, '--beer': f.beerColor } as CSSProperties : undefined}
+          data-has-beer={f ? true : undefined}
+        >
+          {f && <i style={{ background: f.beerColor } as CSSProperties} />}
         </div>
         <div>
           <span className={styles.k} data-testid="look-meta">

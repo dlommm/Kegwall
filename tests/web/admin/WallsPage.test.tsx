@@ -81,7 +81,8 @@ describe('WallsPage', () => {
     renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
 
-    fireEvent.click(screen.getByTestId('walls-row-copy'));
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('walls-row-copy'));
     await flush();
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://taproom.example/wall/main-bar');
@@ -92,7 +93,8 @@ describe('WallsPage', () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ slug: 'main-bar' })] });
     renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
-    const link = screen.getByTestId('walls-row-open');
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    const link = await screen.findByTestId('walls-row-open');
     expect(link).toHaveAttribute('href', 'https://taproom.example/wall/main-bar');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noreferrer'));
@@ -104,7 +106,8 @@ describe('WallsPage', () => {
     await screen.findAllByTestId('walls-row');
 
     expect(screen.queryByTestId('wall-preview-frame')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('walls-row-preview'));
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('walls-row-preview'));
     expect(screen.getByTestId('wall-preview-frame')).toHaveAttribute('src', '/wall/main-bar');
   });
 
@@ -114,9 +117,10 @@ describe('WallsPage', () => {
     await screen.findAllByTestId('walls-row');
     expect(screen.queryByTestId('walls-add-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('walls-row-edit')).not.toBeInTheDocument();
+    // Copy/open/preview are still read-only affordances, in the More menu; Delete isn't there.
+    fireEvent.keyDown(screen.getByTestId('walls-row-more'), { key: 'Enter' });
+    expect(await screen.findByTestId('walls-row-copy')).toBeInTheDocument();
     expect(screen.queryByTestId('walls-row-delete')).not.toBeInTheDocument();
-    // Copy/open/preview are still visible read-only affordances.
-    expect(screen.getByTestId('walls-row-copy')).toBeInTheDocument();
   });
 
   it('an editor can open the create form, and creating adds the wall then closes the form', async () => {
@@ -192,7 +196,8 @@ describe('WallsPage', () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall({ name: 'Main bar', slug: 'main-bar' })] });
     renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
-    fireEvent.click(screen.getByTestId('walls-row-delete'));
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('walls-row-delete'));
     const confirm = screen.getByTestId('walls-delete-confirm');
     expect(confirm).toHaveTextContent('This permanently deletes');
     expect(confirm).toHaveTextContent('Main bar');
@@ -206,7 +211,8 @@ describe('WallsPage', () => {
     (deleteWall as Mock).mockResolvedValue({ ok: true, data: null });
     renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
-    fireEvent.click(screen.getByTestId('walls-row-delete'));
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('walls-row-delete'));
     fireEvent.click(screen.getByTestId('walls-delete-confirm-button'));
     await flush();
     expect(deleteWall).toHaveBeenCalledWith(1);
@@ -219,7 +225,8 @@ describe('WallsPage', () => {
     (deleteWall as Mock).mockResolvedValue({ ok: false, status: 500, message: 'Something went wrong' });
     renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
-    fireEvent.click(screen.getByTestId('walls-row-delete'));
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('walls-row-delete'));
     fireEvent.click(screen.getByTestId('walls-delete-confirm-button'));
     await flush();
     expect(screen.getByTestId('walls-delete-error')).toHaveTextContent('Something went wrong');
@@ -230,7 +237,8 @@ describe('WallsPage', () => {
     (listWalls as Mock).mockResolvedValue({ ok: true, data: [makeWall()] });
     renderAdminPage(<WallsPage />);
     await screen.findAllByTestId('walls-row');
-    fireEvent.click(screen.getByTestId('walls-row-delete'));
+    fireEvent.keyDown(screen.getAllByTestId('walls-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('walls-row-delete'));
     fireEvent.click(screen.getByTestId('walls-delete-cancel-button'));
     expect(screen.queryByTestId('walls-delete-confirm')).not.toBeInTheDocument();
     expect(deleteWall).not.toHaveBeenCalled();

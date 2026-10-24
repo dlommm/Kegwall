@@ -235,3 +235,44 @@
     align-self: stretch;
   }
 }
+
+/* The wall shown, not described (Kegwall 2.1 "g-login"): each tap a tall column of its beer at
+   its keg's level, with a foam line; sample columns stay quiet on a fresh install. */
+.adm-auth__taps {
+  margin-bottom: 18px;
+}
+
+.adm-auth__cols {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 220px;
+}
+
+.adm-auth__cols span {
+  position: relative;
+  flex: 1;
+  max-width: 56px;
+  overflow: hidden;
+  border-radius: 8px 8px 14px 14px;
+  background: var(--surface-2);
+}
+
+.adm-auth__cols i {
+  position: absolute;
+  inset: 0;
+  background: var(--beer, color-mix(in srgb, var(--text) 16%, transparent));
+  transform: scaleY(var(--level));
+  transform-origin: bottom;
+  box-shadow: inset 0 4px 0 #F3E9D2;
+}
+
+.adm-auth__taps[data-sample] i {
+  box-shadow: none;
+}
+
+.adm-auth__taps-note {
+  margin: 10px 0 0;
+  color: var(--text-faint);
+  font-size: 14px;
+}

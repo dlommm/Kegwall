@@ -246,13 +246,14 @@
 }
 
 .menu-tap {
+  position: relative;
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   width: 100%;
   min-height: 74px;
-  padding: 10px 0;
+  padding: 10px 0 10px 16px;
   border: 0;
   border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   background: none;
@@ -383,6 +384,15 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
+  /* The sheet opens on the beer itself (Kegwall 2.1 "g-menu"). */
+  margin: 0 -4px;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.beer-sheet__head .beer-sheet__brewery,
+.beer-sheet__head .beer-sheet__close {
+  color: inherit;
 }
 
 .beer-sheet__name {
@@ -924,4 +934,26 @@
 
 .passport__recent-meta {
   color: var(--text-dim);
+}
+
+/* Each row's edge is the keg: the beer's color to its level, draining from the top as it pours. */
+.menu-tap__edge {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.menu-tap__edge::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--level);
+  background: var(--srm);
 }

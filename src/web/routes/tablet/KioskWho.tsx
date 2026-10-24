@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { PublicPourer } from '../../lib/api';
 import { initials } from '../../lib/initials';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
+import { beerColorFor } from '../../wall/wallModel';
 
 export interface KioskPourer {
   id: number;
@@ -94,8 +95,11 @@ export function KioskWho({
               </span>
               <span className="kiosk-recent__text">
                 <b>{p.displayName}</b>
-                <span className="font-tabular">{`poured ${formatRelativeTime(p.lastPourAt!)}`}</span>
+                <span className="font-tabular">
+                  {p.lastBeer ? `${p.lastBeer.name} · ${formatRelativeTime(p.lastPourAt!)}` : `poured ${formatRelativeTime(p.lastPourAt!)}`}
+                </span>
               </span>
+              {p.lastBeer && <span className="kiosk-tab__beer" style={{ background: beerColorFor(p.lastBeer.srm) }} aria-hidden="true" />}
             </button>
           ))}
         </div>
@@ -117,7 +121,9 @@ export function KioskWho({
                 {initials(p.displayName)}
               </span>
               <span className="kiosk-tile__name">{p.displayName}</span>
-              <span className="kiosk-tile__pours font-tabular">{`${p.pourCount} pours`}</span>
+              <span className="kiosk-tile__pours font-tabular">{p.lastBeer ? `${p.pourCount} pours · ${p.lastBeer.name}` : `${p.pourCount} pours`}</span>
+              {/* A bar tab clipped to the rail: a stripe of the beer they last poured. */}
+              {p.lastBeer && <span className="kiosk-tab__beer" style={{ background: beerColorFor(p.lastBeer.srm) }} aria-hidden="true" />}
             </button>
           ))}
           {q && shown.length === 0 && <p className="tablet-screen__quiet">{`No one called “${query.trim()}” yet. Tap “I’m new”.`}</p>}

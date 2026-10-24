@@ -108,6 +108,16 @@ export function lastPourForDrinker(db: Database.Database, drinkerId: number): st
   return r.ts ?? null;
 }
 
+/** The beer a drinker last poured (name and SRM only: the kiosk colors their tab with it). */
+export function lastBeerForDrinker(db: Database.Database, drinkerId: number): { name: string; srm: number | null } | null {
+  const r = db.prepare(`
+    SELECT b.name AS name, b.srm AS srm FROM pours p
+    JOIN kegs k ON k.id = p.keg_id JOIN beers b ON b.id = k.beer_id
+    WHERE p.drinker_id = ? ORDER BY p.ts DESC LIMIT 1
+  `).get(drinkerId) as { name: string; srm: number | null } | undefined;
+  return r ? { name: r.name, srm: r.srm } : null;
+}
+
 /** Rate-after-claim (design 6a): stamps 1-5 stars + quick tags on a pour. */
 export function ratePour(db: Database.Database, pourId: number, rating: number, tags: string[]): Pour {
   const res = db.prepare('UPDATE pours SET rating = ?, rating_tags = ? WHERE id = ?')

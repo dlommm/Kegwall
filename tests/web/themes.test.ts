@@ -72,7 +72,7 @@ describe('themes', () => {
     expect(getTheme('taproom').tokens['--bg']).toBe('#19140F');
     expect(getTheme('taproom').tokens['--accent']).toBe('#C9972B');
     expect(getTheme('taproom').tokens['--font-display']).toContain('Big Shoulders Display');
-    expect(getTheme('chalkboard').tokens['--bg']).toBe('#12211B');
+    expect(getTheme('chalkboard').tokens['--bg']).toBe('#1E2422');
     expect(getTheme('bright').tokens['--bg']).toBe('#F7F4EE');
     expect(getTheme('mono').tokens['--bg']).toBe('#0A0A0A');
   });

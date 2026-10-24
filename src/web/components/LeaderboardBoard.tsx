@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { formatVolumeMl, type VolumeUnits } from '../lib/units';
-import { initials } from '../lib/initials';
+import { beerColorFor } from '../wall/wallModel';
+import { Tally } from './Tally';
 import type { LeaderboardResponse } from '../lib/api';
 import './LeaderboardBoard.css';
 
@@ -12,12 +14,6 @@ export function formatBoardVolume(ml: number, units: VolumeUnits): string {
 }
 
 /** Medal treatment per podium rank (redesign 2f): gold / silver / bronze rings + labels. */
-const MEDALS: Record<1 | 2 | 3, { color: string; label: string }> = {
-  1: { color: '#E7B93F', label: 'CHAMPION' },
-  2: { color: '#C0C7CE', label: '2ND' },
-  3: { color: '#C77B4A', label: '3RD' },
-};
-
 const WINDOW_TABS = [
   { key: 'week', label: 'WEEK' },
   { key: 'month', label: 'MONTH' },
@@ -38,20 +34,30 @@ export interface LeaderboardBoardProps {
  * HERE (Phase 5) as temporary chips — there is deliberately no separate game leaderboard.
  * Pure/presentational — `/board` fetches; the wall rotation reuses it.
  */
+/**
+ * The one leaderboard, drawn as the bar's tally board (Kegwall 2.1 "g-board"): a row per pourer
+ * with their pours as tally marks struck in fives and a strip of the beers they drank; the
+ * leader's row is larger and tinted with their beer. Superlatives are sentences. Games only
+ * decorate it (a winner line); there is never a second board.
+ */
 export function LeaderboardBoard({ data, units, title, onWindowChange }: LeaderboardBoardProps) {
-  const podium = data.entries.slice(0, 3);
-  const rest = data.entries.slice(3);
-  // Visual order places 2nd on the left, champion center, 3rd right.
-  const visualPodium = [podium[1], podium[0], podium[2]]
-    .map((entry, i) => ({ entry, rank: ([2, 1, 3] as const)[i]! }))
-    .filter((p): p is { entry: NonNullable<typeof p.entry>; rank: 1 | 2 | 3 } => p.entry != null);
-  const { superlatives } = data;
+  const { superlatives, entries } = data;
+  const leader = entries[0];
+  const leadColor = leader?.beers?.[0] ? beerColorFor(leader.beers[0].srm) : '#E0975A';
+  const gap = entries[1] ? (leader!.pourCount - entries[1].pourCount) : 0;
+  const lines: { key: string; text: string; testId?: string }[] = [];
+  if (superlatives.mostPours) lines.push({ key: 'most', text: `${superlatives.mostPours.displayName} poured the most often: ${superlatives.mostPours.pourCount} pours.` });
+  if (superlatives.biggestPour) lines.push({ key: 'big', text: `The biggest pour was ${superlatives.biggestPour.displayName}'s, ${formatVolumeMl(superlatives.biggestPour.volumeMl, units)}.` });
+  if (superlatives.smoothest) lines.push({ key: 'smooth', text: `The steadiest hand: ${superlatives.smoothest.displayName}, a pour score of ${superlatives.smoothest.avgQuality}.` });
+  if (superlatives.gameWinner) lines.push({ key: 'game', text: `${superlatives.gameWinner.gameName} went to ${superlatives.gameWinner.displayName}.`, testId: 'board-game-winner' });
 
   return (
     <div className="board-look" data-testid="leaderboard-board">
       <header className="board-look__header">
         <span className="board-look__title font-display">{title}</span>
-        <span className="board-look__brand font-display">LEADERBOARD</span>
+        <span className="board-look__brand font-display">
+          {leader ? (gap > 0 ? `${leader.displayName} leads by ${gap} pour${gap === 1 ? '' : 's'}` : `${leader.displayName} leads`) : 'The tally'}
+        </span>
         <div className="board-look__windows" role="group" aria-label="Leaderboard window">
           {WINDOW_TABS.map((w) => onWindowChange ? (
             <button
@@ -75,93 +81,41 @@ export function LeaderboardBoard({ data, units, title, onWindowChange }: Leaderb
         </div>
       </header>
 
-      {data.entries.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="board-look__empty" data-testid="leaderboard-empty">
           No claimed pours yet — pour one and claim it from the menu.
         </p>
       ) : (
-        <>
-          <div className="board-podium" data-testid="leaderboard-podium">
-            {visualPodium.map(({ entry, rank }) => {
-              const medal = MEDALS[rank];
-              return (
-                <div
-                  key={entry.drinkerId}
-                  className={`board-podium__card board-podium__card--${rank === 1 ? 'first' : 'other'}`}
-                  data-testid="leaderboard-podium-card"
-                  data-rank={rank}
-                  style={{
-                    borderColor: medal.color,
-                    background: `color-mix(in srgb, ${medal.color} 10%, transparent)`,
-                  }}
-                >
-                  <span
-                    className="board-podium__avatar font-display"
-                    style={{
-                      backgroundColor: entry.avatarColor ?? '#7A6C58',
-                      boxShadow: `0 0 0 3px var(--bg), 0 0 0 6px ${medal.color}`,
-                    }}
-                  >
-                    {initials(entry.displayName)}
+        <ol className="board-tally">
+          {entries.slice(0, 8).map((entry, i) => (
+            <li
+              key={entry.drinkerId}
+              className={i === 0 ? 'board-tally__row board-tally__row--lead' : 'board-tally__row'}
+              data-testid="leaderboard-row"
+              data-rank={i + 1}
+              style={i === 0 ? { '--lead': leadColor } as CSSProperties : undefined}
+            >
+              <span className="board-tally__rank font-display">{i + 1}</span>
+              <span className="board-tally__who">
+                <span className="board-tally__name font-display">{entry.displayName}</span>
+                {entry.beers && entry.beers.length > 0 && (
+                  <span className="board-tally__strip" aria-hidden="true">
+                    {entry.beers.map((b) => <i key={b.beerId} style={{ flex: b.pours, background: beerColorFor(b.srm) }} />)}
                   </span>
-                  <span className="board-podium__label" style={{ color: medal.color }}>{medal.label}</span>
-                  <span className="board-podium__name font-display">{entry.displayName}</span>
-                  <span className={`board-podium__figure font-tabular board-podium__figure--${rank === 1 ? 'first' : 'other'}`}>
-                    {formatBoardVolume(entry.volumeMl, units)}
-                  </span>
-                  <span className="board-podium__caption font-tabular" data-testid="leaderboard-quality">
-                    {`${entry.pourCount} pours · ${entry.avgQuality != null ? `Q ${entry.avgQuality}` : '—'}`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {rest.length > 0 && (
-            <div className="board-look__rows">
-              {rest.map((entry, i) => (
-                <div key={entry.drinkerId} className="board-row" data-testid="leaderboard-row">
-                  <span className="board-row__rank font-display font-tabular">{i + 4}</span>
-                  <span className="board-row__avatar font-display" style={{ backgroundColor: entry.avatarColor ?? '#7A6C58' }}>
-                    {initials(entry.displayName)}
-                  </span>
-                  <span className="board-row__name font-display">{entry.displayName}</span>
-                  <span className="board-row__figure font-tabular">{`${entry.pourCount} pours`}</span>
-                  <span className="board-row__figure font-tabular">{formatBoardVolume(entry.volumeMl, units)}</span>
-                  <span
-                    className={`board-row__quality-pill board-row__quality-pill--${entry.avgQuality != null && entry.avgQuality >= 80 ? 'good' : 'low'}`}
-                    data-testid="leaderboard-quality"
-                  >
-                    {entry.avgQuality != null ? `Q ${entry.avgQuality}` : '—'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+                )}
+              </span>
+              <Tally count={entry.pourCount} className="board-tally__marks" height={i === 0 ? 40 : 30} />
+              <span className="board-tally__total">
+                <b className="font-tabular">{entry.pourCount}</b>
+                <span className="font-tabular">{formatBoardVolume(entry.volumeMl, units)}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
       )}
 
       <footer className="board-look__footer" data-testid="leaderboard-superlatives">
-        {superlatives.mostPours && (
-          <span className="board-trophy board-trophy--gold">
-            {`🏆 MOST POURS: ${superlatives.mostPours.displayName} · ${superlatives.mostPours.pourCount}`}
-          </span>
-        )}
-        {superlatives.smoothest && (
-          <span className="board-trophy board-trophy--green">
-            {`✨ SMOOTHEST: ${superlatives.smoothest.displayName} · ${superlatives.smoothest.avgQuality}`}
-          </span>
-        )}
-        {superlatives.biggestPour && (
-          <span className="board-trophy board-trophy--copper">
-            {`🍺 BIGGEST POUR: ${superlatives.biggestPour.displayName} · ${formatVolumeMl(superlatives.biggestPour.volumeMl, units)}`}
-          </span>
-        )}
-        {superlatives.gameWinner && (
-          <span className="board-trophy board-trophy--game" data-testid="board-game-winner">
-            {`🎮 ${superlatives.gameWinner.gameName.toUpperCase()}: ${superlatives.gameWinner.displayName}`}
-          </span>
-        )}
+        {lines.map((l) => <span key={l.key} className="board-line" data-testid={l.testId}>{l.text}</span>)}
       </footer>
     </div>
   );

@@ -101,7 +101,7 @@ export function DisplayPage() {
     <main className="display-page" data-testid="display-page">
       <h1 className="display-page__title font-display">Pair this display</h1>
       <p className="display-page__hint">
-        Enter the pairing code from Admin → Displays.
+        Type the six-character code shown in Kegwall under Screens → Displays → Pair a screen.
       </p>
       <div className="display-page__row">
         <input
@@ -110,7 +110,8 @@ export function DisplayPage() {
           data-testid="display-code-input"
           value={code}
           maxLength={12}
-          placeholder="e.g. K7KWQD"
+          placeholder="K7KWQD"
+          aria-label="Pairing code"
           autoCapitalize="characters"
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           onKeyDown={(e) => {

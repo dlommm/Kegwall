@@ -6,60 +6,76 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  background: #0F1216;
-  color: #E9EDF1;
+  gap: 18px;
+  /* Kegwall 2.1 "s-pair": the warm black of every other Kegwall screen, read from the couch. */
+  background: #0D0C0B;
+  color: #F7F4EE;
   font-family: 'Atkinson Hyperlegible', ui-sans-serif, sans-serif;
   text-align: center;
   padding: 24px;
 }
 
 .display-page__title {
-  font-size: 34px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 0.95;
   text-transform: uppercase;
 }
 
 .display-page__hint {
-  color: #93A0AC;
-  font-size: 15px;
-  max-width: 26rem;
+  max-width: 34rem;
+  color: #BDB6AA;
+  font-size: 22px;
 }
 
 .display-page__row {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
 }
 
+/* The code: six characters set large on dark cells, copper underline while typing. */
 .display-page__code {
-  width: 12rem;
-  padding: 14px 18px;
-  border: 1.5px solid #D08C4C;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  width: 7.2em;
+  padding: 0.18em 0.3em;
+  border: 0;
+  border-radius: 14px;
+  background: #211E1B;
+  box-shadow: inset 0 -4px 0 #E0975A;
   color: inherit;
-  font-size: 22px;
-  letter-spacing: 0.2em;
+  font-family: 'Big Shoulders Display Variable', 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  font-size: 72px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
   text-align: center;
-  text-transform: uppercase;
+}
+
+.display-page__code::placeholder {
+  color: #4E4840;
 }
 
 .display-page__pair {
-  padding: 14px 26px;
-  border-radius: 12px;
-  background: #D08C4C;
-  color: #14100B;
-  font-weight: 600;
-  font-size: 16px;
+  min-width: 160px;
+  padding: 0 32px;
+  border: 0;
+  border-radius: 14px;
+  background: #E0975A;
+  color: #1A0F06;
+  font-size: 24px;
+  font-weight: 700;
   cursor: pointer;
 }
 
+/* Waiting for a code, not broken: an outline with readable text. */
 .display-page__pair:disabled {
-  opacity: 0.5;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px #4E4840;
+  color: #BDB6AA;
+  cursor: default;
 }
 
 .display-page__error {
-  color: #F0907F;
-  font-size: 14px;
+  color: #FF7A66;
+  font-size: 20px;
 }

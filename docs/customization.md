@@ -25,6 +25,16 @@ The editor is a studio in three parts:
 
 Nothing reaches a TV until **Save to TVs**. Leaving with unsaved changes asks first.
 
+**Screens → Walls** draws each wall as a small TV showing its own taps and look, with a strip of
+its beers above and a light that's on while a paired screen plays it. **Edit wall** opens the
+editor; **More** holds Open the wall, Copy link, the full-size view and Delete. In the editor the
+preview hangs on a wall tinted by the leading beer, with a power light that's lit when the TVs have
+your changes and amber while they aren't saved yet.
+
+**Screens → Presence** shows each wall's lamp (lit when awake, half lit on the screensaver, a
+ring when off), and once several walls never rest or sleep they fold into one line. **Screens →
+Games** reads like a specials board, with the game being played on top.
+
 ## Looks
 
 ![All fourteen wall looks](images/wall-looks.jpg)
@@ -209,6 +219,16 @@ every word readable wherever the level falls, a card's words are drawn twice:
 `[data-ink-layer="wall"]` in the theme's ink above the liquid and `[data-ink-layer="beer"]` in the
 beer's ink below it. Custom CSS that restyles a card's text should target both.
 
+When a pour finishes, its beer sweeps the takeover behind the result for under a second, then
+settles to a light tint; in the dock style the beer grows across the dock as the ounces climb. The
+Zen look fills its disc with the featured beer's true color, Gallery's empty glass is dark glass,
+and Tally strikes every fifth mark like Chalkboard. Chalkboard now has its own slate background
+instead of sharing Taproom Green's.
+
+The leaderboard board (`/board`) is a tally: a row per pourer with their pours as tally marks and
+a strip of the beers they drank, the leader's row larger and tinted with their beer, and the
+superlatives written as sentences.
+
 Theme token overrides (`--bg`, `--surface`, `--text`, `--accent`, …) work as before. Every theme
 now uses the Kegwall type, so a `--font-display` / `--font-body` override is the only way to
 change the typeface.
@@ -253,6 +273,9 @@ to real screen power control (HDMI-CEC, DPMS, a tablet's Fully Kiosk API, Home
 Assistant, etc).
 
 ## Pairing screens by code
+
+The TV's pairing screen shows the code box large enough to read from across the room, on the same
+warm black as every other Kegwall screen.
 
 **Screens → Displays** (**Pair a screen**) mints a short pairing code per screen; the TV opens
 `/display` and types it to learn which wall it shows. Each paired screen can also override its

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Wall } from '../../../lib/adminApi';
 import type { PowerStage } from '../../../lib/displayPower';
 import { formatRelativeTime } from '../../../lib/useRelativeTime';
@@ -34,6 +35,9 @@ function Section({ title, sub, action, testId, children }: {
     </section>
   );
 }
+
+/** Fold walls on the defaults into one line once this many share them. */
+const FOLD_AT = 4;
 
 const STAGE_CLASS: Record<PowerStage, string> = {
   active: 'presence-v2__stage is-on', screensaver: 'presence-v2__stage is-rest', off: 'presence-v2__stage',
@@ -73,7 +77,7 @@ export function ZonesPanel({
             {walls.map((wall) => {
               const state = zoneStates[wall.slug] ?? 'active';
               return (
-                <tr key={wall.slug} data-testid={`zone-row-${wall.slug}`}>
+                <tr key={wall.slug} data-testid={`zone-row-${wall.slug}`} data-stage={state}>
                   <td>
                     <b>{wall.name}</b>
                     <div className="adm-sub adm-num-cell">{`/wall/${wall.slug}`}</div>
@@ -108,6 +112,16 @@ export function DisplayPowerPanel({
   onSave: (wall: Wall) => void;
 }) {
   const minutes = (raw: string) => (raw === '' ? null : Number(raw));
+  // Walls left on "never rest, never sleep" fold into one line once there are several of them,
+  // so the walls with timers set are the ones you see (Kegwall 2.1 "s-presence").
+  const [showAll, setShowAll] = useState(false);
+  const isDefault = (w: Wall) => {
+    const f = fieldsFor(w);
+    return f.screensaverAfterMinutes == null && f.offAfterMinutes == null && !f.cameraMotion && !errors[w.id];
+  };
+  const defaults = walls.filter(isDefault);
+  const fold = !showAll && defaults.length >= FOLD_AT;
+  const shown = fold ? walls.filter((w) => !isDefault(w)) : walls;
   return (
     <Section
       title="Sleep timers"
@@ -128,7 +142,7 @@ export function DisplayPowerPanel({
             </tr>
           </thead>
           <tbody>
-            {walls.map((wall) => {
+            {shown.map((wall) => {
               const f = fieldsFor(wall);
               const errs = errors[wall.id];
               return (
@@ -182,6 +196,12 @@ export function DisplayPowerPanel({
             })}
           </tbody>
         </Table>
+      )}
+      {fold && (
+        <p className="presence-v2__folded" data-testid="dp-folded">
+          {`${defaults.length} walls never rest or sleep. `}
+          <button type="button" className="adm-btn adm-btn--quiet" onClick={() => setShowAll(true)}>Set timers for them</button>
+        </p>
       )}
     </Section>
   );

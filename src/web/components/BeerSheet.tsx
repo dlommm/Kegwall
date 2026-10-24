@@ -1,9 +1,11 @@
+import type { CSSProperties } from 'react';
 import { useRef } from 'react';
 import type { RecentPour } from '../lib/api';
 import { formatRelativeTime } from '../lib/useRelativeTime';
 import { formatVolumeMl, type VolumeUnits } from '../lib/units';
 import { useFocusTrap } from '../lib/useFocusTrap';
 import { TapMarker } from '../wall/TapMarker';
+import { pickInk } from '../lib/contrast';
 import type { WallTapModel } from '../wall/wallModel';
 
 export interface BeerSheetProps {
@@ -69,7 +71,10 @@ export function BeerSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <span className="beer-sheet__grab" aria-hidden="true" />
-        <header className="beer-sheet__head">
+        <header
+          className="beer-sheet__head"
+          style={{ background: model.beerColor, color: pickInk(model.beerColor) } as CSSProperties}
+        >
           <TapMarker model={model} size={72} />
           <div>
             <h2 id="beer-sheet-title" className="beer-sheet__name">{model.name ?? `Tap ${model.tapNumber}`}</h2>

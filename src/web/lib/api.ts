@@ -109,6 +109,8 @@ export function claimPour(pourId: number, drinkerId: number): Promise<ApiResult<
 export interface PublicPourer extends PublicDrinker {
   pourCount: number;
   lastPourAt?: string | null;
+  /** What they last poured; optional so an older payload is still valid. */
+  lastBeer?: { name: string; srm: number | null } | null;
 }
 
 export interface TabletArmStatus {

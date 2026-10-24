@@ -67,7 +67,8 @@
   position: relative;
   height: 100%;
   overflow: hidden;
-  background: #F3F0E8;
+  /* The empty part of the glass is dark glass, not a cream block (Kegwall 2.1 "g-looks"). */
+  background: #26231F;
 }
 
 .canvas i {

@@ -1,5 +1,6 @@
 import {
   useEffect, useMemo, useState, type FormEvent, type ReactNode,
+  type CSSProperties,
 } from 'react';
 import type { Tap } from '../../../server/db/taps.js';
 import type { TapState } from '../../../server/core/state.js';
@@ -14,6 +15,7 @@ import {
 } from '../../lib/wallEditorConfig';
 import { useWallDraft, WALL_SECTIONS, type WallSectionId } from '../../lib/wallDraft';
 import { wallPagesFor } from '../../lib/wallPages';
+import { beerColorFor } from '../../wall/wallModel';
 import { lookLabel } from '../../lib/wallCatalog';
 import { capitalize, countWord, listJoin } from '../../lib/tonightAttention';
 import type { VolumeUnits } from '../../lib/units';
@@ -340,6 +342,14 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
               options={[{ value: 'fit', label: 'Fit' }, { value: 'actual', label: '100%' }]}
             />
           </div>
+          {/* The preview hangs on a wall lit by its leading beer, on a bezel whose light is on
+              when the TVs have this version and amber while changes aren't saved yet. */}
+          <div
+            className="studio-tv"
+            data-testid="wall-editor-tv"
+            data-unsaved={isDirty || undefined}
+            style={{ '--wall-tint': previewTaps[0]?.beer ? beerColorFor(previewTaps[0].beer.srm) : 'var(--accent)' } as CSSProperties}
+          >
           <WallLivePreview
             config={previewConfig}
             title={form.headerTitle.trim() || name}
@@ -354,6 +364,8 @@ export function WallEditor({ wall, onBack, onSaved }: WallEditorProps) {
             fit={fit}
             simulateNonce={simulateNonce}
           />
+            <span className="studio-tv__led" aria-hidden="true" />
+          </div>
           <div className="studio-stage__meta">
             <span data-testid="wall-editor-preview-label">
               {`${resolution} · ${form.displaySizeIn} in · scale ${Math.round(form.displayUiScale * 100)}%`}

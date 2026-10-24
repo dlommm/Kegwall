@@ -472,7 +472,7 @@ export function ClaimSheet() {
  * The menu's "Claim your pour" list, the sticky claim bar, and the picker. Pass `picker={false}`
  * when the page renders `ClaimPicker` itself (so a beer sheet can open it too).
  */
-export function ClaimSection({ flow, picker = true }: { flow: ClaimFlow; picker?: boolean }) {
+export function ClaimSection({ flow, picker = true, sticky = true }: { flow: ClaimFlow; picker?: boolean; /** The floating bar; the menu has its own claim line at the top instead. */ sticky?: boolean }) {
   const {
     pours, poursStatus, selectedPour,
   } = flow;
@@ -528,7 +528,7 @@ export function ClaimSection({ flow, picker = true }: { flow: ClaimFlow; picker?
 
       {/* Sticky bottom claim bar (redesign 2b) — a full-width CTA that floats over the fold
           so unclaimed pours aren't buried; opens the picker for the most recent one. */}
-      {pours.length > 0 && !selectedPour && (
+      {sticky && pours.length > 0 && !selectedPour && (
         <button
           type="button"
           className="claim-sheet__sticky"

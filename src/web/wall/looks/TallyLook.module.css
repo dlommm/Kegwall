@@ -104,8 +104,23 @@
 }
 
 .tally span {
+  position: relative;
   display: flex;
   gap: calc(3 * var(--px));
+}
+
+/* A real tally: the fifth mark strikes through the four before it, as on Chalkboard. */
+.tally span i:nth-child(5) {
+  position: absolute;
+  top: 50%;
+  left: calc(-3 * var(--px));
+  width: calc(100% + 6 * var(--px));
+  height: calc(4 * var(--px));
+  transform: translateY(-50%) rotate(-28deg);
+}
+
+.tally span:has(i:nth-child(5)) {
+  padding-right: calc(2 * var(--px));
 }
 
 .tally i {

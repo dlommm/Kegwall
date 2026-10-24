@@ -74,13 +74,43 @@
   margin: 0;
 }
 
+/* The preview hangs on a wall tinted by the leading beer (Kegwall 2.1 "s-stage"): a flat field,
+   the TV on a dark bezel with a chin and a power light. */
+.studio-tv {
+  position: relative;
+  padding: 28px 28px 34px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--wall-tint) 18%, var(--surface));
+}
+
 .studio-stage .wall-live-preview {
   border: 0;
-  border-radius: var(--radius-md);
-  box-shadow: 0 0 0 10px #050505;
-  margin: 10px;
-  width: calc(100% - 20px);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 8px #050505, 0 14px 0 8px #050505;
+  width: 100%;
 }
+
+.studio-tv__led {
+  position: absolute;
+  right: 44px;
+  bottom: 22px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #86D49A;
+}
+
+.studio-tv[data-unsaved] .studio-tv__led {
+  background: #F4B740;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-tv[data-unsaved] .studio-tv__led {
+    animation: studio-led 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes studio-led { 50% { opacity: 0.35; } }
 
 /* 100%: the 1920 × 1080 frame unscaled, panned inside a 16:9 window. */
 .wall-live-preview--actual {
@@ -121,32 +151,36 @@
   color: var(--text);
 }
 
+/* What the preview shows, as one caption line under it (not three boxes). */
 .studio-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
   margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
 }
 
 .studio-facts > div {
-  padding: 14px 16px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  display: inline-flex;
+  gap: 6px;
   min-width: 0;
 }
 
+.studio-facts > div + div::before {
+  content: '·';
+  margin: 0 10px;
+  color: var(--text-faint);
+}
+
 .studio-facts dt {
-  overflow: hidden;
-  font-size: 15px;
+  color: var(--text);
   font-weight: 700;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .studio-facts dd {
-  margin: 2px 0 0;
-  color: var(--text-faint);
-  font-size: 14px;
+  margin: 0;
 }
 
 .studio-inspector {
@@ -573,7 +607,7 @@
 
 .walls-v2__card {
   display: grid;
-  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
   gap: 18px;
   padding: 14px;
   border-radius: var(--radius-lg);
@@ -693,24 +727,39 @@
   margin-bottom: 14px;
 }
 
+/* Each wall's lamp (Kegwall 2.1 "s-presence"): lit warm when its screens are awake, half lit
+   while resting on the screensaver, a hollow ring when off. */
 .presence-v2__stage {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 8px;
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px var(--text-faint);
-  vertical-align: baseline;
+  box-shadow: inset 0 0 0 2px var(--border-strong);
+  vertical-align: -4px;
 }
 
 .presence-v2__stage.is-on {
-  background: var(--ok);
-  box-shadow: none;
+  background: #F4C46A;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #F4C46A 22%, transparent);
 }
 
 .presence-v2__stage.is-rest {
-  background: var(--text-faint);
-  box-shadow: none;
+  background: linear-gradient(0deg, #F4C46A 50%, transparent 50%);
+  box-shadow: inset 0 0 0 2px #F4C46A;
+}
+
+[data-testid='zones-table'] tr[data-stage='active'] td:first-child {
+  box-shadow: inset 4px 0 0 #F4C46A;
+}
+
+.presence-v2__folded {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 12px 0 0;
+  color: var(--text-dim);
 }
 
 .presence-v2__minutes {
@@ -843,19 +892,21 @@
 .games-v2__active {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin: 0 0 20px;
-  padding: 14px 16px;
+  padding: 20px 22px;
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  box-shadow: inset 5px 0 0 var(--accent);
+  font-size: 19px;
   font-weight: 700;
 }
 
 .games-v2__live {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: var(--ok);
+  background: var(--accent);
 }
 
 .games-v2__tick {
@@ -867,8 +918,13 @@
   border-radius: var(--radius-sm);
 }
 
+/* Games as a specials board (Kegwall 2.1 "s-games"): each category one panel, each game a
+   written line (name and premise, a dotted leader, who and how long, Start), not a tile. */
 .games-v2__section {
-  margin-top: 36px;
+  margin-top: 16px;
+  padding: 20px 24px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .games-v2__head {
@@ -876,62 +932,75 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px 12px;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .games-v2__head .adm-h2 {
-  font-size: 24px;
+  font-size: 26px;
 }
 
 .games-v2__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .games-v2__card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(24px, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.games-v2__card:first-child {
+  border-top: 0;
 }
 
 .games-v2__name {
+  grid-column: 1;
   margin: 0;
-  font-size: 17px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+/* The dotted leader between a game's name and its details, like a chalked specials board. */
+.games-v2__card::after {
+  content: '';
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  border-bottom: 2px dotted var(--border-strong);
 }
 
 .games-v2__card > .adm-sub {
+  grid-column: 1 / -1;
+  grid-row: 2;
   margin: 0;
-  flex: 1;
+  max-width: 70ch;
 }
 
 .games-v2__meta {
   display: flex;
-  flex-wrap: wrap;
+  grid-column: 3;
+  grid-row: 1;
   align-items: center;
-  gap: 8px 12px;
-  margin-top: 6px;
+  gap: 12px;
 }
 
 .games-v2__tag {
   padding: 2px 8px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
   color: var(--text-dim);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
 }
 
 .games-v2__start {
-  margin-left: auto;
+  min-width: 88px;
 }
 
 .games-v2__players {
@@ -939,4 +1008,70 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+
+/* A wall as its TV (Kegwall 2.1 "s-tvs"): its beers on a rail above, the live wall on a dark
+   bezel, a power light that's copper while a paired screen is playing it, and a stand. The TV
+   stays dark in light mode too: it's a physical screen. */
+.walls-tv {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.walls-tv__rail {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+  margin: 0 8% 6px;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.walls-tv__rail i {
+  flex: 1;
+}
+
+.walls-tv__screen {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  padding: 6px 6px 12px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #050505;
+}
+
+.walls-tv__screen > * {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.walls-tv:not([data-on]) .walls-tv__screen > :first-child {
+  opacity: 0.55;
+}
+
+.walls-tv__led {
+  position: absolute;
+  right: 14px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3A352F;
+}
+
+.walls-tv[data-on] .walls-tv__led {
+  background: #E0975A;
+}
+
+.walls-tv__stand {
+  width: 22%;
+  height: 8px;
+  margin: 0 auto;
+  border-radius: 0 0 4px 4px;
+  background: #050505;
 }

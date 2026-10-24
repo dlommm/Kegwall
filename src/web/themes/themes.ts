@@ -208,11 +208,12 @@ const chalkboardTheme: Theme = {
   name: 'Chalkboard (legacy)',
   mode: 'dark',
   tokens: {
-    '--bg': '#12211B',
-    '--surface': '#1A2E25',
+    // Kegwall 2.1: slate, not Taproom Green's bottle green (the two shared one ground before).
+    '--bg': '#1E2422',
+    '--surface': '#28302D',
     '--text': '#EDEFE7',
-    '--text-dim': '#93A79B',
-    '--text-faint': '#6F8177',
+    '--text-dim': '#A3ADA7',
+    '--text-faint': '#808B85',
     '--accent': '#E7B93F',
     '--border': 'rgba(237,239,231,0.12)',
     '--border-strong': 'rgba(237,239,231,0.2)',

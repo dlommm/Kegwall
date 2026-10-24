@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getWallBySlug } from './crud.js';
 import { allowedTapIdsForWall } from '../db/wallDevices.js';
 import {
-  recentUnclaimedPours, setPourDrinker, countPoursForDrinker, lastPourForDrinker,
+  recentUnclaimedPours, setPourDrinker, countPoursForDrinker, lastPourForDrinker, lastBeerForDrinker,
   CLAIM_WINDOW_MINUTES,
 } from '../db/pours.js';
 import { listDrinkers, createDrinker, getUser } from '../db/users.js';
@@ -122,6 +122,7 @@ export async function publicRoutes(app: FastifyInstance) {
       avatarColor: d.avatarColor,
       pourCount: countPoursForDrinker(db, d.id),
       lastPourAt: lastPourForDrinker(db, d.id),
+      lastBeer: lastBeerForDrinker(db, d.id),
     })));
 
   // Tablet arming (design 3a): "who's pouring?" → arm → the next recorded pour on any
