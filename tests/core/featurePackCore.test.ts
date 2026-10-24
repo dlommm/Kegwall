@@ -238,7 +238,21 @@ describe('analytics KPIs + heatmap (design 10a)', () => {
     expect(kpis.valueOnTapCents).toBe(6000);
     expect(kpis.kegsKicked).toBe(0);
 
-    db.prepare("UPDATE kegs SET status = 'kicked' WHERE id = ?").run(keg.id);
+    db.prepare("UPDATE kegs SET status = 'kicked', kicked_at = ? WHERE id = ?").run(new Date().toISOString(), keg.id);
+    expect(analyticsKpis(db, 30).kegsKicked).toBe(1);
+  });
+
+  it('counts kegs by when they were kicked, poured from in the window or not', () => {
+    const beer = createBeer(db, { name: 'Stout' });
+    const day = 24 * 60 * 60 * 1000;
+    const kickedAt = (daysAgo: number) => new Date(Date.now() - daysAgo * day).toISOString();
+    const t1 = createTap(db, { number: 1 });
+    const t2 = createTap(db, { number: 2 });
+    const recent = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: t1.id });
+    const old = createKeg(db, { beerId: beer.id, sizeMl: 19000, volStartMl: 19000, tapId: t2.id });
+    // Kicked two days ago with no pours in the window (the old proxy counted 0 here).
+    db.prepare("UPDATE kegs SET status = 'kicked', kicked_at = ? WHERE id = ?").run(kickedAt(2), recent.id);
+    db.prepare("UPDATE kegs SET status = 'kicked', kicked_at = ? WHERE id = ?").run(kickedAt(40), old.id);
     expect(analyticsKpis(db, 30).kegsKicked).toBe(1);
   });
 

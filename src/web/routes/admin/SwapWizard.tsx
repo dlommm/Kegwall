@@ -247,7 +247,9 @@ export function SwapWizard({
     >
       <ol className="adm-steps" aria-label="Steps">
         {steps.map((st, i) => (
-          <li key={st} aria-current={i === stepIndex ? 'step' : undefined}>{`${i + 1} ${stepLabels[st]}`}</li>
+          <li key={st} aria-current={i === stepIndex ? 'step' : undefined} data-done={i < stepIndex || undefined}>
+            <span>{`Step ${i + 1} of ${steps.length} · ${stepLabels[st]}`}</span>
+          </li>
         ))}
       </ol>
 

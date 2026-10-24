@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SourceStatus } from '../../../server/ingest/manager.js';
+import { sourceLabel } from '../../lib/sourceLabels';
 import {
   doctorCloud, doctorEnv, doctorGovee, doctorListen, doctorUdpHistory, doctorUdpRaw,
   getSources, type UdpDeviceHistory,
@@ -158,7 +159,7 @@ export function DoctorPage() {
           {sources.map((source) => (
             <li key={source.name} data-testid="doctor-source-row">
               <div>
-                {source.name}
+                {sourceLabel(source.name)}
                 {source.detail && <span>{source.detail}</span>}
               </div>
               <StatusDot

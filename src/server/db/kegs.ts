@@ -252,8 +252,8 @@ export function swapKeg(db: Database.Database, input: {
   purchasedAt?: string | null;
 }): Keg {
   const tx = db.transaction(() => {
-    db.prepare(`UPDATE kegs SET status = 'kicked' WHERE tap_id = ? AND status = 'on_tap'`)
-      .run(input.tapId);
+    db.prepare(`UPDATE kegs SET status = 'kicked', kicked_at = ? WHERE tap_id = ? AND status = 'on_tap'`)
+      .run(new Date().toISOString(), input.tapId);
 
     if (input.fromKegId != null) {
       const queued = db.prepare(

@@ -149,3 +149,13 @@ describe('pickSpotlight', () => {
     expect(pickSpotlight(models, { mode: 'pinned', tapId: 99 })!.tapNumber).toBe(2);
   });
 });
+
+describe('Departures order (2.0.1 fix)', () => {
+  it('boards a nearly empty keg with no pace yet first, not last', async () => {
+    const { departureOrder } = await import('../../src/web/wall/looks/DeparturesLook');
+    const low = wallTapModel(tap(4, { name: 'Midnight Oats', levelPct: 4 }), { units: 'us', servingSizeMl: 473 });
+    const paced = wallTapModel({ ...tap(3, { name: 'Belgian Sun', levelPct: 94 }), kickDate: new Date(Date.now() + 52 * DAY).toISOString().slice(0, 10) }, { units: 'us', servingSizeMl: 473 });
+    const unpaced = wallTapModel(tap(1, { name: 'Citra Haze', levelPct: 80 }), { units: 'us', servingSizeMl: 473 });
+    expect([unpaced, paced, low].sort(departureOrder).map((m) => m.name)).toEqual(['Midnight Oats', 'Belgian Sun', 'Citra Haze']);
+  });
+});

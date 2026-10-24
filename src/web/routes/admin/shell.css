@@ -160,9 +160,8 @@
   border-radius: 50%;
   background: var(--surface-2);
   color: var(--text);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
+  /* The display face: a lone "O" in the 14px text face read as a lowercase "o". */
+  font: 800 18px/1 var(--font-display);
   cursor: pointer;
 }
 

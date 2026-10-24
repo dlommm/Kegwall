@@ -316,6 +316,9 @@ describe('crud routes', () => {
       expect(events.map((e) => e.type)).toEqual(['keg_kicked', 'keg_tapped']);
       expect(events[0]!.payload).toMatchObject({ tapId: tap.id, kegId: firstKeg.id, beerId: beerA.id });
       expect(events[1]!.payload).toMatchObject({ tapId: tap.id, kegId: secondKeg.id, beerId: beerB.id });
+      // The outgoing keg records when it was kicked (Insights counts kicks by it).
+      const row = app.ctx.db.prepare('SELECT kicked_at FROM kegs WHERE id = ?').get(firstKeg.id) as { kicked_at: string | null };
+      expect(row.kicked_at).toEqual(expect.any(String));
     });
 
     it('PATCH /api/kegs/:id to status "kicked" emits keg_kicked once (on the actual transition)', async () => {
@@ -338,6 +341,8 @@ describe('crud routes', () => {
       });
       expect(kicked).toHaveLength(1);
       expect(kicked[0]).toMatchObject({ tapId: tap.id, kegId: keg.id, beerId: beer.id });
+      const kickedAt = () => (app.ctx.db.prepare('SELECT kicked_at FROM kegs WHERE id = ?').get(keg.id) as { kicked_at: string | null }).kicked_at;
+      expect(kickedAt()).toEqual(expect.any(String));
 
       // A second PATCH to the SAME status is not a transition -- must not re-fire.
       await app.inject({

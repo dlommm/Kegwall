@@ -173,6 +173,35 @@ describe('TapsPage', () => {
     expect(screen.getByTestId('taps-row-swap')).toHaveClass('taps-row__swap--critical');
   });
 
+  it('a nearly empty keg with no pace reads "almost out", and the swap chip counts every Swap button (2.0.1)', async () => {
+    const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    (getActiveKegStats as Mock).mockResolvedValue({
+      ok: true,
+      data: [
+        { kegId: 1, beerName: 'Midnight Oats', tapNumber: 1, srm: 38, levelPct: 4, remainingMl: 760, dailyBurnMl: 0, projectedKickDate: null },
+        { kegId: 2, beerName: 'Campfire Porter', tapNumber: 2, srm: 30, levelPct: 40, remainingMl: 7600, dailyBurnMl: 3800, projectedKickDate: soon },
+      ],
+    });
+    const beer = (id: number, name: string) => ({
+      id, name, brewery: null, style: null, abv: null, ibu: null, srm: 30, description: null, labelImage: null, createdAt: '',
+    });
+    const keg = (id: number, levelPct: number) => ({
+      id, beerId: id, tapId: id, sizeMl: 19000, volStartMl: 19000, volDispensedMl: 19000 * (1 - levelPct / 100), dateTapped: null, status: 'on_tap' as const, createdAt: '', kegType: null, costCents: null, levelPct, remainingMl: 19000 * (levelPct / 100),
+    });
+    (useTapStates as Mock).mockReturnValue({
+      taps: [
+        makeTap(1, { beer: beer(1, 'Midnight Oats'), keg: keg(1, 4) }),
+        makeTap(2, { beer: beer(2, 'Campfire Porter'), keg: keg(2, 40) }),
+      ],
+      stale: false, connected: true, reconnectCount: 0,
+    });
+    renderAdminPage(<TapsPage />);
+    const forecasts = await screen.findAllByTestId('taps-row-forecast');
+    expect(forecasts[0]).toHaveTextContent('almost out');
+    expect(screen.getAllByTestId('taps-row-swap')).toHaveLength(2);
+    expect(screen.getByText('Needs a swap').closest('button')).toHaveTextContent('2');
+  });
+
   it('renders the days-to-kick timeline marker positioned by elapsed/predicted (redesign 3d)', async () => {
     // Tapped 2 days ago, projected to kick in 8 days → ~20% elapsed.
     const tapped = new Date(Date.now() - 2 * 86400000).toISOString();

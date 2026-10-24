@@ -222,19 +222,44 @@
 }
 
 /* Wizard steps, said in words. */
+/* A row of segments, one per step, with only the current step's label written out under
+   it, so five steps never wrap (the other labels stay for screen readers). */
 .adm-steps {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: 4px;
   margin: 0;
-  padding: 0;
-  color: var(--text-faint);
+  padding: 0 0 26px;
+  color: var(--text);
   font-size: 14px;
   list-style: none;
 }
 
-.adm-steps [aria-current='step'] {
-  color: var(--text);
+.adm-steps li {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.adm-steps li[data-done],
+.adm-steps li[aria-current='step'] { background: var(--text); }
+
+.adm-steps li span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.adm-steps li[aria-current='step'] span {
+  left: 0;
+  bottom: 0;
+  width: auto;
+  height: auto;
+  clip-path: none;
   font-weight: 700;
 }
 

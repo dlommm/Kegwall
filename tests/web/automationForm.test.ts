@@ -211,6 +211,9 @@ describe('triggerSummary', () => {
       { type: 'notify', channels: ['ntfy'], title: 't', body: 'b' },
       { type: 'wall_banner', text: 'x', kind: 'info' } as any,
     ])).toBe('notify ntfy, show a wall banner');
+    // Channel ids read as words, never the raw id ("notify inApp").
+    expect(actionSummary([{ type: 'notify', channels: ['inApp', 'smtp'], title: 't', body: 'b' }]))
+      .toBe('notify in the app + by email');
     expect(actionSummary([])).toBe('do nothing');
   });
 });

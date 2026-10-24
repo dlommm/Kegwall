@@ -35,7 +35,8 @@ The side column shows:
   paired, at most four with a link to the rest;
 - **Hardware**: each configured source's state, the kegerator (the warmest Kegtron probe), each
   Govee sensor, and this server's CPU, memory, disk and temperature;
-- **Next to kick**: the three kegs projected to run out first;
+- **Next to kick**: the three kegs projected to run out first. A nearly empty keg with no
+  recent pours has no pace to project from, so it shows as "almost out";
 - **Lately**: the five latest events, with a link to Logs.
 
 Tonight never shows keg cost.

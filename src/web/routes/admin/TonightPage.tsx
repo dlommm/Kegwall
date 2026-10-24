@@ -23,6 +23,7 @@ import { formatActivityText } from '../../lib/activityText';
 import { formatTempC, formatVolumeMl } from '../../lib/units';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { kicksInLabel } from '../../lib/kegForecast';
+import { SOURCE_LABELS } from '../../lib/sourceLabels';
 import { pickInk } from '../../lib/contrast';
 import { wallTapModel, type WallTapModel } from '../../wall/wallModel';
 import { TapMarker } from '../../wall/TapMarker';
@@ -42,18 +43,6 @@ const DEFAULT_SERVING_ML = 473;
 /** The side column lists at most this many screens, then links to the rest. */
 const SCREENS_SHOWN = 4;
 
-const SOURCE_LABELS: Record<SourceStatus['name'], string> = {
-  kegtron_cloud: 'Kegtron cloud',
-  kegtron_udp: 'Kegtron UDP',
-  gen1_mqtt: 'Gen 1 MQTT',
-  gen1_ble: 'Gen 1 BLE',
-  pro_ble: 'Pro BLE',
-  mqtt_publisher: 'MQTT publisher',
-  govee: 'Govee gateway',
-  motion_mqtt: 'Motion MQTT',
-  motion_gpio: 'Motion GPIO',
-  motion_ble: 'Motion BLE',
-};
 
 const LEVEL_COLOR: Record<AttentionItem['level'], string> = {
   problem: 'var(--danger)', caution: 'var(--warn)', info: 'var(--info)',
@@ -443,7 +432,7 @@ function ScreensList({ walls, displays }: { walls: Wall[]; displays: Display[] }
             <li key={`w${w.id}`}>
               <div>
                 {w.name}
-                <span>No paired screen</span>
+                <span>{`/wall/${w.slug} · no paired screen`}</span>
               </div>
               <a className="tonight__val tonight__val--link" href={`/wall/${w.slug}`} target="_blank" rel="noreferrer">Open</a>
             </li>
@@ -460,9 +449,11 @@ function ScreensList({ walls, displays }: { walls: Wall[]; displays: Display[] }
 }
 
 function NextToKick({ models }: { models: WallTapModel[] }) {
+  // A nearly empty keg with no recent pours has no pace to project, but it's still next.
+  const daysOf = (m: WallTapModel) => (m.kicksInDays != null && m.tap.kickDate ? m.kicksInDays : 0);
   const next = models
-    .filter((m) => m.kicksInDays != null && m.tap.kickDate)
-    .sort((a, b) => a.kicksInDays! - b.kicksInDays!)
+    .filter((m) => (m.kicksInDays != null && m.tap.kickDate) || (m.isLow && !m.isKicked))
+    .sort((a, b) => daysOf(a) - daysOf(b) || (a.servings ?? 0) - (b.servings ?? 0))
     .slice(0, 3);
   if (next.length === 0) return null;
   return (
@@ -475,8 +466,8 @@ function NextToKick({ models }: { models: WallTapModel[] }) {
               {m.name}
               <span>{`Tap ${m.tapNumber} · ${m.servingsLabel.replace('≈ ', 'about ')}`}</span>
             </div>
-            <span className={`tonight__val${m.kicksInDays! <= 2 ? ' tonight__val--warn' : ''}`}>
-              {kicksInLabel(m.tap.kickDate ?? null)}
+            <span className={`tonight__val${daysOf(m) <= 2 ? ' tonight__val--warn' : ''}`}>
+              {kicksInLabel(m.tap.kickDate ?? null) ?? 'almost out'}
             </span>
           </li>
         ))}

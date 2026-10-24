@@ -21,7 +21,9 @@ function Flaps({ text, n }: { text: string; n: number }) {
 
 /** Kegs board like flights: the one kicking soonest departs first; kicked kegs last. */
 export function departureOrder(a: WallTapModel, b: WallTapModel): number {
-  const rank = (m: WallTapModel) => (m.isKicked || !m.hasBeer ? 1e6 : m.kicksInDays ?? 1e5);
+  // A low keg with no pace yet is boarding now, not last: it ranks with "today".
+  const rank = (m: WallTapModel) => (m.isKicked || !m.hasBeer ? 1e6
+    : m.kicksInDays ?? (m.isLow ? 0 : 1e5));
   return rank(a) - rank(b) || (a.servings ?? 0) - (b.servings ?? 0) || a.tapNumber - b.tapNumber;
 }
 
@@ -35,7 +37,7 @@ function status(m: WallTapModel): { text: string; tone: string } {
 
 function departsIn(m: WallTapModel): string {
   if (m.isKicked || !m.hasBeer) return '—';
-  if (m.kicksInDays == null) return '—';
+  if (m.kicksInDays == null) return m.isLow ? 'SOON' : '—';
   if (m.kicksInDays <= 1) return '~1 DAY';
   return `~${m.kicksInDays} DAYS`;
 }

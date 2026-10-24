@@ -8,7 +8,9 @@ viewers see Taps and Monitors.
 
 The page opens with a sentence about your taps ("Twelve taps. Tap 12 is empty and two more kegs
 are nearly done.") and which keg to swap first. Under it, chips filter the list: **All**,
-**Needs a swap** (empty, kicked, or at 15 % or less) and **Due for cleaning**.
+**Needs a swap** (empty, kicked, at 15 % or less, or projected to kick within three days: every
+tap with a **Swap keg** button) and **Due for cleaning**. A nearly empty keg with no recent pours
+has no pace to forecast from, so its **Kicks in** column reads "almost out".
 
 ![The Taps page: a sentence about the taps, filter chips and the table](images/admin-taps.jpg)
 

@@ -234,7 +234,9 @@ export function TapsPage() {
 
   const statFor = (tap: TapState) => (tap.keg ? kegStats.find((s) => s.kegId === tap.keg!.id) : undefined);
   const cleaningFor = (tapId: number) => cleanings.find((c) => c.tapId === tapId);
-  const needsSwap = (m: WallTapModel) => isEmptyTap(m) || isLowTap(m);
+  // The same rule as the row's Swap button, so the chip count matches the buttons shown.
+  const needsSwap = (m: WallTapModel) => isEmptyTap(m) || isLowTap(m)
+    || (!m.isKicked && kicksSoon(statFor(m.tap)?.projectedKickDate ?? null));
   const swapCount = models.filter(needsSwap).length;
   const dueCount = models.filter((m) => cleaningFor(m.tap.tapId)?.due).length;
   const shown = models.filter((m) => (filter === 'swap' ? needsSwap(m)
@@ -500,7 +502,8 @@ function TapRow({
   const kickSoon = !kicked && stat ? kicksSoon(stat.projectedKickDate) : false;
   const kegType = tap.keg ? tap.keg.kegType ?? matchKegType(tap.keg.sizeMl) : null;
   const hasActiveKeg = tap.keg != null && tap.keg.status === 'on_tap';
-  const forecast = !kicked ? kicksInText(stat) : null;
+  // A low keg with no recent pours has no pace to project from; say so instead of a dash.
+  const forecast = !kicked ? kicksInText(stat) ?? (low ? 'almost out' : null) : null;
   const mon = boundMonitorLabel(monitor);
   const swapLeads = kickSoon || low || empty;
   const kegLine = [
@@ -540,7 +543,7 @@ function TapRow({
       <td className="taps-row__kicks adm-num-cell">
         {forecast ? (
           <span
-            className={kickSoon ? 'taps-row__forecast taps-row__forecast--danger' : 'taps-row__forecast'}
+            className={kickSoon || (low && !stat?.projectedKickDate) ? 'taps-row__forecast taps-row__forecast--danger' : 'taps-row__forecast'}
             data-testid="taps-row-forecast"
           >
             {forecast}

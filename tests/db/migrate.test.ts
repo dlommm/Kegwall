@@ -32,7 +32,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     db.close();
     // reopen: migrations must not re-run/fail
     const db2 = openDb(dir);
-    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 23 });
+    expect(db2.prepare('SELECT COUNT(*) c FROM schema_migrations').get()).toEqual({ c: 24 });
     db2.close();
   });
 
@@ -59,7 +59,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
       '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
-      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql',
+      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql', '024_keg_kicked_at.sql',
     ]);
     const idx = upgraded.prepare(`SELECT name FROM sqlite_master WHERE type='index'`)
       .all().map((r: any) => r.name);
@@ -94,7 +94,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
       '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
-      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql',
+      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql', '024_keg_kicked_at.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;
@@ -182,7 +182,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
       '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
-      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql',
+      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql', '024_keg_kicked_at.sql',
     ]);
     db.close();
   });
@@ -212,7 +212,7 @@ describe('migrations', { timeout: 30_000 }, () => {
     expect(applied).toEqual([
       '001_initial.sql', '002_unique_active_keg.sql', '003_on_deck_status.sql',
       '004_tap_default_drinker.sql', '005_keg_type.sql', '006_pour_quality.sql', '007_logs.sql', '008_locations_displays.sql', '009_feature_pack.sql', '010_remove_locations.sql', '011_wall_devices.sql', '012_govee_monitors.sql', '013_tap_hidden.sql', '014_host_stats.sql', '015_udp_activity.sql', '016_face_embeddings.sql', '017_faces_log_source.sql', '018_display_token.sql', '019_cost_suppliers.sql', '020_games.sql', '021_pours_drinker_index.sql',
-      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql',
+      '022_pair_code_expiry.sql', '023_cleaning_reminders.sql', '024_keg_kicked_at.sql',
     ]);
 
     const keg = upgraded.prepare('SELECT * FROM kegs WHERE id = 1').get() as any;

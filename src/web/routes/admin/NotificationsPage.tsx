@@ -91,7 +91,7 @@ export function NotificationsPage() {
         : unread === 0 ? 'You’re all caught up.'
           : `${unread === 1 ? 'One notification' : `${capitalize(countWord(unread))} notifications`} to read.`}
       sub="Alerts from your automations and from Kegwall itself, newest first. The bell in the top bar shows the latest."
-      actions={(
+      actions={(anyUnacked || markingAll) && (
         <Button
           data-testid="notifications-page-mark-all-read"
           disabled={markingAll || !anyUnacked}

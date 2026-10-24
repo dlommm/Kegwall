@@ -333,9 +333,8 @@ export function biggestClaimedPour(
 export interface AnalyticsKpis {
   pours: number;
   volumeMl: number;
-  /** Kicked kegs that were poured from inside the window (kegs carry no
-   * kicked_at timestamp — "kicked and active in the window" is the best
-   * available proxy). */
+  /** Kegs kicked inside the window (by `kicked_at`; kegs kicked before migration 024 carry
+   * their last pour's time). */
   kegsKicked: number;
   avgQuality: number | null;
   /** Mean cost of a pint over the window's pours, from keg cost tracking
@@ -353,11 +352,9 @@ export function analyticsKpis(db: Database.Database, days: number, now = new Dat
   const totals = db.prepare(
     'SELECT COUNT(*) c, COALESCE(SUM(volume_ml), 0) v, AVG(quality) q FROM pours WHERE ts >= ?',
   ).get(cutoff) as { c: number; v: number; q: number | null };
-  const kicked = (db.prepare(`
-    SELECT COUNT(DISTINCT k.id) c
-    FROM kegs k JOIN pours p ON p.keg_id = k.id
-    WHERE k.status = 'kicked' AND p.ts >= ?
-  `).get(cutoff) as any).c as number;
+  const kicked = (db.prepare(
+    `SELECT COUNT(*) c FROM kegs WHERE status = 'kicked' AND kicked_at >= ?`,
+  ).get(cutoff) as { c: number }).c;
   const cost = db.prepare(`
     SELECT SUM(p.volume_ml * 1.0 / k.vol_start_ml * k.cost_cents) AS spent_cents,
            SUM(p.volume_ml) AS costed_ml

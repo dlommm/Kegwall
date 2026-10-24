@@ -345,7 +345,12 @@ export async function crudRoutes(app: FastifyInstance, dataDir = './data') {
       db.prepare('UPDATE kegs SET purchased_at = ? WHERE id = ?').run(body.purchasedAt, keg.id);
     }
     if (body.status === undefined) return getKeg(db, keg.id);
-    db.prepare('UPDATE kegs SET status = ? WHERE id = ?').run(body.status, keg.id);
+    if (body.status === keg.status) {
+      db.prepare('UPDATE kegs SET status = ? WHERE id = ?').run(body.status, keg.id);
+    } else {
+      db.prepare('UPDATE kegs SET status = ?, kicked_at = ? WHERE id = ?')
+        .run(body.status, body.status === 'kicked' ? new Date().toISOString() : null, keg.id);
+    }
     // Phase 5 Task 3: a manual status flip is the OTHER "swap/status path" the automation
     // engine's keg_tapped/keg_kicked triggers hook (the swap wizard above is the other).
     // Scoped to an actual TRANSITION (status !== keg.status) so re-PATCHing the same

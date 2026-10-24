@@ -15,7 +15,7 @@ The tabs:
 
 | Tab | What it shows |
 | --- | --- |
-| Overview | Pours, volume (with about how many pints), kegs kicked, cost per pint (owners only) and average pour quality, then pours per day and a few highlights |
+| Overview | Pours, volume (with about how many pints), kegs kicked in the range (by the day each keg was kicked), cost per pint (owners only) and average pour quality, then pours per day and a few highlights |
 | Pours | When people pour (a day × hour heatmap), pours by hour, and every pour in the range |
 | Beers & styles | Volume by beer, and each beer's history: first tapped, kegs, total, rating, how many pours were claimed |
 | Kegs & cost | Each keg on tap and when it should kick; for admins, what each keg cost, cost per pint, value left and monthly spend |

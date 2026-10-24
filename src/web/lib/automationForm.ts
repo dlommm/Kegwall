@@ -334,10 +334,15 @@ export function triggerSummary(trigger: Trigger): string {
   }
 }
 
+/** How a notify channel reads in a sentence ("notify in the app + Discord"). */
+const CHANNEL_WORDS: Record<string, string> = {
+  inApp: 'in the app', ntfy: 'ntfy', pushover: 'Pushover', smtp: 'by email', discord: 'Discord', slack: 'Slack',
+};
+
 /** One action → a short verb phrase for the sentence-card summary (redesign 4g). */
 function oneActionSummary(action: Action): string {
   switch (action.type) {
-    case 'notify': return `notify ${action.channels.join(' + ')}`;
+    case 'notify': return `notify ${action.channels.map((c) => CHANNEL_WORDS[c] ?? c).join(' + ')}`;
     case 'webhook': return 'call a webhook';
     case 'mqtt_publish': return `publish to ${action.topic}`;
     case 'wall_banner': return 'show a wall banner';
