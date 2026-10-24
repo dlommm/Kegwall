@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import type { TapState } from '../../src/server/core/state.js';
 import { PourLayer, MAX_LANES } from '../../src/web/wall/pour/PourLayer';
 import {
-  glassFraction, headFraction, laneVolumeMl, servingMarks, volumeParts,
+  brimmed, glassFraction, headFraction, laneVolumeMl, servingMarks, volumeParts,
 } from '../../src/web/wall/pour/pourKit';
 import type { PourLane } from '../../src/web/wall/pour/usePourLanes';
 
@@ -39,6 +39,12 @@ describe('pour kit', () => {
     expect(glassFraction(600, 473)).toBe(1);
     expect(headFraction(0.5)).toBe(0);
     expect(headFraction(1)).toBeCloseTo(1, 5);
+  });
+
+  it('caps and spills the head only on a finished, full glass', () => {
+    expect(brimmed(412 / 473, true)).toBe(true);
+    expect(brimmed(412 / 473, false)).toBe(false);
+    expect(brimmed(120 / 473, true)).toBe(false);
   });
 
   it('marks 8, 12 and 16 oz on a pint glass', () => {

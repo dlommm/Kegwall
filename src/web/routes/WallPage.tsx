@@ -20,7 +20,7 @@ import {
   WallLook, autoPageSize, resolveLook,
 } from '../components/looks/WallLook';
 import { Stage } from '../design/Stage';
-import { PourLayer } from '../wall/pour/PourLayer';
+import { MAX_LANES, PourLayer } from '../wall/pour/PourLayer';
 import { usePourLanes, type RecordedPour } from '../wall/pour/usePourLanes';
 import {
   MOMENT_MS, WallMoment, isWallMomentEvent, type WallMomentEvent,
@@ -415,7 +415,7 @@ export function WallPage() {
                 data-transition={transition}
                 // Split and Dock move the wall aside to make room (see wall.css).
                 data-pour={pourLanes.length && (takeoverStyle === 'split' || takeoverStyle === 'dock') ? takeoverStyle : undefined}
-                style={{ '--pour-lanes': pourLanes.length } as React.CSSProperties}
+                style={{ '--pour-lanes': Math.min(pourLanes.length, MAX_LANES) } as React.CSSProperties}
               >
                 <WallLook
                   taps={currentTaps}

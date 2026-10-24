@@ -29,6 +29,13 @@ export function headFraction(frac: number): number {
   return Math.max(0, (frac - 0.55) / 0.45);
 }
 
+/** A finished pour this full has its head capped at the rim and spilling over; a shorter one doesn't. */
+export const BRIM_FRACTION = 0.85;
+
+export function brimmed(frac: number, finished: boolean): boolean {
+  return finished && frac >= BRIM_FRACTION;
+}
+
 const EASE_MS = 900;
 
 /**
@@ -80,7 +87,7 @@ export interface PourGlassProps {
   frac: number;
   /** Beer is flowing: the stream shows and the bubbles run. */
   flowing: boolean;
-  /** The pour finished: the stream's tail drops and the head spills over the rim. */
+  /** The pour finished: the stream's tail drops; a full glass's head rises to the rim and spills over. */
   finished: boolean;
   /** Glass size in design pixels. */
   width: number;
@@ -113,6 +120,7 @@ export function PourGlass({
       style={style}
       data-flowing={flowing ? 'true' : undefined}
       data-finished={finished ? 'true' : undefined}
+      data-brim={brimmed(frac, finished) ? 'true' : undefined}
       data-tilted={tilted ? 'true' : undefined}
       aria-hidden="true"
     >

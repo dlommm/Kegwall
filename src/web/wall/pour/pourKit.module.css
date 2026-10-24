@@ -153,7 +153,14 @@
   background: #F4ECD8;
   transform-origin: bottom;
   transform: scaleY(var(--head));
-  transition: bottom var(--motion-counter) var(--ease-out), transform var(--motion-counter) ease;
+  transition: bottom var(--motion-counter) var(--ease-out), transform var(--motion-counter) ease, height var(--motion-counter) var(--ease-out);
+}
+
+/* A full glass at the finish: the head rises from the beer to the rim, under the spill cap. */
+.rig[data-brim='true'] .foam {
+  height: calc((1 - var(--frac) * 0.94) * var(--gh) * var(--px));
+  border-radius: 0;
+  transform: none;
 }
 
 .bubbles i {
@@ -188,6 +195,8 @@
   font-weight: 700;
   font-size: calc(22 * var(--px));
   color: rgba(255, 255, 255, 0.75);
+  /* Stays readable where the head covers the mark. */
+  text-shadow: 0 0 calc(4 * var(--px)) rgba(0, 0, 0, 0.7);
 }
 
 .mark::after {
@@ -206,7 +215,7 @@
   box-shadow: inset 0 0 0 calc(5 * var(--px)) rgba(255, 255, 255, 0.45);
 }
 
-/* At the finish the head spills over the rim. */
+/* At the finish a full glass's head spills over the rim. */
 .spill {
   position: absolute;
   left: calc(6 * var(--px));
@@ -238,12 +247,12 @@
 .spill i:nth-of-type(2) { left: 48%; }
 .spill i:nth-of-type(3) { left: 84%; }
 
-.rig[data-finished='true'] .spill {
+.rig[data-brim='true'] .spill {
   opacity: 1;
   transition: opacity 200ms;
 }
 
-.rig[data-finished='true'] .spill i {
+.rig[data-brim='true'] .spill i {
   animation: drip 1.6s var(--ease-out) forwards;
 }
 

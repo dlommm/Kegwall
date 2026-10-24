@@ -91,10 +91,10 @@ default, so foam blips never flash the screen), the wall reacts in the chosen st
 
 | Style | What happens |
 | --- | --- |
-| `full` | The screen becomes the beer: its name, a large live counter, and a glass filling by measured volume over your serving size (8/12/16 oz marks on a pint), with a stream of beer from the spout. The head forms past half a glass and spills over at the finish |
+| `full` | The screen becomes the beer: its name, a large live counter, and a glass filling by measured volume over your serving size (8/12/16 oz marks on a pint), with a stream of beer from the spout. The head forms past half a glass; when a pour fills the glass (85 % of a serving or more) the head rises to the rim and spills over at the finish |
 | `spotlight` | The wall stays; every pouring row or card lifts and the rest dim |
 | `split` | The wall slides aside and a panel in the beer's color rises with the counter |
-| `dock` | A bar rises from the bottom and fills left to right; the wall lifts to make room |
+| `dock` | A bar rises from the bottom and fills left to right; the wall shrinks toward the top to make room, so its header stays on screen |
 | `fill` | The screen floods with the beer to the measured level, then drains |
 | `off` (Badge) | Nothing moves: the pouring row shows "Pouring now · 8.0 oz" in the look itself |
 | `tappull` | A giant handle in the beer's color swings forward on its pivot; the glass starts tilted, straightens as it fills, and slides off down the bar at the finish |

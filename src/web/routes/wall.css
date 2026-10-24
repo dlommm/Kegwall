@@ -297,9 +297,11 @@
   opacity: 0.55;
 }
 
-/* Dock: the wall lifts to make room for one bar per pour. */
+/* Dock: the wall shrinks toward the top to make room for one bar per pour, so its header
+   never leaves the screen. */
 .look-frame[data-pour='dock'] {
-  transform: translateY(calc(var(--pour-lanes, 1) * -95 * var(--u, 1px))) scale(0.92);
+  transform-origin: 50% 0;
+  transform: scale(calc(1 - var(--pour-lanes, 1) * 0.12));
 }
 
 @media (prefers-reduced-motion: reduce) {
