@@ -1,7 +1,7 @@
 import { memo, type CSSProperties } from 'react';
 import type { WallLookProps } from '../../components/looks/WallLook';
 import { getTheme } from '../../themes/themes';
-import { mixHex } from '../../lib/srm';
+import { pickInk, relativeLuminance } from '../../lib/contrast';
 import { TapMarker } from '../TapMarker';
 import type { WallTapModel } from '../wallModel';
 import {
@@ -18,33 +18,23 @@ export function classicDensity(count: number): ClassicDensity {
   return 'rows';
 }
 
-/** The keg fill behind a card: a deep tone of the beer on dark themes, a pale tint on light. */
-export function kegFillColor(beerColor: string, mode: 'dark' | 'light'): string {
-  return mode === 'light' ? mixHex(beerColor, '#FFFFFF', 0.62) : mixHex(beerColor, '#000000', 0.58);
+/** The keg fill behind a card: the beer at full strength (Kegwall 2.1). `mode` is kept for the
+ * callers that still pass it; the beer reads the same on light and dark themes. */
+export function kegFillColor(beerColor: string, _mode: 'dark' | 'light'): string {
+  return beerColor;
 }
 
-function Card({ m, mode, spotlightTapIds }: { m: WallTapModel; mode: 'dark' | 'light'; spotlightTapIds?: ReadonlySet<number> | null }) {
-  const level = m.isKicked || !m.hasBeer ? 0 : m.levelPct / 100;
+/** The card's words. Drawn twice: once in the wall's ink, and once in the beer's own ink,
+ * clipped to the liquid, so text stays readable wherever the keg line falls. */
+function CardBody({ m, testIds }: { m: WallTapModel; testIds: boolean }) {
   const n = m.servings != null ? Math.max(0, Math.round(m.servings)) : null;
   return (
-    <article
-      className={styles.card}
-      data-tap-state={m.isKicked ? 'kicked' : !m.hasBeer ? 'empty' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
-      data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
-      style={{
-        '--beer': m.beerColor,
-        '--fill': kegFillColor(m.beerColor, mode),
-        '--level': level,
-      } as CSSProperties}
-      data-testid="classic-card"
-    >
-      <span className={styles.fill} aria-hidden="true" />
-      <span className={styles.surface} aria-hidden="true" />
+    <>
       <div className={styles.top}>
         {m.hasBeer ? <TapMarker model={m} size={72} showNumber={false} /> : <span />}
         <span className={styles.tapNo}>{`Tap ${m.tapNumber}`}</span>
       </div>
-      <h2 className={styles.name} data-testid="classic-card-name">{m.name ?? 'Empty tap'}</h2>
+      <h2 className={styles.name} data-testid={testIds ? 'classic-card-name' : undefined}>{m.name ?? 'Empty tap'}</h2>
       <span className={styles.style}>
         {m.pouring && m.pourLabel ? `Pouring now · ${m.pourLabel}` : metaParts([m.style, m.abv != null && `${m.abv}%`])}
       </span>
@@ -60,6 +50,31 @@ function Card({ m, mode, spotlightTapIds }: { m: WallTapModel; mode: 'dark' | 'l
           <span className={styles.leftWord}>No keg</span>
         )}
       </div>
+    </>
+  );
+}
+
+function Card({ m, mode, spotlightTapIds }: { m: WallTapModel; mode: 'dark' | 'light'; spotlightTapIds?: ReadonlySet<number> | null }) {
+  const level = m.isKicked || !m.hasBeer ? 0 : m.levelPct / 100;
+  const fill = kegFillColor(m.beerColor, mode);
+  return (
+    <article
+      className={styles.card}
+      data-tap-state={m.isKicked ? 'kicked' : !m.hasBeer ? 'empty' : m.pouring ? 'pouring' : m.isLow ? 'low' : 'ok'}
+      data-spotlight={spotlightState(m.tap.tapId, spotlightTapIds)}
+      data-dark-beer={relativeLuminance(fill) < 0.02 || undefined}
+      style={{
+        '--beer': m.beerColor,
+        '--fill': fill,
+        '--fill-ink': pickInk(fill),
+        '--level': level,
+      } as CSSProperties}
+      data-testid="classic-card"
+    >
+      <span className={styles.fill} aria-hidden="true" />
+      <span className={styles.surface} aria-hidden="true" />
+      <div className={styles.body} data-ink-layer="wall"><CardBody m={m} testIds /></div>
+      {level > 0 && <div className={styles.bodyOnBeer} data-ink-layer="beer" aria-hidden="true"><CardBody m={m} testIds={false} /></div>}
     </article>
   );
 }

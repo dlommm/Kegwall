@@ -91,7 +91,9 @@ describe('Classic', () => {
   });
 
   it('uses a deep tone on dark themes and a pale tint on light ones', () => {
-    expect(kegFillColor('#C8962E', 'dark')).not.toBe(kegFillColor('#C8962E', 'light'));
+    // Kegwall 2.1: the beer at full strength on every theme, never dimmed.
+    expect(kegFillColor('#C8962E', 'dark')).toBe('#C8962E');
+    expect(kegFillColor('#C8962E', 'light')).toBe('#C8962E');
   });
 
   it('marks a kicked keg and names what is next', () => {

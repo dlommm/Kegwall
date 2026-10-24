@@ -9,6 +9,7 @@ import { getMenu } from '../../lib/api';
 import type { VolumeUnits } from '../../lib/units';
 import { ThemeProvider } from '../../themes/ThemeProvider';
 import { initials } from '../../lib/initials';
+import { TapStrip } from './TapStrip';
 import '../../design/fonts';
 import {
   ADMIN_DESTINATIONS, ADMIN_NAV_ITEMS, destinationFor, pageTitleFor, visibleDestinations,
@@ -307,6 +308,7 @@ export function AdminLayout() {
               ))}
             </nav>
           )}
+          <TapStrip />
         </header>
 
         <main className="admin-content adm-main" id="admin-main" tabIndex={-1}>

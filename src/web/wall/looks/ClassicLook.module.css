@@ -62,7 +62,6 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: calc(24 * var(--px)) calc(24 * var(--px)) calc(20 * var(--px));
   border-radius: calc(10 * var(--px));
   background: var(--color-surface-1);
   transition: transform var(--motion-takeover) var(--ease-out), opacity var(--motion-takeover) var(--ease-out);
@@ -78,14 +77,20 @@
   transition: transform var(--motion-counter) var(--ease-out);
 }
 
-/* The liquid's surface line, in the beer's own color. */
+/* The head on the beer: a foam line where the liquid ends. */
 .surface {
   position: absolute;
   left: 0;
   right: 0;
   height: calc(6 * var(--px));
   top: calc((1 - var(--level)) * 100%);
-  background: var(--beer);
+  background: #F3E9D2;
+  transition: top var(--motion-counter) var(--ease-out);
+}
+
+/* A stout keeps a warm rim so it never disappears into a dark ground. */
+.card[data-dark-beer] .fill {
+  box-shadow: inset 0 0 0 calc(2 * var(--px)) rgb(255 235 200 / 0.28);
 }
 
 .card[data-tap-state='kicked'] .surface,
@@ -93,8 +98,36 @@
   display: none;
 }
 
-.card > :not(.fill):not(.surface) {
+/* The words, laid out once and drawn twice: .body in the wall's ink, .bodyOnBeer in the
+   beer's ink and clipped to the liquid, so each letter takes the ink of what's behind it. */
+.body,
+.bodyOnBeer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: calc(24 * var(--px)) calc(24 * var(--px)) calc(20 * var(--px));
+}
+
+.body {
   position: relative;
+  flex: 1;
+  clip-path: inset(0 0 calc(var(--level) * 100%) 0);
+  transition: clip-path var(--motion-counter) var(--ease-out);
+}
+
+.bodyOnBeer {
+  position: absolute;
+  inset: 0;
+  color: var(--fill-ink);
+  clip-path: inset(calc((1 - var(--level)) * 100%) 0 0 0);
+  transition: clip-path var(--motion-counter) var(--ease-out);
+}
+
+.bodyOnBeer .tapNo,
+.bodyOnBeer .style,
+.bodyOnBeer .left,
+.bodyOnBeer .leftWord {
+  color: var(--fill-ink) !important;
 }
 
 .top {
@@ -204,13 +237,22 @@
 }
 
 /* Board rows: the card becomes a row, the keg fills left to right. */
-.look[data-density='rows'] .card {
+.look[data-density='rows'] .body,
+.look[data-density='rows'] .bodyOnBeer {
   display: grid;
   grid-template-columns: calc(64 * var(--px)) minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
   column-gap: calc(18 * var(--px));
   align-items: center;
   padding: calc(8 * var(--px)) calc(20 * var(--px));
+}
+
+.look[data-density='rows'] .body {
+  clip-path: inset(0 0 0 calc(var(--level) * 100%));
+}
+
+.look[data-density='rows'] .bodyOnBeer {
+  clip-path: inset(0 calc((1 - var(--level)) * 100%) 0 0);
 }
 
 .look[data-density='rows'] .fill {

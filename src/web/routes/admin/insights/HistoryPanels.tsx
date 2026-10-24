@@ -1,4 +1,5 @@
 import { formatVolumeMl } from '../../../lib/units';
+import { money, monthLabel } from '../../../lib/adminFormat';
 import { HourHistogramRow } from '../HourHistogramRow';
 import { KegDepletionCards } from '../KegDepletionCards';
 import { BeerVolumeChart } from '../BeerVolumeChart';
@@ -166,14 +167,14 @@ export function KegsPanel({ d, units, isAdmin }: PanelProps) {
                       <td>{row.beerName}</td>
                       <td>{row.supplierName ?? '—'}</td>
                       <td className="font-tabular">
-                        {row.costCents != null ? `$${(row.costCents / 100).toFixed(2)}` : '—'}
+                        {money(row.costCents)}
                       </td>
                       <td className="font-tabular">
-                        {row.pricePerPintCents != null ? `$${(row.pricePerPintCents / 100).toFixed(2)}` : '—'}
+                        {money(row.pricePerPintCents)}
                       </td>
                       <td className="font-tabular">{`${row.pouredPct}%`}</td>
                       <td className="font-tabular">
-                        {row.valueLeftCents != null ? `$${(row.valueLeftCents / 100).toFixed(2)}` : '—'}
+                        {money(row.valueLeftCents)}
                       </td>
                     </tr>
                   ))}
@@ -199,11 +200,11 @@ export function KegsPanel({ d, units, isAdmin }: PanelProps) {
               <tbody>
                 {monthlySpend.map((row) => (
                   <tr key={row.month} data-testid="monthly-spend-row">
-                    <td className="font-tabular">{row.month}</td>
+                    <td>{monthLabel(row.month)}</td>
                     <td className="font-tabular">{row.kegs}</td>
-                    <td className="font-tabular">{`$${(row.spendCents / 100).toFixed(2)}`}</td>
+                    <td className="font-tabular">{money(row.spendCents)}</td>
                     <td className="font-tabular">
-                      {row.pricePerPintCents != null ? `$${(row.pricePerPintCents / 100).toFixed(2)}` : '—'}
+                      {money(row.pricePerPintCents)}
                     </td>
                   </tr>
                 ))}

@@ -92,7 +92,7 @@ describe('StatsPage', () => {
     const row = screen.getByTestId('keg-cost-row');
     expect(row).toHaveTextContent('Yuengling');
     expect(row).toHaveTextContent('Joes');
-    expect(row).toHaveTextContent('$131.00'); // paid
+    expect(row).toHaveTextContent('$131'); // paid
     expect(row).toHaveTextContent('$1.31'); // $/pint
     expect(row).toHaveTextContent('50%');
     expect(row).toHaveTextContent('$65.50'); // value left
@@ -224,8 +224,8 @@ describe('StatsPage', () => {
     await flush();
     fireEvent.click(screen.getByTestId('analytics-tab-kegs'));
     const row = screen.getByTestId('monthly-spend-row');
-    expect(row).toHaveTextContent('2026-06');
-    expect(row).toHaveTextContent('$390.00');
+    expect(row).toHaveTextContent('June 2026');
+    expect(row).toHaveTextContent('$390');
     expect(row).toHaveTextContent('$1.31');
   });
 

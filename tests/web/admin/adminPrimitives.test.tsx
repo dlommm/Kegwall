@@ -66,7 +66,8 @@ describe('admin primitives (Kegwall V2)', () => {
   });
 
   it('lifts a stout’s near-black so its level bar still reads on the dark track', () => {
-    expect(barColor('#0a0503')).not.toBe('#0a0503');
+    // Kegwall 2.1: never lightened; a stout gets an outline instead (isDarkBeer).
+    expect(barColor('#0a0503')).toBe('#0a0503');
     expect(barColor('#E0B266')).toBe('#E0B266');
     expect(barColor('var(--surface)')).toBe('var(--surface)');
   });

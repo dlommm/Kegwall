@@ -6,8 +6,15 @@ so a pour at 1 am still counts as tonight.
 
 ![Tonight: the sentence about the night, what needs attention, the last pour, the taps and pours by hour](images/admin-tonight.jpg)
 
+The admin sits on a dark frame with each page on a lighter sheet, and each block of a page on
+its own panel. A 4 px strip under the top bar shows the colours of the beers on tap, in tap
+order, and every page opens on a faint copper band holding its sentence. Copper is kept for the
+one main action on a screen and for what is happening now (the current hour, a pour in
+progress). Light mode follows the same layers.
+
 **Needs attention** lists what needs doing, one row per kind of problem, each with one action.
-Problems come first (red diamond), then cautions (amber), then information (blue):
+Problems come first (red diamond, a red edge and a larger title), then cautions (amber edge), then
+information (blue, as plain ruled lines):
 
 | Row | When it shows | Action |
 |---|---|---|
@@ -25,9 +32,13 @@ Taps whose line-cleaning reminders are off are listed in a short note under the 
 Beside the list, the **last pour** shows its volume on the beer's color, the beer, the tap and
 how long ago, with **Assign it** when nobody has claimed it.
 
-**On tap now** shows every tap as a glass filled to its level in the beer's color, with the
-servings left (amber when the keg is low); select one to open it under Taps & kegs. **Tonight so
-far** charts pours per hour from 4 pm (or the first pour) with the current hour highlighted.
+**On tap now** shows every tap as a glass filled to its level in the beer's own color with a
+foam line on top, the tap number set large behind it, and the servings left. The words take dark
+or light ink depending on whether the beer or the empty glass is behind them. A low keg gets an
+amber edge and count, a kicked tap is an empty outline, and a stout keeps a warm rim so it shows
+on the dark page. Select one to open it under Taps & kegs. **Tonight so far** charts pours per
+hour from 4 pm (or the first pour), with each hour's count over its bar and the current hour in
+copper.
 
 The side column shows:
 

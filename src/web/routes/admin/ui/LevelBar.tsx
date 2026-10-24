@@ -1,18 +1,25 @@
 import type { CSSProperties } from 'react';
 import { parseHex, relativeLuminance } from '../../../lib/contrast';
-import { mixHex } from '../../../lib/srm';
 
-/** A stout's near-black would vanish on the dark track; lift it until it reads as a fill. */
-export function barColor(color: string): string {
-  if (!parseHex(color)) return color;
-  return relativeLuminance(color) < 0.03 ? mixHex(color, '#F7F4EE', 0.3) : color;
+/** True for a stout's near-black, which would vanish on a dark track without an outline. */
+export function isDarkBeer(color: string): boolean {
+  return parseHex(color) != null && relativeLuminance(color) < 0.03;
 }
 
-/** What's left in a keg as a thin bar in the beer's color (amber track when low). */
+/** The bar's fill: the beer itself, never lightened (a dark beer gets an outline instead). */
+export function barColor(color: string): string {
+  return color;
+}
+
+/**
+ * What's left in a keg as a sight glass (Kegwall 2.1 "w-glass"): the beer at full strength
+ * with a foam edge and quarter marks, an amber edge when low, and a warm outline on a stout.
+ */
 export function LevelBar({ pct, color, low = false }: { pct: number; color: string; low?: boolean }) {
   const width = Math.max(0, Math.min(100, pct));
+  const cls = ['adm-level', low ? 'is-low' : '', isDarkBeer(color) ? 'is-dark' : ''].filter(Boolean).join(' ');
   return (
-    <span className={low ? 'adm-level is-low' : 'adm-level'} aria-hidden="true">
+    <span className={cls} aria-hidden="true">
       <i style={{ width: `${width}%`, background: barColor(color) } as CSSProperties} />
     </span>
   );

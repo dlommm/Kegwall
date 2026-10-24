@@ -24,9 +24,8 @@ import { formatTempC, formatVolumeMl } from '../../lib/units';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { kicksInLabel } from '../../lib/kegForecast';
 import { SOURCE_LABELS } from '../../lib/sourceLabels';
-import { pickInk } from '../../lib/contrast';
+import { pickInk, relativeLuminance } from '../../lib/contrast';
 import { wallTapModel, type WallTapModel } from '../../wall/wallModel';
-import { TapMarker } from '../../wall/TapMarker';
 import { useAdminContext } from './useAdminContext';
 import { PageTemplate } from './PageTemplate';
 import { Button, ButtonLink, StatusDot } from './ui';
@@ -352,28 +351,49 @@ function LastPour({
   );
 }
 
+/** One tap as a glass (Kegwall 2.1 "t-rail"): the beer at full strength with a foam line,
+ * the tap number set large behind it, a caution edge when low, an empty outline when kicked. */
 function TapGlass({ model }: { model: WallTapModel }) {
   const empty = !model.hasBeer || !model.tap.keg;
   const value = empty || model.isKicked ? '—' : String(Math.round(model.servings ?? 0));
   const caption = empty ? 'no keg' : model.isKicked ? 'kicked' : `${model.servingNoun}s left`;
-  const fill = { height: `${empty ? 0 : model.levelPct}%`, background: model.beerColor } as CSSProperties;
+  const level = empty || model.isKicked ? 0 : model.levelPct;
+  const style = {
+    '--tap-beer': model.beerColor,
+    '--tap-ink': pickInk(model.beerColor),
+    '--tap-level': level / 100,
+  } as CSSProperties;
+  // The words are drawn twice, the second copy in the beer's ink and clipped to the liquid,
+  // so the foam line can fall anywhere without cutting through a name.
+  const words = (
+    <>
+      <span className="tonight__tap-name">{model.name ?? 'Empty'}</span>
+      <b className="tonight__tap-num">{value}</b>
+      <span className="tonight__tap-cap">{caption}</span>
+    </>
+  );
+  const dark = model.hasBeer && relativeLuminance(model.beerColor) < 0.02;
+  const cls = [
+    'tonight__tap',
+    model.isLow && !model.isKicked ? 'is-low' : '',
+    model.pouring ? 'is-pouring' : '',
+    model.isKicked || empty ? 'is-empty' : '',
+    dark ? 'is-dark' : '',
+  ].filter(Boolean).join(' ');
   return (
     <li>
       <Link
         to={`/admin/taps?tap=${model.tap.tapId}`}
-        className={`tonight__tap${model.isLow && !model.isKicked ? ' is-low' : ''}${model.pouring ? ' is-pouring' : ''}`}
+        className={cls}
+        style={style}
         data-testid="dashboard-tap-pill"
         data-kicked={model.isKicked}
         aria-label={`Tap ${model.tapNumber}: ${model.name ?? 'empty'}, ${value === '—' ? caption : `${value} ${caption}`}`}
       >
-        <i className="tonight__tap-fill" style={fill} aria-hidden="true" />
-        <span className="tonight__tap-top" aria-hidden="true">
-          {model.hasBeer ? <TapMarker model={model} size={30} showNumber={false} /> : <span />}
-          <span>Tap {model.tapNumber}</span>
-        </span>
-        <span className="tonight__tap-name" aria-hidden="true">{model.name ?? 'Empty'}</span>
-        <b className="tonight__tap-num" aria-hidden="true">{value}</b>
-        <span className="tonight__tap-cap" aria-hidden="true">{caption}</span>
+        {level > 0 && <i className="tonight__tap-fill" style={{ height: `${Math.max(3, level)}%` }} aria-hidden="true" />}
+        <span className="tonight__tap-no" aria-hidden="true">{model.tapNumber}</span>
+        <span className="tonight__tap-words" aria-hidden="true">{words}</span>
+        {level > 0 && <span className="tonight__tap-words tonight__tap-words--on-beer" aria-hidden="true">{words}</span>}
       </Link>
     </li>
   );
@@ -388,6 +408,7 @@ function TonightChart({ pours }: { pours: Pour[] }) {
       <ol className="tonight__hours" data-testid="tonight-hours">
         {bars.map((b) => (
           <li key={b.offset} aria-label={`${b.label}: ${b.pours} pour${b.pours === 1 ? '' : 's'}`}>
+            <b aria-hidden="true">{b.pours > 0 ? b.pours : ''}</b>
             <i className={b.isNow ? 'is-now' : undefined} style={{ height: `${(b.pours / max) * 100}%` }} aria-hidden="true" />
             <span aria-hidden="true">{b.label}</span>
           </li>

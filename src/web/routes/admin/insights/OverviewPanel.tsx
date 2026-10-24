@@ -1,6 +1,7 @@
 import { formatVolumeMl } from '../../../lib/units';
 import { formatWholeVolume } from '../../../lib/lookData';
 import { PoursChart } from '../PoursChart';
+import { money, wholeMoney } from '../../../lib/adminFormat';
 import { ML_PER_PINT } from '../../../../server/core/pricing.js';
 import type { PanelProps } from './HistoryPanels';
 
@@ -18,7 +19,7 @@ export function OverviewPanel({ d, units }: PanelProps) {
   const busiest = [...pours].sort((a, b) => b.count - a.count)[0];
   if (busiest && busiest.count > 0) highlights.push(`Busiest day: ${new Date(`${busiest.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${busiest.count} pours`);
   if (leaderboardRows[0]) highlights.push(`Top pourer: ${leaderboardRows[0].displayName} · ${leaderboardRows[0].pourCount} pours`);
-  if (kpis?.costPerPintCents != null) highlights.push(`Cost per pint: $${(kpis.costPerPintCents / 100).toFixed(2)}`);
+  if (kpis?.costPerPintCents != null) highlights.push(`Cost per pint: ${money(kpis.costPerPintCents)}`);
 
   return (
     <>
@@ -41,14 +42,14 @@ export function OverviewPanel({ d, units }: PanelProps) {
             </div>
             <div className="adm-kpi">
               <b data-testid="kpi-cost">
-                {kpis.costPerPintCents != null ? `$${(kpis.costPerPintCents / 100).toFixed(2)}` : '—'}
+                {money(kpis.costPerPintCents)}
               </b>
               <span>cost per pint</span>
               <small>
                 {kpis.valueOnTapCents == null
                   ? 'owners only' /* redacted for viewer accounts (pricing.showCostsToViewers off) */
                   : kpis.valueOnTapCents > 0
-                    ? `$${(kpis.valueOnTapCents / 100).toFixed(0)} of beer on tap`
+                    ? `${wholeMoney(kpis.valueOnTapCents)} of beer on tap`
                     : 'set keg costs to track it'}
               </small>
             </div>

@@ -203,6 +203,12 @@ custom CSS.
 | `.wall-grid`, `.wall-header`, `.ticker`, `.ticker__*` | `[data-surface="wall"]` and the look root |
 | `.qr-overlay` | The QR now sits inside each look's footer |
 
+Since 2.1 the Classic look paints each keg in the beer's true color on every theme (it used to
+darken it on dark themes and pale it on light ones), with a foam line where the beer ends. To keep
+every word readable wherever the level falls, a card's words are drawn twice:
+`[data-ink-layer="wall"]` in the theme's ink above the liquid and `[data-ink-layer="beer"]` in the
+beer's ink below it. Custom CSS that restyles a card's text should target both.
+
 Theme token overrides (`--bg`, `--surface`, `--text`, `--accent`, …) work as before. Every theme
 now uses the Kegwall type, so a `--font-display` / `--font-body` override is the only way to
 change the typeface.

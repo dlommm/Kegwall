@@ -4,7 +4,7 @@ export { Button, ButtonLink, type ButtonVariant } from './Button';
 export { Chips, type ChipOption } from './Chips';
 export { Drawer } from './Drawer';
 export { Field } from './Field';
-export { barColor, LevelBar } from './LevelBar';
+export { barColor, isDarkBeer, LevelBar } from './LevelBar';
 export {
   Menu, MenuTrigger, MenuContent, MenuItem, MenuLabel, MenuSeparator,
   Popover, PopoverTrigger, PopoverContent, Tooltip,

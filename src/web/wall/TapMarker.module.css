@@ -18,6 +18,11 @@
   overflow: hidden;
 }
 
+/* A stout's marker keeps a warm rim, so it never disappears into a dark ground. */
+.marker[data-dark-beer] {
+  box-shadow: inset 0 0 0 max(1px, calc(var(--size) * 0.03)) rgb(255 235 200 / 0.4);
+}
+
 .letters {
   font-size: calc(var(--size) * 0.42);
   font-weight: 800;

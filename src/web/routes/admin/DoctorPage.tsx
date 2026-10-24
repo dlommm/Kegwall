@@ -193,7 +193,7 @@ export function DoctorPage() {
           <details className="doctor-raw" data-testid="doctor-raw-samples">
             <summary>Raw UDP packets captured ({rawSamples.length})</summary>
             {rawSamples.map((s) => (
-              <pre key={s.ts} className="doctor-raw__packet font-tabular">
+              <pre key={s.ts} className="doctor-raw__packet font-mono">
                 {`${s.ts}\n${s.raw}`}
               </pre>
             ))}

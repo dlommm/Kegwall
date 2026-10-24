@@ -12,6 +12,9 @@ are nearly done.") and which keg to swap first. Under it, chips filter the list:
 tap with a **Swap keg** button) and **Due for cleaning**. A nearly empty keg with no recent pours
 has no pace to forecast from, so its **Kicks in** column reads "almost out".
 
+Each row's **Left** column is a sight glass filled with the beer, with a foam edge and marks at
+each quarter; it gets an amber edge when the keg is low, and a stout keeps a warm outline.
+
 ![The Taps page: a sentence about the taps, filter chips and the table](images/admin-taps.jpg)
 
 Each row shows:

@@ -8,7 +8,8 @@
 
 .admin-shell {
   min-height: 100vh;
-  background: var(--bg);
+  /* The frame (Kegwall 2.1): the top bar sits on it, each page on a lighter sheet. */
+  background: var(--frame, var(--bg));
   color: var(--text);
   font-family: var(--font-body);
   font-size: 16px;
@@ -43,7 +44,7 @@
   top: -60px;
   z-index: 50;
   padding: 10px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--text);
   color: var(--bg);
   font-weight: 700;
@@ -63,7 +64,22 @@
 
 .adm-top {
   padding: 0 44px;
-  box-shadow: 0 1px 0 var(--border);
+  background: var(--frame, var(--bg));
+}
+
+/* Tonight's beer colours under the top bar, one segment per tap with a keg on (TapStrip). */
+.adm-strip {
+  display: flex;
+  height: 4px;
+  gap: 2px;
+  max-width: 1360px;
+  margin: 0 auto 10px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.adm-strip i {
+  flex: 1;
 }
 
 .adm-top__bar {
@@ -130,7 +146,7 @@
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: none;
   color: var(--text-faint);
   font: inherit;
@@ -178,7 +194,7 @@
   height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: none;
   color: var(--text-dim);
 }
@@ -202,9 +218,9 @@
 
 .adm-top .notification-bell__panel {
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 0.45), 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-float);
 }
 
 /* Sub-tabs: the current destination's sections, each an existing admin URL. */
@@ -238,21 +254,33 @@
 }
 
 .adm-main {
-  /* 1360 px of content plus the 44 px gutters, so pages line up with the bar. */
-  max-width: 1448px;
-  margin: 0 auto;
-  padding: 0 44px 64px;
+  /* The sheet: the page ground on the darker frame, inset 12 px with rounded top corners.
+     The side padding keeps 1360 px of content lined up with the top bar's. */
+  min-height: calc(100vh - 72px);
+  margin: 0 12px;
+  padding: 4px max(32px, calc((100% - 1360px) / 2)) 64px;
+  border-radius: 18px 18px 0 0;
+  background: var(--bg);
   outline: none;
 }
 
 /* --- Page template ------------------------------------------------------------ */
 
+/* The page opens on a faint copper band (Kegwall 2.1 contrast): a little warmth behind the
+   sentence that says what the page is about. */
 .adm-page__head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 32px;
-  margin-bottom: 28px;
+  margin: 20px 0 28px;
+  padding: 26px 28px 28px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+.adm-page__head > :first-child > :first-child {
+  margin-top: 0;
 }
 
 .adm-page__crumb {
@@ -307,7 +335,7 @@
   min-height: 44px;
   padding: 0 18px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font: inherit;
   font-size: 15px;
   font-weight: 700;
@@ -321,9 +349,22 @@
   cursor: default;
 }
 
+.adm-btn {
+  transition: transform var(--motion-press, 120ms) var(--ease-out), box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.adm-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Copper is kept for the one action that matters on a screen (and for "now"). */
 .adm-btn--primary {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--accent);
+  color: var(--accent-ink, var(--bg));
+}
+
+.adm-btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--text));
 }
 
 .adm-btn--secondary {
@@ -366,7 +407,7 @@
   min-height: 44px;
   padding: 0 14px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
@@ -405,7 +446,7 @@
   flex: none;
   width: 46px;
   height: 28px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
@@ -454,6 +495,10 @@
 .adm-table-wrap {
   max-width: 100%;
   overflow-x: auto;
+  /* A list is one panel on the page (Kegwall 2.1 contrast). */
+  padding: 6px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .adm-table {
@@ -475,6 +520,17 @@
   vertical-align: middle;
 }
 
+/* Rows sit one more step up when they're pointed at or chosen. */
+.adm-table tbody tr {
+  transition: background-color 0.16s ease;
+}
+
+@media (hover: hover) {
+  .adm-table tbody tr:hover {
+    background: var(--surface-2);
+  }
+}
+
 .adm-table .adm-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -487,7 +543,7 @@
   align-items: flex-start;
   gap: 8px;
   padding: 28px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -508,7 +564,7 @@
 
 .adm-skeleton {
   display: block;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface-2);
 }
 
@@ -529,10 +585,10 @@
   z-index: 45;
   min-width: 220px;
   padding: 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   color: var(--text);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 0.45), 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-float);
   font-family: var(--font-body);
 }
 
@@ -543,7 +599,7 @@
   gap: 24px;
   min-height: 44px;
   padding: 0 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text);
   text-decoration: none;
   cursor: pointer;
@@ -551,7 +607,8 @@
 }
 
 .adm-menu__item[data-highlighted] {
-  background: color-mix(in srgb, var(--text) 9%, transparent);
+  background: var(--surface-3, color-mix(in srgb, var(--text) 9%, transparent));
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .adm-menu__item[data-disabled] {
@@ -586,7 +643,7 @@
   z-index: 46;
   max-width: 280px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--text);
   color: var(--bg);
   font-size: 14px;
@@ -671,10 +728,10 @@
   gap: 14px;
   padding: 24px;
   overflow-y: auto;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 24px 64px rgb(0 0 0 / 0.5), 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-float);
   transform: translate(-50%, -50%);
 }
 
@@ -762,7 +819,7 @@
   gap: 2px;
   padding: 10px 14px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   text-align: left;
 }
 
@@ -783,7 +840,7 @@
   z-index: 50;
   margin: 0;
   padding: 12px 18px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.4), inset 3px 0 0 var(--ok);
   color: var(--text);
@@ -808,7 +865,7 @@
   min-height: 44px;
   padding: 0 16px;
   border: 0;
-  border-radius: 22px;
+  border-radius: 22px;;
   background: var(--surface);
   color: var(--text-dim);
   font: inherit;
@@ -836,7 +893,7 @@
   min-height: 44px;
   padding: 0 40px 0 14px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238C857A' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 14px center;
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--text);
@@ -845,18 +902,37 @@
 }
 
 /* What's left in a keg: a thin bar in the beer's color. */
+/* A sight glass: the beer to its level, a foam edge where it ends, quarter marks over it. */
 .adm-level {
+  position: relative;
   display: block;
-  height: 6px;
-  margin-top: 6px;
+  height: 14px;
+  margin-top: 8px;
   overflow: hidden;
-  border-radius: 3px;
-  background: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-3, var(--border));
 }
 
 .adm-level i {
   display: block;
   height: 100%;
+  box-shadow: 2px 0 0 var(--foam, #F3E9D2);
+}
+
+.adm-level::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), color-mix(in srgb, var(--text) 22%, transparent) calc(25% - 1px) 25%);
+  pointer-events: none;
+}
+
+.adm-level.is-low {
+  box-shadow: inset 0 0 0 1px var(--warn);
+}
+
+.adm-level.is-dark i {
+  box-shadow: 2px 0 0 var(--foam, #F3E9D2), inset 0 0 0 1px rgb(255 235 200 / 0.35);
 }
 
 .adm-palette {
@@ -867,10 +943,10 @@
   width: min(560px, calc(100vw - 32px));
   transform: translateX(-50%);
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   color: var(--text);
-  box-shadow: 0 24px 64px rgb(0 0 0 / 0.5), 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-float);
   font-family: var(--font-body);
 }
 
@@ -906,7 +982,7 @@
   gap: 16px;
   min-height: 44px;
   padding: 0 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -958,7 +1034,7 @@
   height: 5px;
   margin-bottom: 14px;
   align-self: center;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--border-strong);
 }
 
@@ -974,7 +1050,7 @@
   min-height: 54px;
   padding: 0 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: none;
   color: var(--text);
   font: inherit;
@@ -1002,6 +1078,13 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* Menus grow from their trigger (Radix sets the origin); the search palette has no
+     transition on purpose: it is opened many times a night. */
+  .adm-pop[data-state='open'] {
+    transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, top));
+    animation: adm-pop-in 140ms var(--ease-out);
+  }
+  .adm-top .notification-bell__panel { transform-origin: top right; animation: adm-pop-in 140ms var(--ease-out); }
   .adm-drawer[data-state='open'] { animation: adm-drawer-in var(--motion-sheet) var(--ease-sheet); }
   .adm-sheet[data-state='open'] { animation: adm-sheet-in var(--motion-sheet) var(--ease-sheet); }
   .adm-overlay[data-state='open'] { animation: adm-fade-in var(--motion-sheet) var(--ease-out); }
@@ -1012,6 +1095,8 @@
 @keyframes adm-sheet-in { from { transform: translateY(100%); } }
 
 @keyframes adm-fade-in { from { opacity: 0; } }
+
+@keyframes adm-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 
 /* --- Narrow screens: destinations move into the Menu sheet ----------------------------- */
 
@@ -1043,13 +1128,17 @@
   }
 
   .adm-main {
-    padding: 0 16px 48px;
+    margin: 0 6px;
+    padding: 0 12px 48px;
+    border-radius: 14px 14px 0 0;
   }
 
   .adm-page__head {
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
+    margin-top: 12px;
+    padding: 20px 18px;
   }
 
   .adm-page__title {

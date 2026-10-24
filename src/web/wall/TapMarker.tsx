@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { WallTapModel } from './wallModel';
+import { relativeLuminance } from '../lib/contrast';
 import styles from './TapMarker.module.css';
 import '../design/fonts';
 
@@ -31,6 +32,7 @@ export function TapMarker({
     <span
       className={className ? `${styles.marker} ${className}` : styles.marker}
       style={style}
+      data-dark-beer={relativeLuminance(model.beerColor) < 0.02 || undefined}
       data-testid="tap-marker"
       aria-label={model.name ? `Tap ${model.tapNumber}: ${model.name}` : `Tap ${model.tapNumber}`}
     >

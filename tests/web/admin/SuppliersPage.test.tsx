@@ -74,8 +74,8 @@ describe('SuppliersPage', () => {
     expect(card).toHaveTextContent('Tuesdays');
     const row = screen.getByTestId('supplier-pricebook-row');
     expect(row).toHaveTextContent('Yuengling');
-    expect(row).toHaveTextContent('★ $80.00');
-    expect(row).toHaveTextContent('Johns: $85.00');
+    expect(row).toHaveTextContent('★ $80');
+    expect(row).toHaveTextContent('Johns: $85');
     expect(screen.getByTestId('supplier-badge-best')).toHaveTextContent('Best price on 1');
   });
 

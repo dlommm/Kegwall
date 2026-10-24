@@ -47,7 +47,9 @@ const MEASURE = `() => {
   const opacityOf = (el) => { let o = 1; for (let e = el; e && e !== document.documentElement; e = e.parentElement) o *= Number(getComputedStyle(e).opacity); return o; };
   const out = [];
   for (const el of document.querySelectorAll('[data-look] *')) {
-    if (el.closest('[aria-hidden="true"]')) continue; // decorative (e.g. the giant tap numeral)
+    // Decorative (e.g. the giant tap numeral) — except an ink layer: words drawn a second time in
+    // the beer's ink and clipped to the liquid (Classic), which is exactly what a guest reads there.
+    if (el.closest('[aria-hidden="true"]') && !el.closest('[data-ink-layer]')) continue;
     const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
     if (!own) continue;
     const r = el.getBoundingClientRect();
@@ -58,6 +60,8 @@ const MEASURE = `() => {
     const x = Math.min(r.left + r.width / 2, innerWidth - 1), y = Math.min(r.top + r.height / 2, innerHeight - 1);
     let bg = { r: 255, g: 255, b: 255, a: 1 };
     const stack = document.elementsFromPoint(x, y);
+    // Not at this point at all: clipped away here (the other ink layer is what shows).
+    if (el.closest('[data-ink-layer]') && !stack.includes(el)) continue;
     const from = Math.max(0, stack.indexOf(el));
     for (const under of stack.slice(from)) {
       const c = parse(getComputedStyle(under).backgroundColor);
