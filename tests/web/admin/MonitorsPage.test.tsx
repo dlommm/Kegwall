@@ -287,7 +287,8 @@ describe('MonitorsPage', () => {
     renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-unbind'));
+    fireEvent.keyDown(screen.getByTestId('monitors-row-more'), { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('monitors-row-unbind'));
     await flush();
 
     expect(bindMonitor).toHaveBeenCalledWith(1, null);
@@ -303,7 +304,8 @@ describe('MonitorsPage', () => {
     renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-unbind'));
+    fireEvent.keyDown(screen.getByTestId('monitors-row-more'), { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('monitors-row-unbind'));
     await flush();
 
     expect(screen.getByTestId('monitors-bind-picker')).toBeInTheDocument();
@@ -374,7 +376,8 @@ describe('MonitorsPage', () => {
     renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-reset'));
+    fireEvent.keyDown(screen.getAllByTestId('monitors-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('monitors-row-reset'));
     const confirm = screen.getByTestId('monitors-reset-confirm');
     expect(confirm).toHaveTextContent('device-7');
     expect(confirm).toHaveTextContent('reset');
@@ -392,7 +395,8 @@ describe('MonitorsPage', () => {
     renderAdminPage(<MonitorsPage />);
     await screen.findAllByTestId('monitors-device-card');
 
-    fireEvent.click(screen.getByTestId('monitors-row-reset'));
+    fireEvent.keyDown(screen.getAllByTestId('monitors-row-more')[0]!, { key: 'Enter' });
+    fireEvent.click(await screen.findByTestId('monitors-row-reset'));
     fireEvent.click(screen.getByTestId('monitors-reset-confirm-button'));
     await flush();
 

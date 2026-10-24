@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router';
 import {
-  useCallback, useEffect, useMemo, useState, type ReactNode,
+  useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode,
 } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Tap } from '../../../server/db/taps.js';
@@ -21,17 +21,17 @@ import { kicksInDays, kicksSoon } from '../../lib/kegForecast';
 import { cleaningProgress, kickTimelinePct } from '../../lib/tapMeters';
 import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { shortDate } from '../../lib/adminFormat';
+import { pickInk } from '../../lib/contrast';
 import { isEmptyTap, isLowTap, tapsHeadline, tapsSwapFirst } from '../../lib/tapsSay';
 import { wallTapModel, type WallTapModel } from '../../wall/wallModel';
-import { TapMarker } from '../../wall/TapMarker';
 import { TapForm } from './TapForm';
 import { SwapWizard } from './SwapWizard';
 import { OnDeckQueue } from './OnDeckQueue';
 import { KickedHistory } from './KickedHistory';
 import { useAdminContext } from './useAdminContext';
-import { PageTemplate } from './PageTemplate';
+import { PageLeadFigure, PageTemplate } from './PageTemplate';
 import {
-  Button, Chips, ConfirmDialog, Drawer, EmptyState, ErrorState, LevelBar, Modal, Skeleton, Table,
+  Button, Chips, ConfirmDialog, Drawer, EmptyState, ErrorState, isDarkBeer, LevelBar, Modal, Skeleton, Table,
 } from './ui';
 
 type TapFormState = { mode: 'create' } | { mode: 'edit'; tap: Tap } | null;
@@ -252,6 +252,15 @@ export function TapsPage() {
       sub={tapsStatus === 'loaded' && taps.length > 0
         ? swapFirst ?? 'Select a tap for its keg, line cleaning and what’s on deck.'
         : undefined}
+      lead={tapsStatus === 'loaded' && taps.length > 0 && (
+        <>
+          <PageLeadFigure
+            value={Math.round(models.reduce((sum, m) => sum + (isEmptyTap(m) ? 0 : m.servings ?? 0), 0))}
+            label={`${models[0]?.servingNoun ?? 'pint'}s left on the wall`}
+          />
+          {swapCount > 0 && <PageLeadFigure value={swapCount} label="need a swap" tone="warn" />}
+        </>
+      )}
       actions={canEdit && (
         <Button variant="primary" data-testid="taps-add-button" onClick={() => setTapFormState({ mode: 'create' })}>
           Add a tap
@@ -519,19 +528,27 @@ function TapRow({
       data-testid="taps-row"
       data-tap-id={tap.tapId}
       data-kicked={kicked}
+      data-dark-beer={model.hasBeer && isDarkBeer(model.beerColor) ? true : undefined}
+      // The whole row opens the tap (the beer's name is the keyboard way in); a Swap button
+      // inside keeps its own click.
+      onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a')) onOpen(); }}
+      style={model.hasBeer && !kicked ? { '--srm': model.beerColor } as CSSProperties : undefined}
     >
       <td className="taps-row__num">{tap.tapNumber}</td>
       <td>
-        <div className="adm-who">
-          {model.hasBeer && <TapMarker model={model} size={44} showNumber={false} className="taps-row__marker" />}
-          <div>
-            <div className="adm-name adm-ell taps-row__beer">
-              {model.hasBeer ? model.name : 'Empty'}
-              {tap.hidden && <span className="taps-row__flag" data-testid="taps-row-hidden">Hidden</span>}
-            </div>
-            {kegLine && <div className="adm-sub adm-ell">{kegLine}</div>}
-          </div>
+        <div className="adm-name adm-ell taps-row__beer">
+          <button
+            type="button"
+            className="taps-row__open"
+            data-testid="taps-row-expand"
+            aria-expanded={selected}
+            onClick={onOpen}
+          >
+            {model.hasBeer ? model.name : 'Empty'}
+          </button>
+          {tap.hidden && <span className="taps-row__flag" data-testid="taps-row-hidden">Hidden</span>}
         </div>
+        {kegLine && <div className="adm-sub adm-ell">{kegLine}</div>}
       </td>
       <td className="taps-row__left adm-num-cell">
         <span className={low ? 'adm-warn-text' : undefined} data-testid="taps-row-status">
@@ -572,9 +589,6 @@ function TapRow({
             {hasActiveKeg ? 'Swap keg' : 'Tap a keg'}
           </Button>
         )}
-        <Button variant="quiet" data-testid="taps-row-expand" aria-expanded={selected} onClick={onOpen}>
-          Details
-        </Button>
       </td>
     </tr>
   );
@@ -620,6 +634,24 @@ function TapDrawer({
         </>
       ) : undefined}
     >
+      {model.hasBeer && !model.isKicked && (
+        <div
+          className="taps-drawer__beer"
+          data-testid="taps-drawer-beer"
+          data-dark-beer={isDarkBeer(model.beerColor) || undefined}
+          style={{ background: model.beerColor, color: pickInk(model.beerColor) } as CSSProperties}
+        >
+          <span className="taps-drawer__no" aria-hidden="true">{tap.tapNumber}</span>
+          <span className="taps-drawer__what">
+            <b>{model.name}</b>
+            {model.style && <span>{model.style}</span>}
+          </span>
+          <span className="taps-drawer__left">
+            <b>{model.servings != null ? Math.round(model.servings) : '—'}</b>
+            <span>{`${model.servingNoun}s left`}</span>
+          </span>
+        </div>
+      )}
       <dl className="adm-facts">
         <dt>Left</dt>
         <dd>{`${leftText(model)}${pctText(model)}`}</dd>
@@ -644,7 +676,12 @@ function TapDrawer({
       </dl>
       {timelinePct != null && stat?.projectedKickDate && tap.keg?.dateTapped && (
         <div className="taps-detail__timeline-wrap">
-          <span className="taps-detail__timeline" data-testid="taps-row-timeline" aria-hidden="true">
+          <span
+            className="taps-detail__timeline"
+            data-testid="taps-row-timeline"
+            aria-hidden="true"
+            style={{ '--srm': model.beerColor, '--elapsed': `${timelinePct}%` } as CSSProperties}
+          >
             <span className="taps-row__timeline-marker" style={{ left: `${timelinePct}%` }} />
           </span>
           <span className="adm-sub taps-detail__timeline-ends">

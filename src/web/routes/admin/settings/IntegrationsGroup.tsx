@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
 import { MQTT_DEFAULTS, type GroupProps } from './shared';
 import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
+import { Switch } from '../ui';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Home Assistant publish toggle + discovery prefix (Task 8) — its own form/Save inside
@@ -42,15 +43,7 @@ function HomeAssistantBlock({ settings, onSaved }: GroupProps) {
         New to this? <a href="/admin/home-assistant" data-testid="settings-ha-wizard-link">Set up Home Assistant with the guided wizard</a>
         {' '}— it tests the broker connection for you. Or configure it by hand below.
       </p>
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          data-testid="settings-integrations-ha-publish"
-          checked={haPublishEnabled}
-          onChange={(e) => setHaPublishEnabled(e.target.checked)}
-        />
-        <span>Publish tap states to Home Assistant over MQTT</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-integrations-ha-publish" checked={haPublishEnabled} onCheckedChange={setHaPublishEnabled} label={<>Publish tap states to Home Assistant over MQTT</>} />
       <label className="admin-field">
         <span>Home Assistant discovery prefix</span>
         <input
@@ -62,7 +55,8 @@ function HomeAssistantBlock({ settings, onSaved }: GroupProps) {
       </label>
 
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-integrations-error">{error}</p>}
-      <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-integrations-save">
+      <button type="submit" className="beer-form__submit" data-dirty={dirty || undefined}
+          disabled={!dirty || submitting} data-testid="settings-integrations-save">
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
     </form>
@@ -115,7 +109,8 @@ function CatalogBeerBlock({ settings, onSaved }: GroupProps) {
       <button
         type="submit"
         className="beer-form__submit"
-        disabled={!dirty || submitting}
+        data-dirty={dirty || undefined}
+          disabled={!dirty || submitting}
         data-testid="settings-integrations-catalogbeer-save"
       >
         {submitting ? 'Saving…' : 'Save changes'}
@@ -168,15 +163,7 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
         maskedValue={cfg?.apiKey}
         {...apiKey.fieldProps}
       />
-      <label className="wall-editor__checkbox">
-        <input
-          type="checkbox"
-          data-testid="settings-integrations-auto-import"
-          checked={autoImport}
-          onChange={(e) => setAutoImport(e.target.checked)}
-        />
-        Auto-import beers the Kegtron device reports (Kegtron-first library)
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-integrations-auto-import" checked={autoImport} onCheckedChange={setAutoImport} label={<>Auto-import beers the Kegtron device reports (Kegtron-first library)</>} />
       {error && (
         <p className="beer-form__notice" role="alert" data-testid="settings-integrations-govee-error">
           {error}
@@ -185,7 +172,8 @@ function GoveeBlock({ settings, onSaved }: GroupProps) {
       <button
         type="submit"
         className="beer-form__submit"
-        disabled={!dirty || submitting}
+        data-dirty={dirty || undefined}
+          disabled={!dirty || submitting}
         data-testid="settings-integrations-govee-save"
       >
         {submitting ? 'Saving…' : 'Save changes'}
@@ -263,15 +251,7 @@ function FaceSignInBlock({ settings, onSaved }: GroupProps) {
         Lets the tablet recognize a returning drinker&rsquo;s face and sign them in
         automatically. Off by default — nothing runs on the tablet until this is enabled.
       </p>
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          data-testid="settings-integrations-facesignin-enabled"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
-        <span>Enable face sign-in</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-integrations-facesignin-enabled" checked={enabled} onCheckedChange={setEnabled} label={<>Enable face sign-in</>} />
       <label className="admin-field">
         <span>Match threshold</span>
         <input
@@ -292,7 +272,8 @@ function FaceSignInBlock({ settings, onSaved }: GroupProps) {
       <button
         type="submit"
         className="beer-form__submit"
-        disabled={!dirty || submitting}
+        data-dirty={dirty || undefined}
+          disabled={!dirty || submitting}
         data-testid="settings-integrations-facesignin-save"
       >
         {submitting ? 'Saving…' : 'Save changes'}

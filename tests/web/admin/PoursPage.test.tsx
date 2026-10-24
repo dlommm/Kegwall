@@ -296,3 +296,19 @@ describe('pourQueryFor', () => {
     expect(pourQueryFor({ unclaimedOnly: true, drinkerId: '10', from: '', to: '' })).toEqual({ unclaimed: true });
   });
 });
+
+describe('groupByNight / nightLabel (Kegwall 2.1)', () => {
+  it('splits pours by 4 am service night, newest first, and names tonight', async () => {
+    const { groupByNight, nightLabel } = await import('../../../src/web/routes/admin/PoursPage');
+    const now = new Date(2026, 9, 24, 1, 0); // 1 am: still the night of the 23rd
+    const pour = (d: Date, id: number) => ({ id, kegId: 1, ts: d.toISOString(), volumeMl: 400, durationMs: null, source: 'udp', drinkerId: null, quality: null }) as never;
+    const nights = groupByNight([
+      pour(new Date(2026, 9, 24, 0, 30), 1),
+      pour(new Date(2026, 9, 23, 21, 0), 2),
+      pour(new Date(2026, 9, 22, 20, 0), 3),
+    ]);
+    expect(nights.map((n) => n.pours.length)).toEqual([2, 1]);
+    expect(nightLabel(nights[0]!.start, now)).toBe('Tonight');
+    expect(nightLabel(nights[1]!.start, now)).toBe('Last night');
+  });
+});

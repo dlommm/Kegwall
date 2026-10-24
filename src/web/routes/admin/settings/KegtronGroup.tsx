@@ -29,7 +29,8 @@ export function KegtronGroup({ settings, onSaved }: GroupProps) {
         {...apiKey.fieldProps}
       />
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-kegtron-error">{error}</p>}
-      <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-kegtron-save">
+      <button type="submit" className="beer-form__submit" data-dirty={dirty || undefined}
+          disabled={!dirty || submitting} data-testid="settings-kegtron-save">
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
     </form>

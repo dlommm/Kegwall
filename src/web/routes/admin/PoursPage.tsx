@@ -13,8 +13,7 @@ import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { useAdminContext } from './useAdminContext';
 import { serviceDayStart } from '../../../server/core/serviceDay.js';
 import { capitalize, countWord } from '../../lib/tonightAttention';
-import { beerMarkerModel } from '../../wall/wallModel';
-import { TapMarker } from '../../wall/TapMarker';
+import { beerColorFor } from '../../wall/wallModel';
 import { PageTemplate } from './PageTemplate';
 import {
   Button, EmptyState, ErrorState, Skeleton, Table,
@@ -78,6 +77,24 @@ export function poursHeadline(pours: Pour[], now: Date = new Date()): string {
 }
 
 /** True when a pour still belongs in the list after its drinker changed. */
+/** The loaded pours split by service night (4 am to 4 am), newest night first. */
+export function groupByNight(pours: Pour[]): { start: number; pours: Pour[] }[] {
+  const nights = new Map<number, Pour[]>();
+  for (const pour of pours) {
+    const start = serviceDayStart(new Date(pour.ts)).getTime();
+    nights.set(start, [...(nights.get(start) ?? []), pour]);
+  }
+  return [...nights.entries()].sort((a, b) => b[0] - a[0]).map(([start, list]) => ({ start, pours: list }));
+}
+
+/** "Tonight", "Last night", or "Fri Oct 23" for a service night's start. */
+export function nightLabel(start: number, now: Date = new Date()): string {
+  const tonight = serviceDayStart(now).getTime();
+  if (start === tonight) return 'Tonight';
+  if (tonight - start <= 25 * 60 * 60 * 1000) return 'Last night';
+  return new Date(start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 function matchesFilters(pour: Pour, filters: Filters): boolean {
   if (filters.unclaimedOnly) return pour.drinkerId === null;
   if (filters.drinkerId) return pour.drinkerId === Number(filters.drinkerId);
@@ -397,8 +414,21 @@ export function PoursPage() {
                   <th scope="col">Drinker</th>
                 </tr>
               </thead>
-              <tbody>
-                {pours.map((pour) => {
+              {groupByNight(pours).map((night) => (
+              <tbody key={night.start}>
+                <tr className="pours-night" data-testid="pours-night">
+                  <th scope="rowgroup" colSpan={canEdit ? 6 : 5}>
+                    <b>{nightLabel(night.start, now)}</b>
+                    <span>
+                      {` · ${night.pours.length} pour${night.pours.length === 1 ? '' : 's'} · ${formatVolumeMl(night.pours.reduce((t, p) => t + p.volumeMl, 0), units)}`}
+                      {(() => {
+                        const unclaimed = night.pours.filter((p) => p.drinkerId == null).length;
+                        return unclaimed > 0 ? ` · ${unclaimed} unclaimed` : '';
+                      })()}
+                    </span>
+                  </th>
+                </tr>
+                {night.pours.map((pour) => {
                   const keg = kegById.get(pour.kegId);
                   const beer = keg ? beerById.get(keg.beerId) : undefined;
                   const tap = keg?.tapId != null ? tapById.get(keg.tapId) : undefined;
@@ -429,7 +459,7 @@ export function PoursPage() {
                       <td className="pours-col--secondary">{tapLabel(tap)}</td>
                       <td className="pours-col--beer">
                         <span className="adm-who">
-                          {beer && <TapMarker model={beerMarkerModel(beer, tap?.number ?? 0)} size={32} showNumber={false} />}
+                          {beer && <span className="pours-tick" style={{ background: beerColorFor(beer.srm) }} aria-hidden="true" />}
                           <span>
                             <b>{beer?.name ?? 'Unknown'}</b>
                             <span className="pours-row__mobile-meta font-tabular">
@@ -471,6 +501,7 @@ export function PoursPage() {
                   );
                 })}
               </tbody>
+              ))}
           </Table>
           <div className="pours-footer">
             <span className="adm-sub adm-num-cell" data-testid="pours-count">

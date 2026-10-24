@@ -7,6 +7,7 @@ import {
   getUnackedCount, listNotifications, ackNotification, ackAllNotifications,
 } from '../../lib/adminApi';
 import { useAdminNotifications } from '../../lib/useAdminNotifications';
+import { capitalize, countWord } from '../../lib/tonightAttention';
 import { NotificationRow } from './NotificationRow';
 
 const RECENT_LIMIT = 10;
@@ -92,8 +93,18 @@ export function NotificationBell() {
     function handleDocumentClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
     }
+    // Escape closes it too, and gives focus back to the bell.
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      containerRef.current?.querySelector<HTMLButtonElement>('.notification-bell__button')?.focus();
+    }
     document.addEventListener('mousedown', handleDocumentClick);
-    return () => document.removeEventListener('mousedown', handleDocumentClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   return (
@@ -103,7 +114,7 @@ export function NotificationBell() {
         className="notification-bell__button"
         data-testid="notification-bell-button"
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         onClick={togglePanel}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -119,17 +130,23 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="notification-bell__panel" role="menu" data-testid="notification-bell-panel">
+        <div className="notification-bell__panel" role="dialog" aria-label="Notifications" data-testid="notification-bell-panel">
           <div className="notification-bell__panel-header">
-            <h3 className="notification-bell__panel-title">Notifications</h3>
-            <button
-              type="button"
-              data-testid="notification-mark-all-read"
-              disabled={markingAll || unackedCount === 0}
-              onClick={handleMarkAllRead}
-            >
-              Mark all read
-            </button>
+            <h3 className="notification-bell__panel-title" data-testid="notification-panel-title">
+              {status !== 'loaded' ? 'Notifications'
+                : unackedCount === 0 ? 'All caught up.'
+                  : unackedCount === 1 ? 'One needs you.' : `${capitalize(countWord(unackedCount))} need you.`}
+            </h3>
+            {unackedCount > 0 && (
+              <button
+                type="button"
+                data-testid="notification-mark-all-read"
+                disabled={markingAll}
+                onClick={handleMarkAllRead}
+              >
+                Mark all read
+              </button>
+            )}
           </div>
 
           {status === 'loading' && (

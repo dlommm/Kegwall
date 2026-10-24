@@ -9,6 +9,9 @@ export interface PageTemplateProps {
   sub?: ReactNode;
   /** At most one primary action, plus secondary ones. */
   actions?: ReactNode;
+  /** The page's one lead figure under the sentence (Kegwall 2.1 "w-lead"): a few
+   * `PageLeadFigure`s, set in the display face. */
+  lead?: ReactNode;
   /** The page's one main list or table. */
   children: ReactNode;
   /** A Drawer for the selected row, rendered last so it stacks over the page. */
@@ -22,7 +25,7 @@ export interface PageTemplateProps {
  * details and editing in a right-hand drawer. The destination's sub-tabs come from the shell.
  */
 export function PageTemplate({
-  crumb, title, sub, actions, children, drawer, testId,
+  crumb, title, sub, actions, lead, children, drawer, testId,
 }: PageTemplateProps) {
   return (
     <section className="adm-page" data-testid={testId}>
@@ -31,11 +34,22 @@ export function PageTemplate({
           {crumb && <div className="adm-page__crumb">{crumb}</div>}
           <h1 className="adm-page__title">{title}</h1>
           {sub && <p className="adm-page__sub">{sub}</p>}
+          {lead && <div className="adm-page__lead" data-testid="page-lead">{lead}</div>}
         </div>
         {actions && <div className="adm-page__actions">{actions}</div>}
       </header>
       {children}
       {drawer}
     </section>
+  );
+}
+
+/** One lead figure: the number large, what it counts small beside it. */
+export function PageLeadFigure({ value, label, tone }: { value: ReactNode; label: ReactNode; tone?: 'warn' }) {
+  return (
+    <span className={tone ? `adm-page__figure adm-page__figure--${tone}` : 'adm-page__figure'}>
+      <b>{value}</b>
+      <span>{label}</span>
+    </span>
   );
 }

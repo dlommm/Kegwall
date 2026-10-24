@@ -125,6 +125,8 @@ export interface LeaderboardEntryPublic {
   volumeMl: number;
   avgQuality: number | null;
   qualityCount: number;
+  /** Most-poured beers first; optional so an older payload is still valid. */
+  beers?: { beerId: number; srm: number | null; pours: number }[];
 }
 
 export interface LeaderboardResponse {

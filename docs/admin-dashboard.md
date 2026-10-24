@@ -61,9 +61,12 @@ The admin has one top bar and no sidebar. From the left:
 - your taproom's name, which takes you back to Tonight;
 - six destinations: **Tonight**, **Taps & kegs**, **Beers**, **People**, **Screens** and
   **Insights**;
-- **Search** (or **Ctrl K** / **⌘K** from anywhere) to jump to any page by typing part of its
-  name; use the arrow keys and **Enter**, or **Escape** to close;
-- the notification bell, with the number of unread notifications;
+- **Search** (or **Ctrl K** / **⌘K** from anywhere) to jump to any page, or to a tap by its
+  number or beer ("oat" finds Tap 4 · Midnight Oats, with what's left and the beer's color); use
+  the arrow keys and **Enter**, or **Escape** to close;
+- the notification bell, with the number of unread notifications. Its panel opens with a sentence
+  ("Two need you." or "All caught up."), marks severity by shape as well as color (a diamond is
+  critical, a triangle a warning), and closes with **Escape**;
 - **Settings**;
 - your account menu (your initials): your name and role, **Open the wall**, **Sign out** and the
   running Kegwall version.

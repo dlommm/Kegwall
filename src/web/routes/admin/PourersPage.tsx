@@ -5,6 +5,9 @@ import {
 import { qrCodeSvg } from '../../lib/qr';
 import { formatBoardVolume } from '../../components/LeaderboardBoard';
 import { initials } from '../../lib/initials';
+import { pickInk } from '../../lib/contrast';
+import { beerColorFor } from '../../wall/wallModel';
+import { Tally } from '../../components/Tally';
 import { useAdminContext } from './useAdminContext';
 import { ErrorState, Skeleton } from './ui';
 
@@ -38,9 +41,9 @@ export function PourersPage({ embedded = false }: { embedded?: boolean } = {}) {
   }, []);
 
   const statsByDrinker = useMemo(() => {
-    const map = new Map<number, { volumeMl: number; avgQuality: number | null }>();
+    const map = new Map<number, { volumeMl: number; avgQuality: number | null; beers: { srm: number | null }[] }>();
     for (const entry of board?.entries ?? []) {
-      map.set(entry.drinkerId, { volumeMl: entry.volumeMl, avgQuality: entry.avgQuality });
+      map.set(entry.drinkerId, { volumeMl: entry.volumeMl, avgQuality: entry.avgQuality, beers: entry.beers ?? [] });
     }
     return map;
   }, [board]);
@@ -48,7 +51,9 @@ export function PourersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const inviteUrl = `${window.location.origin}/menu`;
   const inviteQr = useMemo(() => qrCodeSvg(inviteUrl), [inviteUrl]);
 
-  const ranked = [...pourers].sort((a, b) => (statsByDrinker.get(b.id)?.volumeMl ?? 0) - (statsByDrinker.get(a.id)?.volumeMl ?? 0));
+  // Ranked by pours, the tally a bar keeps; volume breaks a tie.
+  const ranked = [...pourers].sort((a, b) => b.pourCount - a.pourCount
+    || (statsByDrinker.get(b.id)?.volumeMl ?? 0) - (statsByDrinker.get(a.id)?.volumeMl ?? 0));
 
   return (
     <div data-testid="pourers-page">
@@ -69,32 +74,46 @@ export function PourersPage({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       {status === 'loaded' && (
-        <ul className="people-v2__grid" data-testid="pourers-grid">
-          {ranked.map((pourer) => {
-            const stats = statsByDrinker.get(pourer.id);
-            return (
-              <li key={pourer.id} className="people-v2__card" data-testid="pourer-card">
-                <span className="people-v2__avatar people-v2__avatar--big" style={{ backgroundColor: pourer.avatarColor ?? '#7A6C58' }} aria-hidden="true">
-                  {initials(pourer.displayName)}
-                </span>
-                <b className="people-v2__name">{pourer.displayName}</b>
-                <span className="adm-sub adm-num-cell">
-                  {[
-                    `${pourer.pourCount} pour${pourer.pourCount === 1 ? '' : 's'}`,
-                    stats ? `${formatBoardVolume(stats.volumeMl, units)} in all` : null,
-                    stats?.avgQuality != null ? `quality ${stats.avgQuality}` : null,
-                  ].filter(Boolean).join(' · ')}
-                </span>
-              </li>
-            );
-          })}
-          <li className="people-v2__card people-v2__card--invite" data-testid="pourers-invite">
+        <div className="people-v2__layout">
+          <ol className="people-v2__list" data-testid="pourers-grid">
+            {ranked.map((pourer, i) => {
+              const stats = statsByDrinker.get(pourer.id);
+              // Colored by the beer they pour most; their own avatar color until they've poured.
+              const favorite = stats?.beers[0];
+              const color = favorite ? beerColorFor(favorite.srm) : pourer.avatarColor ?? '#7A6C58';
+              return (
+                <li key={pourer.id} className="people-v2__row" data-testid="pourer-card">
+                  <span className="people-v2__rank">{i + 1}</span>
+                  <span className="people-v2__avatar" style={{ backgroundColor: color, color: pickInk(color) }} aria-hidden="true">
+                    {initials(pourer.displayName)}
+                  </span>
+                  <span className="people-v2__who">
+                    <b className="people-v2__name">{pourer.displayName}</b>
+                    {stats && stats.beers.length > 0 && (
+                      <span className="people-v2__strip" aria-hidden="true">
+                        {stats.beers.map((b, j) => <i key={j} style={{ background: beerColorFor(b.srm) }} />)}
+                      </span>
+                    )}
+                  </span>
+                  <Tally count={pourer.pourCount} className="people-v2__tally" />
+                  <span className="adm-sub adm-num-cell people-v2__figures">
+                    {[
+                      `${pourer.pourCount} pour${pourer.pourCount === 1 ? '' : 's'}`,
+                      stats ? `${formatBoardVolume(stats.volumeMl, units)} in all` : null,
+                      stats?.avgQuality != null ? `quality ${stats.avgQuality}` : null,
+                    ].filter(Boolean).join(' · ')}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+          <aside className="people-v2__invite" data-testid="pourers-invite">
             {/* eslint-disable-next-line react/no-danger -- our own generated QR markup */}
             <div className="people-v2__qr" aria-hidden="true" dangerouslySetInnerHTML={{ __html: inviteQr }} />
             <b className="people-v2__name">Invite someone</b>
             <span className="adm-sub">Scan to join from a phone</span>
-          </li>
-        </ul>
+          </aside>
+        </div>
       )}
     </div>
   );

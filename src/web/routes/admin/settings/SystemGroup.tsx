@@ -6,6 +6,7 @@ import {
 } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
 import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
+import { Switch } from '../ui';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Update-in-progress state machine — see the block comment in `SystemGroup`. */
@@ -161,6 +162,7 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
         <label className="admin-field">
           <span>Update mode</span>
           <select
+            className="adm-select"
             data-testid="settings-system-mode"
             value={mode}
             disabled={busy}
@@ -204,6 +206,7 @@ export function SystemGroup({ settings, onSaved }: GroupProps) {
         <button
           type="submit"
           className="beer-form__submit"
+          data-dirty={dirty || undefined}
           disabled={!dirty || submitting || busy}
           data-testid="settings-system-save"
         >
@@ -407,6 +410,7 @@ function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
       <label className="admin-field">
         <span>OS updates</span>
         <select
+          className="adm-select"
           data-testid="settings-system-os-mode"
           value={osMode}
           onChange={(e) => setOsMode(e.target.value as 'off' | 'manual' | 'auto')}
@@ -423,22 +427,15 @@ function OsUpdatesBlock({ settings, onSaved }: GroupProps) {
           enabled at install time.
         </p>
       )}
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          data-testid="settings-system-os-autoreboot"
-          checked={autoReboot}
-          onChange={(e) => setAutoReboot(e.target.checked)}
-        />
-        <span>Reboot automatically when an update requires it</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-system-os-autoreboot" checked={autoReboot} onCheckedChange={setAutoReboot} label={<>Reboot automatically when an update requires it</>} />
       {error && (
         <p className="beer-form__notice" role="alert" data-testid="settings-system-os-error">{error}</p>
       )}
       <button
         type="submit"
         className="beer-form__submit"
-        disabled={!dirty || submitting}
+        data-dirty={dirty || undefined}
+          disabled={!dirty || submitting}
         data-testid="settings-system-os-save"
       >
         {submitting ? 'Saving…' : 'Save changes'}

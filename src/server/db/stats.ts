@@ -79,7 +79,13 @@ export interface LeaderboardEntry {
   /** How many of the drinker's pours in the window carry a quality score — lets
    * consumers require a minimum sample size before crowning "smoothest pour". */
   qualityCount: number;
+  /** What they drank in the window, most-poured beer first (at most LEADERBOARD_BEERS): the
+   * board draws a strip of these colors, and the admin colors a pourer by their first. */
+  beers: { beerId: number; srm: number | null; pours: number }[];
 }
+
+/** How many of each drinker's beers the leaderboard carries. */
+const LEADERBOARD_BEERS = 5;
 
 /**
  * `GET /api/stats/pours` — pour count + volume per LOCAL calendar day, over the trailing
@@ -286,11 +292,27 @@ export function leaderboard(
     drinker_id: number; display_name: string; avatar_color: string | null;
     pour_count: number; volume_ml: number; avg_quality: number | null; quality_count: number;
   }[];
+  const beerRows = db.prepare(`
+    SELECT p.drinker_id AS drinker_id, b.id AS beer_id, b.srm AS srm, COUNT(p.id) AS pours
+    FROM pours p
+    JOIN kegs k ON k.id = p.keg_id
+    JOIN beers b ON b.id = k.beer_id
+    WHERE ${clauses.join(' AND ')}
+    GROUP BY p.drinker_id, b.id
+    ORDER BY pours DESC, MAX(p.ts) DESC
+  `).all(...params) as { drinker_id: number; beer_id: number; srm: number | null; pours: number }[];
+  const beersOf = new Map<number, LeaderboardEntry['beers']>();
+  for (const b of beerRows) {
+    const list = beersOf.get(b.drinker_id) ?? [];
+    if (list.length < LEADERBOARD_BEERS) list.push({ beerId: b.beer_id, srm: b.srm, pours: b.pours });
+    beersOf.set(b.drinker_id, list);
+  }
   return rows.map((r) => ({
     drinkerId: r.drinker_id, displayName: r.display_name, avatarColor: r.avatar_color,
     pourCount: r.pour_count, volumeMl: r.volume_ml,
     avgQuality: r.avg_quality != null ? Math.round(r.avg_quality) : null,
     qualityCount: r.quality_count,
+    beers: beersOf.get(r.drinker_id) ?? [],
   }));
 }
 

@@ -2,13 +2,12 @@ import {
   Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { HourHistogram } from '../../../server/db/stats.js';
+import { CURSOR_FILL, GRID_STROKE, TICK } from '../../design/chartTheme';
 
 export interface HourHistogramRowProps {
   data: HourHistogram[];
 }
 
-const GRID_STROKE = 'color-mix(in srgb, var(--text) 10%, transparent)';
-const CURSOR_FILL = 'color-mix(in srgb, var(--text) 6%, transparent)';
 
 /** `0` -> `12a`, `9` -> `9a`, `12` -> `12p`, `18` -> `6p` — a compact 12-hour label for
  * the hour-of-day axis. `hour` already arrives as the SERVER's local hour (`hourHistogram`
@@ -59,7 +58,7 @@ export function HourHistogramRow({ data }: HourHistogramRowProps) {
             />
             <YAxis
               allowDecimals={false} className="font-tabular" width={24}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tick={TICK} axisLine={false} tickLine={false}
             />
             <Tooltip content={<HourTooltip />} cursor={{ fill: CURSOR_FILL }} />
             <Bar dataKey="count" name="Pours" fill="var(--accent)" radius={[2, 2, 0, 0]} isAnimationActive={false} />

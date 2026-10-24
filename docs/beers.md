@@ -4,11 +4,13 @@
 
 The page opens with a sentence ("Fifteen beers. Eleven on tap, one waiting in the cellar.") and a
 line saying how many beers still have no label art. Search by name, brewery or style, and use the
-chips to show **All**, **On tap** or the **Library** (beers not on a tap).
+chips to show **All**, **On tap** or **In the cellar** (beers not on a tap).
 
-Each beer is a card with its marker (label art when it has some, otherwise the beer's color and
-initials), the style and brewery with a dot in the beer's color, ABV and IBU, and where it is:
-**On tap 3 · 94 %** (amber when the keg is low), **On deck**, or **In the library**.
+The list reads like a cellar ledger: beers are grouped **On tap**, then **On deck**, then **In
+the cellar**, each group on its own panel with a count. Each row has an edge in the beer's color,
+its marker (label art when it has some, otherwise the beer's color and initials), the style and
+brewery, ABV and IBU, and where it is: **Tap 3 · 94% left** (amber when the keg is low), **On
+deck**, or **In the cellar**. A beer with no color set has a dashed edge and says "no color set".
 
 ![The beer library](images/admin-beers.jpg)
 

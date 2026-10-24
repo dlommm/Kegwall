@@ -4,13 +4,13 @@ import {
 import type { HostStatsHistoryPoint } from '../../lib/adminApi';
 import { formatTempC, type VolumeUnits } from '../../lib/units';
 import { formatTimeLabel } from './TempChart';
+import { GRID_STROKE, TICK } from '../../design/chartTheme';
 
 export interface HostStatsChartProps {
   data: HostStatsHistoryPoint[];
   units: VolumeUnits;
 }
 
-const GRID_STROKE = 'color-mix(in srgb, var(--text) 10%, transparent)';
 
 function HostStatsTooltip({ active, payload, units }: {
   active?: boolean; payload?: { payload: HostStatsHistoryPoint }[]; units: VolumeUnits;
@@ -71,7 +71,7 @@ export function HostStatsChart({ data, units }: HostStatsChartProps) {
             />
             <YAxis
               className="font-tabular" width={40} domain={[0, 100]}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tick={TICK} axisLine={false} tickLine={false}
               tickFormatter={(v: number) => `${v}%`}
             />
             <Tooltip content={<HostStatsTooltip units={units} />} />

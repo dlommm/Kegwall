@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { GroupProps } from './shared';
+import { Switch } from '../ui';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 const ROUNDING_OPTIONS = [0.05, 0.25, 0.5, 1] as const;
@@ -42,15 +43,7 @@ export function PricingGroup({ settings, onSaved }: GroupProps) {
   return (
     <form className="settings-group" data-testid="settings-group-pricing" onSubmit={handleSubmit} aria-labelledby="settings-pricing-title">
       <h2 id="settings-pricing-title" className="admin-field__label-text">Pricing</h2>
-      <label className="admin-field admin-field--checkbox">
-        <input
-          type="checkbox"
-          data-testid="settings-pricing-enabled"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
-        <span>Show price per pour on public pages (menu, wall, board)</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-pricing-enabled" checked={enabled} onCheckedChange={setEnabled} label={<>Show price per pour on public pages (menu, wall, board)</>} />
       <div className="settings-group__grid">
         <label className="admin-field">
           <span>Markup %</span>
@@ -75,6 +68,7 @@ export function PricingGroup({ settings, onSaved }: GroupProps) {
         <label className="admin-field">
           <span>Round to</span>
           <select
+            className="adm-select"
             data-testid="settings-pricing-rounding"
             value={rounding}
             onChange={(e) => setRounding(Number(e.target.value))}
@@ -89,15 +83,7 @@ export function PricingGroup({ settings, onSaved }: GroupProps) {
         The menu price is <strong>tax-included</strong> — sales tax is folded in, so the number shown
         is what the customer pays. Set tax to 0 to show pre-tax prices.
       </p>
-      <label className="admin-field admin-field--checkbox">
-        <input
-          type="checkbox"
-          data-testid="settings-pricing-viewer-costs"
-          checked={showCostsToViewers}
-          onChange={(e) => setShowCostsToViewers(e.target.checked)}
-        />
-        <span>Show keg costs to viewer accounts (off = costs stay editor/admin-only)</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-pricing-viewer-costs" checked={showCostsToViewers} onCheckedChange={setShowCostsToViewers} label={<>Show keg costs to viewer accounts (off = costs stay editor/admin-only)</>} />
       {/* WHO SEES WHAT — the privacy boundary in plain language. */}
       <p className="settings-pricing__matrix" data-testid="settings-pricing-matrix">
         <strong>Who sees what:</strong>
@@ -107,7 +93,8 @@ export function PricingGroup({ settings, onSaved }: GroupProps) {
         Turn this off and no prices appear anywhere public.
       </p>
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-pricing-error">{error}</p>}
-      <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-pricing-save">
+      <button type="submit" className="beer-form__submit" data-dirty={dirty || undefined}
+          disabled={!dirty || submitting} data-testid="settings-pricing-save">
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
     </form>

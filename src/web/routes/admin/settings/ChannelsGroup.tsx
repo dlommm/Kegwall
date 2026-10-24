@@ -3,6 +3,7 @@ import type { Settings } from '../../../../server/db/settings.js';
 import { testChannel } from '../../../lib/adminApi';
 import type { GroupProps } from './shared';
 import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
+import { Switch } from '../ui';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 type AlertChannels = Settings['alertChannels'];
@@ -102,6 +103,7 @@ function NtfyBlock({ alertChannels, onSaved }: ChannelBlockProps) {
       <div className="channels-group__block-actions">
         <button
           type="submit" className="beer-form__submit" data-testid="settings-channels-ntfy-save"
+          data-dirty={dirty || undefined}
           disabled={!dirty || submitting}
         >
           {submitting ? 'Saving…' : 'Save'}
@@ -157,6 +159,7 @@ function PushoverBlock({ alertChannels, onSaved }: ChannelBlockProps) {
       <div className="channels-group__block-actions">
         <button
           type="submit" className="beer-form__submit" data-testid="settings-channels-pushover-save"
+          data-dirty={dirty || undefined}
           disabled={!dirty || submitting}
         >
           {submitting ? 'Saving…' : 'Save'}
@@ -240,13 +243,7 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
           <input type="text" data-testid="settings-channels-smtp-to" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>
-      <label className="settings-toggle">
-        <input
-          type="checkbox" data-testid="settings-channels-smtp-secure"
-          checked={secure} onChange={(e) => setSecure(e.target.checked)}
-        />
-        <span>Use TLS (secure)</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-channels-smtp-secure" checked={secure} onCheckedChange={setSecure} label={<>Use TLS (secure)</>} />
       <MaskedSecretField
         label="Password"
         testId="settings-channels-smtp-password"
@@ -257,6 +254,7 @@ function SmtpBlock({ alertChannels, onSaved }: ChannelBlockProps) {
       <div className="channels-group__block-actions">
         <button
           type="submit" className="beer-form__submit" data-testid="settings-channels-smtp-save"
+          data-dirty={dirty || undefined}
           disabled={!dirty || submitting}
         >
           {submitting ? 'Saving…' : 'Save'}
@@ -305,6 +303,7 @@ function WebhookChannelBlock({ name, label, alertChannels, onSaved }: ChannelBlo
       <div className="channels-group__block-actions">
         <button
           type="submit" className="beer-form__submit" data-testid={`settings-channels-${name}-save`}
+          data-dirty={dirty || undefined}
           disabled={!dirty || submitting}
         >
           {submitting ? 'Saving…' : 'Save'}

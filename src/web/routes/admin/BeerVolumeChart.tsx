@@ -4,14 +4,13 @@ import {
 import type { BeerVolumeStat } from '../../../server/db/stats.js';
 import { srmToColor } from '../../lib/srm';
 import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
+import { CURSOR_FILL, GRID_STROKE, TICK } from '../../design/chartTheme';
 
 export interface BeerVolumeChartProps {
   data: BeerVolumeStat[];
   units: VolumeUnits;
 }
 
-const GRID_STROKE = 'color-mix(in srgb, var(--text) 10%, transparent)';
-const CURSOR_FILL = 'color-mix(in srgb, var(--text) 6%, transparent)';
 const ROW_HEIGHT_PX = 36;
 const MIN_CHART_HEIGHT_PX = 120;
 
@@ -58,7 +57,7 @@ export function BeerVolumeChart({ data, units }: BeerVolumeChartProps) {
             <XAxis
               type="number" className="font-tabular"
               tickFormatter={(value: number) => formatVolumeMl(value, units)}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tick={TICK} axisLine={false} tickLine={false}
             />
             <YAxis
               type="category" dataKey="beerName" width={110} className="font-tabular"

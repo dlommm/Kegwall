@@ -118,7 +118,7 @@ describe('BeersPage', () => {
     expect(screen.getByTestId('beers-chip-autoimport')).toHaveTextContent('Auto-import from Kegtron: on');
   });
 
-  it('says where each beer is: on a tap with its level, on deck, or in the library', async () => {
+  it('says where each beer is: on a tap with its level, on deck, or in the cellar, grouped in that order', async () => {
     (listBeers as Mock).mockResolvedValue({
       ok: true, data: [makeBeer({ id: 1 }), makeBeer({ id: 2 }), makeBeer({ id: 3 })],
     });
@@ -141,9 +141,9 @@ describe('BeersPage', () => {
     });
     renderAdminPage(<BeersPage />);
     const rows = await screen.findAllByTestId('beers-row');
-    expect(rows[0]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('On tap 2 · 72%');
+    expect(rows[0]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('Tap 2 · 72% left');
     expect(rows[1]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('On deck');
-    expect(rows[2]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('In the library');
+    expect(rows[2]!.querySelector('[data-testid="beers-row-status"]')).toHaveTextContent('In the cellar');
   });
 
   it('filters the table by the search box', async () => {

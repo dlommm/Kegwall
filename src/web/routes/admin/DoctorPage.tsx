@@ -155,20 +155,26 @@ export function DoctorPage() {
     >
       <section className="adm-section doctor-v2__section">
         <h2 className="adm-h2">Sources right now</h2>
-        <ul className="tonight__facts">
-          {sources.map((source) => (
-            <li key={source.name} data-testid="doctor-source-row">
+        {/* Down first, then the ones receiving; sources nobody set up fold into one line. */}
+        <ul className="tonight__facts doctor-v2__sources">
+          {[...sources.filter((x) => x.registered && !x.healthy), ...sources.filter((x) => x.registered && x.healthy)].map((source) => (
+            <li key={source.name} data-testid="doctor-source-row" data-state={source.healthy ? 'ok' : 'down'}>
               <div>
                 {sourceLabel(source.name)}
                 {source.detail && <span>{source.detail}</span>}
               </div>
               <StatusDot
-                state={!source.registered ? 'disabled' : source.healthy ? 'completed' : 'failed'}
-                label={!source.registered ? 'Not set up' : source.healthy ? 'OK' : 'Down'}
+                state={source.healthy ? 'completed' : 'failed'}
+                label={source.healthy ? 'Receiving' : 'Down'}
               />
             </li>
           ))}
         </ul>
+        {sources.some((x) => !x.registered) && (
+          <p className="doctor-v2__unused" data-testid="doctor-sources-unused">
+            {`Not set up: ${sources.filter((x) => !x.registered).map((x) => sourceLabel(x.name)).join(', ')}.`}
+          </p>
+        )}
       </section>
 
       <section className="adm-section doctor-v2__section">

@@ -182,4 +182,25 @@ describe('NotificationBell', () => {
     fireEvent.mouseDown(screen.getByTestId('outside'));
     expect(screen.queryByTestId('notification-bell-panel')).not.toBeInTheDocument();
   });
+  it('opens with a sentence, and Escape closes it (Kegwall 2.1)', async () => {
+    (getUnackedCount as Mock).mockResolvedValue({ ok: true, data: { count: 2 } });
+    (listNotifications as Mock).mockResolvedValue({ ok: true, data: [notification({ id: 1 }), notification({ id: 2 })] });
+    renderBell();
+    await flush();
+    fireEvent.click(screen.getByTestId('notification-bell-button'));
+    await flush();
+    expect(screen.getByTestId('notification-panel-title')).toHaveTextContent('Two need you.');
+    expect(screen.getByTestId('notification-bell-panel')).toHaveAttribute('role', 'dialog');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('notification-bell-panel')).not.toBeInTheDocument();
+  });
+
+  it('says "All caught up." and offers no Mark all read when nothing is unread', async () => {
+    renderBell();
+    await flush();
+    fireEvent.click(screen.getByTestId('notification-bell-button'));
+    await flush();
+    expect(screen.getByTestId('notification-panel-title')).toHaveTextContent('All caught up.');
+    expect(screen.queryByTestId('notification-mark-all-read')).not.toBeInTheDocument();
+  });
 });

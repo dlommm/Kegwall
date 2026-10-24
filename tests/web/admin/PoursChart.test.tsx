@@ -42,3 +42,16 @@ describe('PoursChart', () => {
       .toBe('5 pours · 50.7 oz');
   });
 });
+
+describe('busiestWeekday (Kegwall 2.1)', () => {
+  it("names the weekday whose days add up to the most pours, so those bars lead", async () => {
+    const { busiestWeekday } = await import('../../../src/web/routes/admin/PoursChart');
+    // 2026-07-24 and 2026-07-31 are Fridays.
+    expect(busiestWeekday([
+      { date: '2026-07-24', count: 5, volumeMl: 0 },
+      { date: '2026-07-25', count: 6, volumeMl: 0 },
+      { date: '2026-07-31', count: 4, volumeMl: 0 },
+    ])).toBe(5);
+    expect(busiestWeekday([{ date: '2026-07-24', count: 0, volumeMl: 0 }])).toBeNull();
+  });
+});

@@ -67,7 +67,7 @@
 }
 
 .adm-table tbody tr.is-selected td {
-  background: var(--surface);
+  background: var(--surface-3, var(--surface-2));
 }
 
 .adm-table tbody tr.is-selected td:first-child {
@@ -220,8 +220,6 @@
   height: 22px;
   accent-color: var(--text);
 }
-
-/* Wizard steps, said in words. */
 /* A row of segments, one per step, with only the current step's label written out under
    it, so five steps never wrap (the other labels stay for screen readers). */
 .adm-steps {
@@ -263,7 +261,50 @@
   font-weight: 700;
 }
 
-/* --- Taps & kegs: Taps ---------------------------------------------------------- */
+/* Every beer row carries the beer: a tap-handle edge in its color and a faint wash of it
+   (Kegwall 2.1 "w-edge"). The whole row opens the tap. */
+.taps-v2 .taps-row {
+  cursor: pointer;
+}
+
+.taps-v2 .taps-row[style] {
+  background: color-mix(in srgb, var(--srm) 7%, transparent);
+}
+
+.taps-v2 .taps-row td:first-child {
+  box-shadow: inset 6px 0 0 var(--srm, transparent);
+  padding-left: 20px;
+}
+
+.taps-v2 .taps-row[data-dark-beer] td:first-child {
+  box-shadow: inset 6px 0 0 var(--srm), inset 7px 0 0 rgb(255 235 200 / 0.3);
+}
+
+@media (hover: hover) {
+  .taps-v2 .taps-row[style]:hover {
+    background: color-mix(in srgb, var(--srm) 13%, var(--surface-2));
+  }
+}
+
+.taps-v2 .taps-row.is-selected {
+  background: color-mix(in srgb, var(--srm, var(--text)) 16%, var(--surface-3));
+}
+
+.taps-row__open {
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  text-transform: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
 
 .taps-v2 .taps-row__num {
   width: 56px;
@@ -308,12 +349,77 @@
   vertical-align: middle;
 }
 
+/* Tapped → kicks: the time gone in the beer's color, the rest an empty track. */
 .taps-detail__timeline {
   position: relative;
   display: block;
-  height: 6px;
+  height: 8px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--ok), var(--warn), var(--danger));
+  background: var(--surface-3, var(--surface-2));
+  box-shadow: inset var(--elapsed, 0) 0 0 0 var(--srm, var(--text-dim));
+}
+
+/* The drawer opens on the beer itself: its color as a band, the tap number large, and the
+   servings left (Kegwall 2.1 "w-drawer"). */
+.taps-drawer__beer {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 18px 20px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.taps-drawer__beer[data-dark-beer] {
+  box-shadow: inset 0 0 0 1px rgb(255 235 200 / 0.3);
+}
+
+.taps-drawer__no,
+.taps-drawer__left b {
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.taps-drawer__no {
+  font-size: 72px;
+}
+
+.taps-drawer__what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.taps-drawer__what b {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.taps-drawer__what span,
+.taps-drawer__left span {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.taps-drawer__left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.taps-drawer__left b {
+  font-size: 48px;
 }
 
 .taps-detail__timeline .taps-row__timeline-marker {
@@ -664,26 +770,76 @@
 }
 
 .beers-v2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 10px;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
 }
 
-.beers-v2__card {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 6px 14px;
-  padding: 14px;
+/* The cellar ledger (Kegwall 2.1 "w-beers"): one panel per group, one row per beer, each with
+   a tap-handle edge in the beer's color. */
+.beers-v2__group {
+  padding: 18px 20px 10px;
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
+.beers-v2__group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.beers-v2__group-title span {
+  color: var(--text-faint);
+  font-size: 18px;
+}
+
+.beers-v2__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beers-v2__row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto minmax(120px, auto) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px 10px 20px;
+  border-top: 1px solid var(--border);
+  box-shadow: inset 6px 0 0 var(--srm);
+  background: color-mix(in srgb, var(--srm) 6%, transparent);
+}
+
+.beers-v2__row:first-child {
+  border-top: 0;
+}
+
+.beers-v2__row[data-dark-beer] {
+  box-shadow: inset 6px 0 0 var(--srm), inset 7px 0 0 rgb(255 235 200 / 0.3);
+}
+
+/* A beer with no color set says so, with a dashed edge in place of a guessed one. */
+.beers-v2__row[data-no-color] {
+  box-shadow: none;
+  background: none;
+  border-left: 6px dashed var(--border-strong);
+  padding-left: 14px;
+}
+
+.beers-v2__nocolor {
+  color: var(--warn);
+}
+
 .beers-v2__art {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-md);
   object-fit: cover;
 }
@@ -693,6 +849,20 @@
   min-width: 0;
   flex-direction: column;
   gap: 2px;
+}
+
+.beers-v2__name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.beers-v2__figures {
+  color: var(--text-dim);
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .beers-v2__dot {
@@ -706,9 +876,9 @@
 }
 
 .beers-v2__where {
-  margin-top: 4px;
   font-size: 14px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .beers-v2__where--deck {
@@ -717,9 +887,22 @@
 
 .beers-v2__actions {
   display: flex;
-  grid-column: 2;
-  gap: 2px;
-  margin-left: -10px;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+@media (max-width: 760px) {
+  .beers-v2__row {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 4px 14px;
+  }
+
+  .beers-v2__figures,
+  .beers-v2__where,
+  .beers-v2__actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
 }
 
 .beers-v2__lookup {
@@ -816,49 +999,107 @@
   font-size: 28px;
 }
 
-.people-v2__grid {
+/* Pourers as the bar's tally (Kegwall 2.1 "w-people"): a ranked list on one panel, each person
+   colored by the beer they pour most, their pours as tally marks; the invite sits beside it. */
+.people-v2__layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(200px, 42vw), 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: start;
+}
+
+.people-v2__list {
   margin: 0;
-  padding: 0;
+  padding: 8px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   list-style: none;
 }
 
-.people-v2__card {
-  display: flex;
-  min-width: 0;
-  min-height: 150px;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+.people-v2__row {
+  display: grid;
+  grid-template-columns: 28px 44px minmax(140px, 220px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
 }
 
-.people-v2__card--invite {
-  background: transparent;
+.people-v2__row:first-child {
+  border-top: 0;
+}
+
+.people-v2__rank {
+  color: var(--text-faint);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.people-v2__who {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.people-v2__strip {
+  display: flex;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.people-v2__strip i {
+  flex: 1;
+}
+
+.people-v2__tally {
+  max-width: 100%;
+  color: var(--text-dim);
+}
+
+.people-v2__figures {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.people-v2__invite {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
   outline: 1.5px dashed var(--border-strong);
   outline-offset: -1.5px;
+}
+
+@media (max-width: 900px) {
+  .people-v2__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .people-v2__row {
+    grid-template-columns: 24px 44px minmax(0, 1fr);
+  }
+
+  .people-v2__tally,
+  .people-v2__figures {
+    grid-column: 3;
+    text-align: left;
+  }
 }
 
 .people-v2__avatar {
   display: inline-grid;
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border-radius: 50%;
   color: #141110;
   font-size: 14px;
   font-weight: 700;
-}
-
-.people-v2__avatar--big {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 8px;
-  font-size: 20px;
 }
 
 .people-v2__name {
@@ -919,9 +1160,29 @@
   white-space: normal;
 }
 
-.settings-v2__panels .settings-groups > :first-child {
-  padding-top: 0;
-  border-top: 0;
+/* Kegwall 2.1: each settings group is its own panel, its fields wells in it. */
+.settings-v2__panels .settings-group {
+  padding: 22px 24px 24px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+/* Save shows only once something changed, in copper with a note; a clean group shows none. */
+.settings-v2__panels .beer-form__submit:not([data-dirty]) {
+  display: none;
+}
+
+.settings-v2__panels .beer-form__submit[data-dirty] {
+  background: var(--accent);
+  color: var(--accent-ink, var(--bg));
+}
+
+.settings-v2__panels .beer-form__submit[data-dirty]::after {
+  content: '· not saved yet';
+  margin-left: 8px;
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 @media (max-width: 900px) {
@@ -1190,8 +1451,7 @@
   }
 
   .taps-v2 .taps-row__kicks,
-  .taps-v2 .taps-row__monitor,
-  .taps-v2 .taps-row__marker {
+  .taps-v2 .taps-row__monitor {
     display: none;
   }
 
@@ -1213,8 +1473,9 @@
     width: 104px;
   }
 
+  /* The actions column only holds Swap, hidden here: the row itself opens the tap. */
   .taps-v2 th:last-child {
-    width: 92px;
+    width: 8px;
   }
 
   .taps-v2 td {
@@ -1229,4 +1490,67 @@
   .taps-v2 .taps-row__pct {
     display: none;
   }
+}
+
+/* Doctor (Kegwall 2.1 "w-devices"): sources on one panel, down first; the unused ones are a line. */
+.doctor-v2__sources,
+.doctor-v2__unused {
+  margin: 14px 0 0;
+}
+
+.doctor-v2__sources {
+  padding: 4px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.doctor-v2__sources li[data-state='down'] {
+  box-shadow: inset 4px 0 0 var(--danger);
+  margin-left: -20px;
+  padding-left: 20px;
+}
+
+.doctor-v2__unused {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+/* Monitors: each port that feeds a beer carries its color as a tap-handle edge. */
+.monitor-v2__port-row td:first-child {
+  box-shadow: inset 6px 0 0 var(--srm);
+  padding-left: 18px;
+}
+
+.monitor-v2__more {
+  min-width: 44px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Pours (Kegwall 2.1 "i-night"): a header for each service night, a tick of the beer per row. */
+.pours-v2 .pours-night th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 14px 10px 8px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.pours-v2 .pours-night th b {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pours-tick {
+  flex: none;
+  width: 6px;
+  height: 30px;
+  border-radius: 3px;
 }

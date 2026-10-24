@@ -1,8 +1,9 @@
 import {
-  CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  CartesianGrid, ReferenceArea, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { TelemetryPoint } from '../../../server/db/telemetry.js';
 import { formatTempC, type VolumeUnits } from '../../lib/units';
+import { GRID_STROKE, TICK } from '../../design/chartTheme';
 
 export interface TempChartSensor {
   /** The device's anchor monitor row id — the key the telemetry endpoint is addressed by. */
@@ -20,7 +21,6 @@ export interface TempChartProps {
   sensors: TempChartSensor[];
 }
 
-const GRID_STROKE = 'color-mix(in srgb, var(--text) 10%, transparent)';
 
 /**
  * `2026-07-27T13:30:00.000Z` -> `1:30 PM` — read directly off the ISO string's UTC
@@ -79,19 +79,40 @@ function TimeAxis() {
  * over one plot. The temperature axis labels real degrees in the viewer's units (`39°F`), not
  * bare numbers — a raw "0…6" scale is unreadable without knowing which unit it's in.
  */
+/** The usual serving range for a kegerator, 34–38 °F (Kegwall 2.1 "i-temp"), in °C. */
+const SERVING_C: [number, number] = [1.1, 3.3];
+
+/** "Held 36–37°F." / "Ran 34–44°F, outside the serving range." from a sensor's readings. */
+export function tempSummary(data: TelemetryPoint[], units: VolumeUnits): string | null {
+  const temps = data.map((p) => p.temp).filter((t): t is number => t != null);
+  if (temps.length === 0) return null;
+  const lo = Math.min(...temps);
+  const hi = Math.max(...temps);
+  const range = `${formatTempTick(lo, units)}–${formatTempTick(hi, units)}`;
+  return lo >= SERVING_C[0] - 0.3 && hi <= SERVING_C[1] + 0.3
+    ? `Held ${range}, in the serving range.`
+    : `Ran ${range}, outside the serving range at times.`;
+}
+
 function SensorCharts({ data, units }: { data: TelemetryPoint[]; units: VolumeUnits }) {
+  const summary = tempSummary(data, units);
   return (
     <>
       <div className="stats-chart__metric" data-testid="temp-chart-temperature">
         <h4 className="stats-chart__subtitle">Temperature</h4>
+        {summary && <p className="stats-chart__say" data-testid="temp-chart-summary">{summary}</p>}
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={data} margin={CHART_MARGIN}>
             <CartesianGrid vertical={false} stroke={GRID_STROKE} />
             {TimeAxis()}
             <YAxis
               className="font-tabular" width={52}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tick={TICK} axisLine={false} tickLine={false}
               tickFormatter={(v: number) => formatTempTick(v, units)}
+            />
+            <ReferenceArea
+              y1={SERVING_C[0]} y2={SERVING_C[1]}
+              fill="var(--ok)" fillOpacity={0.1} stroke="none" ifOverflow="extendDomain"
             />
             <Tooltip content={<MetricTooltip format={(p) => (p.temp != null ? formatTempC(p.temp, units) : 'No reading')} />} />
             <Line
@@ -110,7 +131,7 @@ function SensorCharts({ data, units }: { data: TelemetryPoint[]; units: VolumeUn
             {TimeAxis()}
             <YAxis
               className="font-tabular" width={52} domain={[0, 100]}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tick={TICK} axisLine={false} tickLine={false}
               tickFormatter={(v: number) => `${v}%`}
             />
             <Tooltip content={<MetricTooltip format={(p) => (p.humidity != null ? `${Math.round(p.humidity)}% humidity` : 'No humidity reading')} />} />

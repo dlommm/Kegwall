@@ -49,9 +49,9 @@
 }
 
 /*
- * Notification bell (Task 6) — a small relatively-positioned wrapper so the dropdown
- * panel can anchor off it (`position: absolute`); the badge is a small pill overlapping
- * the button's corner, same "small pill, accent-tinted" language as `.users-role-badge`.
+ * Notification bell and rows (Kegwall 2.1 "m-bell"): the admin look's tokens, 44 px controls,
+ * and severity told by shape as well as color (a diamond is critical, a triangle a warning,
+ * a dot information), so it reads without color.
  */
 .notification-bell {
   position: relative;
@@ -61,108 +61,104 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  border: 0;
   background: none;
   color: var(--text);
-  font-size: 0.85rem;
   cursor: pointer;
-}
-
-.notification-bell__button:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .notification-bell__badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.3rem;
-  height: 1.3rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;;
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 0.7rem;
+  border-radius: var(--radius-pill);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .notification-bell__panel {
   position: absolute;
-  top: calc(100% + 0.5rem);
+  top: calc(100% + 8px);
   right: 0;
   z-index: 20;
   display: flex;
-  width: 22rem;
-  max-width: calc(100vw - 2rem);
+  width: 360px;
+  max-width: calc(100vw - 32px);
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 1rem;
-  border-radius: var(--card-radius, 0.75rem);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-  box-shadow: 0 0.75rem 2rem color-mix(in srgb, black 35%, transparent);
+  padding: 6px 0 8px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float);
 }
 
 .notification-bell__panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 12px;
+  padding: 6px 8px 6px 18px;
 }
 
 .notification-bell__panel-title {
-  font-size: 0.95rem;
-  font-weight: 600;
+  margin: 0;
   color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .notification-bell__panel-header button {
-  padding: 0.3rem 0.6rem;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
   border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
   background: none;
-  color: var(--text);
-  font-size: 0.78rem;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 14px;
   cursor: pointer;
 }
 
-.notification-bell__panel-header button:disabled {
-  opacity: 0.5;
-  cursor: default;
+.notification-bell__panel-header button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.notification-bell__panel .admin-page-quiet {
+  padding: 4px 18px 12px;
 }
 
 .notification-bell__list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-height: 24rem;
+  max-height: 384px;
+  margin: 0;
+  padding: 0;
   overflow-y: auto;
+  list-style: none;
+}
+
+.notification-bell__list .notification-row {
+  padding: 12px 18px;
 }
 
 .notification-bell__view-all {
-  align-self: center;
-  padding-top: 0.4rem;
-  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  color: var(--accent);
-  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0 18px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
   text-decoration: none;
 }
 
-.notification-bell__view-all:hover {
-  text-decoration: underline;
-}
-
-/* Notification row (Task 6) — shared by the bell panel and /admin/notifications. */
 .notification-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .notification-row:last-child {
@@ -170,20 +166,24 @@
 }
 
 .notification-row__severity {
-  flex-shrink: 0;
-  margin-top: 0.35rem;
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 999px;;
-  background: color-mix(in srgb, var(--text) 30%, transparent);
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
 }
 
 .notification-row__severity--warning {
-  background: #e0793d;
+  border-radius: 0;
+  background: var(--warn);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
 .notification-row__severity--critical {
-  background: #d94f4f;
+  border-radius: 2px;
+  background: var(--danger);
+  transform: rotate(45deg);
 }
 
 .notification-row__body {
@@ -191,23 +191,25 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 2px;
 }
 
 .notification-row__title {
+  margin: 0;
   color: var(--text);
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .notification-row__detail {
+  margin: 0;
   color: var(--text-dim);
-  font-size: 0.82rem;
+  font-size: 14px;
 }
 
 .notification-row__time {
-  color: var(--text-dim);
-  font-size: 0.75rem;
+  color: var(--text-faint);
+  font-size: 13px;
 }
 
 .notification-row[data-acked='true'] .notification-row__title {
@@ -216,37 +218,29 @@
 }
 
 .notification-row__ack {
-  flex-shrink: 0;
-  padding: 0.25rem 0.55rem;
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
   border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
   background: none;
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
   color: var(--text);
-  font-size: 0.75rem;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.notification-row__ack:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-/* /admin/notifications (Task 6) — the full paginated history; rows reuse .notification-row. */
+/* /admin/notifications: the full history, one panel; rows reuse .notification-row. */
 .notifications-page__list {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: 0.25rem 1.1rem;
-  border-radius: var(--card-radius, 0.75rem);
+  margin: 0;
+  padding: 4px 20px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.notification-bell__button:focus-visible,
-.notification-bell__panel-header button:focus-visible,
-.notification-bell__view-all:focus-visible,
-.notification-row__ack:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  list-style: none;
 }
 
 .admin-content {
@@ -435,14 +429,6 @@
   color: var(--text);
   font: inherit;
   font-weight: 400;
-}
-
-.beers-table__srm-chip {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border-radius: 999px;;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 /* The beer create/edit form. */
@@ -1491,79 +1477,6 @@ h2.admin-field__label-text {
   font-weight: 600;
 }
 
-/* Per-keg depletion cards — not a chart, per the plan's own framing. */
-.keg-depletion-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: 0.75rem;
-}
-
-.keg-depletion-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-}
-
-.keg-depletion-card__header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.keg-depletion-card__beer {
-  overflow: hidden;
-  flex: 1;
-  color: var(--text);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.keg-depletion-card__tap {
-  flex: none;
-  color: var(--text-dim);
-  font-size: 0.75rem;
-}
-
-.keg-depletion-card__bar {
-  position: relative;
-  height: 0.4rem;
-  overflow: hidden;
-  border-radius: 999px;;
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-}
-
-.keg-depletion-card__bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
-}
-
-.keg-depletion-card__level {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.keg-depletion-card__projection {
-  color: var(--text);
-  font-size: 0.85rem;
-}
-
-/* The SRM chip — same small-dot treatment as BeersPage's `.beers-table__srm-chip`, the
-   one place liquid/SRM color reappears here per the binding design direction. */
-.stats-srm-chip {
-  display: inline-block;
-  flex: none;
-  width: 0.85rem;
-  height: 0.85rem;
-  border-radius: 999px;;
-  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-}
-
 /* Leaderboard — same avatar-dot treatment as UsersPage's `.users-avatar-dot`. */
 .leaderboard-row__drinker {
   display: flex;
@@ -2248,3 +2161,98 @@ h2.admin-field__label-text {
 }
 
 .admin-content :where(button, select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Keg depletion (Kegwall 2.1): one ranked list, each keg filled with its beer to the level. */
+.keg-depletion__lead {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.keg-depletion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keg-depletion__row {
+  display: grid;
+  grid-template-columns: minmax(110px, 200px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.keg-depletion__beer {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The keg on its side: the beer to its level with a foam edge, rounded like a keg's end. */
+.keg-depletion__keg {
+  position: relative;
+  height: 22px;
+  overflow: hidden;
+  border-radius: 6px 10px 10px 6px;
+  background: var(--surface-3, var(--surface-2));
+}
+
+.keg-depletion__keg::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--level);
+  background: var(--srm);
+  box-shadow: 3px 0 0 var(--foam, #F3E9D2);
+}
+
+.keg-depletion__keg[data-dark-beer]::before {
+  box-shadow: 3px 0 0 var(--foam, #F3E9D2), inset 0 0 0 1px rgb(255 235 200 / 0.3);
+}
+
+.keg-depletion__when {
+  color: var(--text-dim);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .keg-depletion__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .keg-depletion__when {
+    white-space: normal;
+  }
+}
+
+.analytics-highlights li {
+  font-size: 17px;
+}
+
+/* The top beer's share of everything poured, in its own color. */
+.analytics-highlights__share {
+  display: block;
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-3, var(--surface-2));
+}
+
+.analytics-highlights__share i {
+  display: block;
+  height: 100%;
+}
+
+/* A chart's one-line finding, above the chart. */
+.stats-chart__say {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-weight: 700;
+}

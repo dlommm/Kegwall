@@ -74,6 +74,7 @@ export function SiteGroup({ settings, onSaved }: GroupProps) {
         <label className="admin-field">
           <span>Units</span>
           <select
+            className="adm-select"
             data-testid="settings-site-units"
             value={displayUnits}
             onChange={(e) => setDisplayUnits(e.target.value as Settings['displayUnits'])}
@@ -140,7 +141,8 @@ export function SiteGroup({ settings, onSaved }: GroupProps) {
       </div>
 
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-site-error">{error}</p>}
-      <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-site-save">
+      <button type="submit" className="beer-form__submit" data-dirty={dirty || undefined}
+          disabled={!dirty || submitting} data-testid="settings-site-save">
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
     </form>

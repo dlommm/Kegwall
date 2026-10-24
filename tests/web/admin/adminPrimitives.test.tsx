@@ -113,3 +113,20 @@ describe('admin primitives (Kegwall V2)', () => {
     expect(result.current.theme).toBe(ADMIN_LOOK_LIGHT);
   });
 });
+
+describe('tapEntries (Kegwall 2.1 palette)', () => {
+  it('lists each tap with its beer, what is left and the beer color, for the search palette', async () => {
+    const { tapEntries, filterEntries } = await import('../../../src/web/routes/admin/CommandPalette');
+    const entries = tapEntries([
+      { tapId: 4, tapNumber: 4, hidden: false, beer: { id: 1, name: 'Midnight Oats', srm: 38 } as never, keg: { status: 'on_tap', remainingMl: 946 } as never },
+      { tapId: 12, tapNumber: 12, hidden: false, beer: { id: 2, name: 'Gourd Times', srm: 14 } as never, keg: { status: 'kicked', remainingMl: 0 } as never },
+    ]);
+    expect(entries.map((e) => [e.label, e.hint])).toEqual([
+      ['Tap 4 · Midnight Oats', '2 pints left'],
+      ['Tap 12 · Gourd Times', 'kicked'],
+    ]);
+    expect(entries[0]!.color).toMatch(/^#/);
+    expect(entries[0]!.to).toBe('/admin/taps?tap=4');
+    expect(filterEntries(entries, 'oat').map((e) => e.id)).toEqual(['tap-4']);
+  });
+});

@@ -734,7 +734,7 @@ describe('SettingsPage', () => {
         render(<SettingsPage />);
         await screen.findByTestId('settings-group-integrations');
 
-        fireEvent.click(await screen.findByLabelText(/enable face sign-in/i));
+        fireEvent.click(await screen.findByTestId('settings-integrations-facesignin-enabled'));
         fireEvent.change(screen.getByLabelText(/match threshold/i), { target: { value: '0.7' } });
         fireEvent.click(screen.getByTestId('settings-integrations-facesignin-save'));
         await flush();
@@ -765,7 +765,7 @@ describe('SettingsPage', () => {
         render(<SettingsPage />);
         await screen.findByTestId('settings-group-integrations');
 
-        fireEvent.click(screen.getByLabelText(/enable face sign-in/i));
+        fireEvent.click(screen.getByTestId('settings-integrations-facesignin-enabled'));
         fireEvent.click(screen.getByTestId('settings-integrations-facesignin-save'));
         await flush();
 

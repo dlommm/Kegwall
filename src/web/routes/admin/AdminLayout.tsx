@@ -290,7 +290,7 @@ export function AdminLayout() {
                       {signingOut ? 'Signing out…' : 'Sign out'}
                     </button>
                   </nav>
-                  <Dialog.Close className="adm-btn adm-btn--secondary adm-sheet__close">Close</Dialog.Close>
+                  <Dialog.Close className="adm-sheet__close" aria-label="Close the menu">✕</Dialog.Close>
                 </Dialog.Content>
               </Dialog.Portal>
             </Dialog.Root>

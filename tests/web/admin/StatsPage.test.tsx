@@ -213,7 +213,7 @@ describe('StatsPage', () => {
     });
     renderAdminPage(<StatsPage />, adminContext('admin', 'metric'));
     await flush();
-    expect(screen.getByTestId('analytics-highlights')).toHaveTextContent('Top beer: Citra IPA');
+    expect(screen.getByTestId('analytics-highlights')).toHaveTextContent('Citra IPA poured the most');
   });
 
   it('shows the admin monthly-spend table on the Kegs tab', async () => {

@@ -27,12 +27,14 @@ Each row shows:
 | Kicks in | The projected kick at the current pace; red when it's within three days |
 | Monitor | The Kegtron port feeding the tap and when it last reported |
 
-Levels update live, the same way the wall does. **Swap keg** appears on rows that need one;
-**Details** opens the tap's drawer.
+Levels update live, the same way the wall does. Each row has an edge in its beer's color. **Swap
+keg** appears on rows that need one; select a row (or its beer's name) to open the tap's drawer.
+The page opens with how many pints are left on the wall and how many taps need a swap.
 
 ### A tap's drawer
 
-Select **Details** (or follow a tap from Tonight) to open the tap's drawer on the right:
+Select a tap (or follow one from Tonight) to open its drawer on the right. It opens on a band in
+the beer's color with the tap number, the beer and the pints left:
 
 ![A tap's drawer with its level, kick forecast, line cleaning and on-deck queue](images/admin-taps-drawer.jpg)
 
@@ -93,8 +95,10 @@ top counts the devices and ports and names any that have gone quiet; the line un
 ports that aren't bound to a tap.
 
 Under each Kegtron, a table maps each port to the tap it feeds, with what's left on that tap and
-when the port last reported. **Bind a tap** / **Change tap** picks the tap, **Unbind** clears it,
-and **Reset volume** (Kegtron Pro) resets that port's on-device counter after a confirmation.
+when the port last reported, with an edge in the beer's color on ports that feed one. **Bind a
+tap** / **Change tap** picks the tap; the **⋯** menu holds **Unbind this port** and, on a Kegtron
+Pro, **Reset volume**, which resets that port's on-device counter after a confirmation. The page
+opens with how many ports are reporting.
 
 **Details** opens the device's drawer: firmware and Kegtron cloud state, **Check WiFi signal**
 (asks the device, so it runs only when you press it) and the last 24 hours of temperature and

@@ -12,11 +12,25 @@ function makeKeg(overrides: Partial<KegBurnStat> = {}): KegBurnStat {
 }
 
 describe('KegDepletionCards', () => {
-  it('renders one card per active keg with the "Kicks around" phrasing', () => {
-    render(<KegDepletionCards data={[makeKeg()]} units="metric" />);
+  it('renders one row per active keg with its kick day', () => {
+    render(<KegDepletionCards data={[makeKeg({ projectedKickDate: '2099-08-09' })]} units="metric" />);
     expect(screen.getAllByTestId('keg-depletion-card')).toHaveLength(1);
-    expect(screen.getByText('Citra IPA')).toBeInTheDocument();
-    expect(screen.getByTestId('keg-depletion-projection')).toHaveTextContent('Kicks around Aug 9');
+    expect(screen.getAllByText('Citra IPA')[0]).toBeInTheDocument();
+    expect(screen.getByTestId('keg-depletion-projection')).toHaveTextContent('kicks Aug 9');
+  });
+
+  it('ranks a nearly empty keg with no pace first and names it in the lead sentence', () => {
+    render(<KegDepletionCards
+      data={[
+        makeKeg({ kegId: 1, beerName: 'Citra IPA', projectedKickDate: '2099-08-09' }),
+        makeKeg({ kegId: 2, beerName: 'Midnight Oats', levelPct: 4, remainingMl: 760, projectedKickDate: null, dailyBurnMl: 0 }),
+      ]}
+      units="metric"
+    />);
+    const rows = screen.getAllByTestId('keg-depletion-card');
+    expect(rows[0]).toHaveTextContent('Midnight Oats');
+    expect(rows[0]).toHaveTextContent('almost out');
+    expect(screen.getByTestId('keg-depletion-lead')).toHaveTextContent('Midnight Oats is almost out');
   });
 
   it('shows "No recent pours" when projectedKickDate is null', () => {
@@ -31,7 +45,7 @@ describe('KegDepletionCards', () => {
 
   it('formats a remaining-volume readout with units', () => {
     render(<KegDepletionCards data={[makeKeg({ remainingMl: 355, levelPct: 50 })]} units="us" />);
-    expect(screen.getByText(/12\.0 oz left/)).toBeInTheDocument();
+    expect(screen.getAllByText(/12\.0 oz left/)[0]).toBeInTheDocument();
   });
 
   it('formatKickDate renders a short month/day label from a YYYY-MM-DD string', () => {

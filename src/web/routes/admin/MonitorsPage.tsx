@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import type { TapState } from '../../../server/core/state.js';
 import type { Monitor } from '../../../server/db/monitors.js';
 import {
@@ -11,14 +11,19 @@ import { formatRelativeTime } from '../../lib/useRelativeTime';
 import { formatVolumeMl } from '../../lib/units';
 import { groupMonitors, deviceLabel, type MonitorDeviceGroup } from '../../lib/monitorDevices';
 import { capitalize, countWord } from '../../lib/tonightAttention';
+import { beerColorFor } from '../../wall/wallModel';
 import { useAdminContext } from './useAdminContext';
-import { PageTemplate } from './PageTemplate';
+import { PageLeadFigure, PageTemplate } from './PageTemplate';
 import {
-  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Modal, SelectField, Skeleton, StatusDot, Table,
+  Button, ConfirmDialog, Drawer, EmptyState, ErrorState, Menu, MenuContent, MenuItem, MenuTrigger, Modal,
+  SelectField, Skeleton, StatusDot, Table,
 } from './ui';
 import {
   DeviceDetails, TELEMETRY_HOURS, type RssiEntry, type TelemetryEntry,
 } from './monitors/DeviceDetails';
+
+/** A port heard from within this long counts as reporting. */
+const REPORTING_MS = 15 * 60_000;
 import {
   TYPE_LABELS, deviceLastSeen, goveeDeviceName, isReceiving, portLabel, tapLabel,
 } from './monitors/monitorText';
@@ -224,6 +229,17 @@ export function MonitorsPage() {
     <PageTemplate
       testId="admin-monitors-page"
       title={status === 'loaded' ? monitorsHeadline(devices) : 'Monitors'}
+      lead={status === 'loaded' && devices.length > 0 && (() => {
+        const ports = monitors.filter((m) => m.type !== 'govee_sensor' && m.enabled);
+        const heard = ports.filter((m) => m.lastSeen && Date.now() - new Date(m.lastSeen).getTime() < REPORTING_MS).length;
+        return ports.length > 0 && (
+          <PageLeadFigure
+            value={`${heard} of ${ports.length}`}
+            label="ports reporting"
+            tone={heard < ports.length ? 'warn' : undefined}
+          />
+        );
+      })()}
       sub={(() => {
         const unbound = monitors.filter((m) => m.type !== 'govee_sensor' && m.enabled && m.tapId == null).length;
         if (status !== 'loaded' || devices.length === 0) return undefined;
@@ -437,7 +453,12 @@ export function MonitorsPage() {
                     const tap = taps.find((t) => t.tapId === monitor.tapId) ?? null;
                     const hasLiveKeg = tap?.keg != null && tap.keg.status === 'on_tap';
                     return (
-                      <tr data-testid="monitors-port-row" key={monitor.id}>
+                      <tr
+                        data-testid="monitors-port-row"
+                        key={monitor.id}
+                        className={tap?.beer && hasLiveKeg ? 'monitor-v2__port-row' : undefined}
+                        style={tap?.beer && hasLiveKeg ? { '--srm': beerColorFor(tap.beer.srm) } as CSSProperties : undefined}
+                      >
                         <td className="adm-num-cell monitor-v2__port" data-testid="monitors-row-port">{monitor.portIndex}</td>
                         <td>
                           {tap ? (
@@ -465,26 +486,38 @@ export function MonitorsPage() {
                               {monitor.tapId != null ? 'Change tap' : 'Bind a tap'}
                             </Button>
                           )}
-                          {canEdit && monitor.tapId != null && (
-                            <Button
-                              variant="quiet"
-                              data-testid="monitors-row-unbind"
-                              disabled={unbindingId === monitor.id}
-                              onClick={() => handleUnbind(monitor, deviceLabel(group))}
-                            >
-                              {unbindingId === monitor.id ? 'Unbinding…' : 'Unbind'}
-                            </Button>
-                          )}
-                          {canEdit && isPro && (
-                            <Button
-                              variant="quiet"
-                              data-testid="monitors-row-reset"
-                              onClick={() => setResetState({
-                                monitor, deviceName: deviceLabel(group), result: 'idle', error: null,
-                              })}
-                            >
-                              Reset volume
-                            </Button>
+                          {canEdit && (monitor.tapId != null || isPro) && (
+                            // The routine action stays in view; the rarer ones live in a menu.
+                            <Menu>
+                              <MenuTrigger
+                                className="adm-btn adm-btn--quiet monitor-v2__more"
+                                data-testid="monitors-row-more"
+                                aria-label={`More for port ${monitor.portIndex}`}
+                              >
+                                ⋯
+                              </MenuTrigger>
+                              <MenuContent>
+                                {monitor.tapId != null && (
+                                  <MenuItem
+                                    data-testid="monitors-row-unbind"
+                                    disabled={unbindingId === monitor.id}
+                                    onSelect={() => handleUnbind(monitor, deviceLabel(group))}
+                                  >
+                                    {unbindingId === monitor.id ? 'Unbinding…' : 'Unbind this port'}
+                                  </MenuItem>
+                                )}
+                                {isPro && (
+                                  <MenuItem
+                                    data-testid="monitors-row-reset"
+                                    onSelect={() => setResetState({
+                                      monitor, deviceName: deviceLabel(group), result: 'idle', error: null,
+                                    })}
+                                  >
+                                    Reset volume
+                                  </MenuItem>
+                                )}
+                              </MenuContent>
+                            </Menu>
                           )}
                         </td>
                       </tr>

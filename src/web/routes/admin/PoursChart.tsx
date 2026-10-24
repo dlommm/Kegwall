@@ -1,16 +1,16 @@
 import {
-  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { PoursByDay } from '../../../server/db/stats.js';
 import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
+import {
+  CURSOR_FILL, GRID_STROKE, LEAD_MARK, QUIET_MARK, TICK,
+} from '../../design/chartTheme';
 
 export interface PoursChartProps {
   data: PoursByDay[];
   units: VolumeUnits;
 }
-
-const GRID_STROKE = 'color-mix(in srgb, var(--text) 10%, transparent)';
-const CURSOR_FILL = 'color-mix(in srgb, var(--text) 6%, transparent)';
 
 /** `2026-07-27` -> `Jul 27` — UTC, matching how `poursByDay` (db/stats.ts) buckets days,
  * so a tick's label always names the exact calendar day its bar aggregates. */
@@ -18,6 +18,17 @@ function formatShortDate(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', timeZone: 'UTC',
   });
+}
+
+const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** The weekday (0 = Sunday) with the most pours in the range, or null with none. Its bars are
+ * the ones the page's sentence names ("Fridays are your busiest"), so they lead in copper. */
+export function busiestWeekday(data: PoursByDay[]): number | null {
+  const totals = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of data) totals[new Date(`${d.date}T00:00:00Z`).getUTCDay()]! += d.count;
+  const max = Math.max(...totals);
+  return max > 0 ? totals.indexOf(max) : null;
 }
 
 /** Exported for a direct, hover-free unit test — see the Charts style binding's
@@ -50,6 +61,11 @@ function PoursTooltip({ active, payload, units }: {
  */
 export function PoursChart({ data, units }: PoursChartProps) {
   const total = data.reduce((sum, d) => sum + d.count, 0);
+  const lead = busiestWeekday(data);
+  const weekday = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
+  const peak = data.reduce<PoursByDay | null>((best, d) => (!best || d.count > best.count ? d : best), null);
+  // Only Mondays are labelled, so a month of bars doesn't crowd its axis.
+  const mondays = data.length > 10 ? data.filter((d) => weekday(d.date) === 1).map((d) => d.date) : undefined;
   return (
     <div className="stats-chart" data-testid="pours-chart">
       <h3 className="stats-chart__title">Pours per day</h3>
@@ -63,15 +79,28 @@ export function PoursChart({ data, units }: PoursChartProps) {
             <CartesianGrid vertical={false} stroke={GRID_STROKE} />
             <XAxis
               dataKey="date" className="font-tabular" tickFormatter={formatShortDate}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
-              interval="preserveStartEnd"
+              tick={TICK} axisLine={false} tickLine={false}
+              ticks={mondays}
+              interval={mondays ? 0 : 'preserveStartEnd'}
             />
             <YAxis
               allowDecimals={false} className="font-tabular" width={28}
-              tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+              tick={TICK} axisLine={false} tickLine={false}
             />
             <Tooltip content={<PoursTooltip units={units} />} cursor={{ fill: CURSOR_FILL }} />
-            <Bar dataKey="count" name="Pours" fill="var(--accent)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="count" name="Pours" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+              {data.map((d) => (
+                <Cell key={d.date} fill={weekday(d.date) === lead ? LEAD_MARK : QUIET_MARK} data-lead={weekday(d.date) === lead || undefined} />
+              ))}
+              <LabelList
+                dataKey="date"
+                position="top"
+                className="font-tabular"
+                fill="var(--text)"
+                fontSize={12}
+                formatter={(date: unknown) => (peak && date === peak.date ? `${SHORT_DAYS[weekday(peak.date)]} · ${peak.count}` : '')}
+              />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       )}

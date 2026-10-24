@@ -73,3 +73,13 @@ describe('TempChart', () => {
     expect(formatTimeLabel('2026-07-27T12:00:00.000Z')).toBe('12:00 PM');
   });
 });
+
+describe('tempSummary (Kegwall 2.1)', () => {
+  it('says whether the kegerator held the serving range', async () => {
+    const { tempSummary } = await import('../../../src/web/routes/admin/TempChart');
+    const at = (temp: number) => ({ ts: '2026-07-27T18:00:00.000Z', temp, humidity: 50 });
+    expect(tempSummary([at(2.0), at(3.0)], 'metric')).toMatch(/^Held .* in the serving range\.$/);
+    expect(tempSummary([at(2.0), at(7.0)], 'metric')).toMatch(/outside the serving range/);
+    expect(tempSummary([], 'metric')).toBeNull();
+  });
+});

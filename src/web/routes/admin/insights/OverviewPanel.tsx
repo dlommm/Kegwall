@@ -2,6 +2,7 @@ import { formatVolumeMl } from '../../../lib/units';
 import { formatWholeVolume } from '../../../lib/lookData';
 import { PoursChart } from '../PoursChart';
 import { money, wholeMoney } from '../../../lib/adminFormat';
+import { beerColorFor } from '../../../wall/wallModel';
 import { ML_PER_PINT } from '../../../../server/core/pricing.js';
 import type { PanelProps } from './HistoryPanels';
 
@@ -14,12 +15,28 @@ export function OverviewPanel({ d, units }: PanelProps) {
   const {
     kpis, days, pours, beers, leaderboardRows,
   } = d;
-  const highlights: string[] = [];
-  if (beers[0]) highlights.push(`Top beer: ${beers[0].beerName} · ${formatVolumeMl(beers[0].volumeMl, units)}`);
+  // Highlights as sentences (Kegwall 2.1 "i-sentences"), each one a finding, not a label.
+  const highlights: { text: string; share?: { color: string; pct: number } }[] = [];
+  const [top, second] = beers;
+  if (top) {
+    const total = beers.reduce((sum, b) => sum + b.volumeMl, 0);
+    const vs = second && second.volumeMl > 0 ? top.volumeMl / second.volumeMl : null;
+    const more = vs == null ? '' : vs >= 1.95 ? `, twice what ${second!.beerName} did`
+      : vs >= 1.3 ? `, a third more than ${second!.beerName}` : vs > 1.05 ? `, a little ahead of ${second!.beerName}` : `, neck and neck with ${second!.beerName}`;
+    highlights.push({
+      text: `${top.beerName} poured the most: ${formatVolumeMl(top.volumeMl, units)}${more}.`,
+      share: total > 0 ? { color: beerColorFor(top.srm), pct: Math.round((top.volumeMl / total) * 100) } : undefined,
+    });
+  }
   const busiest = [...pours].sort((a, b) => b.count - a.count)[0];
-  if (busiest && busiest.count > 0) highlights.push(`Busiest day: ${new Date(`${busiest.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${busiest.count} pours`);
-  if (leaderboardRows[0]) highlights.push(`Top pourer: ${leaderboardRows[0].displayName} · ${leaderboardRows[0].pourCount} pours`);
-  if (kpis?.costPerPintCents != null) highlights.push(`Cost per pint: ${money(kpis.costPerPintCents)}`);
+  if (busiest && busiest.count > 0) {
+    const day = new Date(`${busiest.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    highlights.push({ text: `The busiest day was ${day}, with ${busiest.count} pour${busiest.count === 1 ? '' : 's'}.` });
+  }
+  if (leaderboardRows[0]) {
+    const p = leaderboardRows[0];
+    highlights.push({ text: `${p.displayName} poured the most often: ${p.pourCount} pour${p.pourCount === 1 ? '' : 's'}.` });
+  }
 
   return (
     <>
@@ -69,7 +86,14 @@ export function OverviewPanel({ d, units }: PanelProps) {
           <h3 className="stats-chart__title">Highlights</h3>
           <ul className="analytics-highlights">
             {highlights.map((h) => (
-              <li key={h} data-testid="analytics-highlight">{h}</li>
+              <li key={h.text} data-testid="analytics-highlight">
+                {h.text}
+                {h.share && (
+                  <span className="analytics-highlights__share" aria-hidden="true">
+                    <i style={{ width: `${h.share.pct}%`, background: h.share.color }} />
+                  </span>
+                )}
+              </li>
             ))}
           </ul>
         </section>

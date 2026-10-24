@@ -71,13 +71,12 @@ function ruleSentence(automation: AutomationRule): string {
 }
 
 function AutomationRow({
-  automation, canEdit, onToggleEnabled, onEdit, onDelete,
+  automation, canEdit, onToggleEnabled, onEdit,
 }: {
   automation: AutomationRule;
   canEdit: boolean;
   onToggleEnabled: (automation: AutomationRule) => void;
   onEdit: (automation: AutomationRule) => void;
-  onDelete: (automation: AutomationRule) => void;
 }) {
   const lastFired = useRelativeTime(automation.lastFiredAt);
   const run = runState(automation);
@@ -109,11 +108,6 @@ function AutomationRow({
         >
           {canEdit ? 'Edit' : 'View'}
         </Button>
-        {canEdit && (
-          <Button variant="quiet" data-testid="automations-row-delete" onClick={() => onDelete(automation)}>
-            Delete
-          </Button>
-        )}
         {canEdit && (
           <Switch
             checked={automation.enabled}
@@ -233,11 +227,37 @@ export function AutomationsPage() {
     setDeleting(false);
     if (result.ok) {
       setDeleteState(null);
+      if (view.mode === 'builder') setView({ mode: 'list' });
       load();
       return;
     }
     setDeleteState({ ...deleteState, error: result.message });
   }
+
+  // Delete lives in the rule's editor (one action per list row); the dialog serves both views.
+  const deleteDialog = (
+        <ConfirmDialog
+          open={deleteState !== null}
+          onOpenChange={(open) => { if (!open) setDeleteState(null); }}
+          title={deleteState ? `Delete ${deleteState.automation.name}?` : ''}
+          confirmLabel="Delete automation"
+          busyLabel="Deleting…"
+          busy={deleting}
+          error={deleteState?.error}
+          onConfirm={handleConfirmDelete}
+          testId="automations-delete-confirm"
+          confirmTestId="automations-delete-confirm-button"
+          cancelTestId="automations-delete-cancel-button"
+          errorTestId="automations-delete-error"
+        >
+          {deleteState && (
+            <p>
+              This will permanently delete the automation &ldquo;{deleteState.automation.name}&rdquo;. It will stop
+              running immediately and won&rsquo;t fire again. This can&rsquo;t be undone.
+            </p>
+          )}
+        </ConfirmDialog>
+  );
 
   if (view.mode === 'builder') {
     return (
@@ -246,6 +266,15 @@ export function AutomationsPage() {
         crumb="Settings · Automations"
         title={view.automation ? view.automation.name : 'New rule'}
         sub="Say when it runs, then what it does. Rules run on this server; nothing leaves it unless an action sends it."
+        actions={view.automation && canEdit ? (
+          <Button
+            variant="quiet"
+            data-testid="automations-row-delete"
+            onClick={() => setDeleteState({ automation: view.automation!, error: null })}
+          >
+            Delete rule
+          </Button>
+        ) : undefined}
       >
         <AutomationBuilder
           automation={view.automation}
@@ -253,6 +282,7 @@ export function AutomationsPage() {
           onSaved={handleBuilderSaved}
           onCancel={handleBuilderCancel}
         />
+        {deleteDialog}
       </PageTemplate>
     );
   }
@@ -371,33 +401,12 @@ export function AutomationsPage() {
               canEdit={canEdit}
               onToggleEnabled={handleToggleEnabled}
               onEdit={handleEdit}
-              onDelete={(automation) => setDeleteState({ automation, error: null })}
             />
           ))}
         </ul>
       )}
 
-      <ConfirmDialog
-        open={deleteState !== null}
-        onOpenChange={(open) => { if (!open) setDeleteState(null); }}
-        title={deleteState ? `Delete ${deleteState.automation.name}?` : ''}
-        confirmLabel="Delete automation"
-        busyLabel="Deleting…"
-        busy={deleting}
-        error={deleteState?.error}
-        onConfirm={handleConfirmDelete}
-        testId="automations-delete-confirm"
-        confirmTestId="automations-delete-confirm-button"
-        cancelTestId="automations-delete-cancel-button"
-        errorTestId="automations-delete-error"
-      >
-        {deleteState && (
-          <p>
-            This will permanently delete the automation &ldquo;{deleteState.automation.name}&rdquo;. It will stop
-            running immediately and won&rsquo;t fire again. This can&rsquo;t be undone.
-          </p>
-        )}
-      </ConfirmDialog>
+      {deleteDialog}
     </PageTemplate>
   );
 }

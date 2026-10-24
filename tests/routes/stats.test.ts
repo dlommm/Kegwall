@@ -290,7 +290,27 @@ describe('GET /api/stats/leaderboard', () => {
     });
     expect(res.json()).toEqual([{
       drinkerId: alice.id, displayName: 'Alice', avatarColor: '#ff0000', pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0,
+      // What she drank (an unclaimed pour credits nobody): the board's color strip.
+      beers: [{ beerId: beer.id, srm: null, pours: 1 }],
     }]);
+  });
+
+  it("lists each drinker's beers, most-poured first", async () => {
+    const db = app.ctx.db;
+    const stout = createBeer(db, { name: 'Stout', srm: 38 });
+    const pils = createBeer(db, { name: 'Pils', srm: 3 });
+    const t1 = createTap(db, { number: 1 });
+    const t2 = createTap(db, { number: 2 });
+    const k1 = createKeg(db, { beerId: stout.id, sizeMl: 19000, volStartMl: 19000, tapId: t1.id });
+    const k2 = createKeg(db, { beerId: pils.id, sizeMl: 19000, volStartMl: 19000, tapId: t2.id });
+    const bob = createDrinker(db, { displayName: 'Bob' });
+    const pour = (kegId: number) => recordPourTx(db, { kegId, ts: new Date().toISOString(), volumeMl: 300, source: 'udp', drinkerId: bob.id });
+    pour(k2.id); pour(k1.id); pour(k2.id);
+    const res = await app.inject({ method: 'GET', url: '/api/stats/leaderboard?window=all', cookies: adminCookies });
+    expect(res.json()[0].beers).toEqual([
+      { beerId: pils.id, srm: 3, pours: 2 },
+      { beerId: stout.id, srm: 38, pours: 1 },
+    ]);
   });
 
   it('400s on an unsupported ?window= value', async () => {

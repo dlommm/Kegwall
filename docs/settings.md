@@ -17,7 +17,9 @@ The sections are listed down the left, each with a line on what it holds:
 | Integrations and alerts | Home Assistant, catalog.beer, Govee, face sign-in, and notification channels (email, push, webhooks, MQTT) |
 | System | App and OS updates, kiosk restart, a test pour, backups and restore |
 
-Each block saves on its own, so unsaved changes elsewhere are kept. "Saved." appears briefly in
+Each block is its own panel and saves on its own, so unsaved changes elsewhere are kept. A
+block's **Save** button only appears once you change something in it, with "not saved yet"
+beside it. "Saved." appears briefly in
 the corner; saving a source restarts it, and the corner says so. Addresses such as
 `/admin/settings?tab=system` open a section directly.
 
@@ -25,8 +27,8 @@ the corner; saving a source restarts it, and the corner says so. Addresses such 
 
 Each rule reads as one sentence, such as "When a keg drops below 15%, notify in the app.", with
 its state beside it: **On**, **Off**, or **Just ran** in the five minutes after it fired, and when
-it last ran. The switch turns a rule on or off; **Edit** opens the builder and **Delete** asks
-first. **New rule** starts from a template (fill in the blanks) or a blank rule.
+it last ran. The switch turns a rule on or off; **Edit** opens the builder, where **Delete rule**
+(top right) asks first. **New rule** starts from a template (fill in the blanks) or a blank rule.
 
 ## Home Assistant
 

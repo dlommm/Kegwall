@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Settings } from '../../../../server/db/settings.js';
 import { MQTT_DEFAULTS, type GroupProps } from './shared';
 import { MaskedSecretField, useMaskedSecret } from './MaskedSecretField';
+import { Switch } from '../ui';
 import { useSettingsGroupForm } from './useSettingsGroupForm';
 
 /** Sources group (Task 8): UDP toggle (+ LAN note), BLE toggle, and MQTT url/user/pass/
@@ -73,38 +74,14 @@ export function SourcesGroup({ settings, onSaved }: GroupProps) {
     <form className="settings-group" data-testid="settings-group-sources" onSubmit={handleSubmit} aria-labelledby="settings-sources-title">
       <h2 id="settings-sources-title" className="admin-field__label-text">Sources</h2>
 
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          data-testid="settings-sources-udp"
-          checked={udpEnabled}
-          onChange={(e) => setUdpEnabled(e.target.checked)}
-        />
-        <span>Listen for Kegtron UDP broadcasts</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-sources-udp" checked={udpEnabled} onCheckedChange={setUdpEnabled} label={<>Listen for Kegtron UDP broadcasts</>} />
       <p className="admin-page-quiet settings-toggle__note">
         Only detects devices broadcasting on this server&rsquo;s local network — not across the internet.
       </p>
 
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          data-testid="settings-sources-ble"
-          checked={bleDirectEnabled}
-          onChange={(e) => setBleDirectEnabled(e.target.checked)}
-        />
-        <span>Listen for Kegtron Gen 1 Bluetooth adverts directly</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-sources-ble" checked={bleDirectEnabled} onCheckedChange={setBleDirectEnabled} label={<>Listen for Kegtron Gen 1 Bluetooth adverts directly</>} />
 
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          data-testid="settings-sources-pro-ble"
-          checked={proBleEnabled}
-          onChange={(e) => setProBleEnabled(e.target.checked)}
-        />
-        <span>Listen for Kegtron Pro Bluetooth adverts (pour fallback — no live pours)</span>
-      </label>
+      <Switch className="settings-toggle" data-testid="settings-sources-pro-ble" checked={proBleEnabled} onCheckedChange={setProBleEnabled} label={<>Listen for Kegtron Pro Bluetooth adverts (pour fallback — no live pours)</>} />
       <p className="admin-page-quiet settings-toggle__note">
         Pros only report over Bluetooth at the END of a pour — live pour progress still needs UDP.
       </p>
@@ -147,7 +124,8 @@ export function SourcesGroup({ settings, onSaved }: GroupProps) {
       />
 
       {error && <p className="beer-form__notice" role="alert" data-testid="settings-sources-error">{error}</p>}
-      <button type="submit" className="beer-form__submit" disabled={!dirty || submitting} data-testid="settings-sources-save">
+      <button type="submit" className="beer-form__submit" data-dirty={dirty || undefined}
+          disabled={!dirty || submitting} data-testid="settings-sources-save">
         {submitting ? 'Saving…' : 'Save changes'}
       </button>
     </form>

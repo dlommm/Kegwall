@@ -7,15 +7,17 @@ The page opens with a sentence naming this month's leader ("Seven pourers. Jorda
 month with 3.2 gal."), with the number of accounts, pourers and people using face sign-in under
 it.
 
-![The Pourers tab: a card per pourer and the invite QR](images/admin-people.jpg)
+![The Pourers tab: pourers ranked by pours, drawn as tally marks, and the invite QR](images/admin-people.jpg)
 
 ## Pourers
 
 Pourers don't have a password. They join from the kegerator tablet or from the menu QR on their
 phone, then sign in on the tablet (or claim pours on their phone) to put their name on a pour.
-Each card shows the pourer's pours and their volume in all, most volume first, plus the average
-pour quality when the Kegtron reports one. The last card is the invite QR: it opens the phone
-menu, where someone new can join.
+The list is the bar's tally: pourers are ranked by how many pours they have, each pour drawn as a
+tally mark (struck through in fives), with their volume in all and the average pour quality when
+the Kegtron reports one. Each pourer is colored by the beer they pour most, with a strip of the
+beers they drink under their name. Beside the list, the invite QR opens the phone menu, where
+someone new can join.
 
 ## Accounts
 

@@ -265,7 +265,9 @@ describe('AutomationsPage', () => {
     (listAutomations as Mock).mockResolvedValue({ ok: true, data: [rule({ name: 'Keg low' })] });
     renderAdminPage(<AutomationsPage />);
     await screen.findByTestId('automations-row');
-    fireEvent.click(screen.getByTestId('automations-row-delete'));
+    // Delete lives in the rule's editor, not on the list row.
+    fireEvent.click(screen.getByTestId('automations-row-edit'));
+    fireEvent.click(await screen.findByTestId('automations-row-delete'));
     const confirm = screen.getByTestId('automations-delete-confirm');
     expect(confirm).toHaveTextContent('This will permanently delete');
     expect(confirm).toHaveTextContent('Keg low');
@@ -278,7 +280,9 @@ describe('AutomationsPage', () => {
     (deleteAutomation as Mock).mockResolvedValue({ ok: true, data: null });
     renderAdminPage(<AutomationsPage />);
     await screen.findByTestId('automations-row');
-    fireEvent.click(screen.getByTestId('automations-row-delete'));
+    // Delete lives in the rule's editor, not on the list row.
+    fireEvent.click(screen.getByTestId('automations-row-edit'));
+    fireEvent.click(await screen.findByTestId('automations-row-delete'));
     fireEvent.click(screen.getByTestId('automations-delete-confirm-button'));
     await flush();
     expect(deleteAutomation).toHaveBeenCalledWith(1);
@@ -291,7 +295,9 @@ describe('AutomationsPage', () => {
     (deleteAutomation as Mock).mockResolvedValue({ ok: false, status: 500, message: 'Something went wrong' });
     renderAdminPage(<AutomationsPage />);
     await screen.findByTestId('automations-row');
-    fireEvent.click(screen.getByTestId('automations-row-delete'));
+    // Delete lives in the rule's editor, not on the list row.
+    fireEvent.click(screen.getByTestId('automations-row-edit'));
+    fireEvent.click(await screen.findByTestId('automations-row-delete'));
     fireEvent.click(screen.getByTestId('automations-delete-confirm-button'));
     await flush();
     expect(screen.getByTestId('automations-delete-error')).toHaveTextContent('Something went wrong');

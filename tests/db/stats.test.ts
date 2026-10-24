@@ -377,8 +377,8 @@ describe('stats repo', () => {
 
       const rows = leaderboard(db, 'all', NOW);
       expect(rows).toEqual([
-        { drinkerId: bob.id, displayName: 'Bob', avatarColor: null, pourCount: 1, volumeMl: 900, avgQuality: null, qualityCount: 0 },
-        { drinkerId: alice.id, displayName: 'Alice', avatarColor: '#ff0000', pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0 },
+        { drinkerId: bob.id, displayName: 'Bob', avatarColor: null, pourCount: 1, volumeMl: 900, avgQuality: null, qualityCount: 0, beers: expect.any(Array) },
+        { drinkerId: alice.id, displayName: 'Alice', avatarColor: '#ff0000', pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0, beers: expect.any(Array) },
       ]);
     });
 
@@ -395,7 +395,7 @@ describe('stats repo', () => {
       });
       const rows = leaderboard(db, 'all', NOW);
       expect(rows).toEqual([{
-        drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 2, volumeMl: 500, avgQuality: null, qualityCount: 0,
+        drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 2, volumeMl: 500, avgQuality: null, qualityCount: 0, beers: expect.any(Array),
       }]);
     });
 
@@ -412,7 +412,7 @@ describe('stats repo', () => {
       });
       const rows = leaderboard(db, 'week', NOW);
       expect(rows).toEqual([{
-        drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0,
+        drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0, beers: expect.any(Array),
       }]);
     });
 
@@ -429,7 +429,7 @@ describe('stats repo', () => {
       });
       const rows = leaderboard(db, 'month', NOW);
       expect(rows).toEqual([{
-        drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0,
+        drinkerId: alice.id, displayName: 'Alice', avatarColor: null, pourCount: 1, volumeMl: 300, avgQuality: null, qualityCount: 0, beers: expect.any(Array),
       }]);
     });
   });

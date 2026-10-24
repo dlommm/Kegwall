@@ -1,5 +1,8 @@
 import type { KegBurnStat } from '../../../server/db/stats.js';
-import { srmToColor } from '../../lib/srm';
+import type { CSSProperties } from 'react';
+import { kicksInDays } from '../../lib/kegForecast';
+import { beerColorFor } from '../../wall/wallModel';
+import { isDarkBeer } from './ui';
 import { formatVolumeMl, type VolumeUnits } from '../../lib/units';
 
 export interface KegDepletionCardsProps {
@@ -16,16 +19,43 @@ export function formatKickDate(date: string): string {
   });
 }
 
+/** Kegs at or under this level with no pace are "almost out", and lead the list. */
+const LOW_PCT = 15;
+
+type Ranked = KegBurnStat & { days: number | null };
+
+/** Soonest to kick first: nearly empty kegs with no pace, then by projected day, then the rest. */
+export function rankDepletion(data: KegBurnStat[], now: Date = new Date()): Ranked[] {
+  const rank = (k: Ranked) => (k.days != null ? k.days : k.levelPct <= LOW_PCT ? -1 : 1e6);
+  return data
+    .map((k) => ({ ...k, days: kicksInDays(k.projectedKickDate, now) }))
+    .sort((a, b) => rank(a) - rank(b) || a.levelPct - b.levelPct);
+}
+
+function whenText(k: Ranked): string {
+  if (k.days != null) return k.days === 0 ? 'kicks today' : `kicks ${formatKickDate(k.projectedKickDate!)}`;
+  return k.levelPct <= LOW_PCT ? 'almost out' : 'No recent pours';
+}
+
+/** "Midnight Oats is almost out: 760 mL left." / "Old Thunder kicks in ~2 days at this pace." */
+export function depletionLead(first: Ranked | undefined, units: VolumeUnits): string | null {
+  if (!first) return null;
+  const left = `${formatVolumeMl(first.remainingMl, units)} left`;
+  if (first.days != null) {
+    const when = first.days === 0 ? 'kicks today' : first.days === 1 ? 'kicks tomorrow' : `kicks in about ${first.days} days`;
+    return `${first.beerName} ${when} at this pace: ${left}.`;
+  }
+  return first.levelPct <= LOW_PCT ? `${first.beerName} is almost out: ${left}.` : null;
+}
+
 /**
- * `/admin/stats`'s per-keg depletion cards (Task 9) — not a chart, per the plan's own
- * framing ("per-keg depletion cards"): a level bar, remaining volume, and a projected
- * kick date in the "Kicks around Aug 9" phrasing the plan specifies verbatim, or "No
- * recent pours" when `projectedKickDate` is `null` (a keg with a zero trailing-7-day
- * burn rate — see `activeKegStats`). The SRM chip is the one place liquid/SRM color
- * reappears here, per the binding design direction — a small dot, matching
- * `BeersPage`'s `.beers-table__srm-chip`, never a full `LiquidFill`.
+ * Keg depletion (Kegwall 2.1 "i-deplete"): one ranked list, soonest to kick first. Each keg is
+ * drawn filled with its beer to the level, with a sentence naming the next to go. The kick
+ * phrasing matches Tonight's ("kicks in ~2 days") because both read the same projection.
  */
 export function KegDepletionCards({ data, units }: KegDepletionCardsProps) {
+  const ranked = rankDepletion(data);
+  const lead = depletionLead(ranked[0], units);
   return (
     <div className="stats-section" data-testid="keg-depletion-cards">
       <h3 className="stats-chart__title">Keg depletion</h3>
@@ -34,36 +64,32 @@ export function KegDepletionCards({ data, units }: KegDepletionCardsProps) {
           No kegs on tap right now — depletion projections will appear here once one&rsquo;s tapped.
         </p>
       ) : (
-        <ul className="keg-depletion-grid">
-          {data.map((keg) => (
-            <li key={keg.kegId} className="keg-depletion-card" data-testid="keg-depletion-card">
-              <div className="keg-depletion-card__header">
-                <span
-                  className="stats-srm-chip"
-                  data-testid="keg-depletion-srm-chip"
-                  style={{ backgroundColor: srmToColor(keg.srm).liquid }}
-                  aria-hidden="true"
-                />
-                <span className="keg-depletion-card__beer">{keg.beerName}</span>
-                <span className="keg-depletion-card__tap font-tabular">Tap {keg.tapNumber}</span>
-              </div>
-              <div className="keg-depletion-card__bar" aria-hidden="true">
-                <span
-                  className="keg-depletion-card__bar-fill"
-                  style={{ width: `${Math.max(0, Math.min(100, Math.round(keg.levelPct)))}%` }}
-                />
-              </div>
-              <p className="keg-depletion-card__level font-tabular">
-                {Math.round(keg.levelPct)}% · {formatVolumeMl(keg.remainingMl, units)} left
-              </p>
-              <p className="keg-depletion-card__projection" data-testid="keg-depletion-projection">
-                {keg.projectedKickDate
-                  ? `Kicks around ${formatKickDate(keg.projectedKickDate)}`
-                  : 'No recent pours'}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <>
+          {lead && <p className="keg-depletion__lead" data-testid="keg-depletion-lead">{lead}</p>}
+          <ol className="keg-depletion">
+            {ranked.map((keg) => {
+              const color = beerColorFor(keg.srm);
+              return (
+                <li key={keg.kegId} className="keg-depletion__row" data-testid="keg-depletion-card">
+                  <span className="keg-depletion__beer" title={keg.beerName}>{keg.beerName}</span>
+                  <span
+                    className="keg-depletion__keg"
+                    data-testid="keg-depletion-srm-chip"
+                    data-dark-beer={isDarkBeer(color) || undefined}
+                    style={{ '--srm': color, '--level': `${Math.max(2, Math.min(100, keg.levelPct))}%` } as CSSProperties}
+                    aria-hidden="true"
+                  />
+                  <span className="keg-depletion__when font-tabular">
+                    <span>{`Tap ${keg.tapNumber} · ${formatVolumeMl(keg.remainingMl, units)} left · `}</span>
+                    <span data-testid="keg-depletion-projection" className={keg.days != null && keg.days <= 3 ? 'adm-warn-text' : undefined}>
+                      {whenText(keg)}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </>
       )}
     </div>
   );
