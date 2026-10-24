@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.1.0](https://github.com/dlommm/Kegwall/compare/v2.0.0...v2.1.0) (2026-10-24)
+
+### Features
+
+* carry the beer through every admin page, with one action per row and charts that make their point ([ac636bd](https://github.com/dlommm/Kegwall/commit/ac636bd549bf8ef9866c53ecdb222cc225028613))
+* give the admin real contrast and pour the beer at full strength ([116af22](https://github.com/dlommm/Kegwall/commit/116af229a3be52bb1a4f868984911a7b99a4f971))
+* walls as TVs, a kiosk the pour floods, a tally-board leaderboard, and the beer on every guest screen ([dce1d4a](https://github.com/dlommm/Kegwall/commit/dce1d4a19a862ac9950376c0b1096244692bfee6))
+
+### Bug Fixes
+
+* cap a full glass's head at the rim, keep the wall's header on screen under Dock, and size Find yours for a thumb ([a139eaa](https://github.com/dlommm/Kegwall/commit/a139eaafe69f0e067b1721bbed676b6735b17a89))
+* count kicked kegs by kick date, flag nearly empty kegs with no pace, and plain names on Doctor and Automations ([5aa725b](https://github.com/dlommm/Kegwall/commit/5aa725b1a3684924e0ad43f9e4cb6d8cb2e402d2))
+
+### Build & CI
+
+* stop semantic-release masking the maintainer's name in release notes, and enrich the 2.0.0 entry ([a0caa04](https://github.com/dlommm/Kegwall/commit/a0caa04b4031c733d450bf744dd11ae1a9714de7))
+
 ## [2.0.0](https://github.com/dlommm/Kegwall/compare/v1.17.0...v2.0.0) (2026-10-23)
 
 Kegwall 2.0 redraws every screen in one design language: the TV wall (14 looks, each showing
