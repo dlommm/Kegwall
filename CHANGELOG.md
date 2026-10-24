@@ -2,20 +2,69 @@
 
 ## [2.1.0](https://github.com/dlommm/Kegwall/compare/v2.0.0...v2.1.0) (2026-10-24)
 
-### Features
+Kegwall 2.1 is a polish release on top of the 2.0 redesign: the admin gets real contrast and
+carries each beer's own color through every page, and the walls, kiosk, phone menu and
+leaderboard put the beer on screen at full strength. No feature is removed.
 
-* carry the beer through every admin page, with one action per row and charts that make their point ([ac636bd](https://github.com/dlommm/Kegwall/commit/ac636bd549bf8ef9866c53ecdb222cc225028613))
-* give the admin real contrast and pour the beer at full strength ([116af22](https://github.com/dlommm/Kegwall/commit/116af229a3be52bb1a4f868984911a7b99a4f971))
-* walls as TVs, a kiosk the pour floods, a tally-board leaderboard, and the beer on every guest screen ([dce1d4a](https://github.com/dlommm/Kegwall/commit/dce1d4a19a862ac9950376c0b1096244692bfee6))
+**Before you upgrade:**
 
-### Bug Fixes
+- The database gains a `kegs.kicked_at` column. It's added and backfilled automatically on
+  start (from each kicked keg's last pour); there's nothing to run.
+- Public pourers (`GET /api/public/pourers` and the kiosk's "Who's pouring") now include each
+  person's last beer (name and color). Keg cost still never appears in any public response.
 
-* cap a full glass's head at the rim, keep the wall's header on screen under Dock, and size Find yours for a thumb ([a139eaa](https://github.com/dlommm/Kegwall/commit/a139eaafe69f0e067b1721bbed676b6735b17a89))
-* count kicked kegs by kick date, flag nearly empty kegs with no pace, and plain names on Doctor and Automations ([5aa725b](https://github.com/dlommm/Kegwall/commit/5aa725b1a3684924e0ad43f9e4cb6d8cb2e402d2))
-
-### Build & CI
-
-* stop semantic-release masking the maintainer's name in release notes, and enrich the 2.0.0 entry ([a0caa04](https://github.com/dlommm/Kegwall/commit/a0caa04b4031c733d450bf744dd11ae1a9714de7))
+- **Fixed:** Insights "kegs kicked" counts kegs by the day they were kicked instead of kicked
+  kegs that were poured from in the range.
+- **Fixed:** a nearly empty keg with no recent pours reads "almost out" on Taps instead of a
+  dash, shows under Tonight's "Next to kick", and is boarded first (not last) on the Departures
+  look. The "Needs a swap" chip counts every tap that shows a Swap keg button.
+- **Fixed:** Doctor names sources plainly ("Kegtron cloud", not `kegtron_cloud`), Automations
+  reads "notify in the app" instead of "notify inApp", Notifications hides "Mark all read" when
+  nothing is unread, and the swap wizard's steps no longer wrap.
+- **Fixed:** walls with no paired screen show their address on Tonight, so identically named
+  walls can be told apart.
+- **Fixed:** at the end of a full pour on the Full and Tap Pull takeovers, the head now rises to
+  the rim and spills over. A shorter pour no longer shows foam spilling over an empty rim.
+- **Fixed:** the Dock takeover keeps the wall's header on screen: the wall shrinks toward the top
+  to make room for each pour's bar instead of sliding up and off.
+- **Fixed:** the phone menu's **Find yours** claim button is a full 44 px touch target again.
+- **Changed:** the admin has real contrast: a dark frame, each page on a warm charcoal sheet, every
+  list on its own lighter panel, and copper reserved for the one main action and for what is
+  happening now. A strip of the beers on tap runs under the top bar.
+- **Changed:** Tonight shows taps as glasses in the beer's true color with a foam line, a caution
+  edge when low and an outline when kicked; to-dos are ranked by weight and the hours chart
+  prints each hour's count.
+- **Changed:** level bars are sight glasses with quarter marks, and the Classic look and every
+  level bar use the beer's true color, with the words switching ink at the liquid line.
+- **Changed:** Taps rows carry a tap-handle edge in the beer's color and open on click; the
+  drawer opens on a band of that color and the page leads with pints left and taps needing a swap.
+- **Changed:** Beers is a cellar ledger grouped **On tap**, **On deck** and **In the cellar**, with
+  a dashed edge on a beer with no color set.
+- **Changed:** People ranks pourers with tally marks colored by the beer they pour most, beside a
+  strip of what they drink.
+- **Changed:** Settings uses switches and styled selects, puts each group on its own panel and
+  shows Save only once something changed. Monitors keeps Change tap in view and moves Unbind and
+  Reset volume into a row menu; Automations' Delete moves into the rule's editor; Doctor lists
+  down sources first.
+- **Changed:** Insights charts share one style and make their point: the busiest weekday is
+  labelled, keg depletion is one ranked list of kegs filled with their beer, the temperature chart
+  shades the serving range, highlights read as sentences, and pours are grouped by night.
+- **Changed:** Search finds taps and beers as well as pages. The notification panel opens with a
+  sentence, marks severity by shape as well as color, and closes with Escape.
+- **Changed:** Screens → Walls shows each wall as a small live TV of its own taps with a power
+  light. The Wall Editor's preview hangs on a wall tinted by the leading beer, with a light that
+  stays amber until you save. The pairing screen is readable from the couch, Presence shows each
+  wall as a lamp, and Games reads as a specials board with the live game on top.
+- **Changed:** the kiosk shows every tap handle in its beer's color, a flowing tap floods the
+  screen with its beer, and the "Who's pouring" tabs carry each person's last beer.
+- **Changed:** the leaderboard is a tally board: tally marks per pourer, a strip of their beers,
+  the leader's row larger, and superlatives as sentences. It's still the one leaderboard.
+- **Changed:** on the phone menu, each row's edge drains with the keg, the beer sheet opens on
+  the beer's color, and there's one way to claim a pour.
+- **Changed:** on the TV, a finished pour sweeps its beer across the takeover, the Dock bar fills
+  as the ounces climb, Zen fills its disc with the featured beer, Tally strikes every fifth
+  mark, and Chalkboard gets its own slate background.
+- **Changed:** sign-in and first-run setup show the bar's taps as columns of beer at their levels.
 
 ## [2.0.0](https://github.com/dlommm/Kegwall/compare/v1.17.0...v2.0.0) (2026-10-23)
 
